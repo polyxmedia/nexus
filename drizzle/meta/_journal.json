@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1772603443403,
+      "tag": "0000_bored_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1772605413441,
+      "tag": "0001_careless_post",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772608599304,
+      "tag": "0002_lethal_human_cannonball",
+      "breakpoints": true
+    }
+  ]
+}
