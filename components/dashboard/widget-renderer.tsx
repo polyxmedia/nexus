@@ -328,7 +328,7 @@ function SignalsWidget({ config }: { config: { minIntensity?: number } }) {
       .then((d) => {
         const all: Signal[] = Array.isArray(d) ? d : d.signals || [];
         const min = config.minIntensity ?? 1;
-        setSignals(all.filter((s) => s.intensity >= min && s.status === "active").slice(0, 12));
+        setSignals(all.filter((s) => s.intensity >= min && (s.status === "active" || s.status === "upcoming")).slice(0, 12));
       })
       .catch(() => setSignals([]))
       .finally(() => setLoading(false));
@@ -381,10 +381,11 @@ function ChartWidget({ config }: { config: { symbol?: string; range?: string } }
   const range = config.range || "3m";
 
   useEffect(() => {
-    fetch(`/api/market-data?type=chart&symbol=${symbol}&range=${range}`)
+    fetch(`/api/markets/chart?symbol=${symbol}&period=${range === "3m" ? "3mo" : range === "1y" ? "1y" : "6mo"}`)
       .then((r) => r.json())
       .then((d) => {
-        const raw = d?.bars || d?.data || d?.candles || d || [];
+        if (d.error) { setError(true); return; }
+        const raw = d?.bars || [];
         const candles = Array.isArray(raw)
           ? raw.map((bar: { time?: string; date?: string; open: number; high: number; low: number; close: number; volume?: number }) => ({
               time: bar.time || bar.date || "",
