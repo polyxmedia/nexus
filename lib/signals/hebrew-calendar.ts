@@ -76,7 +76,7 @@ export function getHebrewCalendarEvents(year: number): HebrewCalendarSignal[] {
     for (const [holiday, info] of Object.entries(HIGH_SIGNIFICANCE_HOLIDAYS)) {
       if (desc.includes(holiday) || desc === holiday) {
         events.push({
-          date: gregDate.toISOString().split("T")[0],
+          date: gregDate.toISOString().split("T"),
           hebrewDate: hdate.toString(),
           holiday: desc,
           type: holiday.toLowerCase().replace(/[' ]/g, "_"),
@@ -93,7 +93,7 @@ export function getHebrewCalendarEvents(year: number): HebrewCalendarSignal[] {
     if (!matched && ev.getFlags() & 0x1) {
       // CHAG flag
       events.push({
-        date: gregDate.toISOString().split("T")[0],
+        date: gregDate.toISOString().split("T"),
         hebrewDate: hdate.toString(),
         holiday: desc,
         type: "hebrew_holiday",

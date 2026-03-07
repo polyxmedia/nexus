@@ -31,18 +31,9 @@ export async function GET(request: NextRequest) {
 
     let results;
     if (status) {
-      results = db
-        .select()
-        .from(schema.theses)
-        .where(eq(schema.theses.status, status))
-        .orderBy(desc(schema.theses.generatedAt))
-        .all();
+      results = db.select().from(schema.theses).where(eq(schema.theses.status, status)).orderBy(desc(schema.theses.generatedAt));
     } else {
-      results = db
-        .select()
-        .from(schema.theses)
-        .orderBy(desc(schema.theses.generatedAt))
-        .all();
+      results = db.select().from(schema.theses).orderBy(desc(schema.theses.generatedAt));
     }
 
     // Parse JSON fields

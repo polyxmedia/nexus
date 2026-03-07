@@ -6,11 +6,14 @@ import { PageContainer } from "@/components/layout/page-container";
 import { BriefingCard } from "@/components/ui/briefing-card";
 import { Metric } from "@/components/ui/metric";
 import { StatusDot } from "@/components/ui/status-dot";
-import { DataGrid } from "@/components/ui/data-grid";
-import { Badge, IntensityIndicator } from "@/components/ui/badge";
+import { IntensityIndicator } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
+import {
+  TradeRecommendationCard,
+  type TradeRecommendation,
+} from "@/components/signals/trade-recommendation-card";
 import {
   LineChart,
   Line,
@@ -158,12 +161,7 @@ export default function SignalDetailPage() {
     ? JSON.parse(signal.marketSectors)
     : [];
 
-  let tradeRecs: Array<{
-    ticker: string;
-    direction: string;
-    rationale: string;
-    risk_level: string;
-  }> = [];
+  let tradeRecs: TradeRecommendation[] = [];
   let riskFactors: string[] = [];
   let marketImpact: { direction?: string; magnitude?: string; sectors?: string[] } = {};
 
@@ -309,38 +307,15 @@ export default function SignalDetailPage() {
                 <h4 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2">
                   Trade Recommendations
                 </h4>
-                <DataGrid
-                  data={tradeRecs}
-                  keyExtractor={(r) => `${r.ticker}-${r.direction}`}
-                  columns={[
-                    {
-                      key: "direction",
-                      header: "Direction",
-                      accessor: (row) => (
-                        <Badge variant={row.direction === "BUY" ? "status" : "default"}>
-                          {row.direction}
-                        </Badge>
-                      ),
-                    },
-                    {
-                      key: "ticker",
-                      header: "Ticker",
-                      accessor: (row) => (
-                        <span className="font-semibold text-navy-100">{row.ticker}</span>
-                      ),
-                    },
-                    {
-                      key: "rationale",
-                      header: "Rationale",
-                      accessor: (row) => row.rationale,
-                    },
-                    {
-                      key: "risk",
-                      header: "Risk",
-                      accessor: (row) => row.risk_level,
-                    },
-                  ]}
-                />
+                <div className="space-y-2">
+                  {tradeRecs.map((rec) => (
+                    <TradeRecommendationCard
+                      key={`${rec.ticker}-${rec.direction}`}
+                      rec={rec}
+                      signalId={id}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { IntensityIndicator, Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ScenarioWithAnalysis } from "@/lib/warroom/types";
 
 interface ScenarioPanelProps {
@@ -32,8 +33,27 @@ export function ScenarioPanel({
   selectedScenarioId,
   onSelectScenario,
 }: ScenarioPanelProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <div className="absolute left-0 top-0 bottom-0 w-80 bg-navy-900/85 backdrop-blur-sm border-r border-navy-700/30 overflow-y-auto z-30 pointer-events-auto wr-panel-left">
+    <>
+      {/* Collapse toggle - outside panel so it's always visible */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className={cn(
+          "absolute top-1/2 -translate-y-1/2 z-40 w-4 h-10 flex items-center justify-center bg-[#0a0a0a]/95 border border-[#1a1a1a] rounded-r text-navy-600 hover:text-navy-300 hover:bg-[#111] transition-all duration-300 pointer-events-auto",
+          collapsed ? "left-0 border-l-0" : "left-80 border-l-0"
+        )}
+      >
+        {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+      </button>
+
+      <div
+        className={cn(
+          "absolute left-0 top-0 bottom-0 bg-[#080808]/95 backdrop-blur-sm border-r border-[#1a1a1a] z-30 pointer-events-auto wr-panel-left transition-all duration-300 ease-in-out overflow-hidden",
+          collapsed ? "w-0 border-r-0" : "w-80 overflow-y-auto"
+        )}
+      >
       <div className="p-4">
         <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3 pb-2 border-b border-navy-700/20">
           Active Scenarios
@@ -220,5 +240,6 @@ export function ScenarioPanel({
         </div>
       </div>
     </div>
+    </>
   );
 }

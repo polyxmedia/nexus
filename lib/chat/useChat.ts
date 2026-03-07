@@ -78,8 +78,19 @@ export function useChat(sessionId: number) {
           signal: controller.signal,
         });
 
-        if (!res.ok || !res.body) {
-          throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          let errorMsg = `HTTP ${res.status}`;
+          try {
+            const errData = await res.json();
+            errorMsg = errData.error || errorMsg;
+          } catch {
+            // not JSON, use status code
+          }
+          throw new Error(errorMsg);
+        }
+
+        if (!res.body) {
+          throw new Error("Empty response from server");
         }
 
         const reader = res.body.getReader();

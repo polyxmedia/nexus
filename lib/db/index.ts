@@ -1,20 +1,22 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
-import path from "path";
-import fs from "fs";
 
-const DB_PATH = path.join(process.cwd(), "data", "nexus.db");
+function createDb() {
+  const url = process.env.DATABASE_URL!;
 
-// Ensure data directory exists
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+  // Use Neon serverless driver for Neon/Vercel (wss:// or neon.tech URLs)
+  // Use standard pg for local development
+  if (url.includes("neon.tech") || url.includes("vercel-storage")) {
+    const { neon } = require("@neondatabase/serverless");
+    const { drizzle } = require("drizzle-orm/neon-http");
+    const sql = neon(url);
+    return drizzle(sql, { schema });
+  } else {
+    const { Pool } = require("pg");
+    const { drizzle } = require("drizzle-orm/node-postgres");
+    const pool = new Pool({ connectionString: url });
+    return drizzle(pool, { schema });
+  }
 }
 
-const sqlite = new Database(DB_PATH);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
-
-export const db = drizzle(sqlite, { schema });
+export const db = createDb();
 export { schema };

@@ -1,34 +1,57 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { desc } from "drizzle-orm";
+import { desc, eq, like } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const sessions = db
-      .select()
-      .from(schema.chatSessions)
-      .orderBy(desc(schema.chatSessions.updatedAt))
-      .all();
-
+    const { searchParams } = new URL(req.url);
+    const projectId = searchParams.get("projectId");
+    const tag = searchParams.get("tag");
+    const search = searchParams.get("search");
+    let sessions = await db.select().from(schema.chatSessions).orderBy(desc(schema.chatSessions.updatedAt));
+    if (projectId) { const pid = parseInt(projectId); sessions = sessions.filter((s) => s.projectId === pid); }
+    if (tag) { sessions = sessions.filter((s) => { if (!s.tags) return false; const tags: string[] = JSON.parse(s.tags); return tags.includes(tag); }); }
+    if (search && search.trim()) {
+      const term = search.trim().toLowerCase();
+      const titleMatches = sessions.filter((s) => s.title.toLowerCase().includes(term));
+      const msgMatches = await db.select({ sessionId: schema.chatMessages.sessionId }).from(schema.chatMessages).where(like(schema.chatMessages.content, `%${term}%`));
+      const msgSessionIds = new Set(msgMatches.map((m) => m.sessionId));
+      const matchedIds = new Set([...titleMatches.map((s) => s.id), ...msgSessionIds]);
+      sessions = sessions.filter((s) => matchedIds.has(s.id));
+    }
     return NextResponse.json({ sessions });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  } catch (err: unknown) { const message = err instanceof Error ? err.message : "Unknown error"; return NextResponse.json({ error: message }, { status: 500 }); }
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    let body: { projectId?: number } = {};
+    try { body = await req.json(); } catch {}
     const now = new Date().toISOString();
-    const result = db
-      .insert(schema.chatSessions)
-      .values({ title: "New Chat", createdAt: now, updatedAt: now })
-      .returning()
-      .get();
+    const rows = await db.insert(schema.chatSessions).values({ title: "New Chat", projectId: body.projectId || null, createdAt: now, updatedAt: now }).returning();
+    return NextResponse.json({ session: rows[0] });
+  } catch (err: unknown) { const message = err instanceof Error ? err.message : "Unknown error"; return NextResponse.json({ error: message }, { status: 500 }); }
+}
 
-    return NextResponse.json({ session: result });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+export async function PATCH(req: NextRequest) {
+  try {
+    const { id, projectId, tags, title } = await req.json();
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+    const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+    if (projectId !== undefined) updates.projectId = projectId;
+    if (tags !== undefined) updates.tags = JSON.stringify(tags);
+    if (title !== undefined) updates.title = title;
+    await db.update(schema.chatSessions).set(updates).where(eq(schema.chatSessions.id, id));
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) { const message = err instanceof Error ? err.message : "Unknown error"; return NextResponse.json({ error: message }, { status: 500 }); }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+    await db.delete(schema.chatMessages).where(eq(schema.chatMessages.sessionId, id));
+    await db.delete(schema.chatSessions).where(eq(schema.chatSessions.id, id));
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) { const message = err instanceof Error ? err.message : "Unknown error"; return NextResponse.json({ error: message }, { status: 500 }); }
 }

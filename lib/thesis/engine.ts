@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { THESIS_SYSTEM_PROMPT } from "../analysis/prompts";
+import { loadPrompt } from "@/lib/prompts/loader";
 import { computeTechnicalSnapshot } from "../market-data/indicators";
 import { getDailySeries } from "../market-data/alpha-vantage";
 import { getMarketSentiment } from "../market-data/sentiment";
@@ -15,16 +15,15 @@ import type {
   MarketSentiment,
   GameTheoryAnalysis,
 } from "./types";
+import { getModel } from "@/lib/ai/model";
 
-const MODEL = "claude-sonnet-4-20250514";
-
-export async function generateThesis(symbols: string[]): Promise<Thesis> {
+export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>>  {
   // 1. Gather settings
   const anthropicKeySetting = db
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "anthropic_api_key"))
-    .get();
+    ;
 
   const anthropicApiKey = anthropicKeySetting?.value || process.env.ANTHROPIC_API_KEY;
 
@@ -36,7 +35,7 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "alpha_vantage_api_key"))
-    .get();
+    ;
 
   const alphaVantageApiKey = alphaVantageKeySetting?.value || process.env.ALPHA_VANTAGE_API_KEY;
 
@@ -58,12 +57,12 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
         technicalSnapshots.push(snapshot);
 
         // Cache snapshot
-        db.insert(schema.marketSnapshots)
+        await db.insert(schema.marketSnapshots)
           .values({
             symbol,
             snapshot: JSON.stringify(snapshot),
           })
-          .run();
+          ;
       } catch {
         // Skip symbols that fail
       }
@@ -81,10 +80,10 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
   }
 
   // 4. Gather signal data
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T");
   const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     .toISOString()
-    .split("T")[0];
+    .split("T");
 
   const activeSignals = db
     .select()
@@ -96,7 +95,7 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
     )
     .orderBy(schema.signals.date)
     .limit(20)
-    .all();
+    ;
 
   const celestialEvents = activeSignals
     .filter((s) => s.celestialType)
@@ -123,13 +122,13 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
   for (const analysis of gameTheoryAnalyses) {
     const scenario = SCENARIOS.find((s) => s.id === analysis.scenarioId);
     if (scenario) {
-      db.insert(schema.gameTheoryScenarios)
+      await db.insert(schema.gameTheoryScenarios)
         .values({
           scenarioId: scenario.id,
           title: scenario.title,
           analysis: JSON.stringify(analysis),
         })
-        .run();
+        ;
     }
   }
 
@@ -203,14 +202,14 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
   );
 
   const response = await client.messages.create({
-    model: MODEL,
+    model: await getModel(),
     max_tokens: 3000,
-    system: THESIS_SYSTEM_PROMPT,
+    system: await loadPrompt("thesis_system"),
     messages: [{ role: "user", content: briefingPrompt }],
   });
 
   const narrativeText =
-    response.content[0].type === "text" ? response.content[0].text : "";
+    response.content.type === "text" ? response.content.text : "";
 
   // Parse sections from narrative
   const { executiveSummary, situationAssessment, riskScenarios } =
@@ -255,7 +254,7 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
       symbols: JSON.stringify(thesis.symbols),
     })
     .returning()
-    .get();
+    ;
 
   thesis.id = record.id;
 
@@ -268,14 +267,14 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
         eq(schema.theses.status, "active"),
       )
     )
-    .all();
+    ;
 
   for (const prev of previousTheses) {
     if (prev.id !== record.id) {
-      db.update(schema.theses)
+      await db.update(schema.theses)
         .set({ status: "superseded" })
         .where(eq(schema.theses.id, prev.id))
-        .run();
+        ;
     }
   }
 
@@ -341,6 +340,26 @@ function computeOverallConfidence(
         ) / gameTheoryAnalyses.length
       : 0;
   confidence += avgGTConfidence * 0.2;
+
+  // Adjust based on prediction track record (if available)
+  // If predictions have been poorly calibrated, dampen thesis confidence
+  try {
+    const { computePerformanceReport } = require("@/lib/predictions/feedback");
+    const report = await computePerformanceReport();
+    if (report && report.sampleSufficient) {
+      // Brier > 0.25 means worse than coin flip, reduce confidence
+      // Brier < 0.15 means well-calibrated, slight boost
+      if (report.brierScore > 0.3) {
+        confidence *= 0.85;
+      } else if (report.brierScore > 0.25) {
+        confidence *= 0.92;
+      } else if (report.brierScore < 0.15) {
+        confidence *= 1.05;
+      }
+    }
+  } catch {
+    // feedback module not available, proceed without
+  }
 
   return Math.max(0.1, Math.min(0.95, confidence));
 }
@@ -529,10 +548,37 @@ ${gameTheorySummary}
 PRE-DETERMINED TRADING ACTIONS:
 ${actionsSummary || "No trading actions generated from current data"}
 
+${buildPredictionTrackRecord()}
+
 Write the briefing with three sections:
 1. EXECUTIVE SUMMARY (2-3 sentences)
 2. SITUATION ASSESSMENT (integrate all five layers into coherent narrative)
 3. RISK SCENARIOS (2-3 specific scenarios that could invalidate this thesis)`;
+}
+
+function buildPredictionTrackRecord(): string {
+  try {
+    const { computePerformanceReport } = require("@/lib/predictions/feedback");
+    const report = await computePerformanceReport();
+    if (!report || !report.sampleSufficient) return "";
+
+    const lines: string[] = ["PREDICTION TRACK RECORD:"];
+    lines.push(`Brier score: ${report.brierScore.toFixed(3)} (${report.brierScore < 0.2 ? "good" : report.brierScore < 0.25 ? "moderate" : "poor"})`);
+    lines.push(`Hit rate: ${(report.binaryAccuracy * 100).toFixed(0)}% across ${report.totalResolved} resolved predictions`);
+
+    if (report.failurePatterns.length > 0) {
+      lines.push("Known weaknesses: " + report.failurePatterns.map((fp: { pattern: string }) => fp.pattern).join("; "));
+    }
+
+    if (report.recentTrend) {
+      lines.push(`Trend: ${report.recentTrend.improving ? "improving" : "declining"} (recent Brier ${report.recentTrend.recentBrier.toFixed(3)} vs prior ${report.recentTrend.priorBrier.toFixed(3)})`);
+    }
+
+    lines.push("Factor this track record into the confidence and tone of the briefing.");
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
 }
 
 // ── Narrative Parser ──

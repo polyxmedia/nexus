@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, Suspense } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useChat } from "@/lib/chat/useChat";
 import { MessageBlock } from "@/components/chat/MessageBlock";
 import { ChatInput } from "@/components/chat/ChatInput";
@@ -17,19 +17,41 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+function AutoPrompt({ sendMessage, historyLoaded, isStreaming }: { sendMessage: (msg: string) => void; historyLoaded: boolean; isStreaming: boolean }) {
+  const searchParams = useSearchParams();
+  const sent = useRef(false);
+  const sendRef = useRef(sendMessage);
+  sendRef.current = sendMessage;
+
+  useEffect(() => {
+    const prompt = searchParams.get("prompt");
+    if (prompt && !sent.current && historyLoaded && !isStreaming) {
+      sent.current = true;
+      // Use ref to avoid stale closure from setTimeout
+      const frame = requestAnimationFrame(() => {
+        sendRef.current(prompt);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [searchParams, historyLoaded, isStreaming]);
+
+  return null;
+}
+
 export default function ChatSessionPage() {
   const params = useParams();
-  const router = useRouter();
   const sessionId = parseInt(params.sessionId as string, 10);
   const { turns, isStreaming, sendMessage, stop, loadHistory } = useChat(sessionId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState("New Chat");
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   useEffect(() => {
     loadHistory().then((session) => {
       if (session) {
         setTitle(session.title);
       }
+      setHistoryLoaded(true);
     });
   }, [loadHistory]);
 
@@ -41,7 +63,10 @@ export default function ChatSessionPage() {
   }, [turns]);
 
   return (
-    <div className="ml-56 flex h-screen flex-col">
+    <div className="ml-48 flex h-screen flex-col">
+      <Suspense fallback={null}>
+        <AutoPrompt sendMessage={sendMessage} historyLoaded={historyLoaded} isStreaming={isStreaming} />
+      </Suspense>
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-navy-700 bg-navy-950 px-5 py-3">
         <Link

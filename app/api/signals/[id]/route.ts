@@ -18,7 +18,7 @@ export async function GET(
       .select()
       .from(schema.signals)
       .where(eq(schema.signals.id, signalId))
-      .get();
+      ;
 
     if (!signal) {
       return NextResponse.json({ error: "Signal not found" }, { status: 404 });

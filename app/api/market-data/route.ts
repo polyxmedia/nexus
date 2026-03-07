@@ -11,11 +11,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get("type");
     const symbol = searchParams.get("symbol");
 
-    const apiKeySetting = db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "alpha_vantage_api_key"))
-      .get();
+    const apiKeySetting = db.select().from(schema.settings).where(eq(schema.settings.key, "alpha_vantage_api_key"));
 
     const apiKey = apiKeySetting?.value || process.env.ALPHA_VANTAGE_API_KEY;
 
@@ -29,6 +25,15 @@ export async function GET(request: NextRequest) {
     if (type === "sentiment") {
       const sentiment = await getMarketSentiment(apiKey);
       return NextResponse.json({ sentiment });
+    }
+
+    if (type === "chart") {
+      if (!symbol) {
+        return NextResponse.json({ error: "symbol parameter required" }, { status: 400 });
+      }
+      const full = searchParams.get("full") === "true";
+      const dailyData = await getDailySeries(symbol, apiKey, full ? "full" : "compact");
+      return NextResponse.json({ bars: dailyData });
     }
 
     if (type === "snapshot") {
@@ -51,12 +56,7 @@ export async function GET(request: NextRequest) {
       const snapshot = computeTechnicalSnapshot(symbol, ohlcv);
 
       // Cache it
-      db.insert(schema.marketSnapshots)
-        .values({
-          symbol,
-          snapshot: JSON.stringify(snapshot),
-        })
-        .run();
+      db.insert(schema.marketSnapshots).values({ symbol, snapshot: JSON.stringify(snapshot) });
 
       return NextResponse.json({ snapshot });
     }

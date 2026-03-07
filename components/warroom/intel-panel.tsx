@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { StatusDot } from "@/components/ui/status-dot";
 import { Markdown } from "@/components/ui/markdown";
 import { OsintFeed } from "./osint-feed";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { WarRoomSignal, WarRoomThesis, OsintEvent, OsintResponse } from "@/lib/warroom/types";
 import Link from "next/link";
 
@@ -25,11 +27,29 @@ const SIGNAL_BORDER_COLORS: Record<number, string> = {
 };
 
 export function IntelPanel({ signals, thesis, osintData, onOsintEventClick }: IntelPanelProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const sortedSignals = [...signals].sort((a, b) => b.intensity - a.intensity);
   const osintCount = osintData?.totalCount ?? 0;
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 w-72 bg-navy-900/85 backdrop-blur-sm border-l border-navy-700/30 overflow-hidden z-30 pointer-events-auto flex flex-col wr-panel-right">
+    <>
+      {/* Collapse toggle - outside panel so it's always visible */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className={cn(
+          "absolute top-1/2 -translate-y-1/2 z-40 w-4 h-10 flex items-center justify-center bg-[#0a0a0a]/95 border border-[#1a1a1a] rounded-l text-navy-600 hover:text-navy-300 hover:bg-[#111] transition-all duration-300 pointer-events-auto",
+          collapsed ? "right-0 border-r-0" : "right-72 border-r-0"
+        )}
+      >
+        {collapsed ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+      </button>
+
+      <div
+        className={cn(
+          "absolute right-0 top-0 bottom-0 bg-[#080808]/95 backdrop-blur-sm border-l border-[#1a1a1a] z-30 pointer-events-auto flex flex-col wr-panel-right transition-all duration-300 ease-in-out",
+          collapsed ? "w-0 overflow-hidden border-l-0" : "w-72 overflow-hidden"
+        )}
+      >
       <Tabs.Root defaultValue="signals" className="flex flex-col h-full">
         <Tabs.List className="flex border-b border-navy-700/30 shrink-0">
           <Tabs.Trigger
@@ -173,5 +193,6 @@ export function IntelPanel({ signals, thesis, osintData, onOsintEventClick }: In
         </Tabs.Content>
       </Tabs.Root>
     </div>
+    </>
   );
 }

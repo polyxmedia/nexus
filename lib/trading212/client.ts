@@ -19,21 +19,35 @@ export class Trading212Client {
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        Authorization: this.authHeader,
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
+    const maxRetries = 3;
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`T212 API error ${res.status}: ${text}`);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          Authorization: this.authHeader,
+          "Content-Type": "application/json",
+          ...options.headers,
+        },
+      });
+
+      if (res.status === 429) {
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`T212 API error ${res.status}: ${text}`);
+      }
+
+      return res.json();
     }
 
-    return res.json();
+    throw new Error("T212 API: max retries exceeded");
   }
 
   // Account

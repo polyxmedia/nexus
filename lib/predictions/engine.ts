@@ -2,47 +2,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "../db";
 import { eq, desc, isNull } from "drizzle-orm";
 import type { NewPrediction } from "../db/schema";
+import { getQuote, getDailySeries } from "../market-data/alpha-vantage";
+import { getActiveKnowledge } from "../knowledge/engine";
+import { computePerformanceReport } from "./feedback";
+import { loadPrompt } from "@/lib/prompts/loader";
+import { getModel } from "@/lib/ai/model";
 
-const MODEL = "claude-sonnet-4-20250514";
-
-const GENERATE_SYSTEM_PROMPT = `You are NEXUS, a celestial-geopolitical market intelligence engine. You generate falsifiable predictions grounded in the active thesis, trading actions, game theory analysis, and signal convergences provided to you.
-
-GROUNDING RULES:
-- Every prediction MUST trace back to a specific data point in the provided context: a trading action, a game theory scenario outcome, a signal convergence, a risk scenario, or a technical indicator.
-- State which data source grounds each prediction in a "grounding" field.
-- Do NOT generate predictions about topics not covered in the provided intelligence picture.
-- Do NOT repeat or rephrase existing pending predictions. If a topic is already covered by a pending prediction, skip it entirely.
-
-PREDICTION QUALITY:
-- SPECIFIC: Name exact assets, indices, price levels, countries, or events. "Markets will be volatile" is not a prediction. "VIX will close above 25 within 14 days" is.
-- TIME-BOUND: Deadlines of 7, 14, 30, or 90 days from today.
-- FALSIFIABLE: Must be objectively verifiable as true or false when the deadline arrives. Binary outcome or a measurable threshold.
-- CALIBRATED: Confidence should reflect evidence strength. 0.3-0.5 for speculative, 0.5-0.7 for supported, 0.7-0.95 for strongly evidenced.
-
-Categories:
-- market: Price movements, sector rotations, volatility changes, specific ticker behavior
-- geopolitical: Conflict escalation, sanctions, diplomatic shifts, elections, territorial changes
-- celestial: Pattern-based claims tied to astronomical or Hebrew calendar convergences
-
-Generate 3-5 predictions. Each one must be distinct in topic and timeframe.`;
-
-const RESOLVE_SYSTEM_PROMPT = `You are NEXUS, rigorously evaluating whether past predictions came true. You must assess each prediction against real-world outcomes.
-
-SCORING RULES:
-- "confirmed": The specific claim came true within the stated timeframe. Score 0.8-1.0.
-- "denied": The claim clearly did not come true. The opposite happened or nothing happened. Score 0.0-0.2.
-- "partial": The directional thesis was correct but the specific threshold, timing, or magnitude was wrong. Score 0.3-0.6.
-- "expired": The deadline passed and there is insufficient evidence to confirm or deny. Score 0.1-0.3.
-
-RIGOR:
-- Do NOT give partial credit just because a prediction was "close." The threshold either was met or it was not.
-- Reference specific real-world data, events, or prices in your notes.
-- If you do not have information about the outcome (because it involves data you cannot verify), mark it "expired" with a note explaining what would be needed to verify.
-- Be honest. The value of this system depends on accurate scoring, not optimistic scoring.`;
-
-export async function generatePredictions(): Promise<NewPrediction[]> {
+export async function generatePredictions():Promise< Promise<NewPrediction[]>>  {
   const anthropicKey = getAnthropicKey();
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T");
 
   // ── Gather full intelligence picture ──
 
@@ -53,13 +21,13 @@ export async function generatePredictions(): Promise<NewPrediction[]> {
     .where(eq(schema.theses.status, "active"))
     .orderBy(desc(schema.theses.id))
     .limit(1)
-    .all();
+    ;
 
   // Active signals
   const activeSignals = db
     .select()
     .from(schema.signals)
-    .all()
+    
     .filter((s) => s.status === "active" || s.status === "upcoming");
 
   // Game theory scenarios
@@ -68,14 +36,14 @@ export async function generatePredictions(): Promise<NewPrediction[]> {
     .from(schema.gameTheoryScenarios)
     .orderBy(desc(schema.gameTheoryScenarios.id))
     .limit(3)
-    .all();
+    ;
 
   // All existing predictions (pending + recently resolved for context)
   const allPredictions = db
     .select()
     .from(schema.predictions)
     .orderBy(desc(schema.predictions.id))
-    .all();
+    ;
 
   const pendingPredictions = allPredictions.filter((p) => !p.outcome);
   const recentResolved = allPredictions
@@ -86,7 +54,7 @@ export async function generatePredictions(): Promise<NewPrediction[]> {
 
   let thesisContext = "No active thesis available. Generate predictions based on signals and game theory only.";
   if (latestThesis.length > 0) {
-    const t = latestThesis[0];
+    const t = latestThesis;
     const tradingActions = safeParse(t.tradingActions, []) as Array<Record<string, unknown>>;
     const actionsSummary = tradingActions.length > 0
       ? tradingActions.map((a) =>
@@ -147,6 +115,26 @@ ${actionsSummary}`;
       ).join("\n")
     : "None";
 
+  // Performance feedback from resolved predictions
+  const performanceReport = await computePerformanceReport();
+  const feedbackContext = performanceReport
+    ? performanceReport.promptSection
+    : "Not enough resolved predictions yet to compute performance feedback.";
+
+  // Knowledge bank context
+  let knowledgeContext = "No knowledge entries stored.";
+  try {
+    const activeKnowledge = await getActiveKnowledge();
+    if (activeKnowledge.length > 0) {
+      knowledgeContext = activeKnowledge.map((k) => {
+        const tags = k.tags ? safeParse(k.tags, []) as string[] : [];
+        return `- [${k.category}] "${k.title}" (confidence: ${((k.confidence || 0.8) * 100).toFixed(0)}%, tags: ${tags.join(", ")})\n  ${k.content.slice(0, 300)}...`;
+      }).join("\n\n");
+    }
+  } catch {
+    knowledgeContext = "Knowledge bank unavailable.";
+  }
+
   // ── Prompt ──
 
   const prompt = `Generate falsifiable predictions grounded in the current NEXUS intelligence picture.
@@ -155,6 +143,9 @@ TODAY: ${today}
 
 ═══ ACTIVE THESIS ═══
 ${thesisContext}
+
+═══ KNOWLEDGE BANK (institutional memory) ═══
+${knowledgeContext}
 
 ═══ ACTIVE SIGNALS ═══
 ${signalsContext}
@@ -167,6 +158,9 @@ ${pendingContext}
 
 ═══ RECENTLY RESOLVED (learn from accuracy) ═══
 ${recentResolvedContext}
+
+═══ CALIBRATION FEEDBACK (your track record - adjust accordingly) ═══
+${feedbackContext}
 
 Respond ONLY with a JSON array. Each prediction must include a "grounding" field citing the specific thesis element, signal, or game theory outcome it derives from:
 [
@@ -182,13 +176,13 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
 
   const client = new Anthropic({ apiKey: anthropicKey });
   const response = await client.messages.create({
-    model: MODEL,
+    model: await getModel(),
     max_tokens: 2048,
-    system: GENERATE_SYSTEM_PROMPT,
+    system: await loadPrompt("prediction_generate"),
     messages: [{ role: "user", content: prompt }],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const text = response.content.type === "text" ? response.content.text : "";
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
     throw new Error("Failed to parse predictions from Claude response");
@@ -201,7 +195,7 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
     confidence: number;
     category: string;
     grounding?: string;
-  }> = JSON.parse(jsonMatch[0]);
+  }> = JSON.parse(jsonMatch);
 
   // ── Deduplication: reject predictions too similar to existing ones ──
   const existingClaims = allPredictions.map((p) => normalizeClaim(p.claim));
@@ -248,7 +242,7 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
         metrics: p.grounding ? JSON.stringify({ grounding: p.grounding }) : null,
       })
       .returning()
-      .get();
+      ;
 
     created.push(record);
     // Add to existing claims to prevent intra-batch duplicates
@@ -258,15 +252,16 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
   return created;
 }
 
-export async function resolvePredictions(): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
+export async function resolvePredictions():Promise< Promise<Array<>{ id: number; outcome: string; score: number; notes: string }>> {
   const anthropicKey = getAnthropicKey();
-  const today = new Date().toISOString().split("T")[0];
+  const alphaVantageKey = getAlphaVantageKey();
+  const today = new Date().toISOString().split("T");
 
   const pending = db
     .select()
     .from(schema.predictions)
     .where(isNull(schema.predictions.outcome))
-    .all();
+    ;
 
   if (pending.length === 0) return [];
 
@@ -274,15 +269,127 @@ export async function resolvePredictions(): Promise<Array<{ id: number; outcome:
   const due = pending.filter((p) => p.deadline <= today);
   if (due.length === 0) return [];
 
+  // ── Step 1: Extract tickers mentioned in predictions ──
+  const tickerPattern = /\b([A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b/g;
+  const mentionedTickers = new Set<string>();
+  // Common market indices and ETFs to always fetch
+  const coreSymbols = ["SPY", "QQQ", "VIX", "GLD", "TLT", "USO", "XLE", "XLF", "XLK", "IWM"];
+  coreSymbols.forEach((s) => mentionedTickers.add(s));
+
+  for (const p of due) {
+    const matches = p.claim.match(tickerPattern);
+    if (matches) {
+      for (const m of matches) {
+        // Filter out common English words that look like tickers
+        if (!["THE", "AND", "FOR", "NOT", "BUT", "HAS", "WAS", "ARE", "ITS", "GDP", "CPI", "USD", "EUR", "GBP", "JPY", "VIX"].includes(m) || m === "VIX") {
+          mentionedTickers.add(m);
+        }
+      }
+    }
+  }
+
+  // ── Step 2: Fetch real market data for all relevant tickers ──
+  const marketData: Record<string, { current: { price: number; change: number; changePercent: number; volume: number; date: string }; history: Array<{ date: string; close: number; high: number; low: number }> }> = {};
+
+  if (alphaVantageKey) {
+    const earliestCreation = due.reduce((min, p) => p.createdAt < min ? p.createdAt : min, due.createdAt);
+    const symbols = Array.from(mentionedTickers);
+
+    // Fetch in batches of 5 to respect Alpha Vantage rate limits (5 calls/min free tier)
+    for (let i = 0; i < symbols.length; i += 5) {
+      const batch = symbols.slice(i, i + 5);
+      await Promise.all(batch.map(async (symbol) => {
+        try {
+          const [quote, daily] = await Promise.all([
+            getQuote(symbol, alphaVantageKey).catch(() => null),
+            getDailySeries(symbol, alphaVantageKey).catch(() => []),
+          ]);
+
+          if (quote) {
+            const relevantBars = daily
+              .filter((b) => b.date >= earliestCreation.split("T"))
+              .map((b) => ({ date: b.date, close: b.close, high: b.high, low: b.low }));
+
+            marketData[symbol] = {
+              current: {
+                price: quote.price,
+                change: quote.change,
+                changePercent: quote.changePercent,
+                volume: quote.volume,
+                date: quote.timestamp,
+              },
+              history: relevantBars,
+            };
+          }
+        } catch {
+          // Skip symbols that fail
+        }
+      }));
+
+      // Wait 12s between batches for rate limiting
+      if (i + 5 < symbols.length) {
+        await new Promise((resolve) => setTimeout(resolve, 12000));
+      }
+    }
+  }
+
+  // ── Step 3: Fetch real geopolitical events from GDELT ──
+  let gdeltSummary = "GDELT data unavailable.";
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const query = encodeURIComponent("conflict OR military OR attack OR sanctions OR election OR summit");
+    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=50&format=json&timespan=14d`;
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      const articles = (data.articles || []).slice(0, 30);
+      if (articles.length > 0) {
+        gdeltSummary = articles.map((a: { title: string; seendate: string; domain: string }) =>
+          `- [${a.seendate?.slice(0, 8) || "?"}] ${a.title} (${a.domain})`
+        ).join("\n");
+      }
+    }
+  } catch {
+    // GDELT unavailable, proceed without
+  }
+
+  // ── Step 4: Build evidence-based prompt ──
   const predictionsText = due.map((p) => {
     const metrics = safeParse(p.metrics, null) as Record<string, unknown> | null;
     const grounding = metrics?.grounding ? `\nGrounding: ${metrics.grounding}` : "";
     return `ID: ${p.id}\nClaim: "${p.claim}"\nCategory: ${p.category}\nConfidence: ${(p.confidence * 100).toFixed(0)}%\nDeadline: ${p.deadline}\nCreated: ${p.createdAt}${grounding}`;
   }).join("\n\n");
 
-  const prompt = `Evaluate these predictions. Today is ${today}. All deadlines have passed.
+  const marketDataText = Object.keys(marketData).length > 0
+    ? Object.entries(marketData).map(([symbol, data]) => {
+        const historyLines = data.history.slice(-20).map((b) =>
+          `  ${b.date}: close=${b.close.toFixed(2)}, high=${b.high.toFixed(2)}, low=${b.low.toFixed(2)}`
+        ).join("\n");
 
+        return `${symbol}: Current price ${data.current.price.toFixed(2)} (${data.current.changePercent >= 0 ? "+" : ""}${data.current.changePercent.toFixed(2)}%) as of ${data.current.date}\nRecent history:\n${historyLines}`;
+      }).join("\n\n")
+    : "No market data available. Mark market predictions as 'expired' with note explaining data was unavailable.";
+
+  const prompt = `Evaluate these predictions using ONLY the real data provided below. Today is ${today}. All deadlines have passed.
+
+═══ PREDICTIONS TO EVALUATE ═══
 ${predictionsText}
+
+═══ REAL MARKET DATA (from Alpha Vantage) ═══
+${marketDataText}
+
+═══ REAL GEOPOLITICAL EVENTS (from GDELT, last 14 days) ═══
+${gdeltSummary}
+
+INSTRUCTIONS:
+- For MARKET predictions: Compare the claim against the actual price data above. Quote the specific prices and dates.
+- For GEOPOLITICAL predictions: Check if the GDELT headlines corroborate or contradict the claim.
+- For CELESTIAL predictions: These are calendar-based and verifiable. Check if the claimed convergence occurred (the dates are deterministic).
+- If the relevant data is NOT in the evidence above, mark as "expired" and state what data would be needed.
 
 Respond ONLY with a JSON array:
 [
@@ -290,38 +397,37 @@ Respond ONLY with a JSON array:
     "id": <prediction_id>,
     "outcome": "confirmed" | "denied" | "partial" | "expired",
     "score": 0.0-1.0,
-    "notes": "Brief explanation referencing specific real-world events or data"
+    "notes": "Evidence: [cite specific data points from above]"
   }
 ]`;
 
   const client = new Anthropic({ apiKey: anthropicKey });
   const response = await client.messages.create({
-    model: MODEL,
+    model: await getModel(),
     max_tokens: 2048,
-    system: RESOLVE_SYSTEM_PROMPT,
+    system: await loadPrompt("prediction_resolve"),
     messages: [{ role: "user", content: prompt }],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const text = response.content.type === "text" ? response.content.text : "";
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
     throw new Error("Failed to parse resolution from Claude response");
   }
 
-  const results: Array<{ id: number; outcome: string; score: number; notes: string }> = JSON.parse(jsonMatch[0]);
+  const results: Array<{ id: number; outcome: string; score: number; notes: string }> = JSON.parse(jsonMatch);
 
   // Validate and update DB
   const validOutcomes = ["confirmed", "denied", "partial", "expired"];
   const updated: typeof results = [];
 
   for (const r of results) {
-    // Validate this ID actually exists in our due list
     if (!due.some((p) => p.id === r.id)) continue;
     if (!validOutcomes.includes(r.outcome)) continue;
 
     const score = Math.max(0, Math.min(1, r.score));
 
-    db.update(schema.predictions)
+    await db.update(schema.predictions)
       .set({
         outcome: r.outcome,
         score,
@@ -329,9 +435,54 @@ Respond ONLY with a JSON array:
         resolvedAt: new Date().toISOString(),
       })
       .where(eq(schema.predictions.id, r.id))
-      .run();
+      ;
 
     updated.push({ ...r, score });
+  }
+
+  // Persist failure patterns to knowledge bank after resolution
+  if (updated.length > 0) {
+    try {
+      const report = await computePerformanceReport();
+      if (report && report.failurePatterns.length > 0) {
+        const content = [
+          `# Prediction Failure Patterns (auto-updated ${today})`,
+          `Brier Score: ${report.brierScore.toFixed(3)} | Hit Rate: ${(report.binaryAccuracy * 100).toFixed(0)}% | n=${report.totalResolved}`,
+          "",
+          ...report.failurePatterns.map((fp: { pattern: string; frequency: number; examples: string[] }) =>
+            `## ${fp.pattern} (${fp.frequency}x)\n${fp.examples.map((e: string) => `- ${e}`).join("\n")}`
+          ),
+        ].join("\n");
+
+        // Upsert a knowledge entry for prediction failure patterns
+        const existing = db
+          .select()
+          .from(schema.knowledge)
+          .where(eq(schema.knowledge.title, "Prediction Failure Patterns"))
+          ;
+
+        if (existing) {
+          await db.update(schema.knowledge)
+            .set({ content, updatedAt: new Date().toISOString() })
+            .where(eq(schema.knowledge.id, existing.id))
+            ;
+        } else {
+          await db.insert(schema.knowledge)
+            .values({
+              title: "Prediction Failure Patterns",
+              content,
+              category: "analysis",
+              tags: "predictions,calibration,feedback",
+              source: "prediction-feedback-loop",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            })
+            ;
+        }
+      }
+    } catch {
+      // Knowledge bank persistence is best-effort
+    }
   }
 
   return updated;
@@ -344,11 +495,21 @@ function getAnthropicKey(): string {
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "anthropic_api_key"))
-    .get();
+    ;
 
   const key = setting?.value || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("Anthropic API key not configured");
   return key;
+}
+
+function getAlphaVantageKey(): string {
+  const setting = db
+    .select()
+    .from(schema.settings)
+    .where(eq(schema.settings.key, "alpha_vantage_api_key"))
+    ;
+
+  return setting?.value || process.env.ALPHA_VANTAGE_API_KEY || "";
 }
 
 function normalizeClaim(claim: string): string {

@@ -14,13 +14,13 @@ export async function GET(request: NextRequest) {
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "t212_api_key"))
-      .get();
+      ;
 
     const apiSecretSetting = db
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "t212_api_secret"))
-      .get();
+      ;
 
     const apiKey = apiKeySetting?.value || process.env.TRADING212_API_KEY;
     const apiSecret = apiSecretSetting?.value || process.env.TRADING212_SECRET;
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "trading_environment"))
-      .get();
+      ;
 
     const environment = (envSetting?.value || "live") as Environment;
 

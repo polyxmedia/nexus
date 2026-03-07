@@ -1,7 +1,7 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, serial, doublePrecision } from "drizzle-orm/pg-core";
 
-export const signals = sqliteTable("signals", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const signals = pgTable("signals", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description").notNull(),
   date: text("date").notNull(), // ISO date string
@@ -19,12 +19,12 @@ export const signals = sqliteTable("signals", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const analyses = sqliteTable("analyses", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const analyses = pgTable("analyses", {
+  id: serial("id").primaryKey(),
   signalId: integer("signal_id").notNull().references(() => signals.id),
   summary: text("summary").notNull(),
-  confidence: real("confidence").notNull(), // 0-1
-  escalationProbability: real("escalation_probability"), // 0-1
+  confidence: doublePrecision("confidence").notNull(), // 0-1
+  escalationProbability: doublePrecision("escalation_probability"), // 0-1
   marketImpact: text("market_impact").notNull(), // JSON: sectors, direction, magnitude
   tradeRecommendations: text("trade_recommendations").notNull(), // JSON array
   reasoning: text("reasoning").notNull(),
@@ -36,34 +36,34 @@ export const analyses = sqliteTable("analyses", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const predictions = sqliteTable("predictions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const predictions = pgTable("predictions", {
+  id: serial("id").primaryKey(),
   signalId: integer("signal_id").references(() => signals.id),
   analysisId: integer("analysis_id").references(() => analyses.id),
   claim: text("claim").notNull(),
   timeframe: text("timeframe").notNull(), // e.g., "7 days", "30 days"
   deadline: text("deadline").notNull(), // ISO date
-  confidence: real("confidence").notNull(), // 0-1
+  confidence: doublePrecision("confidence").notNull(), // 0-1
   category: text("category").notNull(), // market | geopolitical | celestial
   metrics: text("metrics"), // JSON: what to measure for scoring
   outcome: text("outcome"), // confirmed | denied | partial | expired
   outcomeNotes: text("outcome_notes"),
-  score: real("score"), // 0-1 accuracy score
+  score: doublePrecision("score"), // 0-1 accuracy score
   resolvedAt: text("resolved_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const trades = sqliteTable("trades", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const trades = pgTable("trades", {
+  id: serial("id").primaryKey(),
   signalId: integer("signal_id").references(() => signals.id),
   predictionId: integer("prediction_id").references(() => predictions.id),
   ticker: text("ticker").notNull(),
   direction: text("direction").notNull(), // BUY | SELL
   orderType: text("order_type").notNull(), // MARKET | LIMIT | STOP | STOP_LIMIT
-  quantity: real("quantity").notNull(),
-  limitPrice: real("limit_price"),
-  stopPrice: real("stop_price"),
-  filledPrice: real("filled_price"),
+  quantity: doublePrecision("quantity").notNull(),
+  limitPrice: doublePrecision("limit_price"),
+  stopPrice: doublePrecision("stop_price"),
+  filledPrice: doublePrecision("filled_price"),
   t212OrderId: text("t212_order_id"),
   status: text("status").notNull().default("pending"), // pending | filled | rejected | cancelled
   environment: text("environment").notNull().default("demo"), // demo | live
@@ -73,34 +73,35 @@ export const trades = sqliteTable("trades", {
   updatedAt: text("updated_at"),
 });
 
-export const portfolioSnapshots = sqliteTable("portfolio_snapshots", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  totalValue: real("total_value").notNull(),
-  cash: real("cash").notNull(),
-  invested: real("invested").notNull(),
-  pnl: real("pnl").notNull(),
-  pnlPercent: real("pnl_percent").notNull(),
+export const portfolioSnapshots = pgTable("portfolio_snapshots", {
+  id: serial("id").primaryKey(),
+  totalValue: doublePrecision("total_value").notNull(),
+  cash: doublePrecision("cash").notNull(),
+  invested: doublePrecision("invested").notNull(),
+  pnl: doublePrecision("pnl").notNull(),
+  pnlPercent: doublePrecision("pnl_percent").notNull(),
   positions: text("positions").notNull(), // JSON array of position details
   environment: text("environment").notNull().default("demo"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const settings = sqliteTable("settings", {
-  key: text("key").primaryKey(),
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
   value: text("value").notNull(),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const theses = sqliteTable("theses", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const theses = pgTable("theses", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull(),
   status: text("status").notNull().default("active"), // active | expired | superseded
   generatedAt: text("generated_at").notNull().$defaultFn(() => new Date().toISOString()),
   validUntil: text("valid_until").notNull(),
   marketRegime: text("market_regime").notNull(), // risk_on | risk_off | transitioning
   volatilityOutlook: text("volatility_outlook").notNull(), // low | normal | elevated | extreme
-  convergenceDensity: real("convergence_density").notNull(),
-  overallConfidence: real("overall_confidence").notNull(),
+  convergenceDensity: doublePrecision("convergence_density").notNull(),
+  overallConfidence: doublePrecision("overall_confidence").notNull(),
   tradingActions: text("trading_actions").notNull(), // JSON array
   executiveSummary: text("executive_summary").notNull(),
   situationAssessment: text("situation_assessment").notNull(),
@@ -109,22 +110,31 @@ export const theses = sqliteTable("theses", {
   symbols: text("symbols").notNull(), // JSON array
 });
 
-export const marketSnapshots = sqliteTable("market_snapshots", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const marketSnapshots = pgTable("market_snapshots", {
+  id: serial("id").primaryKey(),
   symbol: text("symbol").notNull(),
   snapshot: text("snapshot").notNull(), // JSON TechnicalSnapshot
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const chatSessions = sqliteTable("chat_sessions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const chatProjects = pgTable("chat_projects", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#06b6d4"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const chatSessions = pgTable("chat_sessions", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull().default("New Chat"),
+  projectId: integer("project_id").references(() => chatProjects.id),
+  tags: text("tags"), // JSON array of string tags
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const chatMessages = sqliteTable("chat_messages", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
   sessionId: integer("session_id").notNull().references(() => chatSessions.id),
   role: text("role").notNull(), // user | assistant
   content: text("content").notNull(),
@@ -133,12 +143,127 @@ export const chatMessages = sqliteTable("chat_messages", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
-export const gameTheoryScenarios = sqliteTable("game_theory_scenarios", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const gameTheoryScenarios = pgTable("game_theory_scenarios", {
+  id: serial("id").primaryKey(),
   scenarioId: text("scenario_id").notNull(),
   title: text("title").notNull(),
   analysis: text("analysis").notNull(), // JSON GameTheoryAnalysis
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Entity Graph ──
+
+export const entities = pgTable("entities", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(), // actor | aircraft | vessel | signal | prediction | trade | thesis | sector | ticker | event | location
+  name: text("name").notNull(),
+  properties: text("properties"), // JSON: arbitrary key-value metadata
+  sourceType: text("source_type"), // which table/source this was derived from
+  sourceId: text("source_id"), // ID in the source table
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+export const relationships = pgTable("relationships", {
+  id: serial("id").primaryKey(),
+  fromEntityId: integer("from_entity_id").notNull().references(() => entities.id),
+  toEntityId: integer("to_entity_id").notNull().references(() => entities.id),
+  type: text("type").notNull(), // affects | triggers | belongs_to | correlated_with | trades | opposes | allies | monitors | predicts | located_in
+  weight: doublePrecision("weight").default(1.0), // 0-1 strength of relationship
+  properties: text("properties"), // JSON: direction, context, evidence
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Timeline Events ──
+
+export const timelineEvents = pgTable("timeline_events", {
+  id: serial("id").primaryKey(),
+  timestamp: text("timestamp").notNull(), // ISO datetime
+  type: text("type").notNull(), // signal | prediction | trade | thesis | osint | alert | market | analysis
+  title: text("title").notNull(),
+  description: text("description"),
+  severity: integer("severity").default(1), // 1-5
+  category: text("category"), // market | geopolitical | celestial | system
+  sourceType: text("source_type"), // table name
+  sourceId: integer("source_id"), // row ID in source table
+  entityIds: text("entity_ids"), // JSON array of entity IDs involved
+  metadata: text("metadata"), // JSON: extra context
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Alerts & Watch Conditions ──
+
+export const alerts = pgTable("alerts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // price_threshold | vix_level | geofence | signal_intensity | prediction_due | osint_keyword | custom
+  condition: text("condition").notNull(), // JSON: the condition definition
+  enabled: integer("enabled").notNull().default(1), // 0 or 1
+  lastTriggered: text("last_triggered"),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  cooldownMinutes: integer("cooldown_minutes").notNull().default(60),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const alertHistory = pgTable("alert_history", {
+  id: serial("id").primaryKey(),
+  alertId: integer("alert_id").notNull().references(() => alerts.id),
+  triggeredAt: text("triggered_at").notNull().$defaultFn(() => new Date().toISOString()),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  severity: integer("severity").notNull().default(3), // 1-5
+  data: text("data"), // JSON: snapshot of what triggered it
+  dismissed: integer("dismissed").notNull().default(0), // 0 or 1
+});
+
+// ── Dashboard Widgets ──
+
+export const dashboardWidgets = pgTable("dashboard_widgets", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("default"),
+  widgetType: text("widget_type").notNull(), // metric | chart | signals | predictions | macro | risk | options | calendar | thesis | portfolio
+  title: text("title").notNull(),
+  config: text("config").notNull(), // JSON: widget-specific configuration
+  position: integer("position").notNull().default(0), // order index
+  width: integer("width").notNull().default(1), // 1=third, 2=two-thirds, 3=full
+  enabled: integer("enabled").notNull().default(1),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Knowledge Bank ──
+
+export const knowledge = pgTable("knowledge", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull(), // thesis | model | event | actor | market | geopolitical | technical
+  tags: text("tags"), // JSON array of string tags for filtering
+  source: text("source"), // where this knowledge came from
+  confidence: doublePrecision("confidence").default(0.8), // 0-1 how confident we are in this info
+  status: text("status").notNull().default("active"), // active | archived | superseded
+  supersededBy: integer("superseded_by"), // ID of newer version
+  validFrom: text("valid_from"), // ISO date - when this became true
+  validUntil: text("valid_until"), // ISO date - when this stops being relevant
+  metadata: text("metadata"), // JSON: extra structured data
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+// ── Watchlists ──
+
+export const watchlists = pgTable("watchlists", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const watchlistItems = pgTable("watchlist_items", {
+  id: serial("id").primaryKey(),
+  watchlistId: integer("watchlist_id").notNull().references(() => watchlists.id),
+  symbol: text("symbol").notNull(),
+  position: integer("position").notNull().default(0),
+  addedAt: text("added_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
 // Type exports
@@ -156,7 +281,26 @@ export type ThesisRecord = typeof theses.$inferSelect;
 export type NewThesisRecord = typeof theses.$inferInsert;
 export type MarketSnapshotRecord = typeof marketSnapshots.$inferSelect;
 export type GameTheoryScenarioRecord = typeof gameTheoryScenarios.$inferSelect;
+export type ChatProject = typeof chatProjects.$inferSelect;
+export type NewChatProject = typeof chatProjects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
 export type NewChatSession = typeof chatSessions.$inferInsert;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type NewChatMessage = typeof chatMessages.$inferInsert;
+export type Entity = typeof entities.$inferSelect;
+export type NewEntity = typeof entities.$inferInsert;
+export type Relationship = typeof relationships.$inferSelect;
+export type NewRelationship = typeof relationships.$inferInsert;
+export type TimelineEvent = typeof timelineEvents.$inferSelect;
+export type NewTimelineEvent = typeof timelineEvents.$inferInsert;
+export type Alert = typeof alerts.$inferSelect;
+export type NewAlert = typeof alerts.$inferInsert;
+export type AlertHistoryRecord = typeof alertHistory.$inferSelect;
+export type DashboardWidget = typeof dashboardWidgets.$inferSelect;
+export type NewDashboardWidget = typeof dashboardWidgets.$inferInsert;
+export type KnowledgeEntry = typeof knowledge.$inferSelect;
+export type NewKnowledgeEntry = typeof knowledge.$inferInsert;
+export type Watchlist = typeof watchlists.$inferSelect;
+export type NewWatchlist = typeof watchlists.$inferInsert;
+export type WatchlistItem = typeof watchlistItems.$inferSelect;
+export type NewWatchlistItem = typeof watchlistItems.$inferInsert;

@@ -1,7 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Plane, Ship, Radio, Flame, Satellite } from "lucide-react";
+import {
+  SignalIcon,
+  GlobeAltIcon,
+  FireIcon,
+} from "@heroicons/react/24/solid";
+import { Plane, Ship, Satellite } from "lucide-react";
 import type { WarRoomLayerVisibility } from "@/lib/warroom/types";
 
 interface LayerToggleProps {
@@ -19,38 +24,53 @@ interface LayerToggleProps {
 const LAYERS = [
   {
     key: "aircraft" as const,
-    label: "Aircraft",
+    label: "AIR",
     Icon: Plane,
-    activeClass: "bg-accent-rose/10 text-accent-rose border-accent-rose/20",
-    dotClass: "bg-accent-rose",
+    heroIcon: null,
+    activeColor: "text-accent-rose",
+    activeBg: "bg-accent-rose/8",
+    activeBorder: "border-accent-rose/25",
+    dotColor: "bg-accent-rose",
   },
   {
     key: "vessels" as const,
-    label: "Maritime",
+    label: "SEA",
     Icon: Ship,
-    activeClass: "bg-accent-cyan/10 text-accent-cyan border-accent-cyan/20",
-    dotClass: "bg-accent-cyan",
+    heroIcon: null,
+    activeColor: "text-accent-cyan",
+    activeBg: "bg-accent-cyan/8",
+    activeBorder: "border-accent-cyan/25",
+    dotColor: "bg-accent-cyan",
   },
   {
     key: "osintMarkers" as const,
     label: "OSINT",
-    Icon: Radio,
-    activeClass: "bg-accent-amber/10 text-accent-amber border-accent-amber/20",
-    dotClass: "bg-accent-amber",
+    Icon: null,
+    heroIcon: GlobeAltIcon,
+    activeColor: "text-accent-amber",
+    activeBg: "bg-accent-amber/8",
+    activeBorder: "border-accent-amber/25",
+    dotColor: "bg-accent-amber",
   },
   {
     key: "conflictHeatmap" as const,
-    label: "Heatmap",
-    Icon: Flame,
-    activeClass: "bg-signal-5/10 text-signal-5 border-signal-5/20",
-    dotClass: "bg-signal-5",
+    label: "HEAT",
+    Icon: null,
+    heroIcon: FireIcon,
+    activeColor: "text-signal-5",
+    activeBg: "bg-signal-5/8",
+    activeBorder: "border-signal-5/25",
+    dotColor: "bg-signal-5",
   },
   {
     key: "satellites" as const,
-    label: "Space",
+    label: "SPACE",
     Icon: Satellite,
-    activeClass: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    dotClass: "bg-purple-400",
+    heroIcon: null,
+    activeColor: "text-purple-400",
+    activeBg: "bg-purple-500/8",
+    activeBorder: "border-purple-500/25",
+    dotColor: "bg-purple-400",
   },
 ];
 
@@ -67,48 +87,48 @@ export function LayerToggle({
 }: LayerToggleProps) {
   function getCount(key: string): string | null {
     if (key === "aircraft" && visibility.aircraft && aircraftCount > 0) {
-      const mil = militaryCount > 0 ? ` / ${militaryCount} mil` : "";
-      return `${aircraftCount.toLocaleString()}${mil}`;
+      return militaryCount > 0 ? `${aircraftCount} / ${militaryCount}M` : `${aircraftCount}`;
     }
     if (key === "vessels" && visibility.vessels && vesselCount > 0) {
-      const mil = vesselMilitaryCount > 0 ? ` / ${vesselMilitaryCount} mil` : "";
-      return `${vesselCount.toLocaleString()}${mil}`;
+      return vesselMilitaryCount > 0 ? `${vesselCount} / ${vesselMilitaryCount}M` : `${vesselCount}`;
     }
     if (key === "osintMarkers" && visibility.osintMarkers && osintCount > 0) {
       return `${osintCount}`;
     }
     if (key === "satellites" && visibility.satellites && satelliteCount > 0) {
-      const mil = satelliteMilitaryCount > 0 ? ` / ${satelliteMilitaryCount} mil` : "";
-      return `${satelliteCount.toLocaleString()}${mil}`;
+      return satelliteMilitaryCount > 0 ? `${satelliteCount} / ${satelliteMilitaryCount}M` : `${satelliteCount}`;
     }
     return null;
   }
 
   return (
     <div className="absolute top-3 right-[19rem] z-30 pointer-events-auto">
-      <div className="flex bg-navy-900/85 backdrop-blur-md border border-navy-700/25 rounded-lg wr-shadow-md overflow-hidden">
+      <div className="flex bg-[#0a0a0a]/95 backdrop-blur-md border border-[#1a1a1a] rounded overflow-hidden">
         {LAYERS.map((layer, i) => {
           const active = visibility[layer.key];
           const count = getCount(layer.key);
+          const IconComponent = layer.heroIcon || layer.Icon;
+          if (!IconComponent) return null;
+
           return (
             <button
               key={layer.key}
               onClick={() => onToggle(layer.key)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-2 text-[10px] font-medium uppercase tracking-wider transition-all relative",
-                i > 0 && "border-l border-navy-700/20",
+                "flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-mono font-medium uppercase tracking-[0.1em] transition-all relative",
+                i > 0 && "border-l border-[#1a1a1a]",
                 active
-                  ? layer.activeClass
-                  : "text-navy-600 hover:bg-navy-800/40 hover:text-navy-400"
+                  ? `${layer.activeBg} ${layer.activeColor} ${layer.activeBorder}`
+                  : "text-navy-600 hover:text-navy-400 hover:bg-[#111]"
               )}
             >
-              <layer.Icon className="h-3 w-3" />
+              <IconComponent className="h-3 w-3" />
               <span>{layer.label}</span>
               {count && (
-                <span className="text-[9px] opacity-70 font-mono ml-0.5">{count}</span>
+                <span className="text-[8px] opacity-60 font-mono tabular-nums">{count}</span>
               )}
               {active && (
-                <span className={cn("absolute top-1 right-1 w-1 h-1 rounded-full", layer.dotClass)} />
+                <span className={cn("absolute top-0.5 right-0.5 w-1 h-1 rounded-full", layer.dotColor)} />
               )}
             </button>
           );

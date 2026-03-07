@@ -1,5 +1,6 @@
 import { getAllCelestialEvents } from "./celestial";
 import { getHebrewCalendarEvents, getShmitaInfo } from "./hebrew-calendar";
+import { getIslamicCalendarEvents } from "./islamic-calendar";
 import { getGeopoliticalEvents } from "./geopolitical";
 import { scoreConvergences, type ConvergenceResult } from "./intensity";
 import type { NewSignal } from "../db/schema";
@@ -14,19 +15,36 @@ export interface SignalGenerationResult {
     byCategory: Record<string, number>;
     celestialCount: number;
     hebrewCount: number;
+    islamicCount: number;
     geopoliticalCount: number;
   };
 }
 
 export function generateSignals(year: number): SignalGenerationResult {
-  // Gather all three layers
+  // Gather all four layers
   const celestialEvents = getAllCelestialEvents(year);
   const hebrewEvents = getHebrewCalendarEvents(year);
+  const islamicEvents = getIslamicCalendarEvents(year);
   const geopoliticalEvents = getGeopoliticalEvents(year);
   const shmitaInfo = getShmitaInfo(year);
 
+  // Convert Islamic events into the Hebrew signal format for convergence scoring
+  // (they share the same structure: date, holiday, significance, description, marketRelevance)
+  const islamicAsHebrew = islamicEvents.map(e => ({
+    date: e.date,
+    hebrewDate: e.hijriDate,
+    holiday: e.holiday,
+    type: e.type,
+    significance: e.significance,
+    description: e.description,
+    marketRelevance: e.marketRelevance,
+  }));
+
+  // Merge Hebrew and Islamic events for convergence scoring
+  const allCalendarEvents = [...hebrewEvents, ...islamicAsHebrew];
+
   // Score convergences
-  const convergences = scoreConvergences(celestialEvents, hebrewEvents, geopoliticalEvents);
+  const convergences = scoreConvergences(celestialEvents, allCalendarEvents, geopoliticalEvents);
 
   // Convert convergences to database signals
   const signals: NewSignal[] = convergences.map((c) => ({
@@ -35,9 +53,9 @@ export function generateSignals(year: number): SignalGenerationResult {
     date: c.date,
     intensity: c.intensity,
     category: c.category,
-    celestialType: c.celestialEvents.length > 0 ? c.celestialEvents[0].type : null,
-    hebrewDate: c.hebrewEvents.length > 0 ? c.hebrewEvents[0].hebrewDate : null,
-    hebrewHoliday: c.hebrewEvents.length > 0 ? c.hebrewEvents[0].holiday : null,
+    celestialType: c.celestialEvents.length > 0 ? c.celestialEvents.type : null,
+    hebrewDate: c.hebrewEvents.length > 0 ? c.hebrewEvents.hebrewDate : null,
+    hebrewHoliday: c.hebrewEvents.length > 0 ? c.hebrewEvents.holiday : null,
     geopoliticalContext:
       c.geopoliticalEvents.length > 0
         ? c.geopoliticalEvents.map((e) => e.title).join(", ")
@@ -66,6 +84,7 @@ export function generateSignals(year: number): SignalGenerationResult {
       byCategory,
       celestialCount: celestialEvents.length,
       hebrewCount: hebrewEvents.length,
+      islamicCount: islamicEvents.length,
       geopoliticalCount: geopoliticalEvents.length,
     },
   };

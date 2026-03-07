@@ -2,7 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
-const SENSITIVE_KEYS = ["anthropic_api_key", "t212_api_key", "t212_api_secret", "alpha_vantage_api_key", "acled_api_key", "acled_email"];
+const SENSITIVE_KEYS = [
+  "anthropic_api_key",
+  "t212_api_key",
+  "t212_api_secret",
+  "alpha_vantage_api_key",
+  "coinbase_api_key",
+  "coinbase_api_secret",
+  "fred_api_key",
+  "acled_api_key",
+  "acled_email",
+  "voyage_api_key",
+];
 
 function maskValue(key: string, value: string): string {
   if (SENSITIVE_KEYS.includes(key)) {
@@ -14,7 +25,7 @@ function maskValue(key: string, value: string): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const allSettings = db.select().from(schema.settings).all();
+    const allSettings = db.select().from(schema.settings);
 
     const masked = allSettings.map((s) => ({
       ...s,
@@ -22,6 +33,24 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json(masked);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { key } = body;
+
+    if (!key) {
+      return NextResponse.json({ error: "key is required" }, { status: 400 });
+    }
+
+    db.delete(schema.settings).where(eq(schema.settings.key, key));
+
+    return NextResponse.json({ success: true, key });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -40,21 +69,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, key))
-      .get();
+    const existing = db.select().from(schema.settings).where(eq(schema.settings.key, key));
 
     if (existing) {
-      db.update(schema.settings)
-        .set({ value, updatedAt: new Date().toISOString() })
-        .where(eq(schema.settings.key, key))
-        .run();
+      db.update(schema.settings).set({ value, updatedAt: new Date().toISOString() }).where(eq(schema.settings.key, key));
     } else {
-      db.insert(schema.settings)
-        .values({ key, value, updatedAt: new Date().toISOString() })
-        .run();
+      db.insert(schema.settings).values({ key, value, updatedAt: new Date().toISOString() });
     }
 
     return NextResponse.json({ success: true, key });

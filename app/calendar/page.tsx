@@ -1,0 +1,1143 @@
+"use client";
+
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { PageContainer } from "@/components/layout/page-container";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Activity,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Crosshair,
+  Filter,
+  Loader2,
+  Moon,
+  Sparkles,
+  Star,
+  Sun,
+  TrendingDown,
+  TrendingUp,
+  BookOpen,
+  BarChart3,
+  Target,
+  Zap,
+} from "lucide-react";
+
+// ── Types ──
+
+interface CalendarEvent {
+  date: string;
+  hebrewDate: string;
+  holiday: string;
+  type: string;
+  description: string;
+  significance: number;
+  marketRelevance: string;
+  calendarSystem: "hebrew" | "islamic" | "economic";
+}
+
+interface CalendarData {
+  today: {
+    gregorian: string;
+    hebrew: string;
+    hebrewYear: number;
+    hijri: string;
+    hijriYear: number;
+    isRamadan: boolean;
+    isSacredMonth: boolean;
+    hijriMonthName: string;
+  } | null;
+  shmita: {
+    isShmita: boolean;
+    hebrewYear: number;
+    significance: string;
+  } | null;
+  esoteric: {
+    sexagenaryCycle: string;
+    animal: string;
+    element: string;
+    flyingStar: number;
+    flyingStarName: string;
+    lunarPhase: string;
+    lunarBias: string;
+    universalYear: number;
+    kondratieffSeason: string;
+    compositeScore: number;
+  } | null;
+  events: CalendarEvent[];
+}
+
+interface DateReading {
+  date: string;
+  gregorian: string;
+  hebrew: string;
+  hebrewYear: number;
+  holidays: string[];
+  shmitaCycle: number;
+  isShmita: boolean;
+  reading: string;
+  signalCount: number;
+  esoteric?: {
+    lunarPhase: string;
+    compositeScore: number;
+  };
+}
+
+interface OverlaySignal {
+  id: number;
+  title: string;
+  intensity: number;
+  category: string;
+  status: string;
+}
+
+interface OverlayPrediction {
+  id: number;
+  claim: string;
+  confidence: number;
+  deadline: string;
+  outcome: string | null;
+  category: string;
+}
+
+interface OverlayData {
+  signals: Record<string, OverlaySignal[]>;
+  predictions: Record<string, OverlayPrediction[]>;
+}
+
+interface MarketSnapshot {
+  date: string;
+  markets: Record<string, { close: number; change: number; changePercent: number }>;
+}
+
+// ── Filter config ──
+
+type FilterKey = "hebrew" | "islamic" | "kabbala" | "economic" | "earnings" | "opex" | "signals" | "predictions";
+
+const FILTER_CONFIG: Record<FilterKey, { label: string; color: string; dot: string }> = {
+  hebrew: { label: "Hebrew", color: "text-accent-amber", dot: "bg-accent-amber" },
+  islamic: { label: "Islamic", color: "text-accent-emerald", dot: "bg-accent-emerald" },
+  kabbala: { label: "Kabbala", color: "text-purple-400", dot: "bg-purple-400" },
+  economic: { label: "Economic", color: "text-accent-cyan", dot: "bg-accent-cyan" },
+  earnings: { label: "Earnings", color: "text-accent-rose", dot: "bg-accent-rose" },
+  opex: { label: "OPEX", color: "text-orange-400", dot: "bg-orange-400" },
+  signals: { label: "Signals", color: "text-signal-4", dot: "bg-signal-4" },
+  predictions: { label: "Predictions", color: "text-signal-5", dot: "bg-signal-5" },
+};
+
+function getFilterKey(ev: CalendarEvent): FilterKey {
+  if (ev.calendarSystem === "economic") {
+    if (ev.type === "earnings") return "earnings";
+    if (ev.type === "opex" || ev.type === "witching" || ev.type === "vix_expiry") return "opex";
+    return "economic";
+  }
+  if (ev.calendarSystem === "islamic") return "islamic";
+  if (ev.type === "omer" || ev.type === "kabbala" || ev.holiday.includes("Sefirat") || ev.holiday.includes("Lag B")) {
+    return "kabbala";
+  }
+  return "hebrew";
+}
+
+function getEventTextColor(ev: CalendarEvent): string {
+  return FILTER_CONFIG[getFilterKey(ev)].color;
+}
+
+// ── Convergence scoring ──
+
+function getConvergenceScore(events: CalendarEvent[], signals: OverlaySignal[], predictions: OverlayPrediction[]): number {
+  const systems = new Set<string>();
+  for (const ev of events) {
+    systems.add(ev.calendarSystem);
+    if (ev.calendarSystem === "hebrew" && (ev.type === "omer" || ev.type === "kabbala")) {
+      systems.add("kabbala");
+    }
+  }
+  if (signals.length > 0) systems.add("signals");
+  if (predictions.length > 0) systems.add("predictions");
+  return systems.size;
+}
+
+function convergenceBg(score: number): string {
+  if (score >= 5) return "bg-accent-amber/20 border-accent-amber/40";
+  if (score >= 4) return "bg-accent-amber/12 border-accent-amber/25";
+  if (score >= 3) return "bg-accent-cyan/10 border-accent-cyan/20";
+  if (score >= 2) return "bg-navy-700/40 border-navy-700/30";
+  return "";
+}
+
+// ── Constants ──
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function significanceColor(sig: number) {
+  if (sig >= 3) return "bg-accent-amber/15 border-accent-amber/40 text-accent-amber";
+  if (sig >= 2) return "bg-accent-cyan/15 border-accent-cyan/40 text-accent-cyan";
+  return "bg-navy-700/60 border-navy-600 text-navy-300";
+}
+
+function significanceLabel(sig: number) {
+  if (sig >= 3) return "High";
+  if (sig >= 2) return "Medium";
+  return "Low";
+}
+
+// ── Main Component ──
+
+export default function CalendarPage() {
+  const [data, setData] = useState<CalendarData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [reading, setReading] = useState<DateReading | null>(null);
+  const [readingLoading, setReadingLoading] = useState(false);
+  const [readingError, setReadingError] = useState<string | null>(null);
+  const readingCache = useRef(new Map<string, DateReading>());
+
+  const [overlay, setOverlay] = useState<OverlayData | null>(null);
+  const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshot | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
+
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(
+    new Set(["hebrew", "islamic", "kabbala", "economic", "earnings", "opex", "signals", "predictions"])
+  );
+
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // ── Data fetching ──
+
+  useEffect(() => {
+    fetch("/api/calendar/hebrew")
+      .then((r) => r.json())
+      .then((d) => {
+        setData(d);
+        setLoading(false);
+        // Auto-select today
+        setSelectedDate(todayStr);
+      })
+      .catch(() => setLoading(false));
+
+    fetch("/api/calendar/overlay")
+      .then((r) => r.json())
+      .then((d) => setOverlay(d))
+      .catch(() => {});
+  }, [todayStr]);
+
+  // Fetch market snapshot when selecting a past date
+  const fetchMarketSnapshot = useCallback(async (date: string) => {
+    if (date >= todayStr) {
+      setMarketSnapshot(null);
+      return;
+    }
+    setMarketLoading(true);
+    try {
+      const res = await fetch(`/api/calendar/market-snapshot?date=${date}`);
+      const d = await res.json();
+      if (d.error) {
+        setMarketSnapshot(null);
+      } else {
+        setMarketSnapshot(d);
+      }
+    } catch {
+      setMarketSnapshot(null);
+    }
+    setMarketLoading(false);
+  }, [todayStr]);
+
+  // Auto-fetch reading for today on load
+  const initialReadingFetched = useRef(false);
+  useEffect(() => {
+    if (data && !initialReadingFetched.current) {
+      initialReadingFetched.current = true;
+      fetchReading(todayStr);
+    }
+  }, [data, todayStr]);
+
+  // ── Filtered events ──
+
+  const filteredEvents = useMemo(() => {
+    if (!data?.events) return [];
+    return data.events.filter((ev) => activeFilters.has(getFilterKey(ev)));
+  }, [data?.events, activeFilters]);
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    for (const ev of filteredEvents) {
+      const existing = map.get(ev.date) || [];
+      existing.push(ev);
+      map.set(ev.date, existing);
+    }
+    return map;
+  }, [filteredEvents]);
+
+  // ── Calendar grid ──
+
+  const calendarDays = useMemo(() => {
+    const { year, month } = viewMonth;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const days: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(d);
+    return days;
+  }, [viewMonth]);
+
+  // ── Week ahead (next 7 days) ──
+
+  const weekAhead = useMemo(() => {
+    const days: { date: string; dayName: string; dayNum: number; month: string; events: CalendarEvent[]; signals: OverlaySignal[]; predictions: OverlayPrediction[] }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const ds = d.toISOString().split("T")[0];
+      days.push({
+        date: ds,
+        dayName: DAY_NAMES[d.getDay()],
+        dayNum: d.getDate(),
+        month: MONTH_NAMES[d.getMonth()].slice(0, 3),
+        events: eventsByDate.get(ds) || [],
+        signals: (overlay?.signals[ds] || []),
+        predictions: (overlay?.predictions[ds] || []),
+      });
+    }
+    return days;
+  }, [eventsByDate, overlay]);
+
+  // ── Upcoming events (next 90 days) ──
+
+  const upcomingEvents = useMemo(() => {
+    const future = new Date();
+    future.setDate(future.getDate() + 90);
+    const futureStr = future.toISOString().split("T")[0];
+    return filteredEvents
+      .filter((e) => e.date >= todayStr && e.date <= futureStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredEvents, todayStr]);
+
+  // ── Next key event ──
+
+  const nextKeyEvent = useMemo(() => {
+    return upcomingEvents.find((e) => e.significance >= 3 && e.date > todayStr);
+  }, [upcomingEvents, todayStr]);
+
+  const nextKeyCountdown = useMemo(() => {
+    if (!nextKeyEvent) return null;
+    const diff = new Date(nextKeyEvent.date + "T12:00:00").getTime() - Date.now();
+    const days = Math.ceil(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    return { days, hours };
+  }, [nextKeyEvent]);
+
+  // ── Helpers ──
+
+  function dateStr(day: number) {
+    const m = String(viewMonth.month + 1).padStart(2, "0");
+    const d = String(day).padStart(2, "0");
+    return `${viewMonth.year}-${m}-${d}`;
+  }
+
+  async function fetchReading(date: string) {
+    if (readingCache.current.has(date)) {
+      setReading(readingCache.current.get(date)!);
+      return;
+    }
+    setReadingLoading(true);
+    setReadingError(null);
+    setReading(null);
+    try {
+      const res = await fetch("/api/calendar/reading", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date }),
+      });
+      const d = await res.json();
+      if (d.error) {
+        setReadingError(d.error);
+      } else {
+        setReading(d);
+        readingCache.current.set(date, d);
+      }
+    } catch {
+      setReadingError("Failed to generate reading");
+    }
+    setReadingLoading(false);
+  }
+
+  function selectDate(date: string) {
+    if (date === selectedDate) {
+      setSelectedDate(null);
+      setReading(null);
+      setMarketSnapshot(null);
+      return;
+    }
+    setSelectedDate(date);
+    fetchReading(date);
+    fetchMarketSnapshot(date);
+  }
+
+  function prevMonth() {
+    setViewMonth((v) => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 });
+  }
+
+  function nextMonth() {
+    setViewMonth((v) => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 });
+  }
+
+  function toggleFilter(key: FilterKey) {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // ── Loading state ──
+
+  if (loading) {
+    return (
+      <PageContainer title="Intelligence Calendar" subtitle="Multi-system convergence calendar">
+        <div className="space-y-4">
+          <div className="grid grid-cols-5 gap-3">
+            {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 rounded" />)}
+          </div>
+          <Skeleton className="h-16 rounded" />
+          <Skeleton className="h-96 rounded" />
+        </div>
+      </PageContainer>
+    );
+  }
+
+  const selectedEvents = selectedDate ? eventsByDate.get(selectedDate) || [] : [];
+  const selectedSignals = selectedDate && overlay?.signals[selectedDate] ? overlay.signals[selectedDate] : [];
+  const selectedPredictions = selectedDate && overlay?.predictions[selectedDate] ? overlay.predictions[selectedDate] : [];
+
+  return (
+    <PageContainer title="Intelligence Calendar" subtitle="Hebrew, Islamic, Chinese, economic and signals convergence">
+      {/* ── Filter Bar ── */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <Filter className="h-3.5 w-3.5 text-navy-500" />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500 mr-1">Layers:</span>
+        {(Object.entries(FILTER_CONFIG) as [FilterKey, typeof FILTER_CONFIG[FilterKey]][]).map(([key, config]) => (
+          <button
+            key={key}
+            onClick={() => toggleFilter(key)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-medium transition-colors ${
+              activeFilters.has(key)
+                ? `border-navy-600 bg-navy-800 ${config.color}`
+                : "border-navy-800 bg-navy-900/50 text-navy-600"
+            }`}
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${activeFilters.has(key) ? config.dot : "bg-navy-700"}`} />
+            {config.label}
+          </button>
+        ))}
+        <div className="flex-1" />
+        <span className="text-[9px] text-navy-600 font-mono">
+          {filteredEvents.length} events
+        </span>
+      </div>
+
+      {/* ── Header Cards ── */}
+      <div className="grid grid-cols-5 gap-3 mb-4">
+        {/* Hebrew Date */}
+        <div className="rounded-lg px-4 py-3 bg-navy-800/60 border border-navy-700/40">
+          <div className="flex items-center gap-2 mb-1">
+            <Sun className="h-3.5 w-3.5 text-accent-amber" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Hebrew</span>
+          </div>
+          <div className="text-sm font-bold text-navy-100 font-mono">{data?.today?.hebrew || "N/A"}</div>
+          <div className="text-[10px] text-navy-400 mt-0.5">
+            Year {data?.today?.hebrewYear || "?"}
+            {data?.shmita?.isShmita && <span className="ml-1.5 text-accent-rose font-bold">SHMITA</span>}
+          </div>
+        </div>
+
+        {/* Hijri Date */}
+        <div className={`rounded-lg px-4 py-3 border ${
+          data?.today?.isRamadan ? "bg-accent-emerald/6 border-accent-emerald/30" : "bg-navy-800/60 border-navy-700/40"
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            <Moon className="h-3.5 w-3.5 text-accent-emerald" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Hijri</span>
+          </div>
+          <div className="text-sm font-bold text-navy-100 font-mono">{data?.today?.hijri || "N/A"}</div>
+          <div className="text-[10px] text-navy-400 mt-0.5">
+            {data?.today?.isRamadan && <span className="text-accent-emerald font-bold mr-1.5">RAMADAN</span>}
+            {data?.today?.isSacredMonth && !data?.today?.isRamadan && <span className="text-accent-amber font-bold mr-1.5">SACRED</span>}
+            {data?.today?.hijriMonthName}
+          </div>
+        </div>
+
+        {/* Chinese */}
+        <div className="rounded-lg px-4 py-3 bg-navy-800/60 border border-navy-700/40">
+          <div className="flex items-center gap-2 mb-1">
+            <Star className="h-3.5 w-3.5 text-purple-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Chinese</span>
+          </div>
+          <div className="text-sm font-bold text-navy-100 font-mono">
+            {data?.esoteric ? `${data.esoteric.element} ${data.esoteric.animal}` : "N/A"}
+          </div>
+          <div className="text-[10px] text-navy-400 mt-0.5">
+            {data?.esoteric?.lunarPhase?.replace(/_/g, " ") || "N/A"}
+            {data?.esoteric && <span className="ml-1.5 text-navy-500">Star {data.esoteric.flyingStar}</span>}
+          </div>
+        </div>
+
+        {/* Composite Score */}
+        <div className="rounded-lg px-4 py-3 bg-navy-800/60 border border-navy-700/40">
+          <div className="flex items-center gap-2 mb-1">
+            <Zap className="h-3.5 w-3.5 text-accent-cyan" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Composite</span>
+          </div>
+          <div className="text-sm font-bold text-navy-100 font-mono">
+            {data?.esoteric?.compositeScore?.toFixed(1) || "0"}/10
+          </div>
+          <div className="text-[10px] text-navy-400 mt-0.5">
+            {data?.esoteric?.kondratieffSeason} wave
+            <span className="ml-1.5 text-navy-500">UY{data?.esoteric?.universalYear}</span>
+          </div>
+        </div>
+
+        {/* Next Key Event Countdown */}
+        <div className={`rounded-lg px-4 py-3 border ${
+          nextKeyCountdown && nextKeyCountdown.days <= 3
+            ? "bg-accent-amber/8 border-accent-amber/30"
+            : "bg-navy-800/60 border-navy-700/40"
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="h-3.5 w-3.5 text-accent-amber" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Next Key</span>
+          </div>
+          {nextKeyEvent && nextKeyCountdown ? (
+            <>
+              <div className="text-sm font-bold text-navy-100 font-mono">
+                {nextKeyCountdown.days}d {nextKeyCountdown.hours}h
+              </div>
+              <div className="text-[10px] text-accent-amber mt-0.5 truncate">{nextKeyEvent.holiday}</div>
+            </>
+          ) : (
+            <div className="text-sm font-bold text-navy-500 font-mono">--</div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Week Ahead Strip ── */}
+      <div className="border border-navy-700/30 rounded-lg bg-navy-800/30 mb-4 overflow-hidden">
+        <div className="px-4 py-2 border-b border-navy-700/20 flex items-center gap-2">
+          <Calendar className="h-3 w-3 text-accent-cyan" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Week Ahead</span>
+        </div>
+        <div className="grid grid-cols-7 divide-x divide-navy-700/20">
+          {weekAhead.map((day) => {
+            const convergence = getConvergenceScore(day.events, day.signals, day.predictions);
+            const isToday = day.date === todayStr;
+            const isSelected = day.date === selectedDate;
+            const totalItems = day.events.length + day.signals.length + day.predictions.length;
+
+            return (
+              <button
+                key={day.date}
+                onClick={() => {
+                  const d = new Date(day.date + "T12:00:00");
+                  setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+                  selectDate(day.date);
+                }}
+                className={`px-2 py-2.5 text-left transition-colors relative ${
+                  isSelected ? "bg-navy-700/60" : isToday ? "bg-navy-700/30" : "hover:bg-navy-800/40"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`text-[10px] font-medium ${isToday ? "text-accent-cyan" : "text-navy-500"}`}>
+                    {day.dayName}
+                  </span>
+                  <span className={`text-[11px] font-mono font-bold ${isToday ? "text-accent-cyan" : "text-navy-300"}`}>
+                    {day.dayNum}
+                  </span>
+                </div>
+                {convergence >= 3 && (
+                  <div className="flex items-center gap-1 mb-1">
+                    <Zap className="h-2.5 w-2.5 text-accent-amber" />
+                    <span className="text-[8px] font-bold text-accent-amber">{convergence} layers</span>
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {day.events.slice(0, 2).map((ev, i) => (
+                    <div key={i} className={`text-[8px] leading-tight truncate ${getEventTextColor(ev)}`}>
+                      {ev.holiday}
+                    </div>
+                  ))}
+                  {day.signals.length > 0 && (
+                    <div className="text-[8px] leading-tight text-signal-4 truncate">
+                      {day.signals.length} signal{day.signals.length > 1 ? "s" : ""}
+                    </div>
+                  )}
+                  {day.predictions.length > 0 && (
+                    <div className="text-[8px] leading-tight text-signal-5 truncate">
+                      {day.predictions.length} deadline{day.predictions.length > 1 ? "s" : ""}
+                    </div>
+                  )}
+                  {totalItems > 3 && (
+                    <div className="text-[7px] text-navy-500">+{totalItems - 3} more</div>
+                  )}
+                </div>
+                {/* Convergence bar */}
+                {convergence > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{
+                    background: convergence >= 4 ? "rgb(245,158,11)" : convergence >= 3 ? "rgb(6,182,212)" : convergence >= 2 ? "rgba(148,163,184,0.3)" : "rgba(148,163,184,0.1)",
+                  }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Main Grid: Calendar + Sidebar ── */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* ── Calendar Grid ── */}
+        <div className="col-span-2 space-y-4">
+          <div className="border border-navy-700/40 rounded-lg bg-navy-800/40 p-5">
+            {/* Month Nav */}
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={prevMonth} className="p-1 rounded hover:bg-navy-700 text-navy-400 hover:text-navy-200 transition-colors">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-bold text-navy-100 tracking-wider uppercase">
+                  {MONTH_NAMES[viewMonth.month]} {viewMonth.year}
+                </h2>
+                <button
+                  onClick={() => {
+                    const now = new Date();
+                    setViewMonth({ year: now.getFullYear(), month: now.getMonth() });
+                  }}
+                  className="text-[9px] text-navy-500 hover:text-accent-cyan transition-colors uppercase tracking-wider"
+                >
+                  Today
+                </button>
+              </div>
+              <button onClick={nextMonth} className="p-1 rounded hover:bg-navy-700 text-navy-400 hover:text-navy-200 transition-colors">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Day Headers */}
+            <div className="grid grid-cols-7 gap-px mb-1">
+              {DAY_NAMES.map((d) => (
+                <div key={d} className="text-center text-[10px] text-navy-500 font-semibold uppercase tracking-wider py-1">
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {/* Day Cells with convergence heatmap */}
+            <div className="grid grid-cols-7 gap-px">
+              {calendarDays.map((day, i) => {
+                if (day === null) return <div key={`empty-${i}`} className="h-20" />;
+
+                const ds = dateStr(day);
+                const dayEvents = eventsByDate.get(ds) || [];
+                const daySignals = overlay?.signals[ds] || [];
+                const dayPredictions = overlay?.predictions[ds] || [];
+                const isToday = ds === todayStr;
+                const isSelected = ds === selectedDate;
+                const convergence = getConvergenceScore(dayEvents, daySignals, dayPredictions);
+                const maxSig = dayEvents.reduce((max, e) => Math.max(max, e.significance), 0);
+                const hasItems = dayEvents.length > 0 || daySignals.length > 0 || dayPredictions.length > 0;
+
+                return (
+                  <button
+                    key={ds}
+                    onClick={() => selectDate(ds)}
+                    className={`h-20 rounded px-1 py-0.5 text-left transition-colors relative border ${
+                      isSelected
+                        ? "bg-navy-700 border-accent-cyan/40"
+                        : isToday
+                          ? "bg-navy-700/50 border-navy-600"
+                          : convergence >= 3
+                            ? convergenceBg(convergence)
+                            : hasItems
+                              ? "bg-navy-800/60 hover:bg-navy-700/50 border-transparent"
+                              : "hover:bg-navy-800/30 border-transparent"
+                    }`}
+                  >
+                    {/* Day number + convergence badge */}
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-mono ${isToday ? "text-accent-cyan font-bold" : "text-navy-300"}`}>
+                        {day}
+                      </span>
+                      {convergence >= 3 && (
+                        <span className={`text-[7px] font-bold px-1 rounded ${
+                          convergence >= 5 ? "bg-accent-amber/20 text-accent-amber" :
+                          convergence >= 4 ? "bg-accent-amber/15 text-accent-amber/80" :
+                          "bg-accent-cyan/15 text-accent-cyan"
+                        }`}>
+                          {convergence}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Event labels */}
+                    {hasItems && (
+                      <div className="mt-0.5 space-y-px">
+                        {dayEvents.slice(0, 2).map((ev, j) => (
+                          <div key={j} className={`text-[7px] leading-tight truncate ${getEventTextColor(ev)}`}>
+                            {ev.holiday}
+                          </div>
+                        ))}
+                        {daySignals.length > 0 && dayEvents.length < 2 && (
+                          <div className="text-[7px] leading-tight text-signal-4 truncate">
+                            {daySignals[0].title}
+                          </div>
+                        )}
+                        {dayPredictions.length > 0 && dayEvents.length < 2 && daySignals.length === 0 && (
+                          <div className="text-[7px] leading-tight text-signal-5 truncate">
+                            {dayPredictions[0].claim.slice(0, 30)}...
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Indicator dots */}
+                    {hasItems && (
+                      <div className="absolute bottom-0.5 right-0.5 flex gap-0.5 items-center">
+                        {maxSig >= 3 && <Star className="h-2 w-2 text-accent-amber fill-accent-amber" />}
+                        {[...new Set(dayEvents.map(getFilterKey))].map((key) => (
+                          <div key={key} className={`w-1 h-1 rounded-full ${FILTER_CONFIG[key].dot}`} />
+                        ))}
+                        {daySignals.length > 0 && activeFilters.has("signals") && (
+                          <div className="w-1 h-1 rounded-full bg-signal-4" />
+                        )}
+                        {dayPredictions.length > 0 && activeFilters.has("predictions") && (
+                          <div className="w-1 h-1 rounded-full bg-signal-5" />
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Selected Date Detail ── */}
+          {selectedDate && (
+            <div className="border border-navy-700/40 rounded-lg bg-navy-800/40 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-3.5 w-3.5 text-accent-amber" />
+                  <span className="text-xs font-bold text-navy-100 uppercase tracking-wider">
+                    {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
+                      weekday: "long", month: "long", day: "numeric", year: "numeric",
+                    })}
+                  </span>
+                  {selectedDate === todayStr && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">TODAY</span>
+                  )}
+                </div>
+                {reading && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-navy-500 font-mono">{reading.hebrew}</span>
+                    {reading.holidays.length > 0 && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-amber/10 text-accent-amber border border-accent-amber/20">
+                        {reading.holidays[0]}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Market snapshot for past dates */}
+              {selectedDate < todayStr && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BarChart3 className="h-3 w-3 text-accent-cyan" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Market Snapshot</span>
+                  </div>
+                  {marketLoading ? (
+                    <div className="flex items-center gap-2 py-3">
+                      <Loader2 className="h-3 w-3 animate-spin text-navy-500" />
+                      <span className="text-[10px] text-navy-500">Fetching market data...</span>
+                    </div>
+                  ) : marketSnapshot?.markets ? (
+                    <div className="grid grid-cols-6 gap-2">
+                      {Object.entries(marketSnapshot.markets).map(([label, m]) => (
+                        <div key={label} className="rounded px-2.5 py-2 bg-navy-900/60 border border-navy-700/30">
+                          <div className="text-[9px] text-navy-500 uppercase tracking-wider mb-0.5">{label}</div>
+                          <div className="text-xs font-bold text-navy-100">{m.close?.toFixed(2)}</div>
+                          <div className={`text-[10px] font-medium flex items-center gap-0.5 ${
+                            m.changePercent >= 0 ? "text-accent-emerald" : "text-accent-rose"
+                          }`}>
+                            {m.changePercent >= 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                            {m.changePercent >= 0 ? "+" : ""}{m.changePercent?.toFixed(2)}%
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-navy-600 py-2">No market data for this date (weekend/holiday)</div>
+                  )}
+                </div>
+              )}
+
+              {/* Signals on this date */}
+              {selectedSignals.length > 0 && activeFilters.has("signals") && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="h-3 w-3 text-signal-4" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Active Signals</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {selectedSignals.map((sig) => (
+                      <div key={sig.id} className="rounded px-3 py-2 bg-signal-4/5 border border-signal-4/20 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full bg-signal-${Math.min(sig.intensity, 5)}`} />
+                          <span className="text-[11px] font-medium text-navy-200">{sig.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="category">{sig.category}</Badge>
+                          <span className="text-[9px] text-navy-500 font-mono">INT {sig.intensity}/5</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Predictions due this date */}
+              {selectedPredictions.length > 0 && activeFilters.has("predictions") && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Target className="h-3 w-3 text-signal-5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Prediction Deadlines</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {selectedPredictions.map((pred) => (
+                      <div key={pred.id} className={`rounded px-3 py-2 border flex items-center justify-between ${
+                        pred.outcome === "confirmed" ? "bg-accent-emerald/5 border-accent-emerald/20" :
+                        pred.outcome === "denied" ? "bg-accent-rose/5 border-accent-rose/20" :
+                        "bg-signal-5/5 border-signal-5/20"
+                      }`}>
+                        <span className="text-[11px] text-navy-200 flex-1 mr-2">{pred.claim}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[9px] text-navy-500 font-mono">{(pred.confidence * 100).toFixed(0)}%</span>
+                          {pred.outcome && (
+                            <span className={`text-[9px] font-bold uppercase ${
+                              pred.outcome === "confirmed" ? "text-accent-emerald" : "text-accent-rose"
+                            }`}>{pred.outcome}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Calendar events for this date */}
+              {selectedEvents.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {selectedEvents.map((ev, i) => {
+                    const filterKey = getFilterKey(ev);
+                    const config = FILTER_CONFIG[filterKey];
+                    return (
+                      <div key={i} className={`rounded-lg p-3 border ${significanceColor(ev.significance)}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${config.dot}`} />
+                            <span className="text-xs font-bold">{ev.holiday}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-semibold uppercase tracking-wider ${config.color}`}>
+                              {config.label}
+                            </span>
+                            <Badge variant="category">{significanceLabel(ev.significance)}</Badge>
+                          </div>
+                        </div>
+                        {ev.hebrewDate && <div className="text-[10px] text-navy-400 mb-1">{ev.hebrewDate}</div>}
+                        <div className="text-[11px] text-navy-300 leading-relaxed font-sans">{ev.marketRelevance}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* AI Reading */}
+              {readingLoading && (
+                <div className="flex items-center justify-center gap-2 py-8 text-navy-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-xs">Generating intelligence reading...</span>
+                </div>
+              )}
+
+              {readingError && (
+                <div className="text-xs text-accent-rose bg-accent-rose/10 border border-accent-rose/20 rounded-lg px-4 py-3">
+                  {readingError}
+                </div>
+              )}
+
+              {reading && (
+                <div className="rounded-lg border border-navy-700/40 bg-navy-900/60 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-navy-700/30 bg-navy-800/40">
+                    <Sparkles className="h-3.5 w-3.5 text-accent-amber" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-400">
+                      AI Intelligence Reading
+                    </span>
+                    {reading.esoteric && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-400/10 text-purple-400 border border-purple-400/20 ml-1">
+                        Score {reading.esoteric.compositeScore?.toFixed(1)}/10
+                      </span>
+                    )}
+                    {reading.signalCount > 0 && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20 ml-auto">
+                        {reading.signalCount} signal{reading.signalCount > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="px-4 py-4 text-[11px] leading-relaxed text-navy-300 space-y-3 max-h-[500px] overflow-y-auto">
+                    {reading.reading.split("\n").map((line, i) => {
+                      if (line.startsWith("## ")) {
+                        return (
+                          <h3 key={i} className="text-xs font-bold text-navy-100 uppercase tracking-wide mt-4 mb-1 first:mt-0">
+                            {line.replace("## ", "")}
+                          </h3>
+                        );
+                      }
+                      if (line.startsWith("- ") || line.startsWith("* ")) {
+                        return (
+                          <div key={i} className="flex gap-2 pl-2">
+                            <span className="text-accent-cyan mt-0.5">-</span>
+                            <span>{line.slice(2)}</span>
+                          </div>
+                        );
+                      }
+                      if (line.startsWith("**") && line.endsWith("**")) {
+                        return (
+                          <div key={i} className="text-navy-200 font-semibold mt-2">
+                            {line.replace(/\*\*/g, "")}
+                          </div>
+                        );
+                      }
+                      if (line.trim() === "") return <div key={i} className="h-1" />;
+                      const parts = line.split(/(\*\*[^*]+\*\*)/g);
+                      return (
+                        <p key={i}>
+                          {parts.map((part, j) =>
+                            part.startsWith("**") && part.endsWith("**")
+                              ? <strong key={j} className="text-navy-200">{part.replace(/\*\*/g, "")}</strong>
+                              : <span key={j}>{part}</span>
+                          )}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Right Sidebar ── */}
+        <div className="space-y-4">
+          {/* Upcoming Events */}
+          <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-4">
+            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500 mb-3">
+              Upcoming Events
+            </h2>
+            <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+              {upcomingEvents.length === 0 ? (
+                <div className="text-xs text-navy-500 text-center py-8">No upcoming events</div>
+              ) : (
+                upcomingEvents.slice(0, 30).map((ev, i) => {
+                  const evDate = new Date(ev.date + "T12:00:00");
+                  const daysAway = Math.ceil((evDate.getTime() - Date.now()) / 86400000);
+                  const filterKey = getFilterKey(ev);
+                  const config = FILTER_CONFIG[filterKey];
+
+                  return (
+                    <button
+                      key={`${ev.date}-${ev.holiday}-${i}`}
+                      onClick={() => {
+                        const d = new Date(ev.date + "T12:00:00");
+                        setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+                        selectDate(ev.date);
+                      }}
+                      className="w-full text-left rounded p-2 border border-navy-800/60 hover:border-navy-700 hover:bg-navy-800/30 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
+                          <span className={`text-[10px] font-bold ${
+                            ev.significance >= 3 ? "text-accent-amber" : "text-navy-200"
+                          }`}>
+                            {ev.holiday}
+                          </span>
+                        </div>
+                        {ev.significance >= 3 && <Star className="h-2 w-2 text-accent-amber fill-accent-amber" />}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-semibold uppercase tracking-wider ${config.color}`}>
+                          {config.label}
+                        </span>
+                        <span className="text-[9px] text-navy-400 font-mono">
+                          {evDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                        <span className={`text-[9px] font-mono ${daysAway <= 7 ? "text-accent-amber" : "text-navy-500"}`}>
+                          {daysAway === 0 ? "today" : daysAway === 1 ? "tomorrow" : `${daysAway}d`}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Convergence Hotspots */}
+          <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="h-3 w-3 text-accent-amber" />
+              <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
+                Convergence Hotspots
+              </h2>
+            </div>
+            <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
+              <ConvergenceHotspots
+                eventsByDate={eventsByDate}
+                overlay={overlay}
+                todayStr={todayStr}
+                onSelect={(date) => {
+                  const d = new Date(date + "T12:00:00");
+                  setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+                  selectDate(date);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-4">
+            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500 mb-2">
+              Convergence Scale
+            </h2>
+            <div className="space-y-1.5">
+              {[
+                { score: "5+", label: "Maximum convergence", color: "bg-accent-amber/20 border-accent-amber/40" },
+                { score: "4", label: "Strong convergence", color: "bg-accent-amber/12 border-accent-amber/25" },
+                { score: "3", label: "Moderate convergence", color: "bg-accent-cyan/10 border-accent-cyan/20" },
+                { score: "2", label: "Minor alignment", color: "bg-navy-700/40 border-navy-700/30" },
+                { score: "1", label: "Single system", color: "bg-navy-800/60 border-transparent" },
+              ].map((item) => (
+                <div key={item.score} className="flex items-center gap-2">
+                  <div className={`w-6 h-4 rounded border ${item.color}`} />
+                  <span className="text-[9px] text-navy-400 font-mono">{item.score}</span>
+                  <span className="text-[9px] text-navy-500">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </PageContainer>
+  );
+}
+
+// ── Convergence Hotspots Component ──
+
+function ConvergenceHotspots({
+  eventsByDate,
+  overlay,
+  todayStr,
+  onSelect,
+}: {
+  eventsByDate: Map<string, CalendarEvent[]>;
+  overlay: OverlayData | null;
+  todayStr: string;
+  onSelect: (date: string) => void;
+}) {
+  const hotspots = useMemo(() => {
+    const scored: { date: string; score: number; events: CalendarEvent[]; signals: OverlaySignal[]; predictions: OverlayPrediction[] }[] = [];
+
+    // Collect all dates with events in the next 90 days
+    const future = new Date();
+    future.setDate(future.getDate() + 90);
+    const futureStr = future.toISOString().split("T")[0];
+
+    const allDates = new Set<string>();
+    for (const date of eventsByDate.keys()) {
+      if (date >= todayStr && date <= futureStr) allDates.add(date);
+    }
+    if (overlay) {
+      for (const date of Object.keys(overlay.signals)) {
+        if (date >= todayStr && date <= futureStr) allDates.add(date);
+      }
+      for (const date of Object.keys(overlay.predictions)) {
+        if (date >= todayStr && date <= futureStr) allDates.add(date);
+      }
+    }
+
+    for (const date of allDates) {
+      const events = eventsByDate.get(date) || [];
+      const signals = overlay?.signals[date] || [];
+      const predictions = overlay?.predictions[date] || [];
+      const score = getConvergenceScore(events, signals, predictions);
+      if (score >= 3) {
+        scored.push({ date, score, events, signals, predictions });
+      }
+    }
+
+    return scored.sort((a, b) => b.score - a.score || a.date.localeCompare(b.date)).slice(0, 10);
+  }, [eventsByDate, overlay, todayStr]);
+
+  if (hotspots.length === 0) {
+    return <div className="text-[10px] text-navy-600 text-center py-4">No convergence hotspots in next 90 days</div>;
+  }
+
+  return (
+    <>
+      {hotspots.map((h) => {
+        const d = new Date(h.date + "T12:00:00");
+        const daysAway = Math.ceil((d.getTime() - Date.now()) / 86400000);
+        return (
+          <button
+            key={h.date}
+            onClick={() => onSelect(h.date)}
+            className="w-full text-left rounded p-2 border border-navy-800/60 hover:border-accent-amber/30 hover:bg-navy-800/30 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[9px] font-bold px-1.5 rounded ${
+                  h.score >= 5 ? "bg-accent-amber/20 text-accent-amber" :
+                  h.score >= 4 ? "bg-accent-amber/15 text-accent-amber/80" :
+                  "bg-accent-cyan/15 text-accent-cyan"
+                }`}>
+                  {h.score} layers
+                </span>
+                <span className="text-[10px] font-medium text-navy-200">
+                  {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+              </div>
+              <span className={`text-[9px] font-mono ${daysAway <= 7 ? "text-accent-amber" : "text-navy-500"}`}>
+                {daysAway === 0 ? "today" : `${daysAway}d`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {h.events.slice(0, 3).map((ev, i) => (
+                <span key={i} className={`text-[8px] ${getEventTextColor(ev)}`}>{ev.holiday}</span>
+              ))}
+              {h.signals.length > 0 && <span className="text-[8px] text-signal-4">{h.signals.length} sig</span>}
+              {h.predictions.length > 0 && <span className="text-[8px] text-signal-5">{h.predictions.length} pred</span>}
+            </div>
+          </button>
+        );
+      })}
+    </>
+  );
+}

@@ -1,601 +1,1032 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { PageContainer } from "@/components/layout/page-container";
-import { Metric } from "@/components/ui/metric";
-import { StatusDot } from "@/components/ui/status-dot";
-import { BriefingCard } from "@/components/ui/briefing-card";
-import { DataGrid, type Column } from "@/components/ui/data-grid";
-import { Badge, IntensityIndicator } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Markdown } from "@/components/ui/markdown";
-import {
-  FileText,
-  Target,
-  Shield,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  ArrowRight,
-} from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { TradeSuggestionCard } from "@/components/trading/trade-suggestion-card";
-import { TradeApprovalModal } from "@/components/trading/trade-approval-modal";
-import { useDismissedTrades } from "@/components/trading/use-dismissed-trades";
+import {
+  Shield,
+  MessageSquare,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  Calendar,
+  Crosshair,
+  BookOpen,
+  Clock,
+  ArrowUpRight,
+  ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  BarChart3,
+  Network,
+  Bell,
+  FileText,
+  Check,
+  Zap,
+  Globe,
+  Lock,
+  ChevronDown,
+  AlertTriangle,
+  Eye,
+  Radar,
+} from "lucide-react";
+import dynamic from "next/dynamic";
+import { HeroTerminal } from "@/components/landing/hero-terminal";
 
-// ── Types ──
+const ThreatMapPreview = dynamic(
+  () => import("@/components/landing/threat-map-preview"),
+  { ssr: false, loading: () => <div className="h-52 bg-navy-950" /> }
+);
 
-interface Signal {
-  id: number;
-  title: string;
-  date: string;
-  intensity: number;
-  category: string;
-  status: string;
-  layers: string;
-}
-
-interface ThesisSummary {
-  id: number;
-  title: string;
-  status: string;
-  generatedAt: string;
-  marketRegime: string;
-  volatilityOutlook: string;
-  convergenceDensity: number;
-  overallConfidence: number;
-  executiveSummary: string;
-  tradingActions: Array<{
-    ticker: string;
-    direction: string;
-    rationale: string;
-    entryCondition?: string;
-    confidence?: number;
-    riskLevel?: string;
-    sources?: string[];
-  }>;
-  layerInputs?: {
-    celestial: { activeEvents: string[]; convergenceIntensity: number };
-    hebrew: { activeHolidays: string[]; shmitaRelevance: string | null };
-    geopolitical: { activeEvents: string[]; escalationRisk: number };
-    market: { regime: string; volatilityOutlook: string };
-    gameTheory: {
-      activeScenarios: string[];
-      analyses: Array<{
-        scenarioId: string;
-        marketAssessment: {
-          mostLikelyOutcome: string;
-          direction: string;
-          confidence: number;
-          keySectors: string[];
-        };
-      }>;
-    };
-  };
-}
-
-interface Prediction {
-  id: number;
-  claim: string;
-  timeframe: string;
-  deadline: string;
-  confidence: number;
-  category: string;
-  outcome: string | null;
-  outcomeNotes: string | null;
-  score: number | null;
-  createdAt: string;
-}
-
-interface WarRoomMetrics {
-  maxEscalation: number;
-  convergenceDensity: number;
-  marketRegime: string;
-  volatilityOutlook: string;
-  activeSignalCount: number;
-  highIntensityCount: number;
-}
-
-interface AccountInfo {
-  currencyCode?: string;
-}
-
-interface AccountCash {
-  free?: number;
-  total?: number;
-  ppiCash?: number;
-  blockedCash?: number;
-  invested?: number;
-  pieCash?: number;
-  result?: number;
-}
-
-// ── Component ──
-
-export default function DashboardPage() {
-  const router = useRouter();
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const [activeThesis, setActiveThesis] = useState<ThesisSummary | null>(null);
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [warRoomMetrics, setWarRoomMetrics] = useState<WarRoomMetrics | null>(null);
-  const [accountCash, setAccountCash] = useState<AccountCash | null>(null);
-  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [approvalAction, setApprovalAction] = useState<{
-    ticker: string;
-    direction: "BUY" | "SELL" | "HOLD";
-    rationale: string;
-    entryCondition: string;
-    riskLevel: string;
-    confidence: number;
-    sources: string[];
-  } | null>(null);
-  const dismissed = useDismissedTrades();
+// ── Scroll reveal hook ──
+function useScrollReveal(threshold = 0.15) {
+  const [revealed, setRevealed] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/signals").then((r) => r.json()).catch(() => []),
-      fetch("/api/thesis?status=active").then((r) => r.json()).catch(() => ({ theses: [] })),
-      fetch("/api/predictions").then((r) => r.json()).catch(() => []),
-      fetch("/api/warroom").then((r) => r.json()).catch(() => null),
-      fetch("/api/trading212/account").then((r) => r.json()).catch(() => null),
-    ])
-      .then(([signalData, thesisData, predData, warData, accountData]) => {
-        setSignals(Array.isArray(signalData) ? signalData : signalData.signals || []);
-        const theses = thesisData.theses || [];
-        if (theses.length > 0) setActiveThesis(theses[0]);
-        setPredictions(Array.isArray(predData) ? predData : predData.predictions || []);
-        if (warData?.metrics) setWarRoomMetrics(warData.metrics);
-        if (accountData?.cash) setAccountCash(accountData.cash);
-        if (accountData?.info) setAccountInfo(accountData.info);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  // ── Computed values ──
-
-  const activeSignals = signals.filter((s) => s.status === "active");
-  const upcomingSignals = signals.filter((s) => s.status === "upcoming");
-  const highIntensity = signals.filter((s) => s.intensity >= 4);
-
-  const pendingPredictions = predictions.filter((p) => !p.outcome);
-  const resolvedPredictions = predictions.filter((p) => p.outcome);
-  const today = new Date().toISOString().split("T")[0];
-  const overduePredictions = pendingPredictions.filter((p) => p.deadline <= today);
-  const confirmedCount = resolvedPredictions.filter((p) => p.outcome === "confirmed").length;
-  const avgScore = resolvedPredictions.length > 0
-    ? resolvedPredictions.reduce((sum, p) => sum + (p.score || 0), 0) / resolvedPredictions.length
-    : 0;
-
-  const portfolioValue = accountCash?.total ?? null;
-  const pnl = accountCash?.result ?? null;
-  const pnlPercent = portfolioValue && pnl && accountCash?.invested
-    ? (pnl / accountCash.invested) * 100
-    : null;
-  const currency = accountInfo?.currencyCode || "GBP";
-
-  const threatLevel = warRoomMetrics?.maxEscalation ?? 0;
-
-  // ── Signal columns ──
-
-  const signalColumns: Column<Signal>[] = [
-    {
-      key: "intensity",
-      header: "Level",
-      accessor: (row) => <IntensityIndicator intensity={row.intensity} />,
-      sortAccessor: (row) => row.intensity,
-    },
-    {
-      key: "title",
-      header: "Signal",
-      accessor: (row) => (
-        <span className="text-navy-200">{row.title}</span>
-      ),
-    },
-    {
-      key: "date",
-      header: "Date",
-      accessor: (row) =>
-        new Date(row.date).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-      sortAccessor: (row) => row.date,
-    },
-    {
-      key: "category",
-      header: "Type",
-      accessor: (row) => (
-        <Badge variant="category">{row.category}</Badge>
-      ),
-      sortAccessor: (row) => row.category,
-    },
-  ];
-
-  // ── Prediction columns ──
-
-  const predictionColumns: Column<Prediction>[] = [
-    {
-      key: "category",
-      header: "Cat",
-      accessor: (row) => {
-        const colors: Record<string, string> = {
-          market: "bg-accent-cyan/20 text-accent-cyan border-accent-cyan/30",
-          geopolitical: "bg-accent-rose/20 text-accent-rose border-accent-rose/30",
-          celestial: "bg-accent-amber/20 text-accent-amber border-accent-amber/30",
-        };
-        return (
-          <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium font-mono border ${colors[row.category] || "bg-navy-700 text-navy-200"}`}>
-            {row.category.slice(0, 3).toUpperCase()}
-          </span>
-        );
-      },
-    },
-    {
-      key: "claim",
-      header: "Claim",
-      accessor: (row) => (
-        <span className="text-navy-200 text-xs line-clamp-1">{row.claim}</span>
-      ),
-    },
-    {
-      key: "confidence",
-      header: "Conf",
-      accessor: (row) => (
-        <span className="text-navy-300 text-xs font-mono">
-          {(row.confidence * 100).toFixed(0)}%
-        </span>
-      ),
-      sortAccessor: (row) => row.confidence,
-    },
-    {
-      key: "deadline",
-      header: "Due",
-      accessor: (row) => {
-        const daysLeft = Math.ceil(
-          (new Date(row.deadline).getTime() - Date.now()) / 86400000
-        );
-        const isOverdue = daysLeft < 0;
-        return (
-          <span className={`text-xs font-mono ${isOverdue ? "text-accent-rose" : daysLeft <= 3 ? "text-accent-amber" : "text-navy-400"}`}>
-            {isOverdue ? `${Math.abs(daysLeft)}d over` : `${daysLeft}d`}
-          </span>
-        );
-      },
-      sortAccessor: (row) => row.deadline,
-    },
-  ];
-
-  // ── Loading state ──
-
-  if (loading) {
-    return (
-      <PageContainer title="Dashboard" subtitle="Intelligence overview">
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-[72px] w-full rounded" />
-            ))}
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Skeleton className="h-40 col-span-2 rounded" />
-            <Skeleton className="h-40 rounded" />
-          </div>
-          <Skeleton className="h-60 w-full rounded" />
-        </div>
-      </PageContainer>
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setRevealed(true); observer.disconnect(); } },
+      { threshold }
     );
-  }
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
 
+  return { ref, revealed };
+}
+
+// ── Animated counter ──
+function Counter({ end, suffix = "", duration = 2000 }: { end: number; suffix?: string; duration?: number }) {
+  const [count, setCount] = useState(0);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setStarted(true); },
+      { threshold: 0.3 }
+    );
+    const el = document.getElementById(`counter-${end}`);
+    if (el) observer.observe(el);
+    return () => observer.disconnect();
+  }, [end]);
+
+  useEffect(() => {
+    if (!started) return;
+    const steps = 40;
+    const increment = end / steps;
+    let current = 0;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= end) {
+        setCount(end);
+        clearInterval(timer);
+      } else {
+        setCount(Math.floor(current));
+      }
+    }, duration / steps);
+    return () => clearInterval(timer);
+  }, [started, end, duration]);
+
+  return <span id={`counter-${end}`}>{count.toLocaleString()}{suffix}</span>;
+}
+
+// ── Grid background ──
+function GridBackground() {
   return (
-    <PageContainer title="Dashboard" subtitle="Intelligence overview">
-      {/* ── Row 1: Key Metrics (bento) ── */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {/* HERO: Threat Level -- colored accent */}
-        <div className={`rounded-lg px-4 py-1 border ${threatLevel >= 4 ? "bg-accent-rose/6 border-accent-rose/30 shadow-[0_0_20px_rgba(244,63,94,0.06)]" : threatLevel >= 3 ? "bg-accent-amber/6 border-accent-amber/25 shadow-[0_0_20px_rgba(245,158,11,0.06)]" : "bg-navy-800/60 border-navy-700/40"}`}>
-          <Metric
-            label="Threat Level"
-            value={`${threatLevel}/5`}
-            change={warRoomMetrics?.volatilityOutlook || ""}
-            changeColor={threatLevel >= 4 ? "red" : threatLevel >= 3 ? "neutral" : "green"}
-          />
-        </div>
-        {/* Quiet */}
-        <div className="rounded-lg px-4 py-1 bg-navy-900/50 border border-navy-800/60">
-          <Metric
-            label="Market Regime"
-            value={warRoomMetrics?.marketRegime?.replace("_", " ") || "N/A"}
-            change={`${activeSignals.length} active`}
-            changeColor="neutral"
-          />
-        </div>
-        {/* Quiet */}
-        <div className="rounded-lg px-4 py-1 bg-navy-900/50 border border-navy-800/60">
-          <Metric
-            label="Thesis Confidence"
-            value={activeThesis ? `${(activeThesis.overallConfidence * 100).toFixed(0)}%` : "N/A"}
-            change={activeThesis?.volatilityOutlook || "no thesis"}
-            changeColor={activeThesis && activeThesis.overallConfidence >= 0.7 ? "green" : "neutral"}
-          />
-        </div>
-        {/* Quiet */}
-        <div className="rounded-lg px-4 py-1 bg-navy-900/50 border border-navy-800/60">
-          <Metric
-            label="Predictions"
-            value={pendingPredictions.length}
-            change={overduePredictions.length > 0 ? `${overduePredictions.length} overdue` : `${resolvedPredictions.length} resolved`}
-            changeColor={overduePredictions.length > 0 ? "red" : "neutral"}
-          />
-        </div>
-        {/* Quiet */}
-        <div className="rounded-lg px-4 py-1 bg-navy-900/50 border border-navy-800/60">
-          <Metric
-            label="Accuracy"
-            value={resolvedPredictions.length > 0 ? `${(avgScore * 100).toFixed(0)}%` : "N/A"}
-            change={resolvedPredictions.length > 0 ? `${confirmedCount}/${resolvedPredictions.length} confirmed` : "no data"}
-            changeColor={avgScore >= 0.6 ? "green" : avgScore > 0 ? "red" : "neutral"}
-          />
-        </div>
-        {/* HERO: Portfolio -- colored accent */}
-        <div className={`rounded-lg px-4 py-1 border ${pnl != null && pnl >= 0 ? "bg-accent-emerald/6 border-accent-emerald/25 shadow-[0_0_20px_rgba(16,185,129,0.06)]" : pnl != null && pnl < 0 ? "bg-accent-rose/6 border-accent-rose/30 shadow-[0_0_20px_rgba(244,63,94,0.06)]" : "bg-navy-800/60 border-navy-700/40"}`}>
-          <Metric
-            label="Portfolio"
-            value={portfolioValue != null ? `${currency} ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "N/A"}
-            change={pnl != null ? `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}${pnlPercent != null ? ` (${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(1)}%)` : ""}` : ""}
-            changeColor={pnl != null ? (pnl >= 0 ? "green" : "red") : "neutral"}
-          />
-        </div>
-      </div>
-
-      {/* ── Row 2: Thesis + Prediction Scorecard ── */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {/* Active Thesis */}
-        <div className="col-span-2">
-          {activeThesis ? (
-            <div className="border border-navy-700/40 rounded-lg bg-navy-800/40 p-5 shadow-[0_1px_12px_rgba(0,0,0,0.25)]">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
-                    Active Thesis
-                  </h2>
-                  <StatusDot
-                    color={activeThesis.marketRegime === "risk_off" ? "red" : activeThesis.marketRegime === "risk_on" ? "green" : "amber"}
-                    label={activeThesis.marketRegime.replace("_", " ")}
-                  />
-                  <span className="text-[10px] text-navy-500">
-                    Convergence {activeThesis.convergenceDensity.toFixed(1)}/10
-                  </span>
-                </div>
-                <Link
-                  href={`/thesis/${activeThesis.id}`}
-                  className="flex items-center gap-1 text-[10px] text-navy-500 hover:text-navy-300 transition-colors"
-                >
-                  Full Briefing <ArrowRight className="h-3 w-3" />
-                </Link>
-              </div>
-              <div className="font-sans text-sm text-navy-300 leading-relaxed mb-4">
-                <Markdown>{activeThesis.executiveSummary}</Markdown>
-              </div>
-              {/* Trading action count summary */}
-              {activeThesis.tradingActions && activeThesis.tradingActions.length > 0 && (
-                <div className="border-t border-navy-700/30 pt-3">
-                  <div className="text-[10px] text-navy-500">
-                    {activeThesis.tradingActions.length} trading action{activeThesis.tradingActions.length !== 1 ? "s" : ""} suggested below
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-8 text-center h-full flex flex-col items-center justify-center">
-              <FileText className="h-8 w-8 text-navy-700 mb-3" />
-              <p className="text-xs text-navy-500 mb-1">No active thesis</p>
-              <Link href="/thesis" className="text-xs text-navy-400 hover:text-navy-200 transition-colors">
-                Generate one
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Prediction Scorecard */}
-        <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
-              Prediction Scorecard
-            </h2>
-            <Link
-              href="/predictions"
-              className="flex items-center gap-1 text-[10px] text-navy-500 hover:text-navy-300 transition-colors"
-            >
-              View All <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="h-3.5 w-3.5 text-accent-cyan" />
-                <span className="text-xs text-navy-300">Pending</span>
-              </div>
-              <span className="text-sm font-bold text-navy-100 font-mono">{pendingPredictions.length}</span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 text-accent-rose" />
-                <span className="text-xs text-navy-300">Overdue</span>
-              </div>
-              <span className={`text-sm font-bold font-mono ${overduePredictions.length > 0 ? "text-accent-rose" : "text-navy-400"}`}>
-                {overduePredictions.length}
-              </span>
-            </div>
-
-            <div className="border-t border-navy-700/30 pt-3" />
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-accent-emerald" />
-                <span className="text-xs text-navy-300">Confirmed</span>
-              </div>
-              <span className="text-sm font-bold text-accent-emerald font-mono">{confirmedCount}</span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <XCircle className="h-3.5 w-3.5 text-navy-500" />
-                <span className="text-xs text-navy-300">Denied</span>
-              </div>
-              <span className="text-sm font-bold text-navy-400 font-mono">
-                {resolvedPredictions.filter((p) => p.outcome === "denied").length}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="h-3.5 w-3.5 text-accent-amber" />
-                <span className="text-xs text-navy-300">Partial</span>
-              </div>
-              <span className="text-sm font-bold text-accent-amber font-mono">
-                {resolvedPredictions.filter((p) => p.outcome === "partial").length}
-              </span>
-            </div>
-
-            <div className="border-t border-navy-700/30 pt-3" />
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="h-3.5 w-3.5 text-navy-400" />
-                <span className="text-xs text-navy-300">Avg Score</span>
-              </div>
-              <span className={`text-sm font-bold font-mono ${avgScore >= 0.6 ? "text-accent-emerald" : avgScore > 0 ? "text-accent-amber" : "text-navy-400"}`}>
-                {resolvedPredictions.length > 0 ? `${(avgScore * 100).toFixed(0)}%` : "N/A"}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="h-3.5 w-3.5 flex items-center justify-center text-[10px] font-bold text-navy-400">#</span>
-                <span className="text-xs text-navy-300">Total Resolved</span>
-              </div>
-              <span className="text-sm font-bold text-navy-200 font-mono">{resolvedPredictions.length}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Recommended Trades ── */}
-      {activeThesis?.tradingActions && activeThesis.tradingActions.length > 0 && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
-              Recommended Trades
-            </h2>
-            <Link
-              href="/trading"
-              className="flex items-center gap-1 text-[10px] text-navy-500 hover:text-navy-300 transition-colors"
-            >
-              Trading <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="space-y-1.5">
-            {activeThesis.tradingActions
-              .filter((a) => !dismissed.isDismissed(activeThesis.id, a.ticker, a.direction))
-              .map((action, i) => (
-                <TradeSuggestionCard
-                  key={`${action.ticker}-${action.direction}-${i}`}
-                  action={{
-                    ticker: action.ticker,
-                    direction: action.direction as "BUY" | "SELL" | "HOLD",
-                    rationale: action.rationale,
-                    confidence: action.confidence ?? 0,
-                    riskLevel: action.riskLevel,
-                  }}
-                  executed={dismissed.isExecuted(activeThesis.id, action.ticker, action.direction)}
-                  onApprove={() =>
-                    setApprovalAction({
-                      ticker: action.ticker,
-                      direction: action.direction as "BUY" | "SELL" | "HOLD",
-                      rationale: action.rationale,
-                      entryCondition: (action as Record<string, unknown>).entryCondition as string || "",
-                      riskLevel: action.riskLevel || "medium",
-                      confidence: action.confidence ?? 0,
-                      sources: (action as Record<string, unknown>).sources as string[] || [],
-                    })
-                  }
-                  onDecline={() => dismissed.dismiss(activeThesis.id, action.ticker, action.direction)}
-                />
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Trade Approval Modal */}
-      <TradeApprovalModal
-        action={approvalAction}
-        thesisContext={activeThesis?.layerInputs ? {
-          id: activeThesis.id,
-          title: activeThesis.title,
-          marketRegime: activeThesis.marketRegime,
-          volatilityOutlook: activeThesis.volatilityOutlook,
-          convergenceDensity: activeThesis.convergenceDensity,
-          overallConfidence: activeThesis.overallConfidence,
-          layerInputs: activeThesis.layerInputs,
-        } : undefined}
-        onClose={() => setApprovalAction(null)}
-        onExecuted={(ticker, direction) => {
-          if (activeThesis) dismissed.markExecuted(activeThesis.id, ticker, direction);
-          setApprovalAction(null);
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(6,182,212,0.5) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(6,182,212,0.5) 1px, transparent 1px)
+          `,
+          backgroundSize: "60px 60px",
         }}
       />
+      <div
+        className="absolute inset-0 opacity-[0.015]"
+        style={{
+          backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(6,182,212,0.4) 2px, rgba(6,182,212,0.4) 4px)",
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: "radial-gradient(ellipse at 50% 0%, transparent 0%, #000000 70%)",
+        }}
+      />
+    </div>
+  );
+}
 
-      {/* ── Row 3: Signals + Pending Predictions ── */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* High Intensity Signals */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
-              High Intensity Signals
-            </h2>
-            <Link
-              href="/signals"
-              className="flex items-center gap-1 text-[10px] text-navy-500 hover:text-navy-300 transition-colors"
-            >
-              All Signals <ArrowRight className="h-3 w-3" />
-            </Link>
+// ── Status data ──
+interface StatusData {
+  maxEscalation: number;
+  marketRegime: string;
+  activeSignalCount: number;
+  highIntensityCount: number;
+  convergenceDensity: number;
+  volatilityOutlook: string;
+}
+
+// ── Module sections ──
+const SECTIONS = [
+  {
+    label: "Core",
+    items: [
+      { name: "War Room", href: "/warroom", icon: Shield, desc: "Real-time geopolitical theater with scenario modeling" },
+      { name: "Chat", href: "/chat", icon: MessageSquare, desc: "AI analyst with 20+ intelligence tools" },
+      { name: "Dashboard", href: "/dashboard", icon: BarChart3, desc: "Configurable metrics and live data" },
+    ],
+  },
+  {
+    label: "Intelligence",
+    items: [
+      { name: "Signals", href: "/signals", icon: Activity, desc: "Multi-layer convergence events scored 1-5" },
+      { name: "Predictions", href: "/predictions", icon: Crosshair, desc: "AI predictions with tracked hit/miss rates" },
+      { name: "Knowledge", href: "/knowledge", icon: BookOpen, desc: "Theses, world models, actor profiles" },
+      { name: "Timeline", href: "/timeline", icon: Clock, desc: "Full event stream with cross-referencing" },
+    ],
+  },
+  {
+    label: "Markets",
+    items: [
+      { name: "Watchlists", href: "/watchlists", icon: Eye, desc: "Track symbols with live quotes and alerts" },
+      { name: "Trading", href: "/trading", icon: TrendingUp, desc: "Execute across stocks and crypto" },
+      { name: "Calendar", href: "/calendar", icon: Calendar, desc: "Hebrew, Islamic, FOMC, OPEX convergence" },
+      { name: "Thesis", href: "/thesis", icon: FileText, desc: "AI-generated daily operational briefings" },
+      { name: "Alerts", href: "/alerts", icon: Bell, desc: "Threshold and event-driven notifications" },
+      { name: "Graph", href: "/graph", icon: Network, desc: "Entity and relationship intelligence map" },
+    ],
+  },
+];
+
+// ── Features data ──
+const features = [
+  {
+    icon: Shield,
+    title: "War Room",
+    description: "A live map of what's actually going on. Military flights, OSINT feeds, conflict zones, all updating in real time so you're not relying on headlines.",
+    color: "text-accent-rose",
+    glow: "rose" as const,
+    tag: "GEOINT",
+  },
+  {
+    icon: MessageSquare,
+    title: "AI Analyst",
+    description: "Talk to it like a colleague. It knows macro, geopolitics, and market patterns, and it'll give you a straight answer.",
+    color: "text-accent-cyan",
+    glow: "cyan" as const,
+    tag: "HUMINT",
+  },
+  {
+    icon: Activity,
+    title: "Signal Detection",
+    description: "Constantly scanning economic, geopolitical, and sentiment data. When something shifts, you know about it before the market prices it in.",
+    color: "text-accent-amber",
+    glow: "amber" as const,
+    tag: "SIGINT",
+  },
+  {
+    icon: FileText,
+    title: "Thesis Generation",
+    description: "All the intelligence layers synthesized into clear, actionable theses. Not vague predictions, actual positions you can take.",
+    color: "text-accent-emerald",
+    glow: "emerald" as const,
+    tag: "FUSION",
+  },
+  {
+    icon: Crosshair,
+    title: "Prediction Tracking",
+    description: "Every prediction is falsifiable, scored, and tracked. You can see exactly how accurate the system is over time, no hand-waving.",
+    color: "text-accent-cyan",
+    glow: "cyan" as const,
+    tag: "ASSESS",
+  },
+  {
+    icon: TrendingUp,
+    title: "Trading Integration",
+    description: "Connected directly to your broker. When a thesis converts into a trade, you can execute it right there, no switching tabs.",
+    color: "text-accent-emerald",
+    glow: "emerald" as const,
+    tag: "EXECUTE",
+  },
+];
+
+// ── Pricing tiers ──
+const tiers = [
+  {
+    name: "Analyst",
+    price: "$49",
+    period: "/mo",
+    description: "Individual intelligence capability",
+    features: [
+      "Signal detection engine",
+      "AI chat analyst (100 msgs/day)",
+      "Daily thesis generation",
+      "Prediction tracking",
+      "War Room (view only)",
+      "Email alerts",
+    ],
+    cta: "Start Analysing",
+    highlighted: false,
+  },
+  {
+    name: "Operator",
+    price: "$149",
+    period: "/mo",
+    description: "Full operational capability",
+    features: [
+      "Everything in Analyst",
+      "Unlimited AI analyst access",
+      "Trading broker integration",
+      "Real-time War Room + OSINT",
+      "Custom signal layers",
+      "Portfolio risk analytics",
+      "Priority intelligence feeds",
+      "API access",
+    ],
+    cta: "Go Operational",
+    highlighted: true,
+  },
+  {
+    name: "Institution",
+    price: "Custom",
+    period: "",
+    description: "Multi-seat deployment",
+    features: [
+      "Everything in Operator",
+      "Unlimited seats",
+      "Custom data integrations",
+      "Dedicated infrastructure",
+      "White-label option",
+      "SLA guarantee",
+      "Direct engineering support",
+      "On-premise available",
+    ],
+    cta: "Contact Us",
+    highlighted: false,
+  },
+];
+
+// ── Animated Chat Simulation ──
+function AnimatedChat() {
+  const allMessages = [
+    { role: "user" as const, text: "What's the Iran escalation risk?" },
+    { role: "ai" as const, text: "Hormuz closure probability at 73%. Energy correlation spiking. Recommend risk-off posture." },
+    { role: "user" as const, text: "Best hedge right now?" },
+    { role: "ai" as const, text: "Long XLE, short transport index. Confidence 81%." },
+    { role: "user" as const, text: "Analyse gold price drivers this week" },
+    { role: "ai" as const, text: "Three converging signals: USD weakening, PBOC buying, and Middle East premium. Target $2,840." },
+    { role: "user" as const, text: "Should I add to my position?" },
+    { role: "ai" as const, text: "Scale in on dips below $2,780. Risk/reward favourable at 2.3:1." },
+    { role: "user" as const, text: "What signals fired today?" },
+    { role: "ai" as const, text: "4 high-intensity signals. NATO mobilisation in Baltics, oil contango widening, VIX term structure inversion." },
+    { role: "user" as const, text: "Portfolio impact?" },
+    { role: "ai" as const, text: "Defence sector +2.4% implied. Rotate from tech to commodities. Confidence 76%." },
+  ];
+
+  const [visibleCount, setVisibleCount] = useState(0);
+  const [typingText, setTypingText] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom whenever content changes
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [visibleCount, typingText]);
+
+  useEffect(() => {
+    if (visibleCount >= allMessages.length) {
+      // All messages shown - pause, then loop back to start
+      const timeout = setTimeout(() => {
+        setVisibleCount(0);
+        setTypingText("");
+      }, 4000);
+      return () => clearTimeout(timeout);
+    }
+
+    const msg = allMessages[visibleCount];
+    if (msg.role === "ai") {
+      setIsTyping(true);
+      let charIndex = 0;
+      setTypingText("");
+      const typeInterval = setInterval(() => {
+        charIndex++;
+        setTypingText(msg.text.slice(0, charIndex));
+        if (charIndex >= msg.text.length) {
+          clearInterval(typeInterval);
+          setIsTyping(false);
+          setTimeout(() => setVisibleCount((v) => v + 1), 800);
+        }
+      }, 20);
+      return () => clearInterval(typeInterval);
+    } else {
+      const timeout = setTimeout(() => {
+        setVisibleCount((v) => v + 1);
+      }, 1000);
+      return () => clearTimeout(timeout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleCount]);
+
+  return (
+    <div className="relative h-52 bg-navy-900/80 overflow-hidden p-4">
+      <div ref={scrollRef} className="space-y-2.5 h-full overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+        {allMessages.slice(0, visibleCount).map((msg, i) => (
+          <div key={i} className={`flex gap-2 items-start ${msg.role === "user" ? "justify-end" : ""}`} style={{ animation: "wr-fade-in 300ms ease-out" }}>
+            {msg.role === "ai" && (
+              <div className="h-5 w-5 rounded-full bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-accent-cyan/60" />
+              </div>
+            )}
+            <div className={`rounded-lg px-3 py-2 text-[10px] font-mono leading-relaxed max-w-[85%] ${
+              msg.role === "user"
+                ? "bg-accent-cyan/[0.06] border border-accent-cyan/10 text-navy-300 rounded-tr-sm"
+                : "bg-navy-800/60 text-navy-300 rounded-tl-sm"
+            }`}>
+              {msg.text}
+            </div>
           </div>
-          <DataGrid
-            data={highIntensity.slice(0, 10)}
-            columns={signalColumns}
-            keyExtractor={(row) => row.id}
-            onRowClick={(row) => router.push(`/signals/${row.id}`)}
-            emptyMessage="No high intensity signals"
+        ))}
+        {isTyping && visibleCount < allMessages.length && allMessages[visibleCount].role === "ai" && (
+          <div className="flex gap-2 items-start" style={{ animation: "wr-fade-in 300ms ease-out" }}>
+            <div className="h-5 w-5 rounded-full bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="h-1.5 w-1.5 rounded-full bg-accent-cyan/60" />
+            </div>
+            <div className="bg-navy-800/60 rounded-lg rounded-tl-sm px-3 py-2 text-[10px] text-navy-300 font-mono leading-relaxed max-w-[85%]">
+              {typingText}<span className="inline-block w-1 h-3 bg-accent-cyan/50 ml-0.5 animate-pulse" />
+            </div>
+          </div>
+        )}
+        {!isTyping && visibleCount < allMessages.length && allMessages[visibleCount].role === "user" && (
+          <div className="flex gap-2 items-start justify-end" style={{ animation: "wr-fade-in 200ms ease-out" }}>
+            <div className="bg-navy-800/30 rounded-lg px-3 py-2">
+              <div className="flex gap-1">
+                <div className="h-1 w-1 rounded-full bg-navy-500" style={{ animation: "wr-dot-pulse 1.4s infinite", animationDelay: "0s" }} />
+                <div className="h-1 w-1 rounded-full bg-navy-500" style={{ animation: "wr-dot-pulse 1.4s infinite", animationDelay: "0.2s" }} />
+                <div className="h-1 w-1 rounded-full bg-navy-500" style={{ animation: "wr-dot-pulse 1.4s infinite", animationDelay: "0.4s" }} />
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Spacer to ensure scroll room */}
+        <div className="h-4" />
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-navy-900/80 to-transparent pointer-events-none" />
+    </div>
+  );
+}
+
+// ── War Room Map Preview (real CARTO tiles) ──
+// ThreatMap is now imported as ThreatMapPreview via dynamic import at top of file
+
+// ── Animated Signal Bars ──
+function AnimatedSignalBars({ revealed }: { revealed: boolean }) {
+  const [bars, setBars] = useState([3, 5, 2, 4, 5, 3, 1, 4, 5, 2, 3, 4, 5, 3, 2, 4, 1, 5, 3, 4]);
+
+  useEffect(() => {
+    if (!revealed) return;
+    const interval = setInterval(() => {
+      setBars((prev) =>
+        prev.map((v) => {
+          const delta = Math.random() > 0.5 ? 1 : -1;
+          return Math.max(1, Math.min(5, v + delta));
+        })
+      );
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [revealed]);
+
+  return (
+    <div className="relative h-40 bg-navy-900/80 overflow-hidden p-5">
+      <div className="flex items-end gap-1.5 h-full pb-4">
+        {bars.map((v, i) => (
+          <div
+            key={i}
+            className="flex-1 rounded-t transition-all duration-1000 ease-out"
+            style={{
+              height: revealed ? `${v * 18}%` : "0%",
+              transitionDelay: revealed ? `${i * 50}ms` : "0ms",
+              backgroundColor: v >= 4
+                ? `rgba(245,158,11,${0.2 + v * 0.1})`
+                : `rgba(245,158,11,${0.05 + v * 0.04})`,
+            }}
           />
+        ))}
+      </div>
+      <div className="absolute left-5 right-5 bottom-[calc(1rem+72%)] border-t border-dashed border-accent-rose/20">
+        <span className="absolute -top-3 right-0 text-[8px] text-accent-rose/40 font-mono">THRESHOLD</span>
+      </div>
+      <div className="absolute bottom-3 left-4 flex items-center gap-2">
+        <span className="text-[9px] text-accent-amber/50 tracking-[0.15em] font-mono">SIGNAL INTENSITY</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Animated Pipeline ──
+function AnimatedPipeline({ revealed }: { revealed: boolean }) {
+  const [activeStep, setActiveStep] = useState(-1);
+
+  useEffect(() => {
+    if (!revealed) return;
+    const interval = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % 4);
+    }, 2000);
+    const timeout = setTimeout(() => setActiveStep(0), 800);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [revealed]);
+
+  const stages = [
+    { label: "THESIS", color: "#10b981", icon: FileText },
+    { label: "PREDICT", color: "#06b6d4", icon: Crosshair },
+    { label: "EXECUTE", color: "#10b981", icon: TrendingUp },
+  ];
+
+  return (
+    <div className="relative h-40 bg-navy-900/80 overflow-hidden p-5">
+      <div className="flex items-center justify-between h-full px-4">
+        {stages.map((stage, i) => (
+          <div key={stage.label} className="flex items-center gap-4 flex-1">
+            <div className={`flex flex-col items-center gap-2 flex-1 transition-all duration-700 ${revealed ? "opacity-100 scale-100" : "opacity-0 scale-90"}`} style={{ transitionDelay: `${800 + i * 200}ms` }}>
+              <div
+                className="flex items-center justify-center transition-all duration-500"
+                style={{
+                  transform: activeStep === i ? "scale(1.15)" : "scale(1)",
+                }}
+              >
+                <stage.icon className="h-5 w-5 transition-colors duration-500" style={{ color: activeStep === i ? `${stage.color}` : `${stage.color}60` }} />
+              </div>
+              <span className="text-[9px] tracking-[0.15em] font-mono transition-colors duration-500" style={{ color: activeStep === i ? `${stage.color}` : `${stage.color}50` }}>
+                {stage.label}
+              </span>
+            </div>
+            {i < 2 && (
+              <div className="flex-shrink-0 flex items-center">
+                <div
+                  className="w-8 h-px transition-all duration-700"
+                  style={{
+                    background: `linear-gradient(to right, ${stages[i].color}30, ${stages[i + 1].color}30)`,
+                    opacity: revealed ? 1 : 0,
+                    transform: revealed ? "scaleX(1)" : "scaleX(0)",
+                    transitionDelay: `${900 + i * 200}ms`,
+                  }}
+                />
+                <ArrowRight
+                  className="h-3 w-3 -ml-1 transition-all duration-500"
+                  style={{
+                    color: activeStep === i ? stages[i].color : "rgba(92,92,92,0.5)",
+                    opacity: revealed ? 1 : 0,
+                    transitionDelay: `${1000 + i * 200}ms`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+        {stages.map((s, i) => (
+          <div
+            key={i}
+            className="h-0.5 w-6 rounded-full transition-all duration-500"
+            style={{ backgroundColor: activeStep >= i ? s.color : "rgba(61,61,61,0.4)" }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Bento Features Section ──
+function BentoFeatures() {
+  const { ref, revealed } = useScrollReveal(0.1);
+
+  const base = "transition-all duration-700 ease-out";
+  const hidden = "opacity-0 translate-y-8";
+  const visible = "opacity-100 translate-y-0";
+
+  return (
+    <section id="features" className="relative py-28" ref={ref}>
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <div className={`inline-flex items-center gap-2 border border-navy-700/40 rounded-full px-4 py-1.5 mb-6 ${base} ${revealed ? visible : hidden}`}>
+            <Zap className="h-3 w-3 text-accent-amber" />
+            <span className="text-[10px] text-navy-400 tracking-[0.2em] uppercase">
+              Capabilities
+            </span>
+          </div>
+          <h2 className={`font-sans text-3xl md:text-4xl font-bold text-white mb-4 ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "100ms" }}>
+            Everything connected, nothing siloed
+          </h2>
+          <p className={`text-sm text-navy-400 max-w-lg mx-auto ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "200ms" }}>
+            Six modules that actually talk to each other. Signals feed into theses, theses feed into predictions, predictions feed into trades. One pipeline, start to finish.
+          </p>
         </div>
 
-        {/* Pending Predictions */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
-              Pending Predictions
-            </h2>
-            <Link
-              href="/predictions"
-              className="flex items-center gap-1 text-[10px] text-navy-500 hover:text-navy-300 transition-colors"
-            >
-              All Predictions <ArrowRight className="h-3 w-3" />
-            </Link>
+        <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-2 gap-4">
+          {/* War Room */}
+          <div className={`lg:col-span-4 ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "300ms" }}>
+            <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-rose/30 hover:shadow-[0_0_40px_rgba(244,63,94,0.06)] transition-all duration-500 lg:rounded-tl-[2rem]">
+              <ThreatMapPreview />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Shield className="h-4 w-4 text-accent-rose" />
+                    <h3 className="text-base font-bold text-navy-100 font-sans">War Room</h3>
+                  </div>
+                  <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">GEOINT</span>
+                </div>
+                <p className="text-xs text-navy-400 leading-relaxed font-sans max-w-md">
+                  A live view of the world as it actually is. Military aircraft tracked, OSINT feeds streaming, conflict zones mapped. You see escalation patterns forming before they hit the news.
+                </p>
+              </div>
+            </div>
           </div>
-          <DataGrid
-            data={pendingPredictions.slice(0, 10)}
-            columns={predictionColumns}
-            keyExtractor={(row) => row.id}
-            onRowClick={() => router.push("/predictions")}
-            emptyMessage="No pending predictions"
-          />
+
+          {/* AI Analyst */}
+          <div className={`lg:col-span-2 ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "400ms" }}>
+            <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-cyan/30 hover:shadow-[0_0_40px_rgba(6,182,212,0.06)] transition-all duration-500 lg:rounded-tr-[2rem]">
+              <AnimatedChat />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <MessageSquare className="h-4 w-4 text-accent-cyan" />
+                    <h3 className="text-base font-bold text-navy-100 font-sans">AI Analyst</h3>
+                  </div>
+                  <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">HUMINT</span>
+                </div>
+                <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                  Ask it anything, it understands macro, geopolitics, and how markets actually respond to world events. Like having an analyst on call, 24/7.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Signal Detection */}
+          <div className={`lg:col-span-2 ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "500ms" }}>
+            <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-amber/30 hover:shadow-[0_0_40px_rgba(245,158,11,0.06)] transition-all duration-500 lg:rounded-bl-[2rem]">
+              <AnimatedSignalBars revealed={revealed} />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Activity className="h-4 w-4 text-accent-amber" />
+                    <h3 className="text-base font-bold text-navy-100 font-sans">Signal Detection</h3>
+                  </div>
+                  <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">SIGINT</span>
+                </div>
+                <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                  Multiple data layers scanning constantly. When something meaningful shifts, the system catches it and tells you why it matters.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Pipeline */}
+          <div className={`lg:col-span-4 ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "600ms" }}>
+            <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-emerald/30 hover:shadow-[0_0_40px_rgba(16,185,129,0.06)] transition-all duration-500 lg:rounded-br-[2rem]">
+              <AnimatedPipeline revealed={revealed} />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="h-4 w-4 text-accent-emerald" />
+                    <h3 className="text-base font-bold text-navy-100 font-sans">Thesis, Predictions & Execution</h3>
+                  </div>
+                  <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">FUSION</span>
+                </div>
+                <p className="text-xs text-navy-400 leading-relaxed font-sans max-w-lg">
+                  Intelligence turns into theses, theses into scored predictions, predictions into executable trades. Every step tracked, every call accountable.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </PageContainer>
+    </section>
+  );
+}
+
+// ── Indicator ──
+function Indicator({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-mono text-navy-600 uppercase">{label}</span>
+      <span className={`text-[10px] font-mono font-medium uppercase ${color}`}>{value}</span>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// ── MAIN PAGE ──
+// ════════════════════════════════════════════════════════════
+
+export default function LandingPage() {
+  const [status, setStatus] = useState<StatusData | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/warroom")
+      .then((r) => r.json())
+      .then((d) => setStatus(d?.metrics || null))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-navy-950 flex flex-col">
+      {/* ── Sticky Header ── */}
+      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-navy-950/90 backdrop-blur-md border-b border-navy-700/40"
+          : "bg-navy-950 border-b border-navy-800/30"
+      }`}>
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Radar className="h-5 w-5 text-white" />
+            <span className="text-sm font-semibold tracking-[0.15em] text-navy-200 font-mono">
+              NEXUS <span className="text-navy-400 font-normal">Intelligence</span>
+            </span>
+          </Link>
+
+          <div className="flex items-center gap-6">
+            {/* Nav links */}
+            <a href="#features" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              CAPABILITIES
+            </a>
+            <a href="#modules" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              MODULES
+            </a>
+            <a href="#pricing" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              PRICING
+            </a>
+
+            {/* Live status */}
+            {status && (
+              <div className="flex items-center gap-5 border-l border-navy-700/50 pl-6 hidden lg:flex">
+                <Indicator
+                  label="Threat"
+                  value={`${status.maxEscalation}/5`}
+                  color={status.maxEscalation >= 4 ? "text-accent-rose" : status.maxEscalation >= 3 ? "text-accent-amber" : "text-navy-300"}
+                />
+                <Indicator
+                  label="Regime"
+                  value={status.marketRegime?.replace("_", " ")}
+                  color={status.marketRegime === "risk_off" ? "text-accent-rose" : status.marketRegime === "risk_on" ? "text-accent-emerald" : "text-accent-amber"}
+                />
+                <Indicator label="Signals" value={String(status.activeSignalCount)} color="text-navy-300" />
+                <div className="flex items-center gap-1.5">
+                  <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />
+                  <span className="text-[10px] font-mono text-navy-500">Online</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ── Hero ── */}
+      <section className="relative pt-14">
+        <GridBackground />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-cyan/[0.02] rounded-full blur-[100px]" />
+        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-accent-rose/[0.02] rounded-full blur-[100px]" />
+
+        <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-16">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+            {/* Left: copy */}
+            <div className="pt-8">
+              <span className="text-[10px] text-navy-500 tracking-[0.3em] uppercase font-mono mb-6 block">
+                Intelligence Platform
+              </span>
+
+              <h1 className="text-[28px] font-light tracking-tight text-navy-100 font-sans">
+                Signal intelligence
+              </h1>
+              <p className="text-[14px] text-navy-400 mt-2 font-sans max-w-md leading-relaxed">
+                Geopolitical-market convergence analysis. Celestial calendars, game theory, OSINT, and AI-driven thesis generation in one operational layer.
+              </p>
+
+              <div className="mt-8 flex items-center gap-4">
+                <Link
+                  href="/dashboard"
+                  className="group flex items-center gap-2 px-5 py-2.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
+                >
+                  Enter
+                  <ArrowUpRight className="h-3 w-3 text-navy-500 group-hover:text-navy-300 transition-colors" />
+                </Link>
+                <Link
+                  href="/warroom"
+                  className="text-[11px] font-mono tracking-widest uppercase text-navy-500 hover:text-navy-300 transition-colors"
+                >
+                  War Room
+                </Link>
+                <a
+                  href="#features"
+                  className="text-[11px] font-mono tracking-widest uppercase text-navy-500 hover:text-navy-300 transition-colors flex items-center gap-1"
+                >
+                  Learn More
+                  <ChevronDown className="h-3 w-3" />
+                </a>
+              </div>
+
+              {/* Capability highlights */}
+              <div className="mt-12 space-y-3">
+                {[
+                  "Multi-calendar convergence (Hebrew, Islamic, Chinese, FOMC, OPEX)",
+                  "Game theory modeling with Nash equilibrium analysis",
+                  "Monte Carlo simulations on any position",
+                  "OSINT ingestion from GDELT, RSS, and satellite feeds",
+                  "AI predictions with tracked accuracy scoring",
+                ].map((cap, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    <div className="w-1 h-1 rounded-full bg-navy-600" />
+                    <span className="text-[11px] text-navy-500 font-sans">{cap}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: animated terminal */}
+            <div>
+              <HeroTerminal />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Metrics Bar ── */}
+      <section className="relative border-y border-navy-700/30 bg-navy-900/30">
+        <div className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+          {[
+            { value: 2847, suffix: "+", label: "Signals Tracked" },
+            { value: 73, suffix: "%", label: "Prediction Accuracy" },
+            { value: 12, suffix: "", label: "Intelligence Layers" },
+            { value: 50, suffix: "ms", label: "Signal Latency" },
+          ].map((stat) => (
+            <div key={stat.label} className="text-center">
+              <div className="text-3xl font-bold text-white font-mono tracking-tight">
+                <Counter end={stat.value} suffix={stat.suffix} />
+              </div>
+              <div className="text-[10px] text-navy-400 tracking-[0.15em] uppercase mt-1">
+                {stat.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Features Bento ── */}
+      <BentoFeatures />
+
+      {/* ── Modules ── */}
+      <section id="modules" className="max-w-6xl mx-auto px-6 pb-24 w-full">
+        <div className="text-center mb-12">
+          <h2 className="font-sans text-3xl font-bold text-white mb-4">
+            All modules
+          </h2>
+          <p className="text-sm text-navy-400 max-w-md mx-auto">
+            Direct access to every layer of the platform. Each module feeds data into the others.
+          </p>
+        </div>
+
+        {SECTIONS.map((section) => (
+          <div key={section.label} className="mb-12">
+            <h2 className="text-[10px] font-mono text-navy-500 uppercase tracking-[0.2em] mb-4">
+              {section.label}
+            </h2>
+            <div className="grid grid-cols-1 gap-px bg-navy-800/20 rounded border border-navy-800/30 overflow-hidden">
+              {section.items.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="group flex items-center justify-between px-5 py-4 bg-navy-950 hover:bg-navy-900/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <item.icon className="h-4 w-4 text-navy-500 group-hover:text-navy-300 transition-colors" />
+                    <div>
+                      <span className="text-[13px] text-navy-200 group-hover:text-navy-100 transition-colors font-sans">
+                        {item.name}
+                      </span>
+                      <span className="text-[11px] text-navy-600 ml-3 font-sans">
+                        {item.desc}
+                      </span>
+                    </div>
+                  </div>
+                  <ArrowUpRight className="h-3.5 w-3.5 text-navy-700 group-hover:text-navy-400 transition-colors" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* ── Pricing ── */}
+      <section id="pricing" className="relative py-28">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 border border-navy-700/40 rounded-full px-4 py-1.5 mb-6">
+              <Lock className="h-3 w-3 text-accent-emerald" />
+              <span className="text-[10px] text-navy-400 tracking-[0.2em] uppercase">
+                Pricing
+              </span>
+            </div>
+            <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4">
+              Pick what fits
+            </h2>
+            <p className="text-sm text-navy-400 max-w-md mx-auto">
+              14-day free trial on everything. No credit card, no commitment. Just try it.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {tiers.map((tier) => (
+              <div
+                key={tier.name}
+                className={`relative rounded-lg p-6 transition-all duration-500 ${
+                  tier.highlighted
+                    ? "bg-navy-900/80 border-2 border-navy-400/30 shadow-[0_0_40px_rgba(255,255,255,0.03)]"
+                    : "bg-navy-900/40 border border-navy-700/40 hover:border-navy-600/60"
+                }`}
+              >
+                {tier.highlighted && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="text-[9px] font-bold bg-navy-100 text-navy-950 rounded-full px-3.5 py-1 tracking-[0.15em] uppercase shadow-md">
+                      Recommended
+                    </span>
+                  </div>
+                )}
+
+                <div className="mb-6">
+                  <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-navy-300 mb-1">
+                    {tier.name}
+                  </h3>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-bold text-white font-sans">
+                      {tier.price}
+                    </span>
+                    {tier.period && (
+                      <span className="text-sm text-navy-500">{tier.period}</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-navy-500 mt-2">{tier.description}</p>
+                </div>
+
+                <div className="space-y-2.5 mb-8">
+                  {tier.features.map((f) => (
+                    <div key={f} className="flex items-start gap-2.5">
+                      <Check className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${tier.highlighted ? "text-navy-200" : "text-navy-500"}`} />
+                      <span className="text-xs text-navy-300 font-sans">{f}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Link
+                  href="/login"
+                  className={`block text-center text-xs font-medium rounded-lg px-4 py-2.5 transition-all duration-300 ${
+                    tier.highlighted
+                      ? "bg-navy-100 hover:bg-white text-navy-950 font-semibold"
+                      : "bg-navy-800/60 hover:bg-navy-800 text-navy-300 hover:text-navy-100 border border-navy-700/40 hover:border-navy-600/60"
+                  }`}
+                >
+                  {tier.cta}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Final CTA ── */}
+      <section className="relative py-28 overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-accent-cyan/[0.03] rounded-full blur-[120px]" />
+
+        <div className="relative z-10 max-w-2xl mx-auto px-6 text-center">
+          <div className="inline-flex items-center gap-2 mb-6">
+            <Globe className="h-4 w-4 text-accent-cyan/60" />
+            <span className="text-[10px] text-navy-400 tracking-[0.2em] uppercase">
+              Global Intelligence Network
+            </span>
+          </div>
+
+          <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">
+            The world won&apos;t wait<br />for you to catch up
+          </h2>
+
+          <p className="text-sm text-navy-400 mb-10 max-w-md mx-auto leading-relaxed font-sans">
+            You can keep reading headlines after the fact, or you can see things forming before they land. 14 days free, full access, cancel whenever.
+          </p>
+
+          <Link
+            href="/dashboard"
+            className="group inline-flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10 hover:border-white/20 rounded-lg px-10 py-3.5 text-sm font-medium transition-all duration-300"
+          >
+            Get Started
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-navy-700/30 pt-16 pb-10 bg-navy-950">
+        <div className="max-w-6xl mx-auto px-6">
+          {/* Main footer grid */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-14">
+            {/* Brand column */}
+            <div className="col-span-2 md:col-span-1">
+              <div className="flex items-center gap-2.5 mb-4">
+                <Radar className="h-4.5 w-4.5 text-white" />
+                <span className="text-[12px] font-semibold tracking-[0.15em] text-navy-200 font-mono">
+                  NEXUS <span className="text-navy-400 font-normal">Intelligence</span>
+                </span>
+              </div>
+              <p className="text-[11px] text-navy-500 leading-relaxed font-sans mb-4">
+                Signal intelligence platform for geopolitical-market convergence analysis.
+              </p>
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />
+                <span className="text-[10px] font-mono text-navy-500">All systems online</span>
+              </div>
+            </div>
+
+            {/* Platform */}
+            <div>
+              <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Platform</h4>
+              <div className="space-y-2.5">
+                <Link href="/warroom" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">War Room</Link>
+                <Link href="/chat" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">AI Analyst</Link>
+                <Link href="/dashboard" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Dashboard</Link>
+                <Link href="/signals" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Signals</Link>
+                <Link href="/predictions" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Predictions</Link>
+                <Link href="/trading" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Trading</Link>
+                <Link href="/graph" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Entity Graph</Link>
+              </div>
+            </div>
+
+            {/* Intelligence */}
+            <div>
+              <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Intelligence</h4>
+              <div className="space-y-2.5">
+                <Link href="/thesis" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Daily Thesis</Link>
+                <Link href="/knowledge" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Knowledge Bank</Link>
+                <Link href="/timeline" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Timeline</Link>
+                <Link href="/calendar" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Calendar</Link>
+                <Link href="/alerts" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Alerts</Link>
+              </div>
+            </div>
+
+            {/* Research */}
+            <div>
+              <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Research</h4>
+              <div className="space-y-2.5">
+                <Link href="/research/methodology" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Methodology</Link>
+                <Link href="/research/signal-theory" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Signal Theory</Link>
+                <Link href="/research/calendar-correlations" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Calendar Correlations</Link>
+                <Link href="/research/game-theory" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Game Theory Models</Link>
+                <Link href="/research/prediction-accuracy" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Prediction Accuracy</Link>
+                <Link href="/research/whitepapers" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Whitepapers</Link>
+              </div>
+            </div>
+
+            {/* Company */}
+            <div>
+              <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Company</h4>
+              <div className="space-y-2.5">
+                <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">About</a>
+                <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Careers</a>
+                <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Contact</a>
+                <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">API Docs</a>
+                <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Status Page</a>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t border-navy-800/40 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-6 text-[10px] text-navy-600 tracking-wide font-mono">
+              <a href="#" className="hover:text-navy-400 transition-colors">Terms of Service</a>
+              <a href="#" className="hover:text-navy-400 transition-colors">Privacy Policy</a>
+              <a href="#" className="hover:text-navy-400 transition-colors">Cookie Policy</a>
+              <a href="#" className="hover:text-navy-400 transition-colors">Security</a>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-[10px] font-mono text-navy-700">NEXUS v1.0</span>
+              <span className="text-[9px] text-navy-700 font-mono tabular-nums">
+                {new Date().getFullYear()} NEXUS INTEL. All rights reserved.
+              </span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

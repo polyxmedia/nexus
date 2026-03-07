@@ -1,6 +1,7 @@
 import type { CelestialEvent } from "./celestial";
 import type { HebrewCalendarSignal } from "./hebrew-calendar";
 import type { GeopoliticalEvent } from "./geopolitical";
+import { getEsotericReading, type EsotericReading } from "./numerology";
 
 export interface ConvergenceResult {
   date: string;
@@ -9,6 +10,7 @@ export interface ConvergenceResult {
   celestialEvents: CelestialEvent[];
   hebrewEvents: HebrewCalendarSignal[];
   geopoliticalEvents: GeopoliticalEvent[];
+  esoteric?: EsotericReading;
   title: string;
   description: string;
   category: string;
@@ -56,7 +58,7 @@ export function scoreConvergences(
   if (currentCluster.length > 0) clusters.push(currentCluster);
 
   for (const cluster of clusters) {
-    const clusterStart = cluster[0];
+    const clusterStart = cluster;
     const clusterEnd = cluster[cluster.length - 1];
 
     // Find all events in this cluster
@@ -78,6 +80,9 @@ export function scoreConvergences(
 
     if (layers.length === 0) continue;
 
+    // Esoteric reading for this date
+    const esoteric = getEsotericReading(new Date(clusterStart + "T12:00:00Z"));
+
     // Base score from individual event significance
     const baseScore =
       ce.reduce((s, e) => s + e.significance, 0) +
@@ -87,8 +92,16 @@ export function scoreConvergences(
     // Convergence bonus: +1 for each additional layer beyond the first
     const convergenceBonus = Math.max(0, layers.length - 1);
 
+    // Esoteric adjustment (composite score ranges -10 to +10, normalize to -1 to +1)
+    const esotericAdjust = esoteric.compositeScore / 10;
+
+    // Add esoteric as a layer if score is notable
+    if (Math.abs(esoteric.compositeScore) >= 2) {
+      layers.push("esoteric");
+    }
+
     // Raw intensity
-    const rawIntensity = Math.min(baseScore + convergenceBonus, 10);
+    const rawIntensity = Math.min(baseScore + convergenceBonus + esotericAdjust, 10);
 
     // Normalize to 1-5 scale
     const intensity = Math.max(1, Math.min(5, Math.ceil(rawIntensity / 2)));
@@ -103,7 +116,7 @@ export function scoreConvergences(
     const title =
       allTitles.length <= 2
         ? allTitles.join(" + ")
-        : `${allTitles[0]} + ${allTitles.length - 1} convergent events`;
+        : `${allTitles} + ${allTitles.length - 1} convergent events`;
 
     const descriptions = [
       ...ce.map((e) => e.description),
@@ -114,7 +127,7 @@ export function scoreConvergences(
     const category =
       layers.length > 1
         ? "convergence"
-        : layers[0];
+        : layers;
 
     const sectors = new Set<string>();
     ge.forEach((e) => e.sectors.forEach((s) => sectors.add(s)));
@@ -131,6 +144,7 @@ export function scoreConvergences(
       celestialEvents: ce,
       hebrewEvents: he,
       geopoliticalEvents: ge,
+      esoteric,
       title,
       description: descriptions.join(" | "),
       category,

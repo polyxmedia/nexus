@@ -9,13 +9,13 @@ function getT212Client() {
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "t212_api_key"))
-    .get();
+    ;
 
   const apiSecretSetting = db
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "t212_api_secret"))
-    .get();
+    ;
 
   const apiKey = apiKeySetting?.value || process.env.TRADING212_API_KEY;
   const apiSecret = apiSecretSetting?.value || process.env.TRADING212_SECRET;
@@ -28,7 +28,7 @@ function getT212Client() {
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "trading_environment"))
-    .get();
+    ;
 
   const environment = (envSetting?.value || "live") as Environment;
   return { client: new Trading212Client(apiKey, apiSecret, environment), environment };
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "max_order_size"))
-      .get();
+      ;
 
     if (maxOrderSizeSetting) {
       const maxSize = parseFloat(maxOrderSizeSetting.value);
@@ -87,16 +87,16 @@ export async function POST(request: NextRequest) {
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "daily_trade_limit"))
-      .get();
+      ;
 
     if (dailyLimitSetting) {
       const dailyLimit = parseInt(dailyLimitSetting.value, 10);
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T");
       const todayTrades = db
         .select()
         .from(schema.trades)
-        .all()
-        .filter((t) => t.createdAt.startsWith(today));
+        
+        .filter((t: { createdAt: string }) => t.createdAt.startsWith(today));
 
       if (todayTrades.length >= dailyLimit) {
         return NextResponse.json(
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
         dedupeHash: hash,
       })
       .returning()
-      .get();
+      ;
 
     return NextResponse.json(trade);
   } catch (error) {

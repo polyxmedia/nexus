@@ -3,7 +3,8 @@
 import type { ChatTurn } from "@/lib/chat/useChat";
 import { ToolCallIndicator } from "./ToolCallIndicator";
 import { ToolResultRenderer } from "./ToolResultRenderer";
-import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface MessageBlockProps {
   turn: ChatTurn;
@@ -38,10 +39,67 @@ export function MessageBlock({ turn, isStreaming }: MessageBlockProps) {
 
       {/* Text content */}
       {(turn.content || isStreaming) && (
-        <div className="text-sm text-navy-200 leading-relaxed whitespace-pre-wrap">
-          {formatMarkdownLite(turn.content)}
+        <div className="prose-nexus text-sm text-navy-200 leading-relaxed">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h1: ({ children }) => <h1 className="text-lg font-bold text-navy-100 mt-4 mb-2">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-base font-bold text-navy-100 mt-3 mb-2">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-sm font-bold text-navy-100 mt-3 mb-1">{children}</h3>,
+              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+              strong: ({ children }) => <strong className="text-navy-100 font-semibold">{children}</strong>,
+              em: ({ children }) => <em className="text-navy-300 italic">{children}</em>,
+              ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-0.5">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-0.5">{children}</ol>,
+              li: ({ children }) => <li className="text-navy-200">{children}</li>,
+              code: ({ className, children }) => {
+                const isBlock = className?.includes("language-");
+                if (isBlock) {
+                  return (
+                    <code className="block bg-navy-900 border border-navy-700 rounded p-3 my-2 text-xs font-mono text-accent-cyan overflow-x-auto whitespace-pre">
+                      {children}
+                    </code>
+                  );
+                }
+                return (
+                  <code className="bg-navy-800 border border-navy-700 rounded px-1.5 py-0.5 text-xs font-mono text-accent-cyan">
+                    {children}
+                  </code>
+                );
+              },
+              pre: ({ children }) => <pre className="my-2">{children}</pre>,
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-2 border-navy-600 pl-3 my-2 text-navy-400 italic">
+                  {children}
+                </blockquote>
+              ),
+              a: ({ href, children }) => (
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline">
+                  {children}
+                </a>
+              ),
+              table: ({ children }) => (
+                <div className="overflow-x-auto my-2">
+                  <table className="min-w-full text-xs border border-navy-700">{children}</table>
+                </div>
+              ),
+              thead: ({ children }) => <thead className="bg-navy-800 text-navy-300">{children}</thead>,
+              th: ({ children }) => <th className="px-3 py-1.5 text-left font-semibold border-b border-navy-700">{children}</th>,
+              td: ({ children }) => <td className="px-3 py-1.5 border-b border-navy-800">{children}</td>,
+              hr: () => <hr className="border-navy-700 my-3" />,
+            }}
+          >
+            {turn.content}
+          </ReactMarkdown>
           {isStreaming && !turn.content && turn.toolCalls.length === 0 && (
-            <span className="inline-block w-1.5 h-4 bg-accent-cyan animate-pulse" />
+            <div className="flex items-center gap-2 py-1">
+              <div className="flex gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse [animation-delay:150ms]" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse [animation-delay:300ms]" />
+              </div>
+              <span className="text-[11px] text-navy-500 font-mono">Analyzing...</span>
+            </div>
           )}
           {isStreaming && turn.content && (
             <span className="inline-block w-1.5 h-4 bg-accent-cyan animate-pulse ml-0.5" />
@@ -50,21 +108,4 @@ export function MessageBlock({ turn, isStreaming }: MessageBlockProps) {
       )}
     </div>
   );
-}
-
-function formatMarkdownLite(text: string): React.ReactNode {
-  if (!text) return null;
-
-  // Split by lines and process bold markers
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={i} className="text-navy-100 font-semibold">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    return <span key={i}>{part}</span>;
-  });
 }

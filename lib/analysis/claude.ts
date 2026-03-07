@@ -1,13 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { SYSTEM_PROMPT, buildAnalysisPrompt } from "./prompts";
+import { buildAnalysisPrompt } from "./prompts";
+import { loadPrompt } from "@/lib/prompts/loader";
 import type { Signal, NewAnalysis } from "../db/schema";
-
-const MODEL = "claude-sonnet-4-20250514";
+import { getModel } from "@/lib/ai/model";
 
 export async function analyzeSignal(
   signal: Signal,
   apiKey: string
-): Promise<NewAnalysis> {
+):Promise< Promise<NewAnalysis>>  {
   const client = new Anthropic({ apiKey });
 
   const prompt = buildAnalysisPrompt({
@@ -24,14 +24,14 @@ export async function analyzeSignal(
   });
 
   const response = await client.messages.create({
-    model: MODEL,
+    model: await getModel(),
     max_tokens: 2048,
-    system: SYSTEM_PROMPT,
+    system: await loadPrompt("analysis_system"),
     messages: [{ role: "user", content: prompt }],
   });
 
   const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
+    response.content.type === "text" ? response.content.text : "";
 
   // Extract JSON from response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -39,7 +39,7 @@ export async function analyzeSignal(
     throw new Error("Failed to parse structured analysis from Claude response");
   }
 
-  const analysis = JSON.parse(jsonMatch[0]);
+  const analysis = JSON.parse(jsonMatch);
 
   return {
     signalId: signal.id,
@@ -53,6 +53,6 @@ export async function analyzeSignal(
     celestialAnalysis: analysis.celestial_analysis || null,
     historicalParallels: analysis.historical_parallels || null,
     riskFactors: JSON.stringify(analysis.risk_factors || []),
-    modelUsed: MODEL,
+    modelUsed: await getModel(),
   };
 }

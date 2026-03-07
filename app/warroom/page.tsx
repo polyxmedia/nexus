@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { StatusDot } from "@/components/ui/status-dot";
+// Status indicators are inline in the top bar
 import { ScenarioPanel } from "@/components/warroom/scenario-panel";
 import { IntelPanel } from "@/components/warroom/intel-panel";
 import { ActorDetailModal } from "@/components/warroom/actor-detail-modal";
@@ -33,13 +33,6 @@ const GlobeView = dynamic(
   { ssr: false }
 );
 
-const THREAT_COLORS: Record<number, string> = {
-  1: "bg-signal-1/20 text-signal-1 border-signal-1/30",
-  2: "bg-signal-2/20 text-signal-2 border-signal-2/30",
-  3: "bg-signal-3/20 text-signal-3 border-signal-3/30",
-  4: "bg-signal-4/20 text-signal-4 border-signal-4/30",
-  5: "bg-signal-5/20 text-signal-5 border-signal-5/30",
-};
 
 export default function WarRoomPage() {
   const [data, setData] = useState<WarRoomData | null>(null);
@@ -136,20 +129,27 @@ export default function WarRoomPage() {
 
   if (loading || !data) {
     return (
-      <div className="ml-56 h-screen flex flex-col overflow-hidden bg-navy-950">
-        <div className="h-10 border-b border-navy-700/30 bg-navy-900/90 flex items-center px-4 gap-3">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-6 w-20 rounded" />
+      <div className="ml-48 h-screen flex flex-col overflow-hidden bg-[#050505]">
+        <div className="h-9 border-b border-[#1a1a1a] bg-[#080808]/95 flex items-center px-3 gap-0 font-mono">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+              <Skeleton className="h-3 w-8 rounded-sm" />
+              <Skeleton className="h-3 w-6 rounded-sm" />
+            </div>
           ))}
-          <div className="ml-auto flex items-center gap-1">
-            <span className="w-1 h-1 rounded-full bg-navy-500" style={{ animation: "wr-dot-pulse 1.2s infinite 0ms" }} />
-            <span className="w-1 h-1 rounded-full bg-navy-500" style={{ animation: "wr-dot-pulse 1.2s infinite 200ms" }} />
-            <span className="w-1 h-1 rounded-full bg-navy-500" style={{ animation: "wr-dot-pulse 1.2s infinite 400ms" }} />
+          <div className="flex-1" />
+          <div className="flex items-center gap-1.5 px-3">
+            <span className="w-1 h-1 rounded-full bg-navy-600" style={{ animation: "wr-dot-pulse 1.2s infinite 0ms" }} />
+            <span className="w-1 h-1 rounded-full bg-navy-600" style={{ animation: "wr-dot-pulse 1.2s infinite 200ms" }} />
+            <span className="w-1 h-1 rounded-full bg-navy-600" style={{ animation: "wr-dot-pulse 1.2s infinite 400ms" }} />
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-xs text-navy-500 uppercase tracking-wider animate-pulse">
-            Initializing War Room...
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-2 w-2 rounded-full bg-accent-cyan animate-pulse" />
+            <span className="text-[10px] text-navy-600 uppercase tracking-[0.2em] font-mono">
+              Initializing
+            </span>
           </div>
         </div>
       </div>
@@ -159,69 +159,81 @@ export default function WarRoomPage() {
   const { metrics } = data;
 
   return (
-    <div className="ml-56 h-screen flex flex-col overflow-hidden bg-navy-950">
-      {/* Top Bar */}
-      <div className="h-10 border-b border-navy-700/30 bg-navy-900/90 backdrop-blur-sm flex items-center px-4 gap-3 shrink-0 z-20">
-        <div className="flex items-center gap-2 bg-navy-800/50 rounded px-2 py-1">
-          <span className="text-[10px] text-navy-500 uppercase tracking-wider">
-            Threat
-          </span>
-          <span
-            className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${THREAT_COLORS[metrics.maxEscalation] || THREAT_COLORS[1]}`}
-          >
+    <div className="ml-48 h-screen flex flex-col overflow-hidden bg-[#050505]">
+      {/* Top Bar - COP Status */}
+      <div className="h-9 border-b border-[#1a1a1a] bg-[#080808]/95 backdrop-blur-sm flex items-center px-3 gap-0 shrink-0 z-20 font-mono">
+        {/* Threat Level */}
+        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+          <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">THREAT</span>
+          <span className={`text-[10px] font-bold tabular-nums ${
+            metrics.maxEscalation >= 4 ? "text-signal-5" :
+            metrics.maxEscalation >= 3 ? "text-signal-4" :
+            "text-signal-2"
+          }`}>
             {metrics.maxEscalation}/5
           </span>
         </div>
 
-        <div className="flex items-center gap-2 bg-navy-800/50 rounded px-2 py-1">
-          <span className="text-[10px] text-navy-500 uppercase tracking-wider">
-            Regime
-          </span>
-          <StatusDot
-            color={
-              metrics.marketRegime === "risk_off"
-                ? "red"
-                : metrics.marketRegime === "risk_on"
-                  ? "green"
-                  : "amber"
-            }
-            label={metrics.marketRegime.replace("_", " ")}
-          />
+        {/* Regime */}
+        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+          <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">REGIME</span>
+          <div className="flex items-center gap-1.5">
+            <div className={`h-1.5 w-1.5 rounded-full ${
+              metrics.marketRegime === "risk_off" ? "bg-accent-rose" :
+              metrics.marketRegime === "risk_on" ? "bg-accent-emerald" :
+              "bg-accent-amber"
+            }`} />
+            <span className={`text-[10px] font-medium uppercase ${
+              metrics.marketRegime === "risk_off" ? "text-accent-rose" :
+              metrics.marketRegime === "risk_on" ? "text-accent-emerald" :
+              "text-accent-amber"
+            }`}>
+              {metrics.marketRegime.replace("_", " ")}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-navy-800/50 rounded px-2 py-1">
-          <span className="text-[10px] text-navy-500 uppercase tracking-wider">
-            Convergence
-          </span>
-          <span className="text-[10px] text-navy-200 font-medium">
+        {/* Convergence */}
+        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+          <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">CONV</span>
+          <span className="text-[10px] text-navy-300 font-medium tabular-nums">
             {metrics.convergenceDensity.toFixed(1)}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 bg-navy-800/50 rounded px-2 py-1">
-          <span className="text-[10px] text-navy-500 uppercase tracking-wider">
-            Volatility
-          </span>
-          <span className="text-[10px] text-navy-200 font-medium">
+        {/* Volatility */}
+        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+          <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">VOL</span>
+          <span className="text-[10px] text-navy-300 font-medium uppercase">
             {metrics.volatilityOutlook}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 bg-navy-800/50 rounded px-2 py-1">
-          <span className="text-[10px] text-navy-500 uppercase tracking-wider">
-            Active
-          </span>
-          <span className="text-[10px] text-navy-200 font-medium">
+        {/* Signals */}
+        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+          <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">SIG</span>
+          <span className="text-[10px] text-navy-300 font-medium tabular-nums">
             {metrics.activeSignalCount}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 bg-navy-800/50 rounded px-2 py-1">
-          <span className="text-[10px] text-navy-500 uppercase tracking-wider">
-            High Int.
-          </span>
-          <span className="text-[10px] text-accent-rose font-medium">
+        {/* High Intensity */}
+        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+          <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">HIGH</span>
+          <span className="text-[10px] text-accent-rose font-bold tabular-nums">
             {metrics.highIntensityCount}
+          </span>
+        </div>
+
+        {/* Spacer + timestamp */}
+        <div className="flex-1" />
+        <div className="flex items-center gap-3 px-3 h-full">
+          <div className="flex items-center gap-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald animate-pulse" />
+            <span className="text-[8px] text-navy-600 uppercase tracking-wider">LIVE</span>
+          </div>
+          <span className="text-[9px] text-navy-600 tabular-nums">
+            {new Date().toISOString().slice(0, 16).replace("T", " ")} UTC
           </span>
         </div>
       </div>

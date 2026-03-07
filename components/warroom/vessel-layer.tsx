@@ -202,6 +202,7 @@ export function VesselLayer({ vessels, onVesselClick }: VesselLayerProps) {
       disableClusteringAtZoom: 7,
       spiderfyOnMaxZoom: false,
       showCoverageOnHover: false,
+      zoomToBoundsOnClick: false,
       iconCreateFunction: clusterIcon,
       animate: false,
       chunkedLoading: true,
@@ -240,9 +241,16 @@ export function VesselLayer({ vessels, onVesselClick }: VesselLayerProps) {
       markers[i] = marker;
     }
 
+    // Save current view to prevent zoom change when adding global markers
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+
     cluster.addLayers(markers);
     map.addLayer(cluster);
     clusterRef.current = cluster;
+
+    // Restore view if it changed
+    map.setView(currentCenter, currentZoom, { animate: false });
 
     rebuildPaths(vessels, map.getZoom());
 

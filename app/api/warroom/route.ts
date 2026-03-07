@@ -56,7 +56,7 @@ export async function GET() {
       .limit(1);
 
     if (activeTheses.length > 0) {
-      const t = activeTheses[0];
+      const t = activeTheses;
       thesis = {
         id: t.id,
         title: t.title,

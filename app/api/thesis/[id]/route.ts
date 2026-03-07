@@ -14,11 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid thesis ID" }, { status: 400 });
     }
 
-    const result = db
-      .select()
-      .from(schema.theses)
-      .where(eq(schema.theses.id, thesisId))
-      .get();
+    const result = db.select().from(schema.theses).where(eq(schema.theses.id, thesisId));
 
     if (!result) {
       return NextResponse.json({ error: "Thesis not found" }, { status: 404 });
@@ -51,11 +47,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid thesis ID" }, { status: 400 });
     }
 
-    const existing = db
-      .select()
-      .from(schema.theses)
-      .where(eq(schema.theses.id, thesisId))
-      .get();
+    const existing = db.select().from(schema.theses).where(eq(schema.theses.id, thesisId));
 
     if (!existing) {
       return NextResponse.json({ error: "Thesis not found" }, { status: 404 });
@@ -67,10 +59,7 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length > 0) {
-      db.update(schema.theses)
-        .set(updates)
-        .where(eq(schema.theses.id, thesisId))
-        .run();
+      db.update(schema.theses).set(updates).where(eq(schema.theses.id, thesisId));
     }
 
     return NextResponse.json({ success: true });

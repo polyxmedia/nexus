@@ -9,9 +9,9 @@ export async function GET(request: NextRequest) {
     const intensity = searchParams.get("intensity");
     const status = searchParams.get("status");
 
-    let query = db.select().from(schema.signals).orderBy(asc(schema.signals.date));
+    let query = await db.select().from(schema.signals).orderBy(asc(schema.signals.date));
 
-    const results = query.all();
+    const results = query;
 
     let filtered = results;
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const result = generateSignals(year);
 
     for (const signal of result.signals) {
-      db.insert(schema.signals).values(signal).run();
+      await db.insert(schema.signals).values(signal);
     }
 
     return NextResponse.json({

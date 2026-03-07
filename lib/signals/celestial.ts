@@ -12,7 +12,7 @@ function formatDate(d: Astronomy.FlexibleDateTime): string {
   const date = new Date(
     d instanceof Astronomy.AstroTime ? d.date : d
   );
-  return date.toISOString().split("T")[0];
+  return date.toISOString().split("T");
 }
 
 export function getLunarEclipses(year: number): CelestialEvent[] {
@@ -153,7 +153,7 @@ export function getPlanetaryConjunctions(year: number): CelestialEvent[] {
 
         if (normalizedSep < 5) {
           events.push({
-            date: date.toISOString().split("T")[0],
+            date: date.toISOString().split("T"),
             type: "conjunction",
             title: `${planets[i]}-${planets[j]} Conjunction`,
             description: `${planets[i]} and ${planets[j]} within ${normalizedSep.toFixed(1)} degrees`,

@@ -7,6 +7,17 @@ import { GameTheoryWidget } from "./widgets/GameTheoryWidget";
 import { ThesisWidget } from "./widgets/ThesisWidget";
 import { PredictionsWidget } from "./widgets/PredictionsWidget";
 import { PortfolioWidget } from "./widgets/PortfolioWidget";
+import { EsotericWidget } from "./widgets/EsotericWidget";
+import { QuoteWidget } from "./widgets/QuoteWidget";
+import { PriceHistoryWidget } from "./widgets/PriceHistoryWidget";
+import { MonteCarloWidget } from "./widgets/MonteCarloWidget";
+import { WebSearchWidget } from "./widgets/WebSearchWidget";
+import { OsintWidget } from "./widgets/OsintWidget";
+import { CalendarWidget } from "./widgets/CalendarWidget";
+import { OptionsFlowWidget } from "./widgets/OptionsFlowWidget";
+import { PortfolioRiskWidget } from "./widgets/PortfolioRiskWidget";
+import { MacroWidget } from "./widgets/MacroWidget";
+import { KnowledgeWidget } from "./widgets/KnowledgeWidget";
 
 interface ToolResultRendererProps {
   toolName: string;
@@ -32,6 +43,36 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       return <PredictionsWidget data={data} />;
     case "get_portfolio":
       return <PortfolioWidget data={data} />;
+    case "get_esoteric_reading":
+      return <EsotericWidget data={data} />;
+    case "get_live_quote":
+      return <QuoteWidget data={data} />;
+    case "get_price_history":
+      return <PriceHistoryWidget data={data} />;
+    case "monte_carlo_simulation":
+      return <MonteCarloWidget data={data} />;
+    case "web_search":
+      return <WebSearchWidget data={data} />;
+    case "get_osint_events":
+    case "extract_osint_entities":
+      return <OsintWidget data={data} />;
+    case "get_economic_calendar":
+      return <CalendarWidget data={data} />;
+    case "get_options_flow":
+      return <OptionsFlowWidget data={data} />;
+    case "get_portfolio_risk":
+      return <PortfolioRiskWidget data={data} />;
+    case "get_macro_data":
+      return <MacroWidget data={data} />;
+    case "search_knowledge":
+      return <KnowledgeWidget data={data} />;
+    case "get_operator_context":
+      return (
+        <div className="my-2 border border-accent-cyan/30 rounded bg-accent-cyan/5 px-3 py-2 text-xs text-accent-cyan flex items-center gap-2">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse" />
+          Operator context loaded
+        </div>
+      );
     default:
       return (
         <div className="my-2 border border-navy-700 rounded bg-navy-900/60 p-3 text-xs text-navy-400 font-mono">

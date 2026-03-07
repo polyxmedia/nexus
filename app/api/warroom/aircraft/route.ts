@@ -64,7 +64,7 @@ export async function GET() {
       if (mil) militaryCount++;
 
       aircraft.push({
-        icao24: s[0] as string,
+        icao24: s as string,
         callsign,
         originCountry: (s[2] as string) || "",
         lat,

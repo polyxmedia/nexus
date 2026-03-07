@@ -55,20 +55,38 @@ const ESCALATION_COLORS: Record<number, string> = {
   5: "#ef4444",
 };
 
-function diamondIcon(color: string) {
+const ESCALATION_FILL: Record<number, string> = {
+  1: "#3b82f620",
+  2: "#22c55e15",
+  3: "#eab30818",
+  4: "#f9731620",
+  5: "#ef444425",
+};
+
+function strategicIcon(type: string) {
+  const isChokepoint = type === "chokepoint";
+  const size = 10;
+  const color = isChokepoint ? "#f59e0b" : "#94a3b8";
+  const glow = isChokepoint ? `filter:drop-shadow(0 0 3px ${color}80);` : "";
+
+  // Chokepoints get a crosshair, bases get a square
+  const svg = isChokepoint
+    ? `<svg viewBox="0 0 16 16" width="${size}" height="${size}" style="${glow}"><circle cx="8" cy="8" r="3" fill="none" stroke="${color}" stroke-width="1.2"/><line x1="8" y1="1" x2="8" y2="5" stroke="${color}" stroke-width="0.8"/><line x1="8" y1="11" x2="8" y2="15" stroke="${color}" stroke-width="0.8"/><line x1="1" y1="8" x2="5" y2="8" stroke="${color}" stroke-width="0.8"/><line x1="11" y1="8" x2="15" y2="8" stroke="${color}" stroke-width="0.8"/></svg>`
+    : `<svg viewBox="0 0 12 12" width="${size}" height="${size}" style="${glow}"><rect x="2" y="2" width="8" height="8" fill="${color}30" stroke="${color}" stroke-width="1" rx="1"/><rect x="4" y="4" width="4" height="4" fill="${color}60" rx="0.5"/></svg>`;
+
   return L.divIcon({
-    html: `<div style="width:8px;height:8px;background:${color};transform:rotate(45deg);border:1px solid rgba(255,255,255,0.3);"></div>`,
+    html: svg,
     className: "",
-    iconSize: [8, 8],
-    iconAnchor: [4, 4],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
-function FlyToZone({ center, zoom }: { center: [number, number]; zoom: number }) {
+function FlyToZone({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, zoom, { duration: 1.5 });
-  }, [map, center, zoom]);
+    map.panTo(center, { animate: true, duration: 0.8 });
+  }, [map, center]);
   return null;
 }
 
@@ -115,14 +133,13 @@ export default function WarRoomMap({
       className="h-full w-full"
       zoomControl={true}
       attributionControl={false}
-      style={{ background: "#0a0a0a" }}
+      style={{ background: "#050505" }}
     >
       <MapTileUpdater tileUrl={tileUrl} attribution={tileAttribution} />
 
       {selectedZone && (
         <FlyToZone
           center={[selectedZone.center.lat, selectedZone.center.lng]}
-          zoom={5}
         />
       )}
 
@@ -131,37 +148,73 @@ export default function WarRoomMap({
         <ConflictHeatmapLayer events={osintEvents} />
       )}
 
-      {/* Conflict Zones */}
+      {/* Conflict Zones - outer ring + fill */}
       {conflictZones.map((zone) => {
         const color = ESCALATION_COLORS[zone.escalationLevel] || "#3b82f6";
         const isSelected = selectedScenarioId === zone.scenarioId;
+        const isHot = zone.escalationLevel >= 4;
         return (
-          <Circle
-            key={zone.id}
-            center={[zone.center.lat, zone.center.lng]}
-            radius={zone.radiusKm * 1000}
-            pathOptions={{
-              color,
-              fillColor: color,
-              fillOpacity: isSelected ? 0.2 : 0.08,
-              weight: isSelected ? 2 : 1,
-              dashArray: isSelected ? undefined : "4 4",
-              className: zone.escalationLevel >= 4 ? "warroom-pulse" : zone.escalationLevel >= 3 ? "warroom-pulse-slow" : "",
-            }}
-            eventHandlers={{
-              click: () => onConflictZoneClick(zone.scenarioId),
-            }}
-          >
-            <Tooltip
-              direction="top"
-              className="warroom-tooltip"
-              permanent={false}
+          <span key={zone.id}>
+            {/* Outer threat radius - dashed perimeter */}
+            <Circle
+              center={[zone.center.lat, zone.center.lng]}
+              radius={zone.radiusKm * 1000}
+              pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: isSelected ? 0.12 : 0.04,
+                weight: isSelected ? 1.5 : 0.8,
+                dashArray: "8 6",
+                opacity: isSelected ? 0.8 : 0.4,
+                className: isHot ? "warroom-zone-pulse" : "",
+              }}
+              eventHandlers={{
+                click: () => onConflictZoneClick(zone.scenarioId),
+              }}
             >
-              <span className="font-mono text-[10px]">
-                {zone.name} [SIGNAL-{zone.escalationLevel}]
-              </span>
-            </Tooltip>
-          </Circle>
+              <Tooltip
+                direction="top"
+                className="warroom-tooltip"
+                permanent={false}
+              >
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
+                    <span style={{ color, fontWeight: 700, fontSize: "9px", letterSpacing: "0.08em" }}>
+                      THREAT LVL {zone.escalationLevel}
+                    </span>
+                  </div>
+                  <div style={{ fontWeight: 600, color: "#e5e5e5" }}>{zone.name}</div>
+                </div>
+              </Tooltip>
+            </Circle>
+
+            {/* Inner core zone - solid, tighter */}
+            <Circle
+              center={[zone.center.lat, zone.center.lng]}
+              radius={zone.radiusKm * 400}
+              pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: isSelected ? 0.18 : 0.08,
+                weight: 0.5,
+                opacity: 0.5,
+              }}
+              interactive={false}
+            />
+
+            {/* Center point marker */}
+            <CircleMarker
+              center={[zone.center.lat, zone.center.lng]}
+              radius={isSelected ? 4 : 3}
+              pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: 0.9,
+                weight: 0,
+              }}
+              interactive={false}
+            />
+          </span>
         );
       })}
 
@@ -170,7 +223,8 @@ export default function WarRoomMap({
         const fromCoords = ACTOR_COORDS[link.from];
         const toCoords = ACTOR_COORDS[link.to];
         if (!fromCoords || !toCoords) return null;
-        const color = link.type === "alliance" ? "#06b6d4" : "#f43f5e";
+        const isAlliance = link.type === "alliance";
+        const color = isAlliance ? "#06b6d4" : "#f43f5e";
         return (
           <Polyline
             key={`${link.from}-${link.to}`}
@@ -180,62 +234,85 @@ export default function WarRoomMap({
             ]}
             pathOptions={{
               color,
-              weight: 1.5,
-              opacity: 0.6,
-              dashArray: "6 4",
+              weight: 1,
+              opacity: 0.5,
+              dashArray: isAlliance ? "6 4" : "3 3",
             }}
           />
         );
       })}
 
-      {/* Actor Markers */}
+      {/* Actor Markers - tactical style */}
       {actors.map((actor) => {
         const isActive = activeActorId === actor.id;
         return (
-          <CircleMarker
-            key={actor.id}
-            center={[actor.coords.lat, actor.coords.lng]}
-            radius={isActive ? 10 : 7}
-            pathOptions={{
-              color: actor.color,
-              fillColor: actor.color,
-              fillOpacity: isActive ? 0.9 : 0.7,
-              weight: isActive ? 2 : 1,
-            }}
-            eventHandlers={{
-              click: () => onActorClick(actor.id),
-              mouseover: () => onActorHover(actor.id),
-              mouseout: () => onActorHover(null),
-            }}
-          >
-            <Tooltip
-              direction="top"
-              offset={[0, -8]}
-              className="warroom-tooltip"
+          <span key={actor.id}>
+            {/* Outer ring on hover/select */}
+            {isActive && (
+              <CircleMarker
+                center={[actor.coords.lat, actor.coords.lng]}
+                radius={14}
+                pathOptions={{
+                  color: actor.color,
+                  fillColor: "transparent",
+                  fillOpacity: 0,
+                  weight: 1,
+                  opacity: 0.4,
+                  dashArray: "3 3",
+                }}
+                interactive={false}
+              />
+            )}
+            <CircleMarker
+              center={[actor.coords.lat, actor.coords.lng]}
+              radius={isActive ? 6 : 4}
+              pathOptions={{
+                color: actor.color,
+                fillColor: actor.color,
+                fillOpacity: isActive ? 1 : 0.8,
+                weight: isActive ? 2 : 1.5,
+              }}
+              eventHandlers={{
+                click: () => onActorClick(actor.id),
+                mouseover: () => onActorHover(actor.id),
+                mouseout: () => onActorHover(null),
+              }}
             >
-              <span className="font-mono text-[10px] uppercase tracking-wider">
-                {actor.shortName}
-              </span>
-            </Tooltip>
-          </CircleMarker>
+              <Tooltip
+                direction="top"
+                offset={[0, -8]}
+                className="warroom-tooltip"
+              >
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px" }}>
+                  <span style={{ fontWeight: 700, letterSpacing: "0.08em", fontSize: "9px", color: actor.color }}>
+                    {actor.shortName}
+                  </span>
+                </div>
+              </Tooltip>
+            </CircleMarker>
+          </span>
         );
       })}
 
       {/* Strategic Locations */}
-      {strategicLocations.map((loc) => {
-        const color = loc.type === "chokepoint" ? "#f59e0b" : "#94a3b8";
-        return (
-          <Marker
-            key={loc.id}
-            position={[loc.coords.lat, loc.coords.lng]}
-            icon={diamondIcon(color)}
-          >
-            <Tooltip direction="top" className="warroom-tooltip">
-              <span className="font-mono text-[10px]">{loc.name}</span>
-            </Tooltip>
-          </Marker>
-        );
-      })}
+      {strategicLocations.map((loc) => (
+        <Marker
+          key={loc.id}
+          position={[loc.coords.lat, loc.coords.lng]}
+          icon={strategicIcon(loc.type)}
+        >
+          <Tooltip direction="top" className="warroom-tooltip">
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "1px" }}>
+                <span style={{ color: loc.type === "chokepoint" ? "#f59e0b" : "#94a3b8", fontSize: "8px", fontWeight: 700, letterSpacing: "0.1em" }}>
+                  {loc.type === "chokepoint" ? "CHOKEPOINT" : "STRATEGIC"}
+                </span>
+              </div>
+              <span style={{ fontWeight: 600, color: "#e5e5e5" }}>{loc.name}</span>
+            </div>
+          </Tooltip>
+        </Marker>
+      ))}
 
       {/* Vessel Layer */}
       {layerVisibility.vessels && vessels.length > 0 && (

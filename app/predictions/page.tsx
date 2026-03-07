@@ -1,15 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { PageContainer } from "@/components/layout/page-container";
-import { DataGrid, type Column } from "@/components/ui/data-grid";
 import { Metric } from "@/components/ui/metric";
-import { StatusDot } from "@/components/ui/status-dot";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, PlusCircle, Sparkles, CheckCircle2 } from "lucide-react";
+import {
+  Loader2,
+  PlusCircle,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+  MinusCircle,
+  Clock,
+  Target,
+  AlertTriangle,
+  Globe,
+  BarChart3,
+  Star,
+  Brain,
+  ChevronDown,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+} from "recharts";
 
 interface Prediction {
   id: number;
@@ -21,21 +50,76 @@ interface Prediction {
   outcome: string | null;
   outcomeNotes: string | null;
   score: number | null;
+  metrics: string | null;
   createdAt: string;
+  resolvedAt: string | null;
 }
 
-const OUTCOME_COLORS: Record<string, { dot: "green" | "red" | "amber" | "gray" | "cyan"; badge: string }> = {
-  confirmed: { dot: "green", badge: "bg-accent-emerald/15 text-accent-emerald border-accent-emerald/30" },
-  denied: { dot: "red", badge: "bg-accent-rose/15 text-accent-rose border-accent-rose/30" },
-  partial: { dot: "amber", badge: "bg-accent-amber/15 text-accent-amber border-accent-amber/30" },
-  expired: { dot: "gray", badge: "bg-navy-700/30 text-navy-400 border-navy-600/30" },
+const CATEGORY_CONFIG: Record<string, {
+  label: string;
+  color: string;
+  border: string;
+  bg: string;
+  hex: string;
+  icon: typeof Globe;
+}> = {
+  market: {
+    label: "Market",
+    color: "text-accent-cyan",
+    border: "border-accent-cyan/30",
+    bg: "bg-accent-cyan/8",
+    hex: "#22d3ee",
+    icon: BarChart3,
+  },
+  geopolitical: {
+    label: "Geopolitical",
+    color: "text-accent-rose",
+    border: "border-accent-rose/30",
+    bg: "bg-accent-rose/8",
+    hex: "#f43f5e",
+    icon: Globe,
+  },
+  celestial: {
+    label: "Celestial",
+    color: "text-accent-amber",
+    border: "border-accent-amber/30",
+    bg: "bg-accent-amber/8",
+    hex: "#f59e0b",
+    icon: Star,
+  },
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  market: "bg-accent-cyan/15 text-accent-cyan border-accent-cyan/30",
-  geopolitical: "bg-accent-rose/15 text-accent-rose border-accent-rose/30",
-  celestial: "bg-accent-amber/15 text-accent-amber border-accent-amber/30",
+const OUTCOME_CONFIG: Record<string, {
+  icon: typeof CheckCircle2;
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+  hex: string;
+}> = {
+  confirmed: { icon: CheckCircle2, label: "HIT", color: "text-accent-emerald", bg: "bg-accent-emerald/8", border: "border-accent-emerald/25", hex: "#10b981" },
+  denied: { icon: XCircle, label: "MISS", color: "text-accent-rose", bg: "bg-accent-rose/8", border: "border-accent-rose/25", hex: "#f43f5e" },
+  partial: { icon: MinusCircle, label: "PARTIAL", color: "text-accent-amber", bg: "bg-accent-amber/8", border: "border-accent-amber/25", hex: "#f59e0b" },
+  expired: { icon: Clock, label: "EXPIRED", color: "text-navy-400", bg: "bg-navy-800/40", border: "border-navy-700/30", hex: "#64748b" },
 };
+
+interface FeedbackReport {
+  totalResolved: number;
+  sampleSufficient: boolean;
+  brierScore: number;
+  logLoss: number;
+  binaryAccuracy: number;
+  avgConfidence: number;
+  calibrationGap: number;
+  calibration: Array<{ range: string; midpoint: number; count: number; confirmedRate: number; brierContribution: number; reliable: boolean }>;
+  byCategory: Array<{ category: string; total: number; confirmed: number; denied: number; partial: number; expired: number; brierScore: number; avgConfidence: number; calibrationGap: number; reliable: boolean }>;
+  failurePatterns: Array<{ pattern: string; frequency: number; examples: string[] }>;
+  timeframeAccuracy: Record<string, { count: number; brierScore: number; binaryAccuracy: number; reliable: boolean }>;
+  recentTrend: { recentBrier: number; priorBrier: number; improving: boolean; windowSize: number } | null;
+  resolutionBias: { avgLlmScore: number; binaryAccuracy: number; partialRate: number; biasDirection: string; biasWarning: string | null };
+}
+
+const POLL_INTERVAL = 30_000;
 
 export default function PredictionsPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -44,8 +128,17 @@ export default function PredictionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [resolving, setResolving] = useState(false);
-  const [generateResult, setGenerateResult] = useState<string | null>(null);
-  const [resolveResult, setResolveResult] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeOutcome, setActiveOutcome] = useState<string | null>(null); // null=all, "pending", "confirmed", "denied", "partial", "expired"
+  const [confidenceRange, setConfidenceRange] = useState<[number, number]>([0, 1]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"deadline" | "confidence" | "created">("deadline");
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const hasAutoResolved = useRef(false);
+
+  const [feedbackReport, setFeedbackReport] = useState<FeedbackReport | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const [claim, setClaim] = useState("");
   const [timeframe, setTimeframe] = useState("30 days");
@@ -53,24 +146,64 @@ export default function PredictionsPage() {
   const [confidence, setConfidence] = useState("0.5");
   const [category, setCategory] = useState("market");
 
-  const [scoringId, setScoringId] = useState<number | null>(null);
-  const [outcome, setOutcome] = useState("confirmed");
-  const [outcomeNotes, setOutcomeNotes] = useState("");
+  const fetchPredictions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/predictions");
+      const data = await res.json();
+      setPredictions(Array.isArray(data) ? data : data.predictions || []);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const fetchPredictions = () => {
-    setLoading(true);
-    fetch("/api/predictions")
-      .then((r) => r.json())
-      .then((data) => {
-        setPredictions(Array.isArray(data) ? data : data.predictions || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  };
+  const autoResolve = useCallback(async (preds: Prediction[]) => {
+    const today = new Date().toISOString().split("T")[0];
+    const overdue = preds.filter((p) => !p.outcome && p.deadline <= today);
+    if (overdue.length === 0 || hasAutoResolved.current) return;
+    hasAutoResolved.current = true;
+    setResolving(true);
+    try {
+      const res = await fetch("/api/predictions/resolve", { method: "POST" });
+      const data = await res.json();
+      if (data.count > 0) {
+        setStatusMessage({ text: `Auto-resolved ${data.count} overdue prediction${data.count > 1 ? "s" : ""}`, type: "info" });
+        fetchPredictions();
+      }
+    } catch {
+      // silent
+    } finally {
+      setResolving(false);
+    }
+  }, [fetchPredictions]);
+
+  const fetchFeedback = useCallback(async () => {
+    try {
+      const res = await fetch("/api/predictions/feedback");
+      const data = await res.json();
+      setFeedbackReport(data.report || null);
+    } catch {
+      // silent
+    }
+  }, []);
 
   useEffect(() => {
     fetchPredictions();
-  }, []);
+    fetchFeedback();
+    pollRef.current = setInterval(fetchPredictions, POLL_INTERVAL);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [fetchPredictions, fetchFeedback]);
+
+  useEffect(() => {
+    if (predictions.length > 0 && !hasAutoResolved.current) autoResolve(predictions);
+  }, [predictions, autoResolve]);
+
+  useEffect(() => {
+    if (!statusMessage) return;
+    const t = setTimeout(() => setStatusMessage(null), 5000);
+    return () => clearTimeout(t);
+  }, [statusMessage]);
 
   const createPrediction = async () => {
     if (!claim || !deadline) return;
@@ -79,99 +212,137 @@ export default function PredictionsPage() {
       await fetch("/api/predictions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          claim,
-          timeframe,
-          deadline,
-          confidence: parseFloat(confidence),
-          category,
-        }),
+        body: JSON.stringify({ claim, timeframe, deadline, confidence: parseFloat(confidence), category }),
       });
       setClaim("");
       setDeadline("");
       setShowForm(false);
       fetchPredictions();
-    } catch {
-      // ignore
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const scorePrediction = async () => {
-    if (!scoringId) return;
-    setSubmitting(true);
-    try {
-      await fetch("/api/predictions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: scoringId,
-          outcome,
-          outcomeNotes: outcomeNotes || undefined,
-        }),
-      });
-      setScoringId(null);
-      setOutcomeNotes("");
-      fetchPredictions();
-    } catch {
-      // ignore
-    } finally {
-      setSubmitting(false);
-    }
+    } catch {} finally { setSubmitting(false); }
   };
 
   const aiGenerate = async () => {
     setGenerating(true);
-    setGenerateResult(null);
+    setStatusMessage(null);
     try {
       const res = await fetch("/api/predictions/generate", { method: "POST" });
       const data = await res.json();
-      if (data.error) {
-        setGenerateResult(`Error: ${data.error}`);
-      } else {
-        setGenerateResult(`Generated ${data.count} predictions`);
-        fetchPredictions();
-      }
-    } catch {
-      setGenerateResult("Failed to generate predictions");
-    } finally {
-      setGenerating(false);
-    }
+      if (data.error) setStatusMessage({ text: data.error, type: "error" });
+      else { setStatusMessage({ text: `Generated ${data.count} new predictions`, type: "success" }); fetchPredictions(); fetchFeedback(); }
+    } catch { setStatusMessage({ text: "Failed to generate predictions", type: "error" }); }
+    finally { setGenerating(false); }
   };
 
   const aiResolve = async () => {
     setResolving(true);
-    setResolveResult(null);
+    setStatusMessage(null);
     try {
       const res = await fetch("/api/predictions/resolve", { method: "POST" });
       const data = await res.json();
-      if (data.error) {
-        setResolveResult(`Error: ${data.error}`);
-      } else if (data.count === 0) {
-        setResolveResult("No predictions past deadline to resolve");
-      } else {
-        setResolveResult(`Resolved ${data.count} predictions`);
-        fetchPredictions();
-      }
-    } catch {
-      setResolveResult("Failed to resolve predictions");
-    } finally {
-      setResolving(false);
-    }
+      if (data.error) setStatusMessage({ text: data.error, type: "error" });
+      else if (data.count === 0) setStatusMessage({ text: "No predictions past deadline to resolve", type: "info" });
+      else { setStatusMessage({ text: `Resolved ${data.count} predictions`, type: "success" }); fetchPredictions(); fetchFeedback(); }
+    } catch { setStatusMessage({ text: "Failed to resolve predictions", type: "error" }); }
+    finally { setResolving(false); }
   };
 
+  // Derived data
+  const today = new Date().toISOString().split("T")[0];
   const resolved = predictions.filter((p) => p.outcome);
   const pending = predictions.filter((p) => !p.outcome);
-  const pastDeadline = pending.filter((p) => p.deadline <= new Date().toISOString().split("T")[0]);
-  const accuracy =
-    resolved.length > 0
-      ? resolved.filter((p) => p.outcome === "confirmed").length / resolved.length
-      : 0;
-  const avgScore =
-    resolved.length > 0
-      ? resolved.reduce((sum, p) => sum + (p.score || 0), 0) / resolved.length
-      : 0;
+  const pastDeadline = pending.filter((p) => p.deadline <= today);
+  const hits = resolved.filter((p) => p.outcome === "confirmed");
+  const misses = resolved.filter((p) => p.outcome === "denied");
+  const partials = resolved.filter((p) => p.outcome === "partial");
+  const accuracy = resolved.length > 0 ? hits.length / resolved.length : 0;
+  const avgScore = resolved.length > 0 ? resolved.reduce((s, p) => s + (p.score || 0), 0) / resolved.length : 0;
+
+  // Category stats
+  const categories = ["market", "geopolitical", "celestial"];
+  const categoryStats = categories.map((cat) => {
+    const all = predictions.filter((p) => p.category === cat);
+    const res = all.filter((p) => p.outcome);
+    const h = res.filter((p) => p.outcome === "confirmed");
+    const acc = res.length > 0 ? h.length / res.length : 0;
+    const avg = res.length > 0 ? res.reduce((s, p) => s + (p.score || 0), 0) / res.length : 0;
+    return { cat, total: all.length, pending: all.filter((p) => !p.outcome).length, resolved: res.length, hits: h.length, accuracy: acc, avgScore: avg };
+  });
+
+  // Outcome distribution pie data
+  const pieData = [
+    { name: "Hits", value: hits.length, fill: OUTCOME_CONFIG.confirmed.hex },
+    { name: "Misses", value: misses.length, fill: OUTCOME_CONFIG.denied.hex },
+    { name: "Partial", value: partials.length, fill: OUTCOME_CONFIG.partial.hex },
+    { name: "Expired", value: resolved.filter((p) => p.outcome === "expired").length, fill: OUTCOME_CONFIG.expired.hex },
+  ].filter((d) => d.value > 0);
+
+  // Category accuracy bar data
+  const barData = categoryStats
+    .filter((s) => s.resolved > 0)
+    .map((s) => ({
+      category: CATEGORY_CONFIG[s.cat].label,
+      accuracy: Math.round(s.accuracy * 100),
+      avgScore: Math.round(s.avgScore * 100),
+      fill: CATEGORY_CONFIG[s.cat].hex,
+    }));
+
+  // Accuracy over time (cumulative)
+  const sortedResolved = [...resolved].sort((a, b) => (a.resolvedAt || "").localeCompare(b.resolvedAt || ""));
+  const accuracyOverTime: Array<{ date: string; accuracy: number; cumHits: number; cumTotal: number }> = [];
+  let cumHits = 0;
+  let cumTotal = 0;
+  for (const p of sortedResolved) {
+    cumTotal++;
+    if (p.outcome === "confirmed") cumHits++;
+    const date = (p.resolvedAt || p.deadline).split("T")[0];
+    accuracyOverTime.push({ date, accuracy: Math.round((cumHits / cumTotal) * 100), cumHits, cumTotal });
+  }
+
+  // Filtered predictions for display
+  const filterPredictions = (list: Prediction[]) => {
+    let filtered = list;
+    if (activeCategory) filtered = filtered.filter((p) => p.category === activeCategory);
+    if (confidenceRange[0] > 0 || confidenceRange[1] < 1) {
+      filtered = filtered.filter((p) => p.confidence >= confidenceRange[0] && p.confidence <= confidenceRange[1]);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((p) =>
+        p.claim.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        (p.outcomeNotes || "").toLowerCase().includes(q)
+      );
+    }
+    return filtered;
+  };
+
+  const sortPredictions = (list: Prediction[]) => {
+    return [...list].sort((a, b) => {
+      if (sortBy === "confidence") return b.confidence - a.confidence;
+      if (sortBy === "created") return b.createdAt.localeCompare(a.createdAt);
+      return a.deadline.localeCompare(b.deadline); // deadline (default)
+    });
+  };
+
+  const allFiltered = filterPredictions(predictions);
+  const displayPending = activeOutcome === null || activeOutcome === "pending"
+    ? sortPredictions(filterPredictions(pending))
+    : [];
+  const displayResolved = activeOutcome === null || activeOutcome !== "pending"
+    ? sortPredictions(
+        filterPredictions(resolved).filter((p) => activeOutcome ? p.outcome === activeOutcome : true)
+      )
+    : [];
+
+  const hasActiveFilters = activeCategory !== null || activeOutcome !== null || confidenceRange[0] > 0 || confidenceRange[1] < 1 || searchQuery.trim() !== "";
+
+  const clearFilters = () => {
+    setActiveCategory(null);
+    setActiveOutcome(null);
+    setConfidenceRange([0, 1]);
+    setSearchQuery("");
+    setSortBy("deadline");
+  };
 
   const daysUntil = (dateStr: string) => {
     const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -180,132 +351,29 @@ export default function PredictionsPage() {
     return `${diff}d`;
   };
 
-  const pendingColumns: Column<Prediction>[] = [
-    {
-      key: "claim",
-      header: "Claim",
-      accessor: (row) => (
-        <span className="text-navy-200 leading-tight block max-w-md">{row.claim}</span>
-      ),
-    },
-    {
-      key: "category",
-      header: "Category",
-      accessor: (row) => (
-        <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[row.category] || ""}`}>
-          {row.category}
-        </span>
-      ),
-      sortAccessor: (row) => row.category,
-    },
-    {
-      key: "confidence",
-      header: "Conf.",
-      accessor: (row) => (
-        <span className="text-navy-200 font-medium">{(row.confidence * 100).toFixed(0)}%</span>
-      ),
-      sortAccessor: (row) => row.confidence,
-    },
-    {
-      key: "deadline",
-      header: "Deadline",
-      accessor: (row) => {
-        const overdue = row.deadline <= new Date().toISOString().split("T")[0];
-        return (
-          <div>
-            <span className={overdue ? "text-accent-rose" : "text-navy-300"}>
-              {new Date(row.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </span>
-            <span className={`text-[10px] block ${overdue ? "text-accent-rose/70" : "text-navy-500"}`}>
-              {daysUntil(row.deadline)}
-            </span>
-          </div>
-        );
-      },
-      sortAccessor: (row) => row.deadline,
-    },
-    {
-      key: "action",
-      header: "",
-      accessor: (row) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            setScoringId(row.id);
-          }}
-        >
-          Score
-        </Button>
-      ),
-    },
-  ];
+  const confidenceBar = (conf: number) => (
+    <div className="flex items-center gap-2">
+      <div className="w-14 h-1.5 rounded-full bg-navy-700/50 overflow-hidden">
+        <div className={`h-full rounded-full ${conf >= 0.7 ? "bg-accent-emerald" : conf >= 0.5 ? "bg-accent-amber" : "bg-navy-400"}`} style={{ width: `${conf * 100}%` }} />
+      </div>
+      <span className="text-[10px] text-navy-400 font-mono">{(conf * 100).toFixed(0)}%</span>
+    </div>
+  );
 
-  const resolvedColumns: Column<Prediction>[] = [
-    {
-      key: "claim",
-      header: "Claim",
-      accessor: (row) => (
-        <span className="text-navy-200 leading-tight block max-w-md">{row.claim}</span>
-      ),
-    },
-    {
-      key: "category",
-      header: "Category",
-      accessor: (row) => (
-        <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[row.category] || ""}`}>
-          {row.category}
-        </span>
-      ),
-    },
-    {
-      key: "confidence",
-      header: "Conf.",
-      accessor: (row) => (
-        <span className="text-navy-300">{(row.confidence * 100).toFixed(0)}%</span>
-      ),
-      sortAccessor: (row) => row.confidence,
-    },
-    {
-      key: "outcome",
-      header: "Outcome",
-      accessor: (row) => {
-        const style = OUTCOME_COLORS[row.outcome || ""] || OUTCOME_COLORS.expired;
-        return (
-          <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${style.badge}`}>
-            {row.outcome}
-          </span>
-        );
-      },
-    },
-    {
-      key: "score",
-      header: "Score",
-      accessor: (row) => (
-        <span className={`font-medium ${
-          (row.score || 0) >= 0.7 ? "text-accent-emerald" :
-          (row.score || 0) >= 0.4 ? "text-accent-amber" :
-          "text-accent-rose"
-        }`}>
-          {row.score != null ? `${(row.score * 100).toFixed(0)}%` : "--"}
-        </span>
-      ),
-      sortAccessor: (row) => row.score || 0,
-    },
-    {
-      key: "notes",
-      header: "Notes",
-      accessor: (row) => (
-        <span className="text-navy-400 text-[10px] leading-tight block max-w-xs">{row.outcomeNotes || ""}</span>
-      ),
-    },
-  ];
+  const getGrounding = (p: Prediction): string | null => {
+    if (!p.metrics) return null;
+    try { return JSON.parse(p.metrics).grounding || null; } catch { return null; }
+  };
+
+  const chartTooltipStyle = {
+    contentStyle: { background: "#0a0e1a", border: "1px solid #1e293b", borderRadius: "6px", fontSize: "11px" },
+    labelStyle: { color: "#94a3b8" },
+  };
 
   return (
     <PageContainer
       title="Predictions"
-      subtitle="AI-generated falsifiable claims"
+      subtitle="AI-generated falsifiable claims with auto-resolution"
       actions={
         <div className="flex items-center gap-2">
           <Button variant="primary" size="sm" onClick={aiGenerate} disabled={generating}>
@@ -314,7 +382,7 @@ export default function PredictionsPage() {
           </Button>
           {pastDeadline.length > 0 && (
             <Button variant="outline" size="sm" onClick={aiResolve} disabled={resolving}>
-              {resolving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+              {resolving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Target className="h-3 w-3 mr-1" />}
               Resolve ({pastDeadline.length})
             </Button>
           )}
@@ -325,112 +393,513 @@ export default function PredictionsPage() {
         </div>
       }
     >
-      {/* Status messages */}
-      {generateResult && (
+      {statusMessage && (
         <div className={`mb-4 rounded-md border px-3 py-2 text-xs ${
-          generateResult.startsWith("Error") ? "border-accent-rose/30 bg-accent-rose/5 text-accent-rose" : "border-accent-emerald/30 bg-accent-emerald/5 text-accent-emerald"
+          statusMessage.type === "error" ? "border-accent-rose/30 bg-accent-rose/5 text-accent-rose"
+          : statusMessage.type === "success" ? "border-accent-emerald/30 bg-accent-emerald/5 text-accent-emerald"
+          : "border-accent-cyan/30 bg-accent-cyan/5 text-accent-cyan"
         }`}>
-          {generateResult}
-        </div>
-      )}
-      {resolveResult && (
-        <div className={`mb-4 rounded-md border px-3 py-2 text-xs ${
-          resolveResult.startsWith("Error") ? "border-accent-rose/30 bg-accent-rose/5 text-accent-rose" : "border-accent-cyan/30 bg-accent-cyan/5 text-accent-cyan"
-        }`}>
-          {resolveResult}
+          {statusMessage.text}
         </div>
       )}
 
-      {/* Metrics */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      {/* ── Category panels ── */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
         {loading ? (
-          [...Array(5)].map((_, i) => (
+          [...Array(3)].map((_, i) => (
             <div key={i} className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
-              <Skeleton className="h-3 w-16 mb-2" />
-              <Skeleton className="h-6 w-12" />
+              <Skeleton className="h-4 w-24 mb-3" />
+              <Skeleton className="h-8 w-16 mb-2" />
+              <Skeleton className="h-3 w-32" />
             </div>
           ))
         ) : (
-          <>
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
-              <Metric label="Total" value={predictions.length} />
-            </div>
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
-              <Metric label="Pending" value={pending.length} />
-            </div>
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
-              <Metric label="Overdue" value={pastDeadline.length} changeColor={pastDeadline.length > 0 ? "red" : "neutral"} />
-            </div>
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
-              <Metric label="Resolved" value={resolved.length} />
-            </div>
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
-              <Metric
-                label="Accuracy"
-                value={`${(accuracy * 100).toFixed(0)}%`}
-                change={resolved.length > 0 ? `avg score ${(avgScore * 100).toFixed(0)}%` : undefined}
-                changeColor={accuracy >= 0.6 ? "green" : accuracy >= 0.4 ? "neutral" : "red"}
-              />
-            </div>
-          </>
+          categoryStats.map((stat) => {
+            const config = CATEGORY_CONFIG[stat.cat];
+            const Icon = config.icon;
+            const isActive = activeCategory === stat.cat;
+            return (
+              <button
+                key={stat.cat}
+                onClick={() => setActiveCategory(isActive ? null : stat.cat)}
+                className={`text-left border rounded-md p-4 transition-all ${
+                  isActive
+                    ? `${config.border} ${config.bg}`
+                    : "border-navy-700/30 bg-navy-900/60 hover:border-navy-600/50"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon className={`h-3.5 w-3.5 ${config.color}`} />
+                  <span className={`text-[10px] font-medium uppercase tracking-widest ${config.color}`}>
+                    {config.label}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-2xl font-bold text-navy-100">{stat.total}</span>
+                  <div className="flex items-center gap-2 text-[10px] text-navy-500">
+                    <span>{stat.pending} pending</span>
+                    <span className="text-navy-700">|</span>
+                    <span>{stat.resolved} resolved</span>
+                  </div>
+                </div>
+                {stat.resolved > 0 && (
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className={`text-xs font-medium ${stat.accuracy >= 0.6 ? "text-accent-emerald" : stat.accuracy >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
+                      {(stat.accuracy * 100).toFixed(0)}% accuracy
+                    </span>
+                    <span className="text-[10px] text-navy-500">
+                      {stat.hits}/{stat.resolved} hits
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })
         )}
       </div>
 
-      {/* Manual prediction form */}
+      {/* ── Accuracy charts ── */}
+      {!loading && resolved.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {/* Outcome distribution */}
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
+            <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">Outcome Distribution</h3>
+            <div className="h-36">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={2} dataKey="value">
+                    {pieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} stroke="transparent" />
+                    ))}
+                  </Pie>
+                  <Tooltip {...chartTooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center gap-3 mt-1">
+              {pieData.map((d) => (
+                <div key={d.name} className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: d.fill }} />
+                  <span className="text-[9px] text-navy-400">{d.name} ({d.value})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Category accuracy */}
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
+            <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">Accuracy by Category</h3>
+            {barData.length > 0 ? (
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barData} layout="vertical" barSize={14}>
+                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="category" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={80} />
+                    <Tooltip {...chartTooltipStyle} formatter={(v: number) => `${v}%`} />
+                    <Bar dataKey="accuracy" radius={[0, 4, 4, 0]}>
+                      {barData.map((entry, i) => (
+                        <Cell key={i} fill={entry.fill} fillOpacity={0.7} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-44 flex items-center justify-center text-navy-600 text-xs">No resolved predictions yet</div>
+            )}
+          </div>
+
+          {/* Accuracy over time */}
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
+            <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">Accuracy Over Time</h3>
+            {accuracyOverTime.length > 1 ? (
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={accuracyOverTime}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <Tooltip {...chartTooltipStyle} formatter={(v: number) => `${v}%`} labelFormatter={(l) => `Date: ${l}`} />
+                    <Line type="monotone" dataKey="accuracy" stroke="#22d3ee" strokeWidth={2} dot={{ r: 3, fill: "#22d3ee" }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-44 flex items-center justify-center text-navy-600 text-xs">Need 2+ resolved predictions</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Self-Learning Feedback ── */}
+      {!loading && feedbackReport && (
+        <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6">
+          <button
+            onClick={() => setFeedbackOpen(!feedbackOpen)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-navy-800/30 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Brain className="h-3.5 w-3.5 text-accent-cyan" />
+              <span className="text-[10px] font-medium uppercase tracking-widest text-navy-400">
+                Calibration Feedback
+              </span>
+              <span className={`text-[10px] font-mono ${feedbackReport.brierScore < 0.2 ? "text-accent-emerald" : feedbackReport.brierScore < 0.3 ? "text-accent-amber" : "text-accent-rose"}`}>
+                Brier {feedbackReport.brierScore.toFixed(3)}
+              </span>
+              {!feedbackReport.sampleSufficient && (
+                <span className="text-[9px] text-accent-amber font-mono">low sample</span>
+              )}
+              {feedbackReport.recentTrend && (
+                <span className={`flex items-center gap-1 text-[10px] font-mono ${feedbackReport.recentTrend.improving ? "text-accent-emerald" : "text-accent-rose"}`}>
+                  {feedbackReport.recentTrend.improving ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  {feedbackReport.recentTrend.improving ? "improving" : "declining"}
+                </span>
+              )}
+            </div>
+            {feedbackOpen ? <ChevronDown className="h-3.5 w-3.5 text-navy-500" /> : <ChevronRight className="h-3.5 w-3.5 text-navy-500" />}
+          </button>
+
+          {feedbackOpen && (
+            <div className="px-4 pb-4 space-y-4">
+              {/* Scoring metrics */}
+              <div className="grid grid-cols-5 gap-3">
+                <div className="rounded px-3 py-2 bg-navy-800/40">
+                  <span className="text-[9px] text-navy-500 uppercase tracking-wider block">Brier Score</span>
+                  <span className={`text-lg font-bold font-mono ${feedbackReport.brierScore < 0.2 ? "text-accent-emerald" : feedbackReport.brierScore < 0.25 ? "text-navy-100" : "text-accent-rose"}`}>
+                    {feedbackReport.brierScore.toFixed(3)}
+                  </span>
+                  <span className="text-[9px] text-navy-600 block">
+                    {feedbackReport.brierScore < 0.1 ? "excellent" : feedbackReport.brierScore < 0.2 ? "good" : feedbackReport.brierScore < 0.25 ? "baseline" : "poor"}
+                  </span>
+                </div>
+                <div className="rounded px-3 py-2 bg-navy-800/40">
+                  <span className="text-[9px] text-navy-500 uppercase tracking-wider block">Log Loss</span>
+                  <span className="text-lg font-bold font-mono text-navy-100">{feedbackReport.logLoss.toFixed(3)}</span>
+                </div>
+                <div className="rounded px-3 py-2 bg-navy-800/40">
+                  <span className="text-[9px] text-navy-500 uppercase tracking-wider block">Hit Rate</span>
+                  <span className="text-lg font-bold text-navy-100">{(feedbackReport.binaryAccuracy * 100).toFixed(0)}%</span>
+                </div>
+                <div className="rounded px-3 py-2 bg-navy-800/40">
+                  <span className="text-[9px] text-navy-500 uppercase tracking-wider block">Avg Confidence</span>
+                  <span className="text-lg font-bold text-navy-100">{(feedbackReport.avgConfidence * 100).toFixed(0)}%</span>
+                </div>
+                <div className="rounded px-3 py-2 bg-navy-800/40">
+                  <span className="text-[9px] text-navy-500 uppercase tracking-wider block">Calibration Gap</span>
+                  <span className={`text-lg font-bold ${Math.abs(feedbackReport.calibrationGap) > 0.1 ? (feedbackReport.calibrationGap > 0 ? "text-accent-rose" : "text-accent-emerald") : "text-navy-100"}`}>
+                    {feedbackReport.calibrationGap > 0 ? "+" : ""}{(feedbackReport.calibrationGap * 100).toFixed(0)}pp
+                  </span>
+                  <span className="text-[9px] text-navy-600 block">
+                    {feedbackReport.calibrationGap > 0.1 ? "overconfident" : feedbackReport.calibrationGap < -0.1 ? "underconfident" : "well calibrated"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Reliability diagram data */}
+              {feedbackReport.calibration.filter((b) => b.count >= 1).length > 0 && (
+                <div>
+                  <h4 className="text-[9px] text-navy-500 uppercase tracking-wider mb-2">Reliability Diagram (Confidence vs Outcome)</h4>
+                  <div className="space-y-1.5">
+                    {feedbackReport.calibration.filter((b) => b.count >= 1).map((bucket) => {
+                      const deviation = bucket.confirmedRate - bucket.midpoint;
+                      return (
+                        <div key={bucket.range} className={`flex items-center gap-3 ${!bucket.reliable ? "opacity-50" : ""}`}>
+                          <span className="text-[10px] text-navy-400 w-32 font-mono">{bucket.range}</span>
+                          <div className="flex-1 h-2 rounded-full bg-navy-700/50 overflow-hidden relative">
+                            {/* Ideal marker */}
+                            <div className="absolute h-full w-px bg-navy-400/40" style={{ left: `${bucket.midpoint * 100}%` }} />
+                            <div
+                              className={`h-full rounded-full ${bucket.confirmedRate >= 0.6 ? "bg-accent-emerald" : bucket.confirmedRate >= 0.3 ? "bg-accent-amber" : "bg-accent-rose"}`}
+                              style={{ width: `${Math.max(bucket.confirmedRate * 100, 2)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-navy-400 font-mono w-16 text-right">
+                            {(bucket.confirmedRate * 100).toFixed(0)}% hit
+                          </span>
+                          <span className={`text-[10px] font-mono w-20 text-right ${Math.abs(deviation) > 0.15 ? (deviation > 0 ? "text-accent-emerald" : "text-accent-rose") : "text-navy-500"}`}>
+                            {deviation > 0 ? "+" : ""}{(deviation * 100).toFixed(0)}pp
+                          </span>
+                          <span className={`text-[10px] font-mono w-10 text-right ${bucket.reliable ? "text-navy-500" : "text-navy-700"}`}>
+                            n={bucket.count}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9px] text-navy-600 mt-1">Ideal: hit rate matches confidence band midpoint. Faded rows have n &lt; 3 (unreliable).</p>
+                </div>
+              )}
+
+              {/* Category performance */}
+              {feedbackReport.byCategory.length > 0 && (
+                <div>
+                  <h4 className="text-[9px] text-navy-500 uppercase tracking-wider mb-2">Category Brier Scores</h4>
+                  <div className="space-y-1.5">
+                    {feedbackReport.byCategory.map((cat) => {
+                      const catConfig = CATEGORY_CONFIG[cat.category];
+                      const quality = cat.brierScore < 0.2 ? "good" : cat.brierScore < 0.3 ? "moderate" : "poor";
+                      return (
+                        <div key={cat.category} className={`flex items-center gap-3 ${!cat.reliable ? "opacity-50" : ""}`}>
+                          <span className={`text-[10px] w-20 font-mono ${catConfig?.color || "text-navy-400"}`}>{cat.category}</span>
+                          <div className="flex-1 h-2 rounded-full bg-navy-700/50 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.max((1 - cat.brierScore) * 100, 5)}%`,
+                                backgroundColor: cat.brierScore < 0.2 ? "#10b981" : cat.brierScore < 0.3 ? "#f59e0b" : "#f43f5e",
+                              }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-navy-400 font-mono w-24 text-right">
+                            Brier {cat.brierScore.toFixed(3)}
+                          </span>
+                          <span className={`text-[10px] font-mono w-16 text-right ${cat.brierScore < 0.2 ? "text-accent-emerald" : cat.brierScore < 0.3 ? "text-accent-amber" : "text-accent-rose"}`}>
+                            {quality}
+                          </span>
+                          <span className={`text-[10px] font-mono w-24 text-right ${Math.abs(cat.calibrationGap) > 0.15 ? (cat.calibrationGap > 0 ? "text-accent-rose" : "text-accent-emerald") : "text-navy-500"}`}>
+                            {cat.calibrationGap > 0.15 ? `+${(cat.calibrationGap * 100).toFixed(0)}pp over` : cat.calibrationGap < -0.15 ? `${(cat.calibrationGap * 100).toFixed(0)}pp under` : "calibrated"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Timeframe performance */}
+              {Object.keys(feedbackReport.timeframeAccuracy).length > 0 && (
+                <div>
+                  <h4 className="text-[9px] text-navy-500 uppercase tracking-wider mb-2">Timeframe Performance</h4>
+                  <div className="flex gap-2 flex-wrap">
+                    {Object.entries(feedbackReport.timeframeAccuracy)
+                      .sort(([, a], [, b]) => a.brierScore - b.brierScore)
+                      .map(([tf, data]) => (
+                      <div key={tf} className={`rounded px-2.5 py-1.5 bg-navy-800/40 border border-navy-700/20 ${!data.reliable ? "opacity-50" : ""}`}>
+                        <span className="text-[10px] text-navy-400 font-mono block">{tf}</span>
+                        <span className={`text-xs font-bold font-mono ${data.brierScore < 0.2 ? "text-accent-emerald" : data.brierScore < 0.3 ? "text-accent-amber" : "text-accent-rose"}`}>
+                          {data.brierScore.toFixed(3)}
+                        </span>
+                        <span className="text-[9px] text-navy-500 ml-1">{(data.binaryAccuracy * 100).toFixed(0)}% hit</span>
+                        <span className="text-[9px] text-navy-600 ml-1">n={data.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resolution bias */}
+              {feedbackReport.resolutionBias.biasWarning && (
+                <div className="rounded px-3 py-2 bg-accent-amber/5 border border-accent-amber/10">
+                  <h4 className="text-[9px] text-accent-amber uppercase tracking-wider mb-1">Resolution Bias Detected</h4>
+                  <p className="text-[10px] text-navy-400">{feedbackReport.resolutionBias.biasWarning}</p>
+                  <div className="flex gap-4 mt-1.5">
+                    <span className="text-[9px] text-navy-500 font-mono">LLM score: {(feedbackReport.resolutionBias.avgLlmScore * 100).toFixed(0)}%</span>
+                    <span className="text-[9px] text-navy-500 font-mono">Binary accuracy: {(feedbackReport.resolutionBias.binaryAccuracy * 100).toFixed(0)}%</span>
+                    <span className="text-[9px] text-navy-500 font-mono">Partial rate: {(feedbackReport.resolutionBias.partialRate * 100).toFixed(0)}%</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Failure patterns */}
+              {feedbackReport.failurePatterns.length > 0 && (
+                <div>
+                  <h4 className="text-[9px] text-accent-rose uppercase tracking-wider mb-2">Failure Patterns</h4>
+                  <div className="space-y-2">
+                    {feedbackReport.failurePatterns.map((fp, i) => (
+                      <div key={i} className="rounded px-3 py-2 bg-accent-rose/5 border border-accent-rose/10">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] text-navy-200">{fp.pattern}</span>
+                          <span className="text-[9px] text-navy-500 font-mono">{fp.frequency}x</span>
+                        </div>
+                        {fp.examples.map((ex, j) => (
+                          <p key={j} className="text-[10px] text-navy-500 truncate">{ex}</p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent trend */}
+              {feedbackReport.recentTrend && (
+                <div className="flex items-center gap-3 pt-1 border-t border-navy-700/20">
+                  {feedbackReport.recentTrend.improving ? (
+                    <TrendingUp className="h-4 w-4 text-accent-emerald" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-accent-rose" />
+                  )}
+                  <span className="text-xs text-navy-300">
+                    Last {feedbackReport.recentTrend.windowSize}: Brier <span className="font-mono font-bold">{feedbackReport.recentTrend.recentBrier.toFixed(3)}</span>
+                    {" vs prior "}{feedbackReport.recentTrend.windowSize}{": "}
+                    <span className="font-mono">{feedbackReport.recentTrend.priorBrier.toFixed(3)}</span>
+                    <span className="text-navy-500 ml-1">(lower = better)</span>
+                  </span>
+                </div>
+              )}
+
+              <p className="text-[9px] text-navy-600 pt-1">
+                Brier score and calibration data are fed into prediction generation with damped corrections to prevent oscillation.
+                Scored using proper scoring rules (Brier, log-loss) with 60-day exponential decay weighting.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Summary metrics ── */}
+      {!loading && (
+        <div className="grid grid-cols-6 gap-3 mb-6">
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
+            <Metric label="Total" value={predictions.length} />
+          </div>
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
+            <Metric label="Pending" value={pending.length} />
+          </div>
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
+            <Metric label="Hits" value={hits.length} change={resolved.length > 0 ? `${(accuracy * 100).toFixed(0)}%` : undefined} changeColor="green" />
+          </div>
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
+            <Metric label="Misses" value={misses.length} changeColor="red" />
+          </div>
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
+            <Metric label="Avg Score" value={resolved.length > 0 ? `${(avgScore * 100).toFixed(0)}%` : "--"} changeColor={avgScore >= 0.6 ? "green" : avgScore >= 0.4 ? "neutral" : "red"} />
+          </div>
+          <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
+            <Metric label="Overdue" value={pastDeadline.length} change={pastDeadline.length > 0 ? "needs resolve" : undefined} changeColor={pastDeadline.length > 0 ? "red" : "neutral"} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Filter bar ── */}
+      {!loading && predictions.length > 0 && (
+        <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6 px-4 py-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Search */}
+            <div className="w-52">
+              <Input
+                placeholder="Search predictions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-7 text-[11px]"
+              />
+            </div>
+
+            {/* Outcome filter */}
+            <div className="flex h-7 rounded-md border border-navy-700/30 overflow-hidden">
+              <button
+                onClick={() => setActiveOutcome(null)}
+                className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
+                  activeOutcome === null ? "bg-accent-cyan/10 text-accent-cyan" : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setActiveOutcome(activeOutcome === "pending" ? null : "pending")}
+                className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors border-l border-navy-700/30 ${
+                  activeOutcome === "pending" ? "bg-accent-cyan/10 text-accent-cyan" : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
+                }`}
+              >
+                Pending
+              </button>
+              {(["confirmed", "denied", "partial", "expired"] as const).map((outcome) => {
+                const cfg = OUTCOME_CONFIG[outcome];
+                return (
+                  <button
+                    key={outcome}
+                    onClick={() => setActiveOutcome(activeOutcome === outcome ? null : outcome)}
+                    className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors border-l border-navy-700/30 ${
+                      activeOutcome === outcome ? `${cfg.bg} ${cfg.color}` : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
+                    }`}
+                  >
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Confidence range */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-navy-500 uppercase tracking-wider">Conf:</span>
+              <select
+                value={confidenceRange[0]}
+                onChange={(e) => setConfidenceRange([parseFloat(e.target.value), confidenceRange[1]])}
+                className="h-7 bg-navy-900 border border-navy-700/30 rounded text-[10px] text-navy-300 px-1.5"
+              >
+                {[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].map((v) => (
+                  <option key={v} value={v}>{(v * 100).toFixed(0)}%</option>
+                ))}
+              </select>
+              <span className="text-[9px] text-navy-600">to</span>
+              <select
+                value={confidenceRange[1]}
+                onChange={(e) => setConfidenceRange([confidenceRange[0], parseFloat(e.target.value)])}
+                className="h-7 bg-navy-900 border border-navy-700/30 rounded text-[10px] text-navy-300 px-1.5"
+              >
+                {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((v) => (
+                  <option key={v} value={v}>{(v * 100).toFixed(0)}%</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-navy-500 uppercase tracking-wider">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "deadline" | "confidence" | "created")}
+                className="h-7 bg-navy-900 border border-navy-700/30 rounded text-[10px] text-navy-300 px-1.5"
+              >
+                <option value="deadline">Deadline</option>
+                <option value="confidence">Confidence</option>
+                <option value="created">Newest</option>
+              </select>
+            </div>
+
+            <div className="flex-1" />
+
+            {/* Filter count + clear */}
+            <span className="text-[9px] text-navy-600 font-mono">
+              {displayPending.length + displayResolved.length}/{predictions.length} shown
+            </span>
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="text-[9px] text-accent-cyan hover:text-accent-cyan/80 underline">
+                clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Manual form */}
       {showForm && (
         <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6">
           <div className="px-4 py-3 border-b border-navy-700/20">
-            <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
-              Manual Prediction
-            </h3>
+            <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">Manual Prediction</h3>
           </div>
           <div className="p-4 space-y-3">
             <div>
               <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Falsifiable Claim</label>
-              <Input
-                placeholder="S&P 500 will close above 5,200 by..."
-                value={claim}
-                onChange={(e) => setClaim(e.target.value)}
-              />
+              <Input placeholder="S&P 500 will close above 5,200 by..." value={claim} onChange={(e) => setClaim(e.target.value)} />
             </div>
             <div className="flex gap-4">
               <div className="w-32">
                 <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Timeframe</label>
-                <Input
-                  value={timeframe}
-                  onChange={(e) => setTimeframe(e.target.value)}
-                />
+                <Input value={timeframe} onChange={(e) => setTimeframe(e.target.value)} />
               </div>
               <div className="w-40">
                 <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Deadline</label>
-                <Input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                />
+                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
               </div>
               <div className="w-28">
                 <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Confidence</label>
-                <Input
-                  type="number"
-                  value={confidence}
-                  onChange={(e) => setConfidence(e.target.value)}
-                  min="0"
-                  max="1"
-                  step="0.05"
-                />
+                <Input type="number" value={confidence} onChange={(e) => setConfidence(e.target.value)} min="0" max="1" step="0.05" />
               </div>
               <div>
                 <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Category</label>
                 <div className="flex h-9 rounded-md border border-navy-700/30 overflow-hidden w-fit">
-                  {["market", "geopolitical", "celestial"].map((cat, i) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategory(cat)}
-                      className={`px-3 text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                        i > 0 ? "border-l border-navy-700/30" : ""
-                      } ${category === cat ? "bg-accent-cyan/10 text-accent-cyan" : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"}`}
-                    >
+                  {categories.map((cat, i) => (
+                    <button key={cat} onClick={() => setCategory(cat)} className={`px-3 text-[10px] font-medium uppercase tracking-wider transition-colors ${i > 0 ? "border-l border-navy-700/30" : ""} ${category === cat ? "bg-accent-cyan/10 text-accent-cyan" : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"}`}>
                       {cat}
                     </button>
                   ))}
@@ -448,94 +917,128 @@ export default function PredictionsPage() {
         </div>
       )}
 
-      {/* Scoring dialog */}
-      {scoringId && (
-        <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6">
-          <div className="px-4 py-3 border-b border-navy-700/20">
-            <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
-              Score Prediction #{scoringId}
-            </h3>
-            <p className="text-xs text-navy-300 mt-1">
-              {predictions.find((p) => p.id === scoringId)?.claim}
-            </p>
-          </div>
-          <div className="p-4 space-y-3">
-            <div>
-              <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Outcome</label>
-              <div className="flex h-9 rounded-md border border-navy-700/30 overflow-hidden w-fit">
-                {["confirmed", "denied", "partial", "expired"].map((o, i) => (
-                  <button
-                    key={o}
-                    onClick={() => setOutcome(o)}
-                    className={`px-4 text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                      i > 0 ? "border-l border-navy-700/30" : ""
-                    } ${outcome === o
-                      ? o === "confirmed" ? "bg-accent-emerald/10 text-accent-emerald"
-                        : o === "denied" ? "bg-accent-rose/10 text-accent-rose"
-                        : o === "partial" ? "bg-accent-amber/10 text-accent-amber"
-                        : "bg-navy-700/20 text-navy-300"
-                      : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
-                    }`}
-                  >
-                    {o}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Notes</label>
-              <Input
-                placeholder="What happened..."
-                value={outcomeNotes}
-                onChange={(e) => setOutcomeNotes(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="px-4 py-3 border-t border-navy-700/20 flex gap-2">
-            <Button variant="primary" onClick={scorePrediction} disabled={submitting}>
-              {submitting && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-              Score
-            </Button>
-            <Button variant="ghost" onClick={() => setScoringId(null)}>Cancel</Button>
-          </div>
-        </div>
-      )}
-
+      {/* ── Prediction cards ── */}
       {loading ? (
-        <div className="space-y-2">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full rounded-md" />
-          ))}
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-md" />)}
         </div>
       ) : (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2 pb-2 border-b border-navy-700/20">
-              Pending ({pending.length})
-            </h2>
-            <DataGrid
-              data={pending}
-              columns={pendingColumns}
-              keyExtractor={(row) => row.id}
-              emptyMessage="No pending predictions. Click Generate to create AI predictions."
-            />
-          </div>
-
-          {resolved.length > 0 && (
+        <div className="space-y-8">
+          {/* Pending */}
+          {displayPending.length > 0 && (
             <div>
-              <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2 pb-2 border-b border-navy-700/20">
-                Resolved ({resolved.length})
+              <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3 pb-2 border-b border-navy-700/20 flex items-center gap-2">
+                <Clock className="h-3 w-3" />
+                Pending ({displayPending.length})
+                {resolving && <Loader2 className="h-3 w-3 animate-spin text-accent-cyan" />}
               </h2>
-              <DataGrid
-                data={resolved}
-                columns={resolvedColumns}
-                keyExtractor={(row) => row.id}
-                emptyMessage="No resolved predictions yet"
-              />
+              <div className="space-y-2">
+                {displayPending.map((p) => {
+                  const overdue = p.deadline <= today;
+                  const grounding = getGrounding(p);
+                  const catConfig = CATEGORY_CONFIG[p.category];
+                  const CatIcon = catConfig?.icon || Globe;
+                  return (
+                    <div key={p.id} className={`border rounded-md p-4 transition-colors ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
+                            {grounding && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          {confidenceBar(p.confidence)}
+                          <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
+                            {p.category}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 mt-2.5 ml-6">
+                        <span className="text-[10px] text-navy-500 font-mono">
+                          {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                        <span className={`text-[10px] font-mono ${overdue ? "text-accent-rose" : "text-navy-400"}`}>
+                          {overdue && <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5 -mt-px" />}
+                          {daysUntil(p.deadline)}
+                        </span>
+                        <span className="text-[10px] text-navy-600 font-mono">{p.timeframe}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Resolved */}
+          {displayResolved.length > 0 && (
+            <div>
+              <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3 pb-2 border-b border-navy-700/20 flex items-center gap-2">
+                <Target className="h-3 w-3" />
+                Resolved ({displayResolved.length})
+              </h2>
+              <div className="space-y-2">
+                {displayResolved.map((p) => {
+                  const config = OUTCOME_CONFIG[p.outcome || "expired"] || OUTCOME_CONFIG.expired;
+                  const Icon = config.icon;
+                  const grounding = getGrounding(p);
+                  const catConfig = CATEGORY_CONFIG[p.category];
+                  return (
+                    <div key={p.id} className={`border rounded-md p-4 ${config.border} ${config.bg}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`flex-shrink-0 mt-0.5 ${config.color}`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
+                            {p.outcomeNotes && <p className="text-[10px] text-navy-400 mt-1.5 leading-relaxed">{p.outcomeNotes}</p>}
+                            {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          {p.score != null && (
+                            <span className={`text-sm font-bold font-mono ${p.score >= 0.7 ? "text-accent-emerald" : p.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
+                              {(p.score * 100).toFixed(0)}%
+                            </span>
+                          )}
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${config.color} ${config.bg} border ${config.border}`}>
+                            {config.label}
+                          </span>
+                          <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
+                            {p.category}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 mt-2.5 ml-7">
+                        <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        <span className="text-[10px] text-navy-600 font-mono">Confidence: {(p.confidence * 100).toFixed(0)}%</span>
+                        {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {predictions.length === 0 && (
+            <div className="text-center py-12 text-navy-500">
+              <Sparkles className="h-8 w-8 mx-auto mb-3 text-navy-600" />
+              <p className="text-sm">No predictions yet.</p>
+              <p className="text-xs mt-1">Click Generate to create AI predictions from the current intelligence picture.</p>
             </div>
           )}
         </div>
       )}
+
+      {/* Polling indicator */}
+      <div className="fixed bottom-4 right-4 text-[9px] text-navy-600 font-mono flex items-center gap-1">
+        <span className="inline-block w-1 h-1 rounded-full bg-accent-emerald/50 animate-pulse" />
+        live
+      </div>
     </PageContainer>
   );
 }
