@@ -98,7 +98,7 @@ export async function embedKnowledgeEntry(id: number): Promise<void> {
     .select()
     .from(schema.knowledge)
     .where(eq(schema.knowledge.id, id));
-  const entry = rows;
+  const entry = rows[0];
   if (!entry) return;
 
   const text = buildEmbeddingText(entry);

@@ -11,7 +11,7 @@ export async function loadPrompt(key: string): Promise<string> {
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, settingsKey));
-    const row = rows;
+    const row = rows[0];
     if (row?.value) return row.value;
   } catch {
     // DB not available, fall through to default
@@ -26,7 +26,7 @@ export async function savePrompt(key: string, value: string): Promise<void> {
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, settingsKey));
-  const existing = rows;
+  const existing = rows[0];
 
   if (existing) {
     await db.update(schema.settings)

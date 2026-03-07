@@ -4,39 +4,36 @@ import { eq } from "drizzle-orm";
 import { Trading212Client, checkDuplicate, type Environment } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
 
-function getT212Client() {
-  const apiKeySetting = db
+async function getT212Client() {
+  const apiKeySetting = await db
     .select()
     .from(schema.settings)
-    .where(eq(schema.settings.key, "t212_api_key"))
-    ;
+    .where(eq(schema.settings.key, "t212_api_key"));
 
-  const apiSecretSetting = db
+  const apiSecretSetting = await db
     .select()
     .from(schema.settings)
-    .where(eq(schema.settings.key, "t212_api_secret"))
-    ;
+    .where(eq(schema.settings.key, "t212_api_secret"));
 
-  const apiKey = apiKeySetting?.value || process.env.TRADING212_API_KEY;
-  const apiSecret = apiSecretSetting?.value || process.env.TRADING212_SECRET;
+  const apiKey = apiKeySetting[0]?.value || process.env.TRADING212_API_KEY;
+  const apiSecret = apiSecretSetting[0]?.value || process.env.TRADING212_SECRET;
 
   if (!apiKey || !apiSecret) {
     throw new Error("Trading212 API key and secret not configured");
   }
 
-  const envSetting = db
+  const envSetting = await db
     .select()
     .from(schema.settings)
-    .where(eq(schema.settings.key, "trading_environment"))
-    ;
+    .where(eq(schema.settings.key, "trading_environment"));
 
-  const environment = (envSetting?.value || "live") as Environment;
+  const environment = (envSetting[0]?.value || "live") as Environment;
   return { client: new Trading212Client(apiKey, apiSecret, environment), environment };
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { client } = getT212Client();
+    const { client } = await getT212Client();
     const orders = await client.getOrders();
     return NextResponse.json(orders);
   } catch (error) {
@@ -67,14 +64,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Risk controls
-    const maxOrderSizeSetting = db
+    const maxOrderSizeSetting = await db
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "max_order_size"))
       ;
 
-    if (maxOrderSizeSetting) {
-      const maxSize = parseFloat(maxOrderSizeSetting.value);
+    if (maxOrderSizeSetting.length > 0) {
+      const maxSize = parseFloat(maxOrderSizeSetting[0].value);
       if (quantity > maxSize) {
         return NextResponse.json(
           { error: `Order quantity ${quantity} exceeds max order size of ${maxSize}` },
@@ -83,20 +80,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const dailyLimitSetting = db
+    const dailyLimitSetting = await db
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "daily_trade_limit"))
       ;
 
-    if (dailyLimitSetting) {
-      const dailyLimit = parseInt(dailyLimitSetting.value, 10);
-      const today = new Date().toISOString().split("T");
-      const todayTrades = db
+    if (dailyLimitSetting.length > 0) {
+      const dailyLimit = parseInt(dailyLimitSetting[0].value, 10);
+      const today = new Date().toISOString().split("T")[0];
+      const allTrades = await db
         .select()
-        .from(schema.trades)
-        
-        .filter((t: { createdAt: string }) => t.createdAt.startsWith(today));
+        .from(schema.trades);
+      const todayTrades = allTrades.filter((t: { createdAt: string }) => t.createdAt.startsWith(today));
 
       if (todayTrades.length >= dailyLimit) {
         return NextResponse.json(
@@ -161,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save trade to DB
-    const trade = db
+    const trade = await db
       .insert(schema.trades)
       .values({
         signalId: signalId || null,
@@ -199,7 +195,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { client } = getT212Client();
+    const { client } = await getT212Client();
     await client.cancelOrder(orderId);
 
     return NextResponse.json({ success: true, orderId });

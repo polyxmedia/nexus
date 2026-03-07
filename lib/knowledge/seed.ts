@@ -82,13 +82,13 @@ ETFs lock XRP in custody. Institutional ODL requires liquidity pools. CBDC bridg
 
 export async function seedKnowledge() {
   // Check if already seeded
-  const existing = db
+  const existing = await db
     .select()
     .from(schema.knowledge)
     .where(eq(schema.knowledge.title, "The XRP Thesis: Infrastructure for the Next Financial Order"))
     ;
 
-  if (existing) return { seeded: false, message: "Knowledge bank already seeded" };
+  if (existing.length > 0) return { seeded: false, message: "Knowledge bank already seeded" };
 
   // Seed XRP thesis
   await addKnowledge({

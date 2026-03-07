@@ -11,9 +11,9 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get("type");
     const symbol = searchParams.get("symbol");
 
-    const apiKeySetting = db.select().from(schema.settings).where(eq(schema.settings.key, "alpha_vantage_api_key"));
+    const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "alpha_vantage_api_key"));
 
-    const apiKey = apiKeySetting?.value || process.env.ALPHA_VANTAGE_API_KEY;
+    const apiKey = apiKeyRows[0]?.value || process.env.ALPHA_VANTAGE_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       const snapshot = computeTechnicalSnapshot(symbol, ohlcv);
 
       // Cache it
-      db.insert(schema.marketSnapshots).values({ symbol, snapshot: JSON.stringify(snapshot) });
+      await db.insert(schema.marketSnapshots).values({ symbol, snapshot: JSON.stringify(snapshot) });
 
       return NextResponse.json({ snapshot });
     }

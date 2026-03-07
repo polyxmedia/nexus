@@ -48,7 +48,7 @@ export const authOptions = {
             return null;
           }
 
-          const userData = JSON.parse(users.value);
+          const userData = JSON.parse(users[0].value);
           const valid = await verifyPassword(credentials.password, userData.password);
           if (!valid) return null;
 

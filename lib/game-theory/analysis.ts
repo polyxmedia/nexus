@@ -271,7 +271,7 @@ export function analyzeScenario(
 
   if (nashEquilibria.length > 0) {
     const stableNash = nashEquilibria.find((n) => n.stability === "stable");
-    const bestNash = stableNash || nashEquilibria;
+    const bestNash = stableNash || nashEquilibria[0];
     const stratDesc = Object.entries(bestNash.strategies)
       .map(([actorId, strat]) => {
         const actor = getActor(actorId);
@@ -283,7 +283,7 @@ export function analyzeScenario(
     confidence = stableNash ? 0.7 : 0.5;
     keySectors = bestNash.marketImpact.sectors;
   } else if (schellingPoints.length > 0) {
-    const bestPoint = schellingPoints;
+    const bestPoint = schellingPoints[0];
     const stratDesc = Object.entries(bestPoint.strategy)
       .map(([actorId, strat]) => {
         const actor = getActor(actorId);

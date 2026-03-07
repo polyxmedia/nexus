@@ -17,7 +17,7 @@ export async function getModel(): Promise<string> {
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "ai_model"));
-    const setting = rows;
+    const setting = rows[0];
     if (setting?.value) {
       const valid = MODEL_OPTIONS.some((m) => m.id === setting.value);
       if (valid) return setting.value;
@@ -34,7 +34,7 @@ export async function getChatModel(): Promise<string> {
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "ai_chat_model"));
-    const setting = rows;
+    const setting = rows[0];
     if (setting?.value) {
       const valid = MODEL_OPTIONS.some((m) => m.id === setting.value);
       if (valid) return setting.value;

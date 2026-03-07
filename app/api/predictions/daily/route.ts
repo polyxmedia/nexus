@@ -13,12 +13,13 @@ export async function POST() {
     const todayStart = `${today}T00:00:00`;
     const todayEnd = `${today}T23:59:59`;
 
-    const todaysPredictions = db.select().from(schema.predictions).where(
+    const todaysPredictionsAll = await db.select().from(schema.predictions).where(
       and(
         gte(schema.predictions.createdAt, todayStart),
         lt(schema.predictions.createdAt, todayEnd + "Z")
       )
-    ).filter((p) => !p.outcome); // Only count pending ones created today
+    );
+    const todaysPredictions = todaysPredictionsAll.filter((p) => !p.outcome);
 
     let generated: Awaited<ReturnType<typeof generatePredictions>> = [];
     if (todaysPredictions.length === 0) {
@@ -40,7 +41,7 @@ export async function GET() {
   try {
     const today = new Date().toISOString().split("T");
     const todayStart = `${today}T00:00:00`;
-    const allPredictions = db.select().from(schema.predictions).orderBy(desc(schema.predictions.id));
+    const allPredictions = await db.select().from(schema.predictions).orderBy(desc(schema.predictions.id));
 
     const todaysPredictions = allPredictions.filter(
       (p) => p.createdAt >= todayStart && !p.outcome

@@ -167,7 +167,7 @@ Provide the score as a single number and a one-line justification.`;
       messages: [{ role: "user", content: prompt }],
     });
 
-    const text = response.content.type === "text" ? response.content.text : "";
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
 
     return NextResponse.json({
       date,

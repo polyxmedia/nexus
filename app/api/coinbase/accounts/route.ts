@@ -4,20 +4,20 @@ import { eq } from "drizzle-orm";
 import { CoinbaseClient } from "@/lib/coinbase/client";
 
 function getCoinbaseClient() {
-  const apiKeySetting = db
+  const apiKeySetting = await db
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "coinbase_api_key"))
     ;
 
-  const apiSecretSetting = db
+  const apiSecretSetting = await db
     .select()
     .from(schema.settings)
     .where(eq(schema.settings.key, "coinbase_api_secret"))
     ;
 
-  const apiKey = apiKeySetting?.value || process.env.COINBASE_API_KEY;
-  const apiSecret = apiSecretSetting?.value || process.env.COINBASE_API_SECRET;
+  const apiKey = apiKeySetting[0]?.value || process.env.COINBASE_API_KEY;
+  const apiSecret = apiSecretSetting[0]?.value || process.env.COINBASE_API_SECRET;
 
   if (!apiKey || !apiSecret) {
     throw new Error("Coinbase API key and secret not configured. Set COINBASE_API_KEY and COINBASE_API_SECRET in settings or environment.");

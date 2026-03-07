@@ -18,7 +18,7 @@ export async function GET() {
       };
 
       // Send initial undismissed alerts
-      const recent = db
+      const recent = await db
         .select()
         .from(schema.alertHistory)
         .where(eq(schema.alertHistory.dismissed, 0))
@@ -26,12 +26,12 @@ export async function GET() {
       sendEvent({ type: "init", alerts: recent });
 
       // Poll for new alerts every 30 seconds
-      const interval = setInterval(() => {
+      const interval = setInterval(async () => {
         if (closed) {
           clearInterval(interval);
           return;
         }
-        const newAlerts = db
+        const newAlerts = await db
           .select()
           .from(schema.alertHistory)
           .where(eq(schema.alertHistory.dismissed, 0))

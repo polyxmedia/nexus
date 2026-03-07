@@ -354,7 +354,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
 export async function executeTool(
   toolName: string,
   input: Record<string, unknown>
-):Promise< Promise<unknown>>  {
+): Promise<unknown> {
   switch (toolName) {
     case "get_signals":
       return executeGetSignals(input);
@@ -408,7 +408,7 @@ async function executeGetSignals(input: Record<string, unknown>) {
   const minIntensity = (input.min_intensity as number) || 1;
   const limit = (input.limit as number) || 20;
 
-  const allSignals = db
+  const allSignals = await db
     .select()
     .from(schema.signals)
     .where(eq(schema.signals.status, status))
@@ -653,7 +653,7 @@ async function executeGetPortfolio() {
   }
 }
 
-async function getAlphaVantageKey():Promise< Promise<string | null>>  {
+async function getAlphaVantageKey(): Promise<string | null> {
   const [setting] = await db
     .select()
     .from(schema.settings)

@@ -266,6 +266,38 @@ export const watchlistItems = pgTable("watchlist_items", {
   addedAt: text("added_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Subscription Tiers ──
+
+export const subscriptionTiers = pgTable("subscription_tiers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(), // Analyst, Operator, Institution
+  stripePriceId: text("stripe_price_id"), // Stripe Price ID (null for custom/contact-us tiers)
+  stripeProductId: text("stripe_product_id"), // Stripe Product ID
+  price: integer("price").notNull(), // price in cents (4900 = $49)
+  interval: text("interval").notNull().default("month"), // month | year
+  features: text("features").notNull(), // JSON array of feature strings
+  limits: text("limits").notNull(), // JSON: { chatMessages: 100, warRoomAccess: "view", ... }
+  highlighted: integer("highlighted").notNull().default(0), // 0 or 1
+  position: integer("position").notNull().default(0), // display order
+  active: integer("active").notNull().default(1), // 0 or 1
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(), // matches user:{username} key pattern
+  tierId: integer("tier_id").notNull().references(() => subscriptionTiers.id),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  status: text("status").notNull().default("active"), // active | past_due | canceled | trialing | incomplete
+  currentPeriodStart: text("current_period_start"),
+  currentPeriodEnd: text("current_period_end"),
+  cancelAtPeriodEnd: integer("cancel_at_period_end").notNull().default(0),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
 // Type exports
 export type Signal = typeof signals.$inferSelect;
 export type NewSignal = typeof signals.$inferInsert;
@@ -304,3 +336,7 @@ export type Watchlist = typeof watchlists.$inferSelect;
 export type NewWatchlist = typeof watchlists.$inferInsert;
 export type WatchlistItem = typeof watchlistItems.$inferSelect;
 export type NewWatchlistItem = typeof watchlistItems.$inferInsert;
+export type SubscriptionTier = typeof subscriptionTiers.$inferSelect;
+export type NewSubscriptionTier = typeof subscriptionTiers.$inferInsert;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type NewSubscription = typeof subscriptions.$inferInsert;

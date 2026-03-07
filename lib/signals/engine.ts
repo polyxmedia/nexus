@@ -53,9 +53,9 @@ export function generateSignals(year: number): SignalGenerationResult {
     date: c.date,
     intensity: c.intensity,
     category: c.category,
-    celestialType: c.celestialEvents.length > 0 ? c.celestialEvents.type : null,
-    hebrewDate: c.hebrewEvents.length > 0 ? c.hebrewEvents.hebrewDate : null,
-    hebrewHoliday: c.hebrewEvents.length > 0 ? c.hebrewEvents.holiday : null,
+    celestialType: c.celestialEvents.length > 0 ? c.celestialEvents[0].type : null,
+    hebrewDate: c.hebrewEvents.length > 0 ? c.hebrewEvents[0].hebrewDate : null,
+    hebrewHoliday: c.hebrewEvents.length > 0 ? c.hebrewEvents[0].holiday : null,
     geopoliticalContext:
       c.geopoliticalEvents.length > 0
         ? c.geopoliticalEvents.map((e) => e.title).join(", ")

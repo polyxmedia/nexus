@@ -7,28 +7,25 @@ import { getModel } from "@/lib/ai/model";
 export async function GET() {
   try {
     // Gather current signals (active + upcoming, intensity >= 2)
-    const signals = db
+    const allSignals = await db
       .select()
       .from(schema.signals)
       .orderBy(desc(schema.signals.intensity))
-      .limit(30)
-      
-      .filter((s) => s.status !== "passed");
+      .limit(30);
+    const signals = allSignals.filter((s) => s.status !== "passed");
 
     // Get existing alerts so AI doesn't duplicate
-    const existingAlerts = db
+    const existingAlerts = await db
       .select()
-      .from(schema.alerts)
-      ;
+      .from(schema.alerts);
 
     // Get recent predictions for context
-    const predictions = db
+    const allPredictions = await db
       .select()
       .from(schema.predictions)
       .orderBy(desc(schema.predictions.createdAt))
-      .limit(10)
-      
-      .filter((p) => !p.outcome);
+      .limit(10);
+    const predictions = allPredictions.filter((p) => !p.outcome);
 
     if (signals.length === 0 && predictions.length === 0) {
       return NextResponse.json({ suggestions: [] });
@@ -99,7 +96,7 @@ Respond with ONLY the JSON array, no markdown fencing.`,
     });
 
     const text =
-      response.content.type === "text" ? response.content.text : "";
+      response.content[0].type === "text" ? response.content[0].text : "";
 
     let suggestions;
     try {

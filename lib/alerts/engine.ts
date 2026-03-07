@@ -117,7 +117,7 @@ export async function evaluateAlerts(): Promise<number> {
 
     switch (alert.type) {
       case "signal_intensity": {
-        const signals = db.select().from(schema.signals);
+        const signals = await db.select().from(schema.signals);
         const intense = signals.filter(s => s.intensity >= (condition.minIntensity || 4));
         if (intense.length > 0) {
           const latest = intense[intense.length - 1];
@@ -131,7 +131,7 @@ export async function evaluateAlerts(): Promise<number> {
       }
 
       case "prediction_due": {
-        const predictions = db.select().from(schema.predictions);
+        const predictions = await db.select().from(schema.predictions);
         const now = new Date();
         const daysThreshold = condition.daysBeforeDeadline || 3;
         const upcoming = predictions.filter(p => {

@@ -91,7 +91,7 @@ export async function getHistoricalData(
   return quotes
     .filter((q: Record<string, unknown>) => q.open != null && q.high != null && q.low != null && q.close != null)
     .map((q: Record<string, unknown>) => ({
-      date: new Date(q.date as string | number | Date).toISOString().split("T"),
+      date: new Date(q.date as string | number | Date).toISOString().split("T")[0],
       open: q.open as number,
       high: q.high as number,
       low: q.low as number,

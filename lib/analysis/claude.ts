@@ -7,7 +7,7 @@ import { getModel } from "@/lib/ai/model";
 export async function analyzeSignal(
   signal: Signal,
   apiKey: string
-):Promise< Promise<NewAnalysis>>  {
+): Promise<NewAnalysis> {
   const client = new Anthropic({ apiKey });
 
   const prompt = buildAnalysisPrompt({
@@ -31,7 +31,7 @@ export async function analyzeSignal(
   });
 
   const text =
-    response.content.type === "text" ? response.content.text : "";
+    response.content[0].type === "text" ? response.content[0].text : "";
 
   // Extract JSON from response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -39,7 +39,7 @@ export async function analyzeSignal(
     throw new Error("Failed to parse structured analysis from Claude response");
   }
 
-  const analysis = JSON.parse(jsonMatch);
+  const analysis = JSON.parse(jsonMatch[0]);
 
   return {
     signalId: signal.id,

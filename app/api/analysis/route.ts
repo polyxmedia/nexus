@@ -15,15 +15,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const signal = db.select().from(schema.signals).where(eq(schema.signals.id, signalId));
+    const signalRows = await db.select().from(schema.signals).where(eq(schema.signals.id, signalId));
+    const signal = signalRows[0];
 
     if (!signal) {
       return NextResponse.json({ error: "Signal not found" }, { status: 404 });
     }
 
-    const apiKeySetting = db.select().from(schema.settings).where(eq(schema.settings.key, "anthropic_api_key"));
+    const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "anthropic_api_key"));
 
-    const apiKey = apiKeySetting?.value || process.env.ANTHROPIC_API_KEY;
+    const apiKey = apiKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const analysisData = await analyzeSignal(signal, apiKey);
 
-    const result = db.insert(schema.analyses).values(analysisData).returning();
+    const result = await db.insert(schema.analyses).values(analysisData).returning();
 
     return NextResponse.json(result);
   } catch (error) {
@@ -52,9 +53,9 @@ export async function GET(request: NextRequest) {
 
     if (signalId) {
       const id = parseInt(signalId, 10);
-      results = db.select().from(schema.analyses).where(eq(schema.analyses.signalId, id)).orderBy(desc(schema.analyses.createdAt));
+      results = await db.select().from(schema.analyses).where(eq(schema.analyses.signalId, id)).orderBy(desc(schema.analyses.createdAt));
     } else {
-      results = db.select().from(schema.analyses).orderBy(desc(schema.analyses.createdAt));
+      results = await db.select().from(schema.analyses).orderBy(desc(schema.analyses.createdAt));
     }
 
     return NextResponse.json(results);

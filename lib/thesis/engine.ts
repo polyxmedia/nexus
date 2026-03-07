@@ -17,27 +17,25 @@ import type {
 } from "./types";
 import { getModel } from "@/lib/ai/model";
 
-export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>>  {
+export async function generateThesis(symbols: string[]): Promise<Thesis> {
   // 1. Gather settings
-  const anthropicKeySetting = db
+  const anthropicKeyRows = await db
     .select()
     .from(schema.settings)
-    .where(eq(schema.settings.key, "anthropic_api_key"))
-    ;
+    .where(eq(schema.settings.key, "anthropic_api_key"));
 
-  const anthropicApiKey = anthropicKeySetting?.value || process.env.ANTHROPIC_API_KEY;
+  const anthropicApiKey = anthropicKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
 
   if (!anthropicApiKey) {
     throw new Error("Anthropic API key not configured");
   }
 
-  const alphaVantageKeySetting = db
+  const alphaVantageKeyRows = await db
     .select()
     .from(schema.settings)
-    .where(eq(schema.settings.key, "alpha_vantage_api_key"))
-    ;
+    .where(eq(schema.settings.key, "alpha_vantage_api_key"));
 
-  const alphaVantageApiKey = alphaVantageKeySetting?.value || process.env.ALPHA_VANTAGE_API_KEY;
+  const alphaVantageApiKey = alphaVantageKeyRows[0]?.value || process.env.ALPHA_VANTAGE_API_KEY;
 
   // 2. Gather market data (if API key available)
   const technicalSnapshots: TechnicalSnapshot[] = [];
@@ -80,12 +78,12 @@ export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>
   }
 
   // 4. Gather signal data
-  const today = new Date().toISOString().split("T");
+  const today = new Date().toISOString().split("T")[0];
   const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     .toISOString()
-    .split("T");
+    .split("T")[0];
 
-  const activeSignals = db
+  const activeSignals = await db
     .select()
     .from(schema.signals)
     .where(
@@ -94,8 +92,7 @@ export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>
       )
     )
     .orderBy(schema.signals.date)
-    .limit(20)
-    ;
+    .limit(20);
 
   const celestialEvents = activeSignals
     .filter((s) => s.celestialType)
@@ -139,7 +136,7 @@ export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>
     sentiment
   );
   const convergenceDensity = Math.min(10, convergenceIntensity * 2);
-  const overallConfidence = computeOverallConfidence(
+  const overallConfidence = await computeOverallConfidence(
     technicalSnapshots,
     gameTheoryAnalyses,
     convergenceIntensity
@@ -192,7 +189,7 @@ export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>
 
   // 9. Generate narrative via Claude
   const client = new Anthropic({ apiKey: anthropicApiKey });
-  const briefingPrompt = buildBriefingPrompt(
+  const briefingPrompt = await buildBriefingPrompt(
     layerInputs,
     tradingActions,
     marketRegime,
@@ -209,7 +206,7 @@ export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>
   });
 
   const narrativeText =
-    response.content.type === "text" ? response.content.text : "";
+    response.content[0].type === "text" ? response.content[0].text : "";
 
   // Parse sections from narrative
   const { executiveSummary, situationAssessment, riskScenarios } =
@@ -236,7 +233,7 @@ export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>
   };
 
   // 11. Store in DB
-  const record = db
+  const records = await db
     .insert(schema.theses)
     .values({
       title: thesis.title,
@@ -253,21 +250,20 @@ export async function generateThesis(symbols: string[]):Promise< Promise<Thesis>
       layerInputs: JSON.stringify(thesis.layerInputs),
       symbols: JSON.stringify(thesis.symbols),
     })
-    .returning()
-    ;
+    .returning();
 
+  const record = records[0];
   thesis.id = record.id;
 
   // Supersede previous active theses
-  const previousTheses = db
+  const previousTheses = await db
     .select()
     .from(schema.theses)
     .where(
       and(
         eq(schema.theses.status, "active"),
       )
-    )
-    ;
+    );
 
   for (const prev of previousTheses) {
     if (prev.id !== record.id) {
@@ -318,7 +314,7 @@ function computeVolatilityOutlook(
   return "normal";
 }
 
-function computeOverallConfidence(
+async function computeOverallConfidence(
   snapshots: TechnicalSnapshot[],
   gameTheoryAnalyses: GameTheoryAnalysis[],
   convergenceIntensity: number
@@ -485,14 +481,14 @@ function deriveTradingActions(
 
 // ── Prompt Builder ──
 
-function buildBriefingPrompt(
+async function buildBriefingPrompt(
   layerInputs: ThesisLayerInput,
   tradingActions: TradingAction[],
   marketRegime: string,
   volatilityOutlook: string,
   convergenceDensity: number,
   overallConfidence: number
-): string {
+): Promise<string> {
   const technicalSummary = layerInputs.market.technicalSnapshots
     .map(
       (s) =>
@@ -548,7 +544,7 @@ ${gameTheorySummary}
 PRE-DETERMINED TRADING ACTIONS:
 ${actionsSummary || "No trading actions generated from current data"}
 
-${buildPredictionTrackRecord()}
+${await buildPredictionTrackRecord()}
 
 Write the briefing with three sections:
 1. EXECUTIVE SUMMARY (2-3 sentences)
@@ -556,7 +552,7 @@ Write the briefing with three sections:
 3. RISK SCENARIOS (2-3 specific scenarios that could invalidate this thesis)`;
 }
 
-function buildPredictionTrackRecord(): string {
+async function buildPredictionTrackRecord(): Promise<string> {
   try {
     const { computePerformanceReport } = require("@/lib/predictions/feedback");
     const report = await computePerformanceReport();

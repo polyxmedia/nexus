@@ -53,7 +53,7 @@ export async function GET(
       return NextResponse.json({ error: "Signal not found" }, { status: 404 });
     }
 
-    const s = signal;
+    const s = signal[0];
     const signalDate = new Date(s.date);
 
     // Only backtest past signals
@@ -81,7 +81,7 @@ export async function GET(
       return NextResponse.json({ error: "No matching ETFs for sectors" }, { status: 400 });
     }
 
-    const signalDateStr = s.date.split("T");
+    const signalDateStr = s.date.split("T")[0];
 
     // Fetch price data for each ETF
     const results: BacktestSeries[] = [];

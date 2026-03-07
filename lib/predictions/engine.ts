@@ -8,42 +8,38 @@ import { computePerformanceReport } from "./feedback";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { getModel } from "@/lib/ai/model";
 
-export async function generatePredictions():Promise< Promise<NewPrediction[]>>  {
-  const anthropicKey = getAnthropicKey();
-  const today = new Date().toISOString().split("T");
+export async function generatePredictions(): Promise<NewPrediction[]> {
+  const anthropicKey = await getAnthropicKey();
+  const today = new Date().toISOString().split("T")[0];
 
   // ── Gather full intelligence picture ──
 
   // Active thesis with all fields
-  const latestThesis = db
+  const latestThesis = await db
     .select()
     .from(schema.theses)
     .where(eq(schema.theses.status, "active"))
     .orderBy(desc(schema.theses.id))
-    .limit(1)
-    ;
+    .limit(1);
 
   // Active signals
-  const activeSignals = db
+  const allSignals = await db
     .select()
-    .from(schema.signals)
-    
-    .filter((s) => s.status === "active" || s.status === "upcoming");
+    .from(schema.signals);
+  const activeSignals = allSignals.filter((s) => s.status === "active" || s.status === "upcoming");
 
   // Game theory scenarios
-  const gameTheoryRecords = db
+  const gameTheoryRecords = await db
     .select()
     .from(schema.gameTheoryScenarios)
     .orderBy(desc(schema.gameTheoryScenarios.id))
-    .limit(3)
-    ;
+    .limit(3);
 
   // All existing predictions (pending + recently resolved for context)
-  const allPredictions = db
+  const allPredictions = await db
     .select()
     .from(schema.predictions)
-    .orderBy(desc(schema.predictions.id))
-    ;
+    .orderBy(desc(schema.predictions.id));
 
   const pendingPredictions = allPredictions.filter((p) => !p.outcome);
   const recentResolved = allPredictions
@@ -54,7 +50,7 @@ export async function generatePredictions():Promise< Promise<NewPrediction[]>>  
 
   let thesisContext = "No active thesis available. Generate predictions based on signals and game theory only.";
   if (latestThesis.length > 0) {
-    const t = latestThesis;
+    const t = latestThesis[0];
     const tradingActions = safeParse(t.tradingActions, []) as Array<Record<string, unknown>>;
     const actionsSummary = tradingActions.length > 0
       ? tradingActions.map((a) =>
@@ -182,7 +178,7 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
     messages: [{ role: "user", content: prompt }],
   });
 
-  const text = response.content.type === "text" ? response.content.text : "";
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
     throw new Error("Failed to parse predictions from Claude response");
@@ -195,7 +191,7 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
     confidence: number;
     category: string;
     grounding?: string;
-  }> = JSON.parse(jsonMatch);
+  }> = JSON.parse(jsonMatch[0]);
 
   // ── Deduplication: reject predictions too similar to existing ones ──
   const existingClaims = allPredictions.map((p) => normalizeClaim(p.claim));
@@ -231,7 +227,7 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
       ? p.claim
       : p.claim;
 
-    const record = db
+    const rows = await db
       .insert(schema.predictions)
       .values({
         claim: claimWithGrounding,
@@ -241,10 +237,9 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
         category,
         metrics: p.grounding ? JSON.stringify({ grounding: p.grounding }) : null,
       })
-      .returning()
-      ;
+      .returning();
 
-    created.push(record);
+    created.push(rows[0]);
     // Add to existing claims to prevent intra-batch duplicates
     existingClaims.push(normalized);
   }
@@ -252,16 +247,15 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
   return created;
 }
 
-export async function resolvePredictions():Promise< Promise<Array<>{ id: number; outcome: string; score: number; notes: string }>> {
-  const anthropicKey = getAnthropicKey();
-  const alphaVantageKey = getAlphaVantageKey();
-  const today = new Date().toISOString().split("T");
+export async function resolvePredictions(): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
+  const anthropicKey = await getAnthropicKey();
+  const alphaVantageKey = await getAlphaVantageKey();
+  const today = new Date().toISOString().split("T")[0];
 
-  const pending = db
+  const pending = await db
     .select()
     .from(schema.predictions)
-    .where(isNull(schema.predictions.outcome))
-    ;
+    .where(isNull(schema.predictions.outcome));
 
   if (pending.length === 0) return [];
 
@@ -292,7 +286,7 @@ export async function resolvePredictions():Promise< Promise<Array<>{ id: number;
   const marketData: Record<string, { current: { price: number; change: number; changePercent: number; volume: number; date: string }; history: Array<{ date: string; close: number; high: number; low: number }> }> = {};
 
   if (alphaVantageKey) {
-    const earliestCreation = due.reduce((min, p) => p.createdAt < min ? p.createdAt : min, due.createdAt);
+    const earliestCreation = due.reduce((min, p) => p.createdAt < min ? p.createdAt : min, due[0].createdAt);
     const symbols = Array.from(mentionedTickers);
 
     // Fetch in batches of 5 to respect Alpha Vantage rate limits (5 calls/min free tier)
@@ -307,7 +301,7 @@ export async function resolvePredictions():Promise< Promise<Array<>{ id: number;
 
           if (quote) {
             const relevantBars = daily
-              .filter((b) => b.date >= earliestCreation.split("T"))
+              .filter((b) => b.date >= earliestCreation.split("T")[0])
               .map((b) => ({ date: b.date, close: b.close, high: b.high, low: b.low }));
 
             marketData[symbol] = {
@@ -409,13 +403,13 @@ Respond ONLY with a JSON array:
     messages: [{ role: "user", content: prompt }],
   });
 
-  const text = response.content.type === "text" ? response.content.text : "";
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
     throw new Error("Failed to parse resolution from Claude response");
   }
 
-  const results: Array<{ id: number; outcome: string; score: number; notes: string }> = JSON.parse(jsonMatch);
+  const results: Array<{ id: number; outcome: string; score: number; notes: string }> = JSON.parse(jsonMatch[0]);
 
   // Validate and update DB
   const validOutcomes = ["confirmed", "denied", "partial", "expired"];
@@ -455,17 +449,15 @@ Respond ONLY with a JSON array:
         ].join("\n");
 
         // Upsert a knowledge entry for prediction failure patterns
-        const existing = db
+        const existingRows = await db
           .select()
           .from(schema.knowledge)
-          .where(eq(schema.knowledge.title, "Prediction Failure Patterns"))
-          ;
+          .where(eq(schema.knowledge.title, "Prediction Failure Patterns"));
 
-        if (existing) {
+        if (existingRows.length > 0) {
           await db.update(schema.knowledge)
             .set({ content, updatedAt: new Date().toISOString() })
-            .where(eq(schema.knowledge.id, existing.id))
-            ;
+            .where(eq(schema.knowledge.id, existingRows[0].id));
         } else {
           await db.insert(schema.knowledge)
             .values({
@@ -490,26 +482,24 @@ Respond ONLY with a JSON array:
 
 // ── Helpers ──
 
-function getAnthropicKey(): string {
-  const setting = db
+async function getAnthropicKey(): Promise<string> {
+  const rows = await db
     .select()
     .from(schema.settings)
-    .where(eq(schema.settings.key, "anthropic_api_key"))
-    ;
+    .where(eq(schema.settings.key, "anthropic_api_key"));
 
-  const key = setting?.value || process.env.ANTHROPIC_API_KEY;
+  const key = rows[0]?.value || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("Anthropic API key not configured");
   return key;
 }
 
-function getAlphaVantageKey(): string {
-  const setting = db
+async function getAlphaVantageKey(): Promise<string> {
+  const rows = await db
     .select()
     .from(schema.settings)
-    .where(eq(schema.settings.key, "alpha_vantage_api_key"))
-    ;
+    .where(eq(schema.settings.key, "alpha_vantage_api_key"));
 
-  return setting?.value || process.env.ALPHA_VANTAGE_API_KEY || "";
+  return rows[0]?.value || process.env.ALPHA_VANTAGE_API_KEY || "";
 }
 
 function normalizeClaim(claim: string): string {

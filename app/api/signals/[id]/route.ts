@@ -14,17 +14,16 @@ export async function GET(
       return NextResponse.json({ error: "Invalid signal ID" }, { status: 400 });
     }
 
-    const signal = db
+    const signal = await db
       .select()
       .from(schema.signals)
-      .where(eq(schema.signals.id, signalId))
-      ;
+      .where(eq(schema.signals.id, signalId));
 
-    if (!signal) {
+    if (signal.length === 0) {
       return NextResponse.json({ error: "Signal not found" }, { status: 404 });
     }
 
-    return NextResponse.json(signal);
+    return NextResponse.json(signal[0]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

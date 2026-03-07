@@ -891,7 +891,7 @@ export default function LandingPage() {
                 </div>
 
                 <Link
-                  href="/login"
+                  href="/register"
                   className={`block text-center text-xs font-medium rounded-lg px-4 py-2.5 transition-all duration-300 ${
                     tier.highlighted
                       ? "bg-navy-100 hover:bg-white text-navy-950 font-semibold"

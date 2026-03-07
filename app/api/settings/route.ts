@@ -25,7 +25,7 @@ function maskValue(key: string, value: string): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const allSettings = db.select().from(schema.settings);
+    const allSettings = await db.select().from(schema.settings);
 
     const masked = allSettings.map((s) => ({
       ...s,
@@ -48,7 +48,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "key is required" }, { status: 400 });
     }
 
-    db.delete(schema.settings).where(eq(schema.settings.key, key));
+    await db.delete(schema.settings).where(eq(schema.settings.key, key));
 
     return NextResponse.json({ success: true, key });
   } catch (error) {
@@ -69,12 +69,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = db.select().from(schema.settings).where(eq(schema.settings.key, key));
+    const existingRows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
 
-    if (existing) {
-      db.update(schema.settings).set({ value, updatedAt: new Date().toISOString() }).where(eq(schema.settings.key, key));
+    if (existingRows.length > 0) {
+      await db.update(schema.settings).set({ value, updatedAt: new Date().toISOString() }).where(eq(schema.settings.key, key));
     } else {
-      db.insert(schema.settings).values({ key, value, updatedAt: new Date().toISOString() });
+      await db.insert(schema.settings).values({ key, value, updatedAt: new Date().toISOString() });
     }
 
     return NextResponse.json({ success: true, key });

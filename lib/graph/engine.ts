@@ -34,12 +34,12 @@ function safeParse(json: string | null): Record<string, unknown> {
 
 // ── Sync: Ingest existing data into the entity graph ──
 
-export function syncEntityGraph(): { entities: number; relationships: number } {
+export async function syncEntityGraph(): Promise<{ entities: number; relationships: number }> {
   let entityCount = 0;
   let relCount = 0;
 
   // 1. Signals -> entities
-  const signals = db.select().from(schema.signals);
+  const signals = await db.select().from(schema.signals);
   for (const s of signals) {
     const ent = await upsertEntity("signal", s.title, {
       intensity: s.intensity,
@@ -63,7 +63,7 @@ export function syncEntityGraph(): { entities: number; relationships: number } {
   }
 
   // 2. Predictions -> entities
-  const predictions = db.select().from(schema.predictions);
+  const predictions = await db.select().from(schema.predictions);
   for (const p of predictions) {
     const ent = await upsertEntity("prediction", p.claim.slice(0, 80), {
       confidence: p.confidence,
@@ -85,7 +85,7 @@ export function syncEntityGraph(): { entities: number; relationships: number } {
   }
 
   // 3. Trades -> entities
-  const trades = db.select().from(schema.trades);
+  const trades = await db.select().from(schema.trades);
   for (const t of trades) {
     const ent = await upsertEntity("trade", `${t.direction} ${t.ticker}`, {
       direction: t.direction,
@@ -112,7 +112,7 @@ export function syncEntityGraph(): { entities: number; relationships: number } {
   }
 
   // 4. Theses -> entities
-  const theses = db.select().from(schema.theses);
+  const theses = await db.select().from(schema.theses);
   for (const t of theses) {
     const ent = await upsertEntity("thesis", t.title, {
       status: t.status,
@@ -136,7 +136,7 @@ export function syncEntityGraph(): { entities: number; relationships: number } {
   }
 
   // 5. Geopolitical actors -> entities
-  const gameTheory = db.select().from(schema.gameTheoryScenarios);
+  const gameTheory = await db.select().from(schema.gameTheoryScenarios);
   for (const g of gameTheory) {
     const analysis = safeParse(g.analysis) as Record<string, unknown>;
     const ent = await upsertEntity("event", g.title, {
@@ -160,9 +160,9 @@ export function syncEntityGraph(): { entities: number; relationships: number } {
 
 // ── Query helpers ──
 
-export async function getEntityGraph(centerEntityId?: number, depth: number = 2): GraphData {
-  const allEntities = db.select().from(schema.entities);
-  const allRelationships = db.select().from(schema.relationships);
+export async function getEntityGraph(centerEntityId?: number, depth: number = 2): Promise<GraphData> {
+  const allEntities = await db.select().from(schema.entities);
+  const allRelationships = await db.select().from(schema.relationships);
 
   if (!centerEntityId) {
     return {
@@ -204,8 +204,8 @@ export async function getEntityGraph(centerEntityId?: number, depth: number = 2)
   return { nodes, edges };
 }
 
-export async function searchEntities(query: string, type?: string): GraphNode[] {
-  const all = db.select().from(schema.entities);
+export async function searchEntities(query: string, type?: string): Promise<GraphNode[]> {
+  const all = await db.select().from(schema.entities);
   const q = query.toLowerCase();
   return all
     .filter((e) => {
@@ -225,29 +225,30 @@ async function upsertEntity(
   sourceType: string,
   sourceId: string,
 ) {
-  const existing = await db.select().from(schema.entities)
+  const existingRows = await db.select().from(schema.entities)
     .where(and(eq(schema.entities.sourceType, sourceType), eq(schema.entities.sourceId, sourceId)))
     ;
 
-  if (existing) {
+  if (existingRows.length > 0) {
     await db.update(schema.entities)
       .set({ name, properties: JSON.stringify(properties), updatedAt: new Date().toISOString() })
-      .where(eq(schema.entities.id, existing.id))
+      .where(eq(schema.entities.id, existingRows[0].id))
       ;
-    return existing;
+    return existingRows[0];
   }
 
-  return await db.insert(schema.entities).values({
+  const [inserted] = await db.insert(schema.entities).values({
     type,
     name,
     properties: JSON.stringify(properties),
     sourceType,
     sourceId,
   }).returning();
+  return inserted;
 }
 
 async function upsertRelationship(fromId: number, toId: number, type: string, weight: number) {
-  const existing = await db.select().from(schema.relationships)
+  const existingRows = await db.select().from(schema.relationships)
     .where(and(
       eq(schema.relationships.fromEntityId, fromId),
       eq(schema.relationships.toEntityId, toId),
@@ -255,26 +256,27 @@ async function upsertRelationship(fromId: number, toId: number, type: string, we
     ))
     ;
 
-  if (existing) {
+  if (existingRows.length > 0) {
     await db.update(schema.relationships)
       .set({ weight })
-      .where(eq(schema.relationships.id, existing.id))
+      .where(eq(schema.relationships.id, existingRows[0].id))
       ;
-    return existing;
+    return existingRows[0];
   }
 
-  return await db.insert(schema.relationships).values({
+  const [inserted] = await db.insert(schema.relationships).values({
     fromEntityId: fromId,
     toEntityId: toId,
     type,
     weight,
   }).returning();
+  return inserted;
 }
 
 async function findEntityBySource(sourceType: string, sourceId: string) {
-  return await db.select().from(schema.entities)
-    .where(and(eq(schema.entities.sourceType, sourceType), eq(schema.entities.sourceId, sourceId)))
-     || null;
+  const rows = await db.select().from(schema.entities)
+    .where(and(eq(schema.entities.sourceType, sourceType), eq(schema.entities.sourceId, sourceId)));
+  return rows[0] || null;
 }
 
 function toGraphNode(e: typeof schema.entities.$inferSelect): GraphNode {

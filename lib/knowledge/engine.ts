@@ -10,7 +10,7 @@ export async function addKnowledge(entry: Omit<NewKnowledgeEntry, "id" | "create
     .insert(schema.knowledge)
     .values(entry)
     .returning();
-  const row = rows;
+  const row = rows[0];
 
   // Generate embedding in background (don't block the insert)
   embedKnowledgeEntry(row.id).catch((err) =>
@@ -29,7 +29,7 @@ export async function updateKnowledge(
     .set({ ...updates, updatedAt: new Date().toISOString() })
     .where(eq(schema.knowledge.id, id))
     .returning();
-  const row = rows;
+  const row = rows[0];
 
   // Re-embed if title or content changed
   if (row && (updates.title || updates.content)) {
@@ -67,7 +67,7 @@ export async function getKnowledgeById(id: number): Promise<KnowledgeEntry | und
     .select()
     .from(schema.knowledge)
     .where(eq(schema.knowledge.id, id));
-  return rows;
+  return rows[0];
 }
 
 export async function getKnowledgeByCategory(category: string): Promise<KnowledgeEntry[]> {
@@ -284,7 +284,7 @@ export async function getKnowledgeStats() {
   const embeddedResult = await db.execute(
     sql`SELECT COUNT(*) as count FROM knowledge WHERE embedding IS NOT NULL`
   );
-  const embeddedCount = Number((embeddedResult.rows as { count: number }).count);
+  const embeddedCount = Number((embeddedResult.rows as Array<{ count: number }>)[0]?.count ?? 0);
 
   const categories: Record<string, number> = {};
   let active = 0;

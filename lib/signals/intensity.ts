@@ -58,7 +58,7 @@ export function scoreConvergences(
   if (currentCluster.length > 0) clusters.push(currentCluster);
 
   for (const cluster of clusters) {
-    const clusterStart = cluster;
+    const clusterStart = cluster[0];
     const clusterEnd = cluster[cluster.length - 1];
 
     // Find all events in this cluster
@@ -116,7 +116,7 @@ export function scoreConvergences(
     const title =
       allTitles.length <= 2
         ? allTitles.join(" + ")
-        : `${allTitles} + ${allTitles.length - 1} convergent events`;
+        : `${allTitles[0]} + ${allTitles.length - 1} convergent events`;
 
     const descriptions = [
       ...ce.map((e) => e.description),
@@ -127,7 +127,7 @@ export function scoreConvergences(
     const category =
       layers.length > 1
         ? "convergence"
-        : layers;
+        : layers[0];
 
     const sectors = new Set<string>();
     ge.forEach((e) => e.sectors.forEach((s) => sectors.add(s)));

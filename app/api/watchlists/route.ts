@@ -11,20 +11,19 @@ export async function GET(req: NextRequest) {
     const watchlistId = searchParams.get("id");
 
     const lists = watchlistId
-      ? db.select().from(schema.watchlists).where(eq(schema.watchlists.id, parseInt(watchlistId)))
-      : db.select().from(schema.watchlists).orderBy(asc(schema.watchlists.position));
+      ? await db.select().from(schema.watchlists).where(eq(schema.watchlists.id, parseInt(watchlistId)))
+      : await db.select().from(schema.watchlists).orderBy(asc(schema.watchlists.position));
 
     const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
 
     const result = await Promise.all(
       lists.map(async (list) => {
-        const items = db.select().from(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, list.id)).orderBy(asc(schema.watchlistItems.position));
+        const items = await db.select().from(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, list.id)).orderBy(asc(schema.watchlistItems.position));
 
         if (!withQuotes || !apiKey) {
           return { ...list, items: items.map((it) => ({ ...it, quote: null })) };
         }
 
-        // Fetch quotes in batches of 3 to respect rate limits
         const enriched = [];
         for (let i = 0; i < items.length; i++) {
           try {
@@ -33,7 +32,6 @@ export async function GET(req: NextRequest) {
           } catch {
             enriched.push({ ...items[i], quote: null });
           }
-          // Small delay between requests to avoid rate limiting
           if (i < items.length - 1) await new Promise((r) => setTimeout(r, 250));
         }
 
@@ -59,15 +57,13 @@ export async function POST(req: NextRequest) {
       if (!watchlistId || !symbol) {
         return NextResponse.json({ error: "watchlistId and symbol required" }, { status: 400 });
       }
-      // Check for duplicate
-      const existing = db.select().from(schema.watchlistItems).where(and(eq(schema.watchlistItems.watchlistId, watchlistId), eq(schema.watchlistItems.symbol, symbol.toUpperCase())));
-      if (existing) {
+      const existing = await db.select().from(schema.watchlistItems).where(and(eq(schema.watchlistItems.watchlistId, watchlistId), eq(schema.watchlistItems.symbol, symbol.toUpperCase())));
+      if (existing.length > 0) {
         return NextResponse.json({ error: "Symbol already in watchlist" }, { status: 409 });
       }
-      // Get max position
-      const items = db.select().from(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, watchlistId));
+      const items = await db.select().from(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, watchlistId));
       const maxPos = items.length > 0 ? Math.max(...items.map((i) => i.position)) + 1 : 0;
-      const item = db.insert(schema.watchlistItems).values({ watchlistId, symbol: symbol.toUpperCase(), position: maxPos, addedAt: new Date().toISOString() }).returning();
+      const [item] = await db.insert(schema.watchlistItems).values({ watchlistId, symbol: symbol.toUpperCase(), position: maxPos, addedAt: new Date().toISOString() }).returning();
       return NextResponse.json({ item });
     }
 
@@ -76,9 +72,9 @@ export async function POST(req: NextRequest) {
     if (!name) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });
     }
-    const lists = db.select().from(schema.watchlists);
-    const maxPos = lists.length > 0 ? Math.max(...lists.map((l) => l.position)) + 1 : 0;
-    const watchlist = db.insert(schema.watchlists).values({ name, position: maxPos, createdAt: new Date().toISOString() }).returning();
+    const allLists = await db.select().from(schema.watchlists);
+    const maxPos = allLists.length > 0 ? Math.max(...allLists.map((l) => l.position)) + 1 : 0;
+    const [watchlist] = await db.insert(schema.watchlists).values({ name, position: maxPos, createdAt: new Date().toISOString() }).returning();
     return NextResponse.json({ watchlist });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -95,7 +91,7 @@ export async function PATCH(req: NextRequest) {
     if (action === "reorder_items") {
       const { watchlistId, itemIds } = body as { action: string; watchlistId: number; itemIds: number[] };
       for (let i = 0; i < itemIds.length; i++) {
-        db.update(schema.watchlistItems).set({ position: i }).where(and(eq(schema.watchlistItems.id, itemIds[i]), eq(schema.watchlistItems.watchlistId, watchlistId)));
+        await db.update(schema.watchlistItems).set({ position: i }).where(and(eq(schema.watchlistItems.id, itemIds[i]), eq(schema.watchlistItems.watchlistId, watchlistId)));
       }
       return NextResponse.json({ ok: true });
     }
@@ -103,7 +99,7 @@ export async function PATCH(req: NextRequest) {
     if (action === "reorder_lists") {
       const { listIds } = body as { action: string; listIds: number[] };
       for (let i = 0; i < listIds.length; i++) {
-        db.update(schema.watchlists).set({ position: i }).where(eq(schema.watchlists.id, listIds[i]));
+        await db.update(schema.watchlists).set({ position: i }).where(eq(schema.watchlists.id, listIds[i]));
       }
       return NextResponse.json({ ok: true });
     }
@@ -111,7 +107,7 @@ export async function PATCH(req: NextRequest) {
     // Default: rename
     const { id, name } = body;
     if (!id || !name) return NextResponse.json({ error: "id and name required" }, { status: 400 });
-    db.update(schema.watchlists).set({ name }).where(eq(schema.watchlists.id, id));
+    await db.update(schema.watchlists).set({ name }).where(eq(schema.watchlists.id, id));
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -128,15 +124,15 @@ export async function DELETE(req: NextRequest) {
     if (action === "remove_item") {
       const { itemId } = body;
       if (!itemId) return NextResponse.json({ error: "itemId required" }, { status: 400 });
-      db.delete(schema.watchlistItems).where(eq(schema.watchlistItems.id, itemId));
+      await db.delete(schema.watchlistItems).where(eq(schema.watchlistItems.id, itemId));
       return NextResponse.json({ ok: true });
     }
 
     // Default: delete watchlist
     const { id } = body;
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-    db.delete(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, id));
-    db.delete(schema.watchlists).where(eq(schema.watchlists.id, id));
+    await db.delete(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, id));
+    await db.delete(schema.watchlists).where(eq(schema.watchlists.id, id));
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

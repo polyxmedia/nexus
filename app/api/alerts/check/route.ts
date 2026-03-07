@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 
 export async function POST() {
   try {
-    const enabledAlerts = db
+    const enabledAlerts = await db
       .select()
       .from(schema.alerts)
       .where(eq(schema.alerts.enabled, 1))
@@ -28,7 +28,7 @@ export async function POST() {
       try {
         switch (alert.type) {
           case "signal_intensity": {
-            const signals = db
+            const signals = await db
               .select()
               .from(schema.signals)
               .where(eq(schema.signals.status, "active"))
@@ -41,11 +41,10 @@ export async function POST() {
             break;
           }
           case "prediction_due": {
-            const predictions = db
+            const allPreds = await db
               .select()
-              .from(schema.predictions)
-              
-              .filter((p) => !p.outcome && new Date(p.deadline) <= new Date(Date.now() + 24 * 60 * 60_000));
+              .from(schema.predictions);
+            const predictions = allPreds.filter((p) => !p.outcome && new Date(p.deadline) <= new Date(Date.now() + 24 * 60 * 60_000));
             if (predictions.length > 0) {
               shouldTrigger = true;
               message = `${predictions.length} prediction(s) due within 24h`;

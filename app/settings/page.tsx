@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CheckCircle2,
+  CreditCard,
+  ExternalLink,
   Key,
   Loader2,
   Save,
@@ -41,6 +43,7 @@ interface PromptEntry {
 }
 
 const TABS = [
+  { id: "subscription", label: "Subscription", icon: CreditCard },
   { id: "ai-models", label: "AI Models", icon: Brain },
   { id: "prompts", label: "Prompts", icon: MessageSquare },
   { id: "api-keys", label: "API Keys", icon: Key },
@@ -242,6 +245,13 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  // Subscription
+  const [subscription, setSubscription] = useState<{ subscription: Record<string, unknown> | null; tier: Record<string, unknown> | null }>({ subscription: null, tier: null });
+  const [allTiers, setAllTiers] = useState<Record<string, unknown>[]>([]);
+  const [subLoading, setSubLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+
   // AI Model
   const [aiModel, setAiModel] = useState("claude-opus-4-6");
   const [aiChatModel, setAiChatModel] = useState("");
@@ -299,6 +309,19 @@ export default function SettingsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/subscription").then((r) => r.json()),
+      fetch("/api/admin/tiers").then((r) => r.json()),
+    ])
+      .then(([subData, tiersData]) => {
+        setSubscription(subData);
+        setAllTiers(Array.isArray(tiersData) ? tiersData : []);
+        setSubLoading(false);
+      })
+      .catch(() => setSubLoading(false));
   }, []);
 
   useEffect(() => {
@@ -494,6 +517,202 @@ export default function SettingsPage() {
             </Tabs.Trigger>
           ))}
         </Tabs.List>
+
+        {/* Subscription Tab */}
+        <Tabs.Content value="subscription">
+          <div className="space-y-6 max-w-3xl">
+            {subLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-32 w-full" />
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Current Plan */}
+                <div className="border border-navy-700 rounded p-5">
+                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
+                    Current Plan
+                  </h3>
+                  {subscription.tier ? (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-bold text-navy-100 font-mono">
+                            {subscription.tier.name as string}
+                          </span>
+                          <span className={`text-[9px] px-2 py-0.5 rounded font-mono uppercase tracking-wider ${
+                            (subscription.subscription as Record<string, unknown>)?.status === "active"
+                              ? "bg-accent-emerald/15 text-accent-emerald"
+                              : (subscription.subscription as Record<string, unknown>)?.status === "past_due"
+                              ? "bg-accent-amber/15 text-accent-amber"
+                              : "bg-navy-700 text-navy-400"
+                          }`}>
+                            {(subscription.subscription as Record<string, unknown>)?.status as string || "active"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-navy-400 mt-1">
+                          {(subscription.tier.price as number) > 0
+                            ? `$${((subscription.tier.price as number) / 100).toFixed(0)}/${subscription.tier.interval as string}`
+                            : "Custom pricing"}
+                        </p>
+                        {(subscription.subscription as Record<string, unknown>)?.currentPeriodEnd && (
+                          <p className="text-[10px] text-navy-500 mt-1">
+                            {(subscription.subscription as Record<string, unknown>)?.cancelAtPeriodEnd
+                              ? "Cancels"
+                              : "Renews"}{" "}
+                            {new Date(
+                              (subscription.subscription as Record<string, unknown>)?.currentPeriodEnd as string
+                            ).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                      {(subscription.subscription as Record<string, unknown>)?.stripeCustomerId && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={portalLoading}
+                          onClick={async () => {
+                            setPortalLoading(true);
+                            try {
+                              const res = await fetch("/api/stripe/portal", { method: "POST" });
+                              const data = await res.json();
+                              if (data.url) window.location.href = data.url;
+                            } catch {
+                              // ignore
+                            }
+                            setPortalLoading(false);
+                          }}
+                        >
+                          {portalLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                          ) : (
+                            <ExternalLink className="h-3 w-3 mr-1.5" />
+                          )}
+                          Manage Billing
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="text-lg font-bold text-navy-100 font-mono">Free</span>
+                      <p className="text-xs text-navy-400 mt-1">No active subscription. Choose a plan below to unlock full access.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Features */}
+                {subscription.tier && (
+                  <div className="border border-navy-700 rounded p-5">
+                    <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
+                      Your Features
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(JSON.parse(subscription.tier.features as string) as string[]).map((f: string) => (
+                        <div key={f} className="flex items-center gap-2 text-xs text-navy-300">
+                          <CheckCircle2 className="h-3 w-3 text-accent-emerald shrink-0" />
+                          {f}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Plans */}
+                {allTiers.length > 0 && (
+                  <div>
+                    <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
+                      {subscription.tier ? "Change Plan" : "Available Plans"}
+                    </h3>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {allTiers
+                        .filter((t) => (t.active as number) === 1)
+                        .map((tier) => {
+                          const isCurrent = subscription.tier && (subscription.tier.id as number) === (tier.id as number);
+                          const features = JSON.parse(tier.features as string) as string[];
+                          const price = tier.price as number;
+                          return (
+                            <div
+                              key={tier.id as number}
+                              className={`border rounded p-4 transition-colors ${
+                                (tier.highlighted as number)
+                                  ? "border-accent-cyan/40 bg-accent-cyan/[0.03]"
+                                  : "border-navy-700"
+                              } ${isCurrent ? "ring-1 ring-accent-emerald/40" : ""}`}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-bold text-navy-100 font-mono">
+                                  {tier.name as string}
+                                </span>
+                                {isCurrent && (
+                                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-accent-emerald/15 text-accent-emerald font-mono uppercase tracking-wider">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-lg font-bold text-navy-100 font-mono mb-3">
+                                {price > 0 ? `$${(price / 100).toFixed(0)}` : "Custom"}
+                                {price > 0 && (
+                                  <span className="text-xs text-navy-500 font-normal">
+                                    /{tier.interval as string}
+                                  </span>
+                                )}
+                              </p>
+                              <div className="space-y-1.5 mb-4">
+                                {features.slice(0, 4).map((f: string) => (
+                                  <div key={f} className="flex items-start gap-2 text-[11px] text-navy-400">
+                                    <CheckCircle2 className="h-3 w-3 text-navy-600 shrink-0 mt-0.5" />
+                                    {f}
+                                  </div>
+                                ))}
+                                {features.length > 4 && (
+                                  <span className="text-[10px] text-navy-500">
+                                    +{features.length - 4} more features
+                                  </span>
+                                )}
+                              </div>
+                              {!isCurrent && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  disabled={checkoutLoading === (tier.id as number) || price === 0}
+                                  onClick={async () => {
+                                    if (price === 0) return;
+                                    setCheckoutLoading(tier.id as number);
+                                    try {
+                                      const res = await fetch("/api/stripe/checkout", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ tierId: tier.id }),
+                                      });
+                                      const data = await res.json();
+                                      if (data.url) window.location.href = data.url;
+                                    } catch {
+                                      // ignore
+                                    }
+                                    setCheckoutLoading(null);
+                                  }}
+                                >
+                                  {checkoutLoading === (tier.id as number) ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : price === 0 ? (
+                                    "Contact Us"
+                                  ) : (
+                                    "Upgrade"
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </Tabs.Content>
 
         {/* AI Models Tab */}
         <Tabs.Content value="ai-models">

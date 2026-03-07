@@ -50,6 +50,7 @@
     "recharts": "^2.15.0",
     "remark-gfm": "^4.0.1",
     "satellite.js": "^6.0.2",
+    "stripe": "^20.4.1",
     "tailwind-merge": "^2.6.0",
     "trading212-api": "^1.1.0",
     "voyageai": "^0.2.1",

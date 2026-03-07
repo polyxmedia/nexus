@@ -10,20 +10,20 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 export async function GET(request: NextRequest) {
   try {
-    const apiKeySetting = db
+    const apiKeySetting = await db
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "t212_api_key"))
       ;
 
-    const apiSecretSetting = db
+    const apiSecretSetting = await db
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "t212_api_secret"))
       ;
 
-    const apiKey = apiKeySetting?.value || process.env.TRADING212_API_KEY;
-    const apiSecret = apiSecretSetting?.value || process.env.TRADING212_SECRET;
+    const apiKey = apiKeySetting[0]?.value || process.env.TRADING212_API_KEY;
+    const apiSecret = apiSecretSetting[0]?.value || process.env.TRADING212_SECRET;
 
     if (!apiKey || !apiSecret) {
       return NextResponse.json(
@@ -32,13 +32,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const envSetting = db
+    const envSetting = await db
       .select()
       .from(schema.settings)
       .where(eq(schema.settings.key, "trading_environment"))
       ;
 
-    const environment = (envSetting?.value || "live") as Environment;
+    const environment = (envSetting[0]?.value || "live") as Environment;
 
     const now = Date.now();
     if (!cachedInstruments || now - cacheTimestamp > CACHE_TTL_MS) {
