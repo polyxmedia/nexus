@@ -1133,7 +1133,7 @@ async function executeGetMacroData(input: Record<string, unknown>) {
   }
 }
 
-function executeSearchKnowledge(input: Record<string, unknown>) {
+async function executeSearchKnowledge(input: Record<string, unknown>) {
   const query = input.query as string;
   const category = input.category as string | undefined;
   const topics = input.topics as string[] | undefined;
