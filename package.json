@@ -2,6 +2,9 @@
   "name": "nexus",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "esbuild": ">=0.25.0"
+  },
   "scripts": {
     "dev": "rm -rf .next && next dev --turbopack",
     "build": "next build",
