@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useChat } from "@/lib/chat/useChat";
 import { MessageBlock } from "@/components/chat/MessageBlock";
@@ -45,6 +45,7 @@ export default function ChatSessionPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState("New Chat");
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const userScrolledUp = useRef(false);
 
   useEffect(() => {
     loadHistory().then((session) => {
@@ -55,12 +56,28 @@ export default function ChatSessionPage() {
     });
   }, [loadHistory]);
 
-  // Auto-scroll on new content
+  // Detect when user scrolls up to override auto-scroll
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Consider "at bottom" if within 80px of the bottom
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    userScrolledUp.current = !atBottom;
+  }, []);
+
+  // Auto-scroll on new content (unless user scrolled up)
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && !userScrolledUp.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [turns]);
+
+  // Re-enable auto-scroll when a new user message is sent
+  useEffect(() => {
+    if (isStreaming) {
+      userScrolledUp.current = false;
+    }
+  }, [isStreaming]);
 
   return (
     <div className="ml-48 flex h-screen flex-col">
@@ -83,7 +100,7 @@ export default function ChatSessionPage() {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-6">
         {turns.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded border border-navy-700 bg-navy-800 mb-4">

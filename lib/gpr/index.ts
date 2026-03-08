@@ -1,6 +1,8 @@
 // Geopolitical Risk Index Engine
 // Data: Official GPR daily index (Caldara & Iacoviello) + GDELT regional proxies
 
+import * as XLSX from "xlsx";
+
 export interface GPRReading {
   date: string;
   composite: number;
@@ -72,74 +74,97 @@ const REGIONS: {
   },
 ];
 
-// --- CSV Parser ---
+// --- XLS Parser ---
 
-function parseGPRCSV(csv: string): GPRReading[] {
-  const lines = csv.trim().split("\n");
-  if (lines.length < 2) return [];
+function parseGPRXLS(buffer: ArrayBuffer): GPRReading[] {
+  try {
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) return [];
 
-  const header = lines[0].toLowerCase();
-  const cols = header.split(",").map((c) => c.trim());
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+    if (rows.length === 0) return [];
 
-  const dateIdx = cols.findIndex((c) => c === "date");
-  const compositeIdx = cols.findIndex((c) => c === "gprd" || c === "gpr_daily");
-  const threatsIdx = cols.findIndex(
-    (c) => c === "gprd_threats" || c === "gpr_daily_threats" || c.includes("threat")
-  );
-  const actsIdx = cols.findIndex(
-    (c) => c === "gprd_acts" || c === "gpr_daily_acts" || c.includes("act")
-  );
+    // Find column names (case-insensitive)
+    const firstRow = rows[0];
+    const keys = Object.keys(firstRow);
 
-  if (dateIdx === -1 || compositeIdx === -1) return [];
+    const dateKey = keys.find((k) => k.toLowerCase() === "date");
+    const compositeKey = keys.find(
+      (k) => k.toLowerCase() === "gprd" || k.toLowerCase() === "gpr_daily"
+    );
+    const threatsKey = keys.find(
+      (k) =>
+        k.toLowerCase() === "gprd_threats" ||
+        k.toLowerCase() === "gpr_daily_threats" ||
+        k.toLowerCase().includes("threat")
+    );
+    const actsKey = keys.find(
+      (k) =>
+        k.toLowerCase() === "gprd_acts" ||
+        k.toLowerCase() === "gpr_daily_acts" ||
+        k.toLowerCase().includes("act")
+    );
 
-  const readings: GPRReading[] = [];
+    if (!dateKey || !compositeKey) {
+      console.error("[GPR] Missing required columns. Available:", keys);
+      return [];
+    }
 
-  for (let i = 1; i < lines.length; i++) {
-    const parts = lines[i].split(",").map((p) => p.trim());
-    if (parts.length <= compositeIdx) continue;
+    const readings: GPRReading[] = [];
 
-    const dateRaw = parts[dateIdx];
-    const composite = parseFloat(parts[compositeIdx]);
-    if (isNaN(composite)) continue;
+    for (const row of rows) {
+      const dateRaw = row[dateKey];
+      let dateStr: string;
 
-    const threats = threatsIdx !== -1 ? parseFloat(parts[threatsIdx]) || 0 : 0;
-    const acts = actsIdx !== -1 ? parseFloat(parts[actsIdx]) || 0 : 0;
-    const ratio = acts > 0 ? threats / acts : threats > 0 ? 999 : 1;
+      if (typeof dateRaw === "number") {
+        // Excel serial date number
+        const excelDate = XLSX.SSF.parse_date_code(dateRaw);
+        dateStr = `${excelDate.y}-${String(excelDate.m).padStart(2, "0")}-${String(excelDate.d).padStart(2, "0")}`;
+      } else if (typeof dateRaw === "string") {
+        const d = new Date(dateRaw);
+        dateStr = !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : dateRaw;
+      } else {
+        continue;
+      }
 
-    readings.push({
-      date: normalizeDate(dateRaw),
-      composite: Math.round(composite * 100) / 100,
-      threats: Math.round(threats * 100) / 100,
-      acts: Math.round(acts * 100) / 100,
-      threatsToActsRatio: Math.round(ratio * 100) / 100,
-    });
+      const composite = Number(row[compositeKey]);
+      if (isNaN(composite)) continue;
+
+      const threats = threatsKey ? Number(row[threatsKey]) || 0 : 0;
+      const acts = actsKey ? Number(row[actsKey]) || 0 : 0;
+      const ratio = acts > 0 ? threats / acts : threats > 0 ? 999 : 1;
+
+      readings.push({
+        date: dateStr,
+        composite: Math.round(composite * 100) / 100,
+        threats: Math.round(threats * 100) / 100,
+        acts: Math.round(acts * 100) / 100,
+        threatsToActsRatio: Math.round(ratio * 100) / 100,
+      });
+    }
+
+    return readings;
+  } catch (err) {
+    console.error("[GPR] XLS parse error:", err);
+    return [];
   }
-
-  return readings;
 }
 
-function normalizeDate(raw: string): string {
-  // Handle various date formats from the CSV
-  const d = new Date(raw);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().split("T")[0];
-  }
-  return raw;
-}
-
-// --- GPR CSV Fetch ---
+// --- GPR XLS Fetch ---
 
 async function fetchGPRDaily(): Promise<GPRReading[]> {
   try {
     const res = await fetch(
-      "https://www.matteoiacoviello.com/gpr_files/data_gpr_daily_recent.csv",
+      "https://www.matteoiacoviello.com/gpr_files/data_gpr_daily_recent.xls",
       { next: { revalidate: 1800 } }
     );
-    if (!res.ok) throw new Error(`GPR CSV fetch failed: ${res.status}`);
-    const text = await res.text();
-    return parseGPRCSV(text);
+    if (!res.ok) throw new Error(`GPR XLS fetch failed: ${res.status}`);
+    const buffer = await res.arrayBuffer();
+    return parseGPRXLS(buffer);
   } catch (err) {
-    console.error("[GPR] Failed to fetch daily CSV:", err);
+    console.error("[GPR] Failed to fetch daily XLS:", err);
     return [];
   }
 }
@@ -152,7 +177,7 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
   for (const region of REGIONS) {
     try {
       const encodedQuery = encodeURIComponent(
-        `${region.query} sourcelang:eng`
+        `(${region.query}) sourcelang:eng`
       );
       const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodedQuery}&mode=ArtList&maxrecords=50&format=json&timespan=7d`;
 

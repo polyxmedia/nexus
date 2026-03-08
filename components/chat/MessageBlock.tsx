@@ -1,10 +1,36 @@
 "use client";
 
+import { useState } from "react";
+import { Copy, Check } from "lucide-react";
 import type { ChatTurn } from "@/lib/chat/useChat";
 import { ToolCallIndicator } from "./ToolCallIndicator";
 import { ToolResultRenderer } from "./ToolResultRenderer";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-navy-600 hover:text-navy-300"
+      title="Copy message"
+    >
+      {copied
+        ? <Check className="w-3 h-3 text-accent-emerald" />
+        : <Copy className="w-3 h-3" />
+      }
+    </button>
+  );
+}
 
 interface MessageBlockProps {
   turn: ChatTurn;
@@ -15,7 +41,8 @@ interface MessageBlockProps {
 export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBlockProps) {
   if (turn.role === "user") {
     return (
-      <div className="flex justify-end mb-4">
+      <div className="group flex justify-end items-start gap-1.5 mb-4">
+        <CopyButton text={turn.content} />
         <div className="max-w-[70%] border border-navy-600 rounded bg-navy-800/60 px-4 py-3">
           <div className="text-xs font-mono text-navy-200 whitespace-pre-wrap">
             {turn.content}
@@ -27,7 +54,7 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBl
 
   // Assistant turn
   return (
-    <div className="mb-4">
+    <div className="group mb-4">
       {/* Tool calls rendered inline above text */}
       {turn.toolCalls.map((tc) => (
         <div key={tc.toolUseId} className="mb-2">
@@ -40,7 +67,12 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBl
 
       {/* Text content */}
       {(turn.content || isStreaming) && (
-        <div className="prose-nexus text-sm text-navy-200 leading-relaxed">
+        <div className="relative prose-nexus text-sm text-navy-200 leading-relaxed">
+          {!isStreaming && turn.content && (
+            <div className="absolute -top-0.5 -right-1">
+              <CopyButton text={turn.content} />
+            </div>
+          )}
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{

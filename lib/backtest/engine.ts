@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { generateSignals } from "../signals/engine";
 import { getHistoricalData } from "../market-data/yahoo";
 
@@ -22,17 +22,124 @@ import type {
   CalibrationBucket,
 } from "./types";
 
-// ── In-memory store for backtest runs (could use DB later) ──
-const runs = new Map<string, BacktestRun>();
+// ── In-memory cache for actively running backtests (fast progress polling) ──
+// Completed runs are read from DB. On server restart, only DB runs survive.
+const activeRuns = new Map<string, BacktestRun>();
 
-export function getBacktestRun(id: string): BacktestRun | undefined {
-  return runs.get(id);
+// ── DB helpers ──
+
+async function dbInsertRun(run: BacktestRun): Promise<void> {
+  await db.execute(sql`
+    INSERT INTO backtest_runs (id, config, status, progress, progress_message, predictions, results, error, created_at, completed_at)
+    VALUES (
+      ${run.id},
+      ${JSON.stringify(run.config)}::jsonb,
+      ${run.status},
+      ${run.progress},
+      ${run.progressMessage},
+      '[]'::jsonb,
+      ${run.results ? JSON.stringify(run.results) : null}::jsonb,
+      ${run.error ?? null},
+      ${run.createdAt}::timestamptz,
+      ${run.completedAt ?? null}
+    )
+  `);
 }
 
-export function getAllBacktestRuns(): BacktestRun[] {
-  return Array.from(runs.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+async function dbUpdateRunProgress(run: BacktestRun): Promise<void> {
+  await db.execute(sql`
+    UPDATE backtest_runs SET
+      status = ${run.status},
+      progress = ${run.progress},
+      progress_message = ${run.progressMessage},
+      error = ${run.error ?? null}
+    WHERE id = ${run.id}
+  `);
+}
+
+async function dbFinaliseRun(run: BacktestRun): Promise<void> {
+  await db.execute(sql`
+    UPDATE backtest_runs SET
+      status = ${run.status},
+      progress = ${run.progress},
+      progress_message = ${run.progressMessage},
+      predictions = ${JSON.stringify(run.predictions)}::jsonb,
+      results = ${run.results ? JSON.stringify(run.results) : null}::jsonb,
+      error = ${run.error ?? null},
+      completed_at = ${run.completedAt ?? null}
+    WHERE id = ${run.id}
+  `);
+}
+
+type DbRow = {
+  id: string;
+  config: BacktestConfig;
+  status: BacktestRun["status"];
+  progress: number;
+  progress_message: string;
+  predictions: BacktestPrediction[];
+  results: BacktestResults | null;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+function rowToRun(row: DbRow): BacktestRun {
+  return {
+    id: row.id,
+    config: row.config as BacktestConfig,
+    status: row.status as BacktestRun["status"],
+    progress: Number(row.progress),
+    progressMessage: row.progress_message,
+    predictions: (row.predictions as BacktestPrediction[]) ?? [],
+    results: row.results ?? undefined,
+    error: row.error ?? undefined,
+    createdAt: typeof row.created_at === "string" ? row.created_at : new Date(row.created_at).toISOString(),
+    completedAt: row.completed_at ? (typeof row.completed_at === "string" ? row.completed_at : new Date(row.completed_at).toISOString()) : undefined,
+  };
+}
+
+export async function getBacktestRun(id: string): Promise<BacktestRun | undefined> {
+  // Active in-memory run (fast path for polling during execution)
+  if (activeRuns.has(id)) return activeRuns.get(id);
+
+  // Fallback to DB (completed/old runs, or after server restart)
+  try {
+    const rows = await db.execute(sql`SELECT * FROM backtest_runs WHERE id = ${id} LIMIT 1`);
+    if (rows.rows.length === 0) return undefined;
+    return rowToRun(rows.rows[0] as DbRow);
+  } catch {
+    return undefined;
+  }
+}
+
+export async function getAllBacktestRuns(): Promise<BacktestRun[]> {
+  try {
+    const rows = await db.execute(sql`SELECT id, config, status, progress, progress_message, error, created_at, completed_at FROM backtest_runs ORDER BY created_at DESC LIMIT 50`);
+    const dbRuns = (rows.rows as DbRow[]).map(rowToRun);
+
+    // Merge: active in-memory runs override DB for the same ID (fresher progress)
+    const seen = new Set<string>();
+    const merged: BacktestRun[] = [];
+
+    for (const run of activeRuns.values()) {
+      seen.add(run.id);
+      merged.push(run);
+    }
+
+    for (const run of dbRuns) {
+      if (!seen.has(run.id)) merged.push(run);
+    }
+
+    return merged.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  } catch {
+    // DB unavailable — fall back to in-memory only
+    return Array.from(activeRuns.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
 }
 
 // ── Historical price cache (persists across runs) ──
@@ -100,12 +207,18 @@ export async function startBacktest(config: BacktestConfig): Promise<string> {
     createdAt: new Date().toISOString(),
   };
 
-  runs.set(id, run);
+  // Persist to DB immediately so the run survives server restarts
+  await dbInsertRun(run);
+
+  // Also keep in active-runs cache for fast polling during execution
+  activeRuns.set(id, run);
 
   // Run async - don't await
-  executeBacktest(run).catch((err) => {
+  executeBacktest(run).catch(async (err) => {
     run.status = "failed";
     run.error = err.message;
+    await dbUpdateRunProgress(run).catch(() => {});
+    activeRuns.delete(id);
   });
 
   return id;
@@ -113,6 +226,10 @@ export async function startBacktest(config: BacktestConfig): Promise<string> {
 
 async function executeBacktest(run: BacktestRun): Promise<void> {
   const { config } = run;
+  const id = run.id;
+
+  // Helper: persist current phase to DB (non-blocking, best-effort)
+  const flushPhase = () => dbUpdateRunProgress(run).catch(() => {});
 
   // Get Anthropic key — DB settings first, then env fallback
   const anthropicKey =
@@ -131,6 +248,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.status = "collecting_data";
   run.progressMessage = "Fetching historical market data...";
   run.progress = 5;
+  await flushPhase();
 
   // Fetch all instruments in parallel — Yahoo Finance has no rate limits
   const priceData: Record<string, DailyBar[]> = {};
@@ -146,6 +264,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   // ── Phase 2: Generate signals for all years ──
   run.status = "generating_signals";
   run.progress = 15;
+  await flushPhase();
 
   const startYear = new Date(config.startDate).getFullYear();
   const endYear = new Date(config.endDate).getFullYear();
@@ -193,6 +312,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   // ── Phase 3: Simulate - generate predictions at each convergence ──
   run.status = "simulating";
   run.progress = 25;
+  await flushPhase();
 
   const totalSteps = convergencesInRange.length;
 
@@ -249,6 +369,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   // ── Phase 4: Validate predictions against actual outcomes ──
   run.status = "validating";
   run.progress = 70;
+  await flushPhase();
 
   for (let i = 0; i < run.predictions.length; i++) {
     const pred = run.predictions[i];
@@ -315,6 +436,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.status = "analyzing";
   run.progress = 85;
   run.progressMessage = "Computing statistical analysis...";
+  await flushPhase();
 
   const results = computeResults(run.predictions, config);
 
@@ -336,6 +458,12 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.progress = 100;
   run.progressMessage = "Backtest complete.";
   run.completedAt = new Date().toISOString();
+
+  // Persist full results (predictions + results JSON) to DB
+  await dbFinaliseRun(run).catch(() => {});
+
+  // Remove from active cache — future reads come from DB
+  activeRuns.delete(id);
 }
 
 // ── Build market context (time-gated) ──
@@ -615,8 +743,7 @@ function computeResults(
     };
   });
 
-  // ── Hypothetical P&L ──
-  // Simple: if prediction correct, gain = abs(avgReturn), else loss = abs(avgReturn)
+  // ── Hypothetical P&L (percentage-based, legacy) ──
   let cumulativePnl = 0;
   let tradeCount = 0;
   const hypotheticalPnl = sortedPreds.map((p) => {
@@ -624,7 +751,6 @@ function computeResults(
       (s, r) => s + r, 0
     ) / Math.max(1, Object.values(p.actualReturn || {}).length);
 
-    // Scale by confidence (bet sizing)
     const positionSize = p.confidence;
     if (p.directionCorrect) {
       cumulativePnl += Math.abs(avgRet) * positionSize;
@@ -635,16 +761,160 @@ function computeResults(
 
     return {
       date: p.predictionDate,
-      pnl: cumulativePnl * 100, // as percentage
+      pnl: cumulativePnl * 100,
       trades: tradeCount,
     };
   });
 
+  // ── Portfolio P&L (real dollar terms) ──
   const startDate = config.startDate;
   const endDate = config.endDate;
   const yearsSpanned =
     (new Date(endDate).getTime() - new Date(startDate).getTime()) /
     (365.25 * 24 * 60 * 60 * 1000);
+
+  const initialCapital = config.initialCapital || 100000;
+  const positionSizePct = (config.positionSizePct || 5) / 100;
+  const tradingCostBps = (config.tradingCostBps || 10) / 10000;
+
+  let portfolioValue = initialCapital;
+  let peak = initialCapital;
+  let maxDrawdown = 0;
+  let maxDrawdownPct = 0;
+  let maxDrawdownDate = "";
+  const dailyReturns: number[] = [];
+  const negativeReturns: number[] = [];
+  let totalCosts = 0;
+  const tradeLog: import("./types").TradeRecord[] = [];
+  const equityCurve: import("./types").EquityPoint[] = [{
+    date: config.startDate,
+    portfolioValue: initialCapital,
+    cash: initialCapital,
+    invested: 0,
+    drawdown: 0,
+    drawdownPct: 0,
+  }];
+
+  for (const p of sortedPreds) {
+    if (!p.priceAtPrediction || !p.priceAtValidation || !p.actualReturn) continue;
+
+    // Position size: % of current portfolio, scaled by confidence
+    const allocatedUsd = portfolioValue * positionSizePct * p.confidence;
+    const instruments = Object.keys(p.actualReturn);
+    const perInstrumentUsd = allocatedUsd / Math.max(1, instruments.length);
+
+    let tradePnl = 0;
+    const entryPrices: Record<string, number> = {};
+    const exitPrices: Record<string, number> = {};
+
+    for (const sym of instruments) {
+      const entryPrice = p.priceAtPrediction[sym];
+      const exitPrice = p.priceAtValidation[sym];
+      if (!entryPrice || !exitPrice) continue;
+
+      entryPrices[sym] = entryPrice;
+      exitPrices[sym] = exitPrice;
+
+      const shares = perInstrumentUsd / entryPrice;
+      const direction = p.direction === "bearish" ? -1 : 1;
+      const rawPnl = shares * (exitPrice - entryPrice) * direction;
+      tradePnl += rawPnl;
+    }
+
+    // Trading costs (round-trip)
+    const cost = allocatedUsd * tradingCostBps * 2;
+    totalCosts += cost;
+    tradePnl -= cost;
+
+    const prevValue = portfolioValue;
+    portfolioValue += tradePnl;
+    const dailyReturn = tradePnl / prevValue;
+    dailyReturns.push(dailyReturn);
+    if (dailyReturn < 0) negativeReturns.push(dailyReturn);
+
+    // Track peak and drawdown
+    if (portfolioValue > peak) peak = portfolioValue;
+    const dd = peak - portfolioValue;
+    const ddPct = dd / peak;
+    if (dd > maxDrawdown) {
+      maxDrawdown = dd;
+      maxDrawdownPct = ddPct;
+      maxDrawdownDate = p.validationDate || p.predictionDate;
+    }
+
+    tradeLog.push({
+      date: p.predictionDate,
+      validationDate: p.validationDate || "",
+      instruments,
+      direction: p.direction,
+      confidence: p.confidence,
+      positionSize: allocatedUsd,
+      entryPrices,
+      exitPrices,
+      pnl: tradePnl,
+      pnlPct: tradePnl / allocatedUsd,
+      cost,
+      outcome: tradePnl > 0 ? "win" : "loss",
+      claim: p.claim,
+    });
+
+    equityCurve.push({
+      date: p.validationDate || p.predictionDate,
+      portfolioValue,
+      cash: portfolioValue,
+      invested: 0,
+      drawdown: dd,
+      drawdownPct: ddPct,
+    });
+  }
+
+  // Portfolio metrics
+  const wins = tradeLog.filter((t) => t.outcome === "win");
+  const losses = tradeLog.filter((t) => t.outcome === "loss");
+  const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
+  const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.pnl, 0) / losses.length) : 0;
+  const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
+  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
+
+  const meanReturn = dailyReturns.length > 0 ? dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length : 0;
+  const stdDev = dailyReturns.length > 1
+    ? Math.sqrt(dailyReturns.reduce((s, r) => s + (r - meanReturn) ** 2, 0) / (dailyReturns.length - 1))
+    : 0;
+  const downDev = negativeReturns.length > 1
+    ? Math.sqrt(negativeReturns.reduce((s, r) => s + r ** 2, 0) / negativeReturns.length)
+    : 0;
+
+  const tradesPerYear = tradeLog.length / Math.max(0.1, yearsSpanned);
+  const annualizationFactor = Math.sqrt(tradesPerYear);
+  const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * annualizationFactor : 0;
+  const sortinoRatio = downDev > 0 ? (meanReturn / downDev) * annualizationFactor : 0;
+
+  const totalReturn = portfolioValue - initialCapital;
+  const totalReturnPct = totalReturn / initialCapital;
+  const annualizedReturn = yearsSpanned > 0
+    ? (Math.pow(portfolioValue / initialCapital, 1 / yearsSpanned) - 1)
+    : 0;
+
+  const portfolio: import("./types").PortfolioResults = {
+    initialCapital,
+    finalValue: portfolioValue,
+    totalReturn,
+    totalReturnPct,
+    annualizedReturn,
+    maxDrawdown,
+    maxDrawdownPct,
+    maxDrawdownDate,
+    sharpeRatio,
+    sortinoRatio,
+    winRate: tradeLog.length > 0 ? wins.length / tradeLog.length : 0,
+    avgWin,
+    avgLoss,
+    profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
+    totalTrades: tradeLog.length,
+    totalCosts,
+    equityCurve,
+    tradeLog,
+  };
 
   return {
     totalPredictions: predictions.length,
@@ -719,6 +989,7 @@ function computeResults(
     cumulativeAccuracy,
     brierOverTime,
     hypotheticalPnl,
+    portfolio,
   };
 }
 
@@ -744,6 +1015,7 @@ function emptyResults(config: BacktestConfig): BacktestResults {
     cumulativeAccuracy: [],
     brierOverTime: [],
     hypotheticalPnl: [],
+    portfolio: undefined,
   };
 }
 

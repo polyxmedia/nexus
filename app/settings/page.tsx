@@ -77,7 +77,7 @@ const PROMPT_CATEGORIES = [
   { id: "predictions", label: "Predictions" },
 ];
 
-async function PromptEditor({
+function PromptEditor({
   prompt,
   onSave,
   onReset,

@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const run = getBacktestRun(id);
+    const run = await getBacktestRun(id);
 
     if (!run) {
       return NextResponse.json({ error: "Backtest run not found" }, { status: 404 });

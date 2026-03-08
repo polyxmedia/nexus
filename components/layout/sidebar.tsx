@@ -128,7 +128,7 @@ export function Sidebar() {
   const { data: session } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const publicPages = ["/", "/landing", "/register", "/login", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security"];
+  const publicPages = ["/", "/landing", "/register", "/login", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors"];
   if (publicPages.includes(pathname) || pathname.startsWith("/research")) return null;
 
   const sidebarContent = (

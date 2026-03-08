@@ -67,6 +67,7 @@ export function PublicFooter() {
             <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Company</h4>
             <div className="space-y-2.5">
               <Link href="/about" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">About</Link>
+              <Link href="/investors" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Investors</Link>
               <Link href="/careers" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Careers</Link>
               <Link href="/contact" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Contact</Link>
               <Link href="/docs" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">API Docs</Link>

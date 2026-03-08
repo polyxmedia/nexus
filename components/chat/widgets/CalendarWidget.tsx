@@ -74,9 +74,9 @@ export function CalendarWidget({ data }: { data: CalendarData }) {
                     {event.name}
                   </span>
                   <Badge
-                    className={`shrink-0 text-[9px] ${significanceStyles[event.significance?.toLowerCase()] ?? significanceStyles.low}`}
+                    className={`shrink-0 text-[9px] ${significanceStyles[String(event.significance || "low").toLowerCase()] ?? significanceStyles.low}`}
                   >
-                    {event.significance}
+                    {String(event.significance || "low")}
                   </Badge>
                 </div>
               ))}

@@ -32,7 +32,8 @@ import {
   Scatter,
   ZAxis,
 } from "recharts";
-import type { BacktestRun, BacktestResults } from "@/lib/backtest/types";
+import type { BacktestRun, BacktestResults, TradeRecord } from "@/lib/backtest/types";
+import { AreaChart, Area } from "recharts";
 
 // ── Metric card ──
 function Metric({
@@ -105,7 +106,7 @@ const SUGGESTED_SCENARIOS = [
     label: "Crypto Halving Cycles",
     description: "Celestial and Hebrew calendar convergences against BTC and ETH across the 2020 and 2024 halving cycles. Tests esoteric timing signals against hard-coded supply events.",
     badge: "Crypto",
-    badgeColor: "#8b5cf6",
+    badgeColor: "#f59e0b",
     config: {
       startDate: "2020-01-01",
       endDate: "2024-12-31",
@@ -207,7 +208,7 @@ function ScenarioPresets({
             <button
               onClick={() => onSelect({ ...s.config })}
               disabled={loading}
-              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono border border-navy-700/40 text-navy-400 hover:text-accent-cyan hover:border-accent-cyan/30 hover:bg-accent-cyan/5 transition-colors disabled:opacity-40"
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono bg-navy-100 text-navy-950 font-medium hover:bg-white transition-colors disabled:opacity-40"
             >
               <Play className="w-2.5 h-2.5" />
               Run this scenario
@@ -234,6 +235,9 @@ function ConfigForm({
   const [includeCrypto, setIncludeCrypto] = useState(true);
   const [timeframes, setTimeframes] = useState([7, 14, 30]);
   const [expanded, setExpanded] = useState(false);
+  const [initialCapital, setInitialCapital] = useState(100000);
+  const [positionSizePct, setPositionSizePct] = useState(5);
+  const [tradingCostBps, setTradingCostBps] = useState(10);
 
   return (
     <div className="border border-navy-700/30 rounded-lg bg-navy-900/40 p-6">
@@ -316,7 +320,7 @@ function ConfigForm({
       </div>
 
       {expanded && (
-        <div className="border-t border-navy-700/20 pt-4 mb-4">
+        <div className="border-t border-navy-700/20 pt-4 mb-4 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-1">
@@ -348,6 +352,55 @@ function ConfigForm({
               </div>
             </div>
           </div>
+
+          <div className="border-t border-navy-700/20 pt-4">
+            <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">
+              Portfolio Simulation
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-1">
+                  Initial Capital ($)
+                </label>
+                <input
+                  type="number"
+                  value={initialCapital}
+                  onChange={(e) => setInitialCapital(Number(e.target.value))}
+                  min={1000}
+                  step={10000}
+                  className="w-full bg-navy-800/60 border border-navy-700/30 rounded px-3 py-2 font-mono text-xs text-navy-200 focus:outline-none focus:border-accent-cyan/40"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-1">
+                  Position Size (% of portfolio)
+                </label>
+                <input
+                  type="number"
+                  value={positionSizePct}
+                  onChange={(e) => setPositionSizePct(Number(e.target.value))}
+                  min={1}
+                  max={50}
+                  step={1}
+                  className="w-full bg-navy-800/60 border border-navy-700/30 rounded px-3 py-2 font-mono text-xs text-navy-200 focus:outline-none focus:border-accent-cyan/40"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-1">
+                  Trading Cost (bps round-trip)
+                </label>
+                <input
+                  type="number"
+                  value={tradingCostBps}
+                  onChange={(e) => setTradingCostBps(Number(e.target.value))}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-full bg-navy-800/60 border border-navy-700/30 rounded px-3 py-2 font-mono text-xs text-navy-200 focus:outline-none focus:border-accent-cyan/40"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -360,10 +413,13 @@ function ConfigForm({
             includeFx,
             includeCrypto,
             timeframes,
+            initialCapital,
+            positionSizePct,
+            tradingCostBps,
           })
         }
         disabled={loading}
-        className="flex items-center gap-2 px-5 py-2.5 font-mono text-[11px] uppercase tracking-widest text-navy-100 bg-accent-cyan/10 border border-accent-cyan/20 rounded-lg hover:bg-accent-cyan/20 hover:border-accent-cyan/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        className="flex items-center gap-2 px-5 py-2.5 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 rounded-lg hover:bg-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {loading ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -391,7 +447,7 @@ function ProgressPanel({ run }: { run: BacktestRun }) {
     pending: "#6b7280",
     collecting_data: "#06b6d4",
     generating_signals: "#f59e0b",
-    simulating: "#8b5cf6",
+    simulating: "#f59e0b",
     validating: "#10b981",
     analyzing: "#06b6d4",
     complete: "#10b981",
@@ -663,6 +719,271 @@ function ResultsDashboard({ run }: { run: BacktestRun }) {
           </p>
         </div>
       </div>
+
+      {/* ── Portfolio P&L ── */}
+      {r.portfolio && (
+        <>
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-px w-8 bg-navy-700" />
+              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">
+                Portfolio Simulation (Real Dollar P&L)
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+              <Metric
+                label="Initial Capital"
+                value={`$${r.portfolio.initialCapital.toLocaleString()}`}
+              />
+              <Metric
+                label="Final Value"
+                value={`$${Math.round(r.portfolio.finalValue).toLocaleString()}`}
+                color={r.portfolio.totalReturn >= 0 ? "#10b981" : "#ef4444"}
+              />
+              <Metric
+                label="Total Return"
+                value={`${r.portfolio.totalReturn >= 0 ? "+" : ""}$${Math.round(r.portfolio.totalReturn).toLocaleString()}`}
+                subtitle={`${(r.portfolio.totalReturnPct * 100).toFixed(1)}%`}
+                color={r.portfolio.totalReturn >= 0 ? "#10b981" : "#ef4444"}
+              />
+              <Metric
+                label="Annualized Return"
+                value={`${(r.portfolio.annualizedReturn * 100).toFixed(1)}%`}
+                color={r.portfolio.annualizedReturn >= 0 ? "#10b981" : "#ef4444"}
+              />
+              <Metric
+                label="Max Drawdown"
+                value={`-$${Math.round(r.portfolio.maxDrawdown).toLocaleString()}`}
+                subtitle={`-${(r.portfolio.maxDrawdownPct * 100).toFixed(1)}% on ${r.portfolio.maxDrawdownDate?.slice(0, 10) || "N/A"}`}
+                color="#ef4444"
+              />
+              <Metric
+                label="Total Trades"
+                value={`${r.portfolio.totalTrades}`}
+                subtitle={`$${Math.round(r.portfolio.totalCosts).toLocaleString()} costs`}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <Metric
+                label="Sharpe Ratio"
+                value={r.portfolio.sharpeRatio.toFixed(2)}
+                color={r.portfolio.sharpeRatio > 1 ? "#10b981" : r.portfolio.sharpeRatio > 0.5 ? "#f59e0b" : "#ef4444"}
+              />
+              <Metric
+                label="Sortino Ratio"
+                value={r.portfolio.sortinoRatio.toFixed(2)}
+                color={r.portfolio.sortinoRatio > 1 ? "#10b981" : r.portfolio.sortinoRatio > 0.5 ? "#f59e0b" : "#ef4444"}
+              />
+              <Metric
+                label="Win Rate"
+                value={`${(r.portfolio.winRate * 100).toFixed(1)}%`}
+                subtitle={`Avg win: +$${Math.round(r.portfolio.avgWin).toLocaleString()} / Avg loss: -$${Math.round(Math.abs(r.portfolio.avgLoss)).toLocaleString()}`}
+                color={r.portfolio.winRate > 0.5 ? "#10b981" : "#ef4444"}
+              />
+              <Metric
+                label="Profit Factor"
+                value={r.portfolio.profitFactor === Infinity ? "Inf" : r.portfolio.profitFactor.toFixed(2)}
+                color={r.portfolio.profitFactor > 1.5 ? "#10b981" : r.portfolio.profitFactor > 1 ? "#f59e0b" : "#ef4444"}
+              />
+            </div>
+          </div>
+
+          {/* Equity curve */}
+          {r.portfolio.equityCurve.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px w-8 bg-navy-700" />
+                <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">
+                  Equity Curve
+                </h2>
+              </div>
+              <div className="border border-navy-700/30 rounded-lg bg-navy-900/40 p-4">
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={r.portfolio.equityCurve}>
+                    <defs>
+                      <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: "#525252", fontSize: 9, fontFamily: "monospace" }}
+                      tickFormatter={(v: string) => v.slice(0, 7)}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      tick={{ fill: "#525252", fontSize: 9, fontFamily: "monospace" }}
+                      tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#0a0a0a",
+                        border: "1px solid #1f1f1f",
+                        borderRadius: "6px",
+                        fontFamily: "monospace",
+                        fontSize: "11px",
+                      }}
+                      formatter={(v: number) => [`$${Math.round(v).toLocaleString()}`, "Portfolio Value"]}
+                      labelFormatter={(l: string) => `Date: ${l}`}
+                    />
+                    <ReferenceLine
+                      y={r.portfolio.initialCapital}
+                      stroke="#525252"
+                      strokeDasharray="5 5"
+                      label={{
+                        value: `$${(r.portfolio.initialCapital / 1000).toFixed(0)}k initial`,
+                        fill: "#525252",
+                        fontSize: 9,
+                        fontFamily: "monospace",
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="portfolioValue"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      fill="url(#equityGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <p className="font-mono text-[9px] text-navy-600 mt-2">
+                  Simulated portfolio value over time. Position size: {((r.portfolio.tradeLog[0]?.positionSize || 0) > 0 ? "variable" : "fixed")} per trade, scaled by prediction confidence. Includes {r.portfolio.totalCosts > 0 ? `$${Math.round(r.portfolio.totalCosts).toLocaleString()} in` : "no"} trading costs.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Drawdown chart */}
+          {r.portfolio.equityCurve.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px w-8 bg-navy-700" />
+                <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">
+                  Drawdown
+                </h2>
+              </div>
+              <div className="border border-navy-700/30 rounded-lg bg-navy-900/40 p-4">
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={r.portfolio.equityCurve}>
+                    <defs>
+                      <linearGradient id="ddGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: "#525252", fontSize: 9, fontFamily: "monospace" }}
+                      tickFormatter={(v: string) => v.slice(0, 7)}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      tick={{ fill: "#525252", fontSize: 9, fontFamily: "monospace" }}
+                      tickFormatter={(v: number) => `${(v * -100).toFixed(0)}%`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#0a0a0a",
+                        border: "1px solid #1f1f1f",
+                        borderRadius: "6px",
+                        fontFamily: "monospace",
+                        fontSize: "11px",
+                      }}
+                      formatter={(v: number) => [`-${(v * 100).toFixed(2)}%`, "Drawdown"]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="drawdownPct"
+                      stroke="#ef4444"
+                      strokeWidth={1.5}
+                      fill="url(#ddGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Trade log */}
+          {r.portfolio.tradeLog.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px w-8 bg-navy-700" />
+                <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">
+                  Trade Log ({r.portfolio.tradeLog.length} trades)
+                </h2>
+              </div>
+              <div className="border border-navy-700/30 rounded-lg bg-navy-900/40 overflow-hidden max-h-[400px] overflow-y-auto">
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-navy-900/90 backdrop-blur-sm">
+                    <tr className="font-mono text-[9px] uppercase tracking-widest text-navy-500 border-b border-navy-700/20">
+                      <th className="text-left px-4 py-2">Date</th>
+                      <th className="text-left px-2 py-2">Direction</th>
+                      <th className="text-left px-2 py-2">Instruments</th>
+                      <th className="text-right px-2 py-2">Confidence</th>
+                      <th className="text-right px-2 py-2">Position</th>
+                      <th className="text-right px-2 py-2">P&L</th>
+                      <th className="text-right px-2 py-2">P&L %</th>
+                      <th className="text-right px-2 py-2">Cost</th>
+                      <th className="text-center px-4 py-2">Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.portfolio.tradeLog.map((t: TradeRecord, i: number) => (
+                      <tr
+                        key={i}
+                        className="border-b border-navy-700/10 hover:bg-navy-800/20 transition-colors"
+                      >
+                        <td className="px-4 py-2.5 font-mono text-[10px] text-navy-400">{t.date}</td>
+                        <td className="px-2 py-2.5">
+                          <span
+                            className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded"
+                            style={{
+                              color: t.direction === "bullish" ? "#10b981" : t.direction === "bearish" ? "#ef4444" : "#6b7280",
+                              backgroundColor: t.direction === "bullish" ? "#10b98110" : t.direction === "bearish" ? "#ef444410" : "#6b728010",
+                            }}
+                          >
+                            {t.direction}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2.5 font-mono text-[10px] text-navy-300">{t.instruments.join(", ")}</td>
+                        <td className="px-2 py-2.5 font-mono text-[10px] text-navy-400 text-right">{(t.confidence * 100).toFixed(0)}%</td>
+                        <td className="px-2 py-2.5 font-mono text-[10px] text-navy-400 text-right">${Math.round(t.positionSize).toLocaleString()}</td>
+                        <td
+                          className="px-2 py-2.5 font-mono text-[10px] font-semibold text-right"
+                          style={{ color: t.pnl >= 0 ? "#10b981" : "#ef4444" }}
+                        >
+                          {t.pnl >= 0 ? "+" : ""}${Math.round(t.pnl).toLocaleString()}
+                        </td>
+                        <td
+                          className="px-2 py-2.5 font-mono text-[10px] text-right"
+                          style={{ color: t.pnlPct >= 0 ? "#10b981" : "#ef4444" }}
+                        >
+                          {t.pnlPct >= 0 ? "+" : ""}{(t.pnlPct * 100).toFixed(1)}%
+                        </td>
+                        <td className="px-2 py-2.5 font-mono text-[10px] text-navy-500 text-right">${Math.round(t.cost).toLocaleString()}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span
+                            className="font-mono text-[9px] uppercase tracking-wider"
+                            style={{ color: t.outcome === "win" ? "#10b981" : "#ef4444" }}
+                          >
+                            {t.outcome}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Calibration curve ── */}
       <div>
@@ -1112,6 +1433,11 @@ export default function BacktestPage() {
           setActiveRun(data);
           if (data.status === "complete" || data.status === "failed") {
             clearInterval(poll);
+            // Refresh the runs list so this run appears in Previous Runs with final status
+            fetch("/api/admin/backtest")
+              .then((r) => r.json())
+              .then(setRuns)
+              .catch(() => {});
           }
         }
       } catch {}
@@ -1120,12 +1446,22 @@ export default function BacktestPage() {
     return () => clearInterval(poll);
   }, [activeRunId]);
 
-  // Load existing runs
+  // Load existing runs — auto-resume polling if one is still in-progress
   useEffect(() => {
     fetch("/api/admin/backtest")
       .then((r) => r.json())
-      .then(setRuns)
+      .then((data: Array<{ id: string; status: string; createdAt: string; predictionCount: number }>) => {
+        setRuns(data);
+        // Auto-resume polling for the most recent in-progress run
+        const inProgress = data.find(
+          (r) => r.status !== "complete" && r.status !== "failed"
+        );
+        if (inProgress && !activeRunId) {
+          loadRun(inProgress.id);
+        }
+      })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleStart = async (config: Record<string, unknown>) => {
@@ -1137,10 +1473,31 @@ export default function BacktestPage() {
         body: JSON.stringify(config),
       });
       const data = await res.json();
+      if (data.error) {
+        console.error("Backtest start failed:", data.error);
+        setStarting(false);
+        return;
+      }
       setActiveRunId(data.id);
-      setActiveRun(null);
+      // Show immediate placeholder run while polling catches up
+      setActiveRun({
+        id: data.id,
+        config: config as unknown as BacktestRun["config"],
+        status: "pending",
+        progress: 0,
+        progressMessage: "Initialising backtest...",
+        predictions: [],
+        createdAt: new Date().toISOString(),
+      });
+      // Immediate first poll instead of waiting 3s
+      setTimeout(async () => {
+        try {
+          const r = await fetch(`/api/admin/backtest/${data.id}`);
+          if (r.ok) setActiveRun(await r.json());
+        } catch {}
+      }, 500);
     } catch (err) {
-      console.error(err);
+      console.error("Backtest start error:", err);
     } finally {
       setStarting(false);
     }
@@ -1187,15 +1544,17 @@ export default function BacktestPage() {
           </p>
         </div>
 
-        {/* Suggested scenarios */}
-        <div className="mb-6">
-          <ScenarioPresets onSelect={handleStart} loading={starting} />
-        </div>
-
-        {/* Custom configuration */}
-        <div className="mb-8">
-          <ConfigForm onStart={handleStart} loading={starting} />
-        </div>
+        {/* Suggested scenarios + Custom configuration (hidden during active run) */}
+        {!activeRunId && (
+          <>
+            <div className="mb-6">
+              <ScenarioPresets onSelect={handleStart} loading={starting} />
+            </div>
+            <div className="mb-8">
+              <ConfigForm onStart={handleStart} loading={starting} />
+            </div>
+          </>
+        )}
 
         {/* Previous runs */}
         {runs.length > 0 && !activeRunId && (
@@ -1243,6 +1602,16 @@ export default function BacktestPage() {
         {/* Active run */}
         {activeRun && (
           <div className="space-y-6">
+            {(activeRun.status === "complete" || activeRun.status === "failed") && (
+              <button
+                onClick={() => { setActiveRunId(null); setActiveRun(null); }}
+                className="flex items-center gap-1.5 font-mono text-[10px] text-navy-500 hover:text-navy-300 transition-colors"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                New Backtest
+              </button>
+            )}
+
             <ProgressPanel run={activeRun} />
 
             {activeRun.status === "complete" && activeRun.results && (

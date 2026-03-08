@@ -714,14 +714,14 @@ export default function LandingPage() {
             {/* Left: copy */}
             <div className="pt-8">
               <span className="text-[10px] text-navy-500 tracking-[0.3em] uppercase font-mono mb-6 block">
-                Intelligence Platform
+                Geopolitical Intelligence Platform
               </span>
 
-              <h1 className="text-[28px] font-light tracking-tight text-navy-100 font-sans">
-                Signal intelligence
+              <h1 className="text-[32px] font-light tracking-tight text-navy-100 font-sans leading-tight">
+                Alpha before<br />it&apos;s priced in
               </h1>
-              <p className="text-[14px] text-navy-400 mt-2 font-sans max-w-md leading-relaxed">
-                Geopolitical-market convergence analysis. Celestial calendars, game theory, OSINT, and AI-driven thesis generation in one operational layer.
+              <p className="text-[14px] text-navy-400 mt-4 font-sans max-w-md leading-relaxed">
+                NEXUS synthesises geopolitical signals, market structure, and calendar convergence into actionable theses — with a backtested prediction track record and integrated execution. Six intelligence layers. One coherent picture.
               </p>
 
               <div className="mt-8 flex items-center gap-4">
@@ -729,7 +729,7 @@ export default function LandingPage() {
                   href="/dashboard"
                   className="group flex items-center gap-2 px-5 py-2.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
                 >
-                  Enter
+                  Enter Platform
                   <ArrowUpRight className="h-3 w-3 text-navy-500 group-hover:text-navy-300 transition-colors" />
                 </Link>
                 <Link
@@ -742,23 +742,26 @@ export default function LandingPage() {
                   href="#features"
                   className="text-[11px] font-mono tracking-widest uppercase text-navy-500 hover:text-navy-300 transition-colors flex items-center gap-1"
                 >
-                  Learn More
+                  See How
                   <ChevronDown className="h-3 w-3" />
                 </a>
               </div>
 
-              {/* Capability highlights */}
+              {/* Differentiators */}
               <div className="mt-12 space-y-3">
                 {[
-                  "Multi-calendar convergence (Hebrew, Islamic, Chinese, FOMC, OPEX)",
-                  "Game theory modeling with Nash equilibrium analysis",
-                  "Monte Carlo simulations on any position",
-                  "OSINT ingestion from GDELT, RSS, and satellite feeds",
-                  "AI predictions with tracked accuracy scoring",
-                ].map((cap, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <div className="w-1 h-1 rounded-full bg-navy-600" />
-                    <span className="text-[11px] text-navy-500 font-sans">{cap}</span>
+                  { label: "Convergence detection", detail: "across 6 independent signal layers, scored 1–5" },
+                  { label: "Backtested predictions", detail: "Brier-scored with temporal isolation, p-value validated" },
+                  { label: "Real-time war room", detail: "military aircraft, OSINT, conflict zones live" },
+                  { label: "AI thesis generation", detail: "from signal to position in a single pipeline" },
+                  { label: "Integrated execution", detail: "Trading 212 + Coinbase, direct from the platform" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <div className="w-1 h-1 rounded-full bg-accent-cyan/40 mt-1.5 shrink-0" />
+                    <span className="text-[11px] font-sans">
+                      <span className="text-navy-300">{item.label}</span>
+                      <span className="text-navy-600 ml-1.5">{item.detail}</span>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -941,11 +944,11 @@ export default function LandingPage() {
           </div>
 
           <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">
-            The world won&apos;t wait<br />for you to catch up
+            Markets move on information.<br />NEXUS moves first.
           </h2>
 
           <p className="text-sm text-navy-400 mb-10 max-w-md mx-auto leading-relaxed font-sans">
-            You can keep reading headlines after the fact, or you can see things forming before they land. 14 days free, full access, cancel whenever.
+            By the time a geopolitical development hits the wire, the alpha is gone. NEXUS detects convergence across signals that most desks track in isolation. 14 days free, full access.
           </p>
 
           <Link

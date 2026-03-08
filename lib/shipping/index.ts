@@ -1,12 +1,28 @@
 // Shipping & Dark Fleet Intelligence Engine
-// Combines chokepoint baseline data, oil price signals, and GDELT maritime events
-// to detect traffic anomalies and dark fleet activity.
+// Combines chokepoint baseline data, oil price signals, GDELT maritime events,
+// and freight market proxies (shipping stocks) to surface actionable intelligence.
+
+import { getMultipleQuotes } from "@/lib/market-data/yahoo";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type ChokepointId = "hormuz" | "suez" | "malacca" | "mandeb" | "panama";
 export type ChokepointStatus = "normal" | "elevated" | "disrupted";
 export type AnomalySeverity = "low" | "medium" | "high" | "critical";
+
+export interface CommodityContext {
+  name: string;
+  globalShare: string; // e.g. "21% of global supply"
+}
+
+export interface FreightProxy {
+  symbol: string;
+  name: string;
+  label: string; // e.g. "Container", "Dry Bulk"
+  price: number;
+  change: number;
+  changePercent: number;
+}
 
 export interface Chokepoint {
   id: ChokepointId;
@@ -15,9 +31,13 @@ export interface Chokepoint {
   lng: number;
   baselineDailyTransits: number;
   estimatedDailyTransits: number;
+  transitDeltaPct: number; // % deviation from baseline
   status: ChokepointStatus;
   riskFactors: string[];
   riskScore: number; // 0-100
+  commodities: CommodityContext[];
+  annualTradeValue: string; // e.g. "$1.2T"
+  recentArticles: GdeltMaritimeEvent[];
 }
 
 export interface TrafficAnomaly {
@@ -56,6 +76,8 @@ export interface ShippingSnapshot {
   gdeltEvents: GdeltMaritimeEvent[];
   oilPrice: number | null;
   oilPriceChange: number | null;
+  freightProxies: FreightProxy[];
+  overallRiskScore: number; // 0-100 weighted average
 }
 
 // ── Chokepoint Baselines ───────────────────────────────────────────────────────
@@ -63,39 +85,108 @@ export interface ShippingSnapshot {
 
 const CHOKEPOINT_BASELINES: Record<
   ChokepointId,
-  { name: string; lat: number; lng: number; baselineDailyTransits: number }
+  {
+    name: string;
+    lat: number;
+    lng: number;
+    baselineDailyTransits: number;
+    commodities: CommodityContext[];
+    annualTradeValue: string;
+  }
 > = {
   hormuz: {
     name: "Strait of Hormuz",
     lat: 26.5667,
     lng: 56.25,
-    baselineDailyTransits: 58, // ~21M bbl/d oil, ~17 tankers + other vessels
+    baselineDailyTransits: 58,
+    commodities: [
+      { name: "Crude Oil", globalShare: "21% of global supply" },
+      { name: "LNG", globalShare: "17% of global supply" },
+      { name: "Refined Products", globalShare: "major Middle East exports" },
+    ],
+    annualTradeValue: "$1.2T+",
   },
   suez: {
     name: "Suez Canal",
     lat: 30.4575,
     lng: 32.3503,
-    baselineDailyTransits: 72, // ~50-80 vessels/day, SCA reports
+    baselineDailyTransits: 72,
+    commodities: [
+      { name: "Containers", globalShare: "12–15% of global trade" },
+      { name: "Crude Oil", globalShare: "Europe–Asia route" },
+      { name: "Consumer Goods", globalShare: "Asia–Europe supply chain" },
+    ],
+    annualTradeValue: "$1T+",
   },
   malacca: {
     name: "Strait of Malacca",
     lat: 2.5,
     lng: 101.2,
-    baselineDailyTransits: 84, // ~94,000 vessels/year
+    baselineDailyTransits: 84,
+    commodities: [
+      { name: "Crude Oil", globalShare: "25% of global oil trade" },
+      { name: "LNG", globalShare: "major Asia LNG route" },
+      { name: "Container Goods", globalShare: "30% of global trade volume" },
+    ],
+    annualTradeValue: "$5.3T",
   },
   mandeb: {
     name: "Bab el-Mandeb",
     lat: 12.5833,
     lng: 43.3333,
-    baselineDailyTransits: 40, // ~6.2M bbl/d oil transit
+    baselineDailyTransits: 40,
+    commodities: [
+      { name: "Crude Oil", globalShare: "9% of global seaborne oil" },
+      { name: "Container Goods", globalShare: "~10% of global trade" },
+      { name: "LNG", globalShare: "Qatar–Europe corridor" },
+    ],
+    annualTradeValue: "$700B+",
   },
   panama: {
     name: "Panama Canal",
     lat: 9.08,
     lng: -79.68,
-    baselineDailyTransits: 38, // ~13,000-14,000 transits/year, drought-reduced
+    baselineDailyTransits: 38,
+    commodities: [
+      { name: "LNG", globalShare: "15% of global LNG trade" },
+      { name: "Containers", globalShare: "US–Asia corridor" },
+      { name: "Agricultural Products", globalShare: "US grain exports" },
+    ],
+    annualTradeValue: "$270B",
   },
 };
+
+// ── Freight Market Proxies ─────────────────────────────────────────────────────
+// Shipping stocks used as real-time freight rate signals
+
+const FREIGHT_PROXIES: Array<{ symbol: string; name: string; label: string }> = [
+  { symbol: "ZIM",  name: "ZIM Integrated Shipping",  label: "Container" },
+  { symbol: "SBLK", name: "Star Bulk Carriers",        label: "Dry Bulk" },
+  { symbol: "STNG", name: "Scorpio Tankers",           label: "Product Tanker" },
+  { symbol: "FRO",  name: "Frontline",                 label: "Crude Tanker" },
+  { symbol: "DHT",  name: "DHT Holdings",              label: "Crude Tanker" },
+  { symbol: "BDRY", name: "Breakwave Dry Bulk ETF",    label: "BDI Proxy" },
+];
+
+async function fetchFreightProxies(): Promise<FreightProxy[]> {
+  try {
+    const symbols = FREIGHT_PROXIES.map(p => p.symbol);
+    const quotes = await getMultipleQuotes(symbols);
+    return quotes.map(q => {
+      const def = FREIGHT_PROXIES.find(p => p.symbol === q.symbol) || { name: q.symbol, label: "Shipping" };
+      return {
+        symbol: q.symbol,
+        name: def.name,
+        label: def.label,
+        price: q.price,
+        change: q.change,
+        changePercent: q.changePercent,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
 
 // ── Maritime GDELT keywords ───────────────────────────────────────────────────
 
@@ -290,6 +381,22 @@ function detectAnomalies(
     }
   }
 
+  // Build per-chokepoint article map
+  const chokepointArticles: Record<ChokepointId, GdeltMaritimeEvent[]> = {
+    hormuz: [], suez: [], malacca: [], mandeb: [], panama: [],
+  };
+  for (const event of gdeltEvents) {
+    const titleLower = event.title.toLowerCase();
+    for (const [cpId, keywords] of Object.entries(chokepointKeywords)) {
+      for (const kw of keywords) {
+        if (titleLower.includes(kw)) {
+          chokepointArticles[cpId as ChokepointId].push(event);
+          break;
+        }
+      }
+    }
+  }
+
   // Build chokepoint status based on mentions + oil price movement
   const chokepoints: Chokepoint[] = Object.entries(CHOKEPOINT_BASELINES).map(
     ([id, baseline]) => {
@@ -357,6 +464,10 @@ function detectAnomalies(
         baseline.baselineDailyTransits * (1 - transitReduction)
       );
 
+      const transitDeltaPct = Math.round(
+        ((estimatedDailyTransits - baseline.baselineDailyTransits) / baseline.baselineDailyTransits) * 100
+      );
+
       return {
         id: cpId,
         name: baseline.name,
@@ -364,9 +475,13 @@ function detectAnomalies(
         lng: baseline.lng,
         baselineDailyTransits: baseline.baselineDailyTransits,
         estimatedDailyTransits,
+        transitDeltaPct,
         status,
         riskFactors,
         riskScore,
+        commodities: baseline.commodities,
+        annualTradeValue: baseline.annualTradeValue,
+        recentArticles: chokepointArticles[cpId].slice(0, 5),
       };
     }
   );
@@ -434,9 +549,10 @@ export async function getShippingSnapshot(
   }
 
   // Fetch data in parallel
-  const [gdeltEvents, oilData] = await Promise.all([
+  const [gdeltEvents, oilData, freightProxies] = await Promise.all([
     fetchGdeltMaritime(),
     fetchOilPrice(),
+    fetchFreightProxies(),
   ]);
 
   const { chokepoints, anomalies, darkFleetAlerts } = detectAnomalies(
@@ -444,6 +560,10 @@ export async function getShippingSnapshot(
     oilData.price,
     oilData.change
   );
+
+  const overallRiskScore = chokepoints.length > 0
+    ? Math.round(chokepoints.reduce((sum, cp) => sum + cp.riskScore, 0) / chokepoints.length)
+    : 0;
 
   const snapshot: ShippingSnapshot = {
     timestamp: new Date().toISOString(),
@@ -461,6 +581,8 @@ export async function getShippingSnapshot(
     gdeltEvents: gdeltEvents.slice(0, 20),
     oilPrice: oilData.price,
     oilPriceChange: oilData.change,
+    freightProxies,
+    overallRiskScore,
   };
 
   cachedSnapshot = { data: snapshot, expiry: Date.now() + CACHE_TTL_MS };

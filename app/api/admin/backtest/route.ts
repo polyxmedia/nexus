@@ -43,6 +43,9 @@ export async function POST(req: NextRequest) {
         "esoteric",
       ],
       stepDays: body.stepDays || 7,
+      initialCapital: body.initialCapital || 100000,
+      positionSizePct: body.positionSizePct || 0.05,
+      tradingCostBps: body.tradingCostBps || 10,
     };
 
     const id = await startBacktest(config);
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const runs = getAllBacktestRuns();
+    const runs = await getAllBacktestRuns();
 
     // Return summaries (not full prediction arrays)
     const summaries = runs.map((r) => ({

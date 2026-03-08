@@ -67,7 +67,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
         {isStreaming ? (
           <button
             onClick={onStop}
-            className="absolute right-3 bottom-2.5 flex h-7 w-7 items-center justify-center rounded-md text-accent-rose hover:text-accent-rose/80 transition-colors"
+            className="absolute right-3 bottom-1.5 flex h-7 w-7 items-center justify-center rounded-md text-accent-rose hover:text-accent-rose/80 transition-colors"
           >
             <Square className="h-3.5 w-3.5" fill="currentColor" />
           </button>
@@ -76,7 +76,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
             onClick={handleSend}
             disabled={!value.trim() || disabled}
             className={cn(
-              "absolute right-3 bottom-2.5 flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+              "absolute right-3 bottom-1.5 flex h-7 w-7 items-center justify-center rounded-md transition-colors",
               value.trim() && !disabled
                 ? "text-accent-cyan hover:text-accent-cyan/80"
                 : "text-navy-600 cursor-not-allowed"

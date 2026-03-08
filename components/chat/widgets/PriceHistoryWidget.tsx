@@ -20,6 +20,16 @@ interface PriceHistoryData {
   error?: string;
 }
 
+function num(v: unknown): number {
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
+}
+
+function fmt(v: unknown, decimals = 2): string {
+  const n = num(v);
+  return n.toFixed(decimals);
+}
+
 export function PriceHistoryWidget({ data }: { data: PriceHistoryData }) {
   if (data.error) {
     return (
@@ -29,7 +39,8 @@ export function PriceHistoryWidget({ data }: { data: PriceHistoryData }) {
     );
   }
 
-  const s = data.stats;
+  const s = data.stats || {} as PriceHistoryData["stats"];
+  const avgReturn = num(s.avgDailyReturn);
 
   return (
     <div className="my-2 border border-navy-700 rounded bg-navy-900/80 p-4">
@@ -46,32 +57,32 @@ export function PriceHistoryWidget({ data }: { data: PriceHistoryData }) {
       <div className="grid grid-cols-3 gap-4">
         <Metric
           label="Latest Close"
-          value={data.latest?.close?.toFixed(2) ?? "N/A"}
+          value={fmt(data.latest?.close)}
         />
         <Metric
           label="52W High"
-          value={s.high52w?.toFixed(2) ?? "N/A"}
+          value={fmt(s.high52w)}
         />
         <Metric
           label="52W Low"
-          value={s.low52w?.toFixed(2) ?? "N/A"}
+          value={fmt(s.low52w)}
         />
       </div>
 
       <div className="grid grid-cols-3 gap-4 mt-2">
         <Metric
           label="Annualized Vol"
-          value={`${(s.annualizedVol * 100)?.toFixed(1)}%`}
+          value={`${fmt(num(s.annualizedVol) * 100, 1)}%`}
         />
         <Metric
           label="Avg Daily Return"
-          value={`${(s.avgDailyReturn * 100)?.toFixed(3)}%`}
-          changeColor={s.avgDailyReturn >= 0 ? "green" : "red"}
-          change={s.avgDailyReturn >= 0 ? "Positive" : "Negative"}
+          value={`${fmt(avgReturn * 100, 3)}%`}
+          changeColor={avgReturn >= 0 ? "green" : "red"}
+          change={avgReturn >= 0 ? "Positive" : "Negative"}
         />
         <Metric
           label="52W Range %"
-          value={`${s.rangePercent?.toFixed(1)}%`}
+          value={`${fmt(s.rangePercent, 1)}%`}
         />
       </div>
     </div>

@@ -2,13 +2,87 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, sql as drizzleSql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/chat/tools";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
 import { getUserTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
+
+// ── Conversation compression ──
+// When a session exceeds COMPRESS_THRESHOLD messages, older messages are
+// summarised and stored as a rolling summary. Only recent messages + the
+// summary are sent to the API, keeping context windows manageable.
+const COMPRESS_THRESHOLD = 20; // total messages before compression kicks in
+const KEEP_RECENT = 8;          // messages to retain verbatim after compression
+
+type DbMessage = { id: number; role: string; content: string; toolUses: string | null; toolResults: string | null };
+
+async function maybeCompressSession(
+  client: Anthropic,
+  sessionId: number,
+  currentSummary: string | null,
+  summarizedUntilId: number | null
+): Promise<void> {
+  // Count total messages in session
+  const countResult = await db
+    .select({ count: drizzleSql<number>`count(*)` })
+    .from(schema.chatMessages)
+    .where(eq(schema.chatMessages.sessionId, sessionId));
+  const total = Number(countResult[0]?.count ?? 0);
+
+  if (total <= COMPRESS_THRESHOLD) return;
+
+  // Get all messages to determine the cutoff
+  const allMsgs = await db
+    .select()
+    .from(schema.chatMessages)
+    .where(eq(schema.chatMessages.sessionId, sessionId))
+    .orderBy(schema.chatMessages.id);
+
+  // Messages to summarise: everything except the last KEEP_RECENT
+  const toSummarise = allMsgs.slice(0, allMsgs.length - KEEP_RECENT);
+  if (toSummarise.length === 0) return;
+
+  const lastSummarisedId = toSummarise[toSummarise.length - 1].id;
+
+  // Already compressed up to this point
+  if (summarizedUntilId && lastSummarisedId <= summarizedUntilId) return;
+
+  // Build a readable transcript of messages to summarise
+  const transcript = toSummarise
+    .map((m) => {
+      const role = m.role === "user" ? "User" : "Assistant";
+      const text = m.content || "(tool interaction)";
+      return `${role}: ${text}`;
+    })
+    .join("\n\n");
+
+  const priorContext = currentSummary
+    ? `Prior summary:\n${currentSummary}\n\n---\n\nAdditional messages to incorporate:\n${transcript}`
+    : transcript;
+
+  try {
+    const res = await client.messages.create({
+      model: await getChatModel(),
+      max_tokens: 1024,
+      system: "You are a precise conversation summariser. Produce a dense, factual summary of the conversation below, preserving all key facts, decisions, data points, market tickers, and analytical conclusions. Write in third person present tense. Be thorough but concise — this summary replaces the original messages as context for future turns.",
+      messages: [{ role: "user", content: priorContext }],
+    });
+
+    const newSummary = res.content[0].type === "text" ? res.content[0].text : currentSummary ?? "";
+
+    // Persist summary and compression marker
+    await db.execute(drizzleSql`
+      UPDATE chat_sessions
+      SET summary = ${newSummary}, summarized_until_id = ${lastSummarisedId}
+      WHERE id = ${sessionId}
+    `);
+  } catch (err) {
+    console.error("Compression failed (non-blocking):", err);
+  }
+}
 
 export async function GET(
   req: NextRequest,
@@ -90,8 +164,22 @@ export async function POST(
     await db.update(schema.chatSessions).set({ updatedAt: new Date().toISOString() }).where(eq(schema.chatSessions.id, id));
   }
 
-  const dbMessages = await db.select().from(schema.chatMessages).where(eq(schema.chatMessages.sessionId, id)).orderBy(schema.chatMessages.createdAt);
-  const anthropicMessages = buildAnthropicMessages(dbMessages);
+  // Load full session row (includes summary/summarized_until_id from the extended schema)
+  const fullSession = await db.execute(drizzleSql`SELECT summary, summarized_until_id FROM chat_sessions WHERE id = ${id}`);
+  const sessionMeta = fullSession.rows[0] as { summary: string | null; summarized_until_id: number | null } | undefined;
+  const sessionSummary = sessionMeta?.summary ?? null;
+  const summarizedUntilId = sessionMeta?.summarized_until_id ?? null;
+
+  // Only fetch messages that haven't been compressed (or all if no compression yet)
+  const dbMessages: DbMessage[] = summarizedUntilId
+    ? await db.select().from(schema.chatMessages)
+        .where(and(eq(schema.chatMessages.sessionId, id), gt(schema.chatMessages.id, summarizedUntilId)))
+        .orderBy(schema.chatMessages.id)
+    : await db.select().from(schema.chatMessages)
+        .where(eq(schema.chatMessages.sessionId, id))
+        .orderBy(schema.chatMessages.id);
+
+  const anthropicMessages = buildAnthropicMessages(dbMessages, sessionSummary);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -164,6 +252,9 @@ export async function POST(
           toolResults: allToolResults.length > 0 ? JSON.stringify(allToolResults) : null,
         });
 
+        // Non-blocking compression check after response is stored
+        maybeCompressSession(client, id, sessionSummary, summarizedUntilId).catch(() => {});
+
         // Generate follow-up suggestions
         try {
           const sugResponse = await client.messages.create({
@@ -200,8 +291,18 @@ export async function POST(
   return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
 }
 
-function buildAnthropicMessages(dbMessages: Array<{ role: string; content: string; toolUses: string | null; toolResults: string | null }>): Anthropic.MessageParam[] {
+function buildAnthropicMessages(
+  dbMessages: Array<{ role: string; content: string; toolUses: string | null; toolResults: string | null }>,
+  summary?: string | null
+): Anthropic.MessageParam[] {
   const result: Anthropic.MessageParam[] = [];
+
+  // Prepend compressed context as a synthetic exchange so the model has full continuity
+  if (summary) {
+    result.push({ role: "user", content: `[Earlier conversation summary — treat as established context]\n\n${summary}` });
+    result.push({ role: "assistant", content: "Understood. I have the context from our earlier conversation and will continue from there." });
+  }
+
   for (const msg of dbMessages) {
     if (msg.role === "user") {
       const lastMsg = result[result.length - 1];

@@ -99,11 +99,21 @@ ${actionsSummary}`;
       }).join("\n")
     : "No game theory analyses";
 
+  // Build a structured coverage map: what tickers/assets/events are already predicted
+  const coverageMap = buildCoverageMap(pendingPredictions.map((p) => p.claim));
+
   const pendingContext = pendingPredictions.length > 0
-    ? pendingPredictions.map((p) =>
-        `- [${p.category}] "${p.claim}" (deadline: ${p.deadline}, confidence: ${(p.confidence * 100).toFixed(0)}%)`
-      ).join("\n")
-    : "None";
+    ? [
+        `There are ${pendingPredictions.length} open predictions. You MUST NOT generate any prediction that covers the same underlying asset, ticker, or event as any of these:`,
+        "",
+        ...pendingPredictions.map((p, i) =>
+          `${i + 1}. [${p.category}, deadline ${p.deadline}] ${p.claim}`
+        ),
+        "",
+        `Assets/tickers already covered (DO NOT predict on these again): ${[...coverageMap.tickers].join(", ")}`,
+        `Events already covered: ${[...coverageMap.events].join("; ")}`,
+      ].join("\n")
+    : "No existing predictions — you may generate freely.";
 
   const recentResolvedContext = recentResolved.length > 0
     ? recentResolved.map((p) =>
@@ -149,7 +159,7 @@ ${signalsContext}
 ═══ GAME THEORY ANALYSIS ═══
 ${gameTheoryContext}
 
-═══ EXISTING PENDING PREDICTIONS (DO NOT DUPLICATE) ═══
+═══ EXISTING PENDING PREDICTIONS — READ CAREFULLY BEFORE GENERATING ═══
 ${pendingContext}
 
 ═══ RECENTLY RESOLVED (learn from accuracy) ═══
@@ -158,7 +168,14 @@ ${recentResolvedContext}
 ═══ CALIBRATION FEEDBACK (your track record - adjust accordingly) ═══
 ${feedbackContext}
 
-Respond ONLY with a JSON array. Each prediction must include a "grounding" field citing the specific thesis element, signal, or game theory outcome it derives from:
+STRICT UNIQUENESS RULES — violations will be rejected:
+1. Do NOT generate any prediction on a ticker or asset that already has an open prediction above (e.g., if SPY already has a pending prediction, do not add another SPY prediction).
+2. Do NOT generate geopolitical predictions on countries or actors already covered above (e.g., if Iran already has a pending prediction, skip Iran).
+3. Do NOT vary thresholds of existing predictions (e.g., "SPY below 515" when "SPY below 510" is already pending — this is still a duplicate).
+4. Every prediction must cover a DIFFERENT underlying asset or a materially different event from all pending ones.
+5. If all meaningful signals are already covered by existing predictions, return an empty array [].
+
+Respond ONLY with a JSON array. Each prediction must include a "grounding" field:
 [
   {
     "claim": "Specific falsifiable claim with measurable threshold",
@@ -193,26 +210,31 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
     grounding?: string;
   }> = JSON.parse(jsonMatch[0]);
 
-  // ── Deduplication: reject predictions too similar to existing ones ──
+  // ── Post-generation deduplication (defence-in-depth after prompt-level filtering) ──
   const existingClaims = allPredictions.map((p) => normalizeClaim(p.claim));
+  const existingTickers = coverageMap.tickers;
 
   const created: NewPrediction[] = [];
   for (const p of parsed) {
     const normalized = normalizeClaim(p.claim);
 
-    // Check for semantic overlap with any existing prediction
-    const isDuplicate = existingClaims.some((existing) => {
-      // Exact or near-exact match
+    // 1. Exact / near-exact text match (>50% word overlap)
+    const textDuplicate = existingClaims.some((existing) => {
       if (existing === normalized) return true;
-      // High token overlap (>60% of words shared)
-      const newWords = new Set(normalized.split(" "));
-      const existingWords = existing.split(" ");
+      const newWords = new Set(normalized.split(" ").filter((w) => w.length > 3));
+      const existingWords = existing.split(" ").filter((w) => w.length > 3);
+      if (newWords.size === 0 || existingWords.length === 0) return false;
       const overlap = existingWords.filter((w) => newWords.has(w)).length;
       const overlapRatio = overlap / Math.max(newWords.size, existingWords.length);
-      return overlapRatio > 0.6;
+      return overlapRatio > 0.5;
     });
 
-    if (isDuplicate) continue;
+    if (textDuplicate) continue;
+
+    // 2. Ticker-level deduplication — if this prediction mentions a ticker already covered, reject
+    const newTickers = extractTickers(p.claim);
+    const tickerDuplicate = newTickers.some((t) => existingTickers.has(t));
+    if (tickerDuplicate) continue;
 
     // Validate category
     const category = ["market", "geopolitical", "celestial"].includes(p.category)
@@ -240,8 +262,9 @@ Respond ONLY with a JSON array. Each prediction must include a "grounding" field
       .returning();
 
     created.push(rows[0]);
-    // Add to existing claims to prevent intra-batch duplicates
+    // Track intra-batch to prevent duplicates within the same generation run
     existingClaims.push(normalized);
+    newTickers.forEach((t) => existingTickers.add(t));
   }
 
   return created;
@@ -508,6 +531,50 @@ function normalizeClaim(claim: string): string {
     .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Known English stopwords that look like tickers — never treat as asset tickers
+const TICKER_STOPWORDS = new Set([
+  "THE", "AND", "FOR", "NOT", "BUT", "HAS", "WAS", "ARE", "ITS",
+  "GDP", "CPI", "USD", "EUR", "GBP", "JPY", "CNY", "DXY",
+  "WILL", "FROM", "THAT", "THIS", "WITH", "HAVE", "MORE", "THAN",
+  "LEAST", "DAYS", "WEEK", "MONTH", "YEAR", "DURING", "BELOW",
+  "ABOVE", "CLOSE", "OPEN", "HIGH", "LOW", "PER", "INTO", "OVER",
+  "PBOC", "OPEC", "NATO", "DPRK", "PLA", "FOMC",
+]);
+
+function extractTickers(claim: string): string[] {
+  const matches = claim.match(/\b([A-Z]{2,5})\b/g) || [];
+  return matches.filter((m) => !TICKER_STOPWORDS.has(m));
+}
+
+interface CoverageMap {
+  tickers: Set<string>;
+  events: Set<string>;
+}
+
+function buildCoverageMap(claims: string[]): CoverageMap {
+  const tickers = new Set<string>();
+  const events = new Set<string>();
+
+  // Known geopolitical actor keywords to track
+  const geoActors = [
+    "iran", "china", "taiwan", "north korea", "dprk", "russia", "ukraine",
+    "israel", "saudi", "opec", "pboc", "fed", "ecb", "boj",
+  ];
+
+  for (const claim of claims) {
+    // Extract tickers
+    extractTickers(claim).forEach((t) => tickers.add(t));
+
+    // Extract geopolitical actors
+    const lower = claim.toLowerCase();
+    for (const actor of geoActors) {
+      if (lower.includes(actor)) events.add(actor);
+    }
+  }
+
+  return { tickers, events };
 }
 
 function safeParse(json: string | null, fallback: unknown): Record<string, unknown> | unknown {

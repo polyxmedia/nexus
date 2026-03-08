@@ -53,7 +53,7 @@ export async function GET() {
   }
 }
 
-// POST - update user role
+// POST - update user role or grant/revoke access
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -61,7 +61,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const { username, role } = await request.json();
+    const body = await request.json();
+    const { username, role, action, tier: grantTier } = body;
 
     const userSettings = await db
       .select()
@@ -73,15 +74,111 @@ export async function POST(request: Request) {
     }
 
     const userData = JSON.parse(userSettings[0].value);
-    userData.role = role;
 
-    await db
-      .update(schema.settings)
-      .set({ value: JSON.stringify(userData) })
-      .where(eq(schema.settings.key, `user:${username}`));
+    // Grant permanent access (beta/comped)
+    if (action === "grant_access") {
+      const tierName = grantTier || "operator";
+      userData.tier = tierName;
 
-    return NextResponse.json({ success: true });
-  } catch {
+      // Update user settings with new tier
+      await db
+        .update(schema.settings)
+        .set({ value: JSON.stringify(userData) })
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      // Find the matching subscription tier
+      const tiers = await db.select().from(schema.subscriptionTiers);
+      const matchingTier = tiers.find(
+        (t: { name: string }) => t.name.toLowerCase() === tierName.toLowerCase()
+      );
+
+      const now = new Date().toISOString();
+      // Far future expiry for permanent access
+      const farFuture = "2099-12-31T23:59:59.000Z";
+
+      // Check for existing subscription
+      const existing = await db
+        .select()
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.userId, username));
+
+      if (existing.length > 0) {
+        await db
+          .update(schema.subscriptions)
+          .set({
+            tierId: matchingTier?.id || existing[0].tierId,
+            status: "active",
+            currentPeriodStart: now,
+            currentPeriodEnd: farFuture,
+            cancelAtPeriodEnd: 0,
+            updatedAt: now,
+          })
+          .where(eq(schema.subscriptions.userId, username));
+      } else {
+        await db.insert(schema.subscriptions).values({
+          userId: username,
+          tierId: matchingTier?.id || 1,
+          stripeCustomerId: null,
+          stripeSubscriptionId: `comped_${Date.now()}`,
+          status: "active",
+          currentPeriodStart: now,
+          currentPeriodEnd: farFuture,
+          cancelAtPeriodEnd: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      return NextResponse.json({ success: true, granted: tierName });
+    }
+
+    // Revoke comped access
+    if (action === "revoke_access") {
+      userData.tier = "free";
+
+      await db
+        .update(schema.settings)
+        .set({ value: JSON.stringify(userData) })
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      // Only revoke comped subs (not Stripe-managed ones)
+      const subs = await db
+        .select()
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.userId, username));
+
+      if (subs.length > 0) {
+        const sub = subs[0];
+        const isComped =
+          !sub.stripeSubscriptionId ||
+          sub.stripeSubscriptionId.startsWith("comped_");
+
+        if (isComped) {
+          await db
+            .update(schema.subscriptions)
+            .set({ status: "canceled", updatedAt: new Date().toISOString() })
+            .where(eq(schema.subscriptions.userId, username));
+        }
+      }
+
+      return NextResponse.json({ success: true, revoked: true });
+    }
+
+    // Update role (existing functionality)
+    if (role) {
+      userData.role = role;
+
+      await db
+        .update(schema.settings)
+        .set({ value: JSON.stringify(userData) })
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: "No action specified" }, { status: 400 });
+  } catch (err) {
+    console.error("Admin users POST error:", err);
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
   }
 }

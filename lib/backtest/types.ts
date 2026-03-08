@@ -15,6 +15,12 @@ export interface BacktestConfig {
   layers: string[];
   /** Step interval in days (e.g. 7 = weekly) */
   stepDays: number;
+  /** Starting capital in USD for P&L simulation */
+  initialCapital?: number;
+  /** Position size as % of portfolio per trade (default 5%) */
+  positionSizePct?: number;
+  /** Estimated round-trip trading cost in bps (default 10bps = 0.1%) */
+  tradingCostBps?: number;
 }
 
 export interface BacktestPrediction {
@@ -92,8 +98,57 @@ export interface BacktestResults {
   brierOverTime: { date: string; brier: number; rolling30: number }[];
   hypotheticalPnl: { date: string; pnl: number; trades: number }[];
 
+  // ── Portfolio P&L (dollar terms) ──
+  portfolio?: PortfolioResults;
+
   // ── AI Analysis ──
   aiAnalysis?: string;
+}
+
+export interface PortfolioResults {
+  initialCapital: number;
+  finalValue: number;
+  totalReturn: number;
+  totalReturnPct: number;
+  annualizedReturn: number;
+  maxDrawdown: number;
+  maxDrawdownPct: number;
+  maxDrawdownDate: string;
+  sharpeRatio: number;
+  sortinoRatio: number;
+  winRate: number;
+  avgWin: number;
+  avgLoss: number;
+  profitFactor: number;
+  totalTrades: number;
+  totalCosts: number;
+  equityCurve: EquityPoint[];
+  tradeLog: TradeRecord[];
+}
+
+export interface EquityPoint {
+  date: string;
+  portfolioValue: number;
+  cash: number;
+  invested: number;
+  drawdown: number;
+  drawdownPct: number;
+}
+
+export interface TradeRecord {
+  date: string;
+  validationDate: string;
+  instruments: string[];
+  direction: "bullish" | "bearish" | "neutral";
+  confidence: number;
+  positionSize: number;
+  entryPrices: Record<string, number>;
+  exitPrices: Record<string, number>;
+  pnl: number;
+  pnlPct: number;
+  cost: number;
+  outcome: "win" | "loss";
+  claim: string;
 }
 
 export interface TimeframeStats {
