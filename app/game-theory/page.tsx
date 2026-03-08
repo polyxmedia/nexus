@@ -14,7 +14,9 @@ import {
   Users,
   BarChart3,
   ArrowRight,
+  Globe,
 } from "lucide-react";
+import Link from "next/link";
 
 // ── Types ──
 
@@ -664,6 +666,13 @@ export default function GameTheoryPage() {
             </p>
           </div>
         </div>
+        <Link
+          href="/game-theory/global"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-cyan border border-accent-cyan/20 rounded hover:bg-accent-cyan/10 transition-colors"
+        >
+          <Globe className="h-3 w-3" />
+          Global Scenario
+        </Link>
       </div>
 
       {loading ? (
