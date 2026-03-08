@@ -4,15 +4,17 @@ import { loadPrompt, savePrompt, deletePromptOverride, hasPromptOverride } from 
 
 export async function GET() {
   try {
-    const prompts = PROMPT_REGISTRY.map((def) => ({
-      key: def.key,
-      label: def.label,
-      description: def.description,
-      category: def.category,
-      value: await loadPrompt(def.key),
-      isOverridden: hasPromptOverride(def.key),
-      defaultValue: def.defaultValue,
-    }));
+    const prompts = await Promise.all(
+      PROMPT_REGISTRY.map(async (def) => ({
+        key: def.key,
+        label: def.label,
+        description: def.description,
+        category: def.category,
+        value: await loadPrompt(def.key),
+        isOverridden: hasPromptOverride(def.key),
+        defaultValue: def.defaultValue,
+      }))
+    );
     return NextResponse.json(prompts);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

@@ -177,29 +177,22 @@ export async function semanticSearch(
   const queryEmbedding = await generateEmbedding(query, "query");
   const vectorStr = `[${queryEmbedding.join(",")}]`;
 
-  // Build WHERE clauses
-  const conditions: string[] = ["embedding IS NOT NULL"];
-  if (options?.category) {
-    conditions.push(`category = '${options.category.replace(/'/g, "''")}'`);
-  }
-  if (options?.status) {
-    conditions.push(`status = '${options.status.replace(/'/g, "''")}'`);
-  } else {
-    conditions.push(`status = 'active'`);
-  }
-
-  const whereClause = conditions.join(" AND ");
+  // Build WHERE clauses using parameterized queries
+  const categoryFilter = options?.category || null;
+  const statusFilter = options?.status || "active";
 
   const result = await db.execute(
-    sql.raw(`
+    sql`
       SELECT
         id, title, content, category, tags, confidence, status,
-        1 - (embedding <=> '${vectorStr}'::vector) as similarity
+        1 - (embedding <=> ${vectorStr}::vector) as similarity
       FROM knowledge
-      WHERE ${whereClause}
-      ORDER BY embedding <=> '${vectorStr}'::vector
+      WHERE embedding IS NOT NULL
+        AND status = ${statusFilter}
+        AND (${categoryFilter}::text IS NULL OR category = ${categoryFilter})
+      ORDER BY embedding <=> ${vectorStr}::vector
       LIMIT ${limit}
-    `)
+    `
   );
 
   return result.rows as Array<{

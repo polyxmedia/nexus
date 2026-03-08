@@ -50,7 +50,7 @@ interface MarketplaceItem {
   popularity: number;
 }
 
-const MARKETPLACE_CATEGORIES = ["All", "Intelligence", "Markets", "Analytics", "Data Feeds"] as const;
+const MARKETPLACE_CATEGORIES = ["All", "Intelligence", "Markets", "Analytics", "Data Feeds", "AI"] as const;
 
 const MARKETPLACE_ITEMS: MarketplaceItem[] = [
   {
@@ -187,6 +187,13 @@ const MARKETPLACE_ITEMS: MarketplaceItem[] = [
     longDescription: "Real GDP quarter-over-quarter growth with regime classification (Contraction/Stall/Below Trend/Above Trend) and industrial production.",
     category: "Analytics", defaultWidth: 1, defaultConfig: {},
     tags: ["gdp", "growth", "institutional", "macro"], color: "accent-cyan", popularity: 3,
+  },
+  // AI
+  {
+    type: "ai_progression", name: "AI Progression Tracker", description: "Remote Labor Index, METR horizons, sector risk",
+    longDescription: "Tracks AI automation capability via the Remote Labor Index (remotelabor.ai), METR task-completion time horizons, AI 2027 scenario milestones, labor displacement indicators, and sector-level automation risk. Key indicator for unemployment and workforce disruption.",
+    category: "AI", defaultWidth: 2, defaultConfig: {},
+    tags: ["ai", "labor", "automation", "unemployment", "sectors", "rli"], color: "accent-cyan", popularity: 5,
   },
 ];
 

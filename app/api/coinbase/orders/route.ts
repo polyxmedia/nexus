@@ -5,7 +5,7 @@ import { CoinbaseClient } from "@/lib/coinbase/client";
 import { checkDuplicate } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
 
-function getCoinbaseClient() {
+async function getCoinbaseClient() {
   const apiKeySetting = await db
     .select()
     .from(schema.settings)
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const productId = searchParams.get("productId") || undefined;
     const limit = parseInt(searchParams.get("limit") || "50", 10);
 
-    const client = getCoinbaseClient();
+    const client = await getCoinbaseClient();
     const orders = await client.getOrders({ productId, limit });
     return NextResponse.json(orders);
   } catch (error) {
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getCoinbaseClient();
+    const client = await getCoinbaseClient();
     let orderResult;
 
     if (orderType === "LIMIT" && limitPrice) {
@@ -125,7 +125,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const client = getCoinbaseClient();
+    const client = await getCoinbaseClient();
     await client.cancelOrders([orderId]);
 
     return NextResponse.json({ success: true, orderId });

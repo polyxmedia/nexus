@@ -1,16 +1,28 @@
 import { db, schema } from "@/lib/db";
-import { eq, desc, gte, lte } from "drizzle-orm";
+import { eq, desc, gte, lte, InferSelectModel } from "drizzle-orm";
+
+type Signal = InferSelectModel<typeof schema.signals>;
+type Prediction = InferSelectModel<typeof schema.predictions>;
 import { SCENARIOS } from "@/lib/game-theory/actors";
 import { analyzeScenario } from "@/lib/game-theory/analysis";
 import { Trading212Client } from "@/lib/trading212/client";
-import { getQuote, getDailySeries } from "@/lib/market-data/alpha-vantage";
+import { getQuoteData, getHistoricalData } from "@/lib/market-data/yahoo";
 import { getEsotericReading } from "@/lib/signals/numerology";
 import { getEconomicCalendarEvents } from "@/lib/signals/economic-calendar";
 import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getPutCallRatio } from "@/lib/market-data/options-flow";
 import { extractEntities } from "@/lib/osint/entity-extractor";
 import { loadPrompt } from "@/lib/prompts/loader";
-import { searchKnowledge, getRelevantKnowledge } from "@/lib/knowledge/engine";
+import { searchKnowledge, getRelevantKnowledge, addKnowledge } from "@/lib/knowledge/engine";
+import { getAllScenarioStatuses, evaluateScenario } from "@/lib/iw/engine";
+import { detectCurrentRegime, getLatestShifts } from "@/lib/regime/detection";
+import { loadRegimeState } from "@/lib/regime/store";
+import { computeCorrelationMatrix, getLatestCorrelations } from "@/lib/regime/correlations";
+import { getSourceProfile, assessInformation, formatAdmiraltyRating } from "@/lib/sources/reliability";
+import { createAnalysis as createACH, addHypothesis as addACHHypothesis, addEvidence as addACHEvidence, evaluateMatrix } from "@/lib/ach/engine";
+import { getLatestNowcast, generateNowcast } from "@/lib/nowcast/engine";
+import { analyzeCentralBankText } from "@/lib/nlp/central-bank";
+import { assessCoverage } from "@/lib/intelligence/collection-gaps";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Tool Definitions (Anthropic format) ──
@@ -222,7 +234,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_esoteric_reading",
     description:
-      "Get the full esoteric/numerological reading for a date. Includes Chinese Sexagenary Cycle, Five Elements, Flying Stars, lunar phase, Gann cycles, Armstrong Pi Cycle, Kondratieff wave, universal year, Chinese numerology score, and composite outlook. Use for calendar convergence analysis.",
+      "Get the full esoteric/numerological reading for a date. Cultural context only — these indicators do NOT feed trading scores or signal intensity. Includes Chinese Sexagenary Cycle, Five Elements, Flying Stars, lunar phase, Gann cycles, Armstrong Pi Cycle, Kondratieff wave, universal year, Chinese numerology score, and composite outlook.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -290,6 +302,53 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_ai_progression",
+    description:
+      "Get AI progression data including the Remote Labor Index (automation rate benchmarks from remotelabor.ai), METR time horizons (task completion capability of frontier models), AI 2027 scenario timeline and milestones, sector-level automation risk with adoption rates, and labor displacement indicators. Use this for analysis of AI impact on employment, workforce disruption, automation trends, and technology-driven market shifts.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        focus: {
+          type: "string",
+          enum: ["overview", "rli", "metr", "ai2027", "sectors", "displacement"],
+          description: "Focus area. 'overview' returns composite score and regime. 'rli' returns Remote Labor Index model benchmarks. 'metr' returns METR time horizons. 'ai2027' returns AI 2027 milestones. 'sectors' returns sector automation risk. 'displacement' returns labor displacement indicators. Defaults to overview.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_prediction_markets",
+    description:
+      "Get prediction market data from Polymarket and Kalshi. Returns real-time probability pricing on geopolitical events, elections, economic outcomes, and policy decisions. Includes top movers, category filtering, and divergence detection against NEXUS predictions. Use for assessing market-implied probabilities of geopolitical scenarios, comparing against NEXUS confidence scores, and identifying mispricings.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["all", "geopolitical", "economic", "political", "movers"],
+          description: "Filter by category. 'movers' returns top 24h movers. Defaults to all.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_congressional_trading",
+    description:
+      "Get congressional and insider trading data. Returns recent STOCK Act disclosures from House and Senate members, SEC Form 4 insider filings, cluster buy detection (multiple insiders buying same stock), and party/chamber breakdown. Use for detecting informed trading by politicians and corporate insiders, cross-referencing with upcoming catalysts and geopolitical exposure.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ticker: {
+          type: "string",
+          description: "Filter trades for a specific ticker symbol. Omit for full snapshot.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "get_macro_data",
     description:
       "Get macroeconomic data from FRED. Returns key indicators: Fed Funds Rate, Treasury yields (2Y/10Y/30Y), yield curve spread, unemployment, jobless claims, CPI, breakeven inflation, consumer sentiment, VIX, gold, oil, dollar index, M2, Fed balance sheet, credit spreads, GDP growth. Use for macro analysis and regime assessment.",
@@ -347,6 +406,75 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: ["query"],
     },
   },
+  {
+    name: "get_timeline",
+    description:
+      "Retrieve timeline events from the intelligence timeline. Use when the user asks about recent events, what happened, event history, or wants a chronological view of signals, predictions, trades, or alerts. Supports filtering by type and date range.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        types: {
+          type: "array",
+          items: { type: "string", enum: ["signal", "prediction", "trade", "thesis", "alert"] },
+          description: "Filter by event types. Omit for all types.",
+        },
+        limit: {
+          type: "number",
+          description: "Max events to return. Defaults to 20.",
+        },
+        from: {
+          type: "string",
+          description: "ISO date string to filter events from this date onwards.",
+        },
+        to: {
+          type: "string",
+          description: "ISO date string to filter events up to this date.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "save_to_knowledge",
+    description:
+      "Save important information to the knowledge base for future reference. Use this when the user asks you to remember something, store a thesis, save an analysis, or when you discover critical intelligence worth preserving. Always check for duplicates before saving - if similar knowledge already exists, do not create a duplicate.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "Short, descriptive title for the knowledge entry",
+        },
+        content: {
+          type: "string",
+          description: "The full content/analysis to store",
+        },
+        category: {
+          type: "string",
+          enum: ["thesis", "model", "event", "actor", "market", "geopolitical", "technical"],
+          description: "Category for the knowledge entry",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Relevant tags for discoverability",
+        },
+        confidence: {
+          type: "number",
+          description: "Confidence level 0-1 (e.g. 0.8 for high confidence)",
+        },
+      },
+      required: ["title", "content", "category"],
+    },
+  },
+  { name: "get_iw_status", description: "Get Indications & Warnings status across all threat scenarios. Shows escalation levels, active indicators, scores.", input_schema: { type: "object" as const, properties: { scenario_id: { type: "string", description: "Optional scenario ID" } }, required: [] } },
+  { name: "get_market_regime", description: "Get current market regime: volatility, growth, monetary, risk appetite, dollar, commodities. Shows regime shifts.", input_schema: { type: "object" as const, properties: {}, required: [] } },
+  { name: "get_correlation_monitor", description: "Cross-asset correlation matrix and break detection. SPY-TLT, Gold-Dollar, VIX-SPY pairs.", input_schema: { type: "object" as const, properties: {}, required: [] } },
+  { name: "assess_source_reliability", description: "NATO/Admiralty source reliability rating (A-F, 1-6). Returns bias, specialties, track record.", input_schema: { type: "object" as const, properties: { domain: { type: "string", description: "Domain (e.g. reuters.com)" } }, required: ["domain"] } },
+  { name: "create_ach_analysis", description: "Create Analysis of Competing Hypotheses (ACH). CIA structured analytic technique.", input_schema: { type: "object" as const, properties: { title: { type: "string" }, question: { type: "string" }, hypotheses: { type: "array", items: { type: "object", properties: { label: { type: "string" }, description: { type: "string" } } } }, evidence: { type: "array", items: { type: "object", properties: { description: { type: "string" }, source: { type: "string" }, credibility: { type: "string" }, relevance: { type: "string" } } } } }, required: ["title", "question", "hypotheses"] } },
+  { name: "get_economic_nowcast", description: "Real-time economic nowcast: GDP, inflation, employment, financial conditions, recession probability.", input_schema: { type: "object" as const, properties: {}, required: [] } },
+  { name: "analyze_central_bank_statement", description: "Analyze central bank statement for hawkish/dovish tone, forward guidance, market implications.", input_schema: { type: "object" as const, properties: { text: { type: "string", description: "Statement text" }, institution: { type: "string", description: "Institution name" } }, required: ["text", "institution"] } },
+  { name: "get_collection_gaps", description: "Intelligence collection coverage report. Gaps, blind spots, silence detection across 16 critical regions.", input_schema: { type: "object" as const, properties: {}, required: [] } },
 ];
 
 // ── Tool Execution ──
@@ -392,12 +520,38 @@ export async function executeTool(
       return executeGetPortfolioRisk();
     case "extract_osint_entities":
       return executeExtractOsintEntities(input);
+    case "get_ai_progression":
+      return executeGetAIProgression(input);
+    case "get_prediction_markets":
+      return executeGetPredictionMarkets(input);
+    case "get_congressional_trading":
+      return executeGetCongressionalTrading(input);
     case "get_macro_data":
       return executeGetMacroData(input);
     case "get_operator_context":
       return { briefing: await loadPrompt("operator_briefing") };
     case "search_knowledge":
       return executeSearchKnowledge(input);
+    case "save_to_knowledge":
+      return executeSaveToKnowledge(input);
+    case "get_timeline":
+      return executeGetTimeline(input);
+    case "get_iw_status":
+      return executeGetIWStatus(input);
+    case "get_market_regime":
+      return executeGetMarketRegime();
+    case "get_correlation_monitor":
+      return executeGetCorrelationMonitor();
+    case "assess_source_reliability":
+      return executeAssessSourceReliability(input);
+    case "create_ach_analysis":
+      return executeCreateACH(input);
+    case "get_economic_nowcast":
+      return executeGetNowcast();
+    case "analyze_central_bank_statement":
+      return executeAnalyzeCentralBank(input);
+    case "get_collection_gaps":
+      return executeGetCollectionGaps();
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -408,12 +562,11 @@ async function executeGetSignals(input: Record<string, unknown>) {
   const minIntensity = (input.min_intensity as number) || 1;
   const limit = (input.limit as number) || 20;
 
-  const allSignals = await db
+  const allSignals: Signal[] = await db
     .select()
     .from(schema.signals)
     .where(eq(schema.signals.status, status))
-    .orderBy(schema.signals.date)
-    ;
+    .orderBy(schema.signals.date);
   const rows = allSignals
     .filter((s) => s.intensity >= minIntensity)
     .slice(0, limit);
@@ -547,7 +700,7 @@ async function executeGetActiveThesis() {
 async function executeGetPredictions(input: Record<string, unknown>) {
   const status = input.status as string | undefined;
 
-  let rows;
+  let rows: Prediction[];
   if (status) {
     if (status === "pending") {
       // Pending means outcome is null
@@ -555,7 +708,7 @@ async function executeGetPredictions(input: Record<string, unknown>) {
         .select()
         .from(schema.predictions)
         .orderBy(desc(schema.predictions.createdAt));
-      rows = allPreds.filter((p) => !p.outcome);
+      rows = allPreds.filter((p: Prediction) => !p.outcome);
     } else {
       rows = await db
         .select()
@@ -653,21 +806,11 @@ async function executeGetPortfolio() {
   }
 }
 
-async function getAlphaVantageKey(): Promise<string | null> {
-  const [setting] = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "alpha_vantage_api_key"));
-  return setting?.value || process.env.ALPHA_VANTAGE_API_KEY || null;
-}
-
 async function executeGetLiveQuote(input: Record<string, unknown>) {
   const symbol = (input.symbol as string).toUpperCase();
-  const apiKey = await getAlphaVantageKey();
-  if (!apiKey) return { error: "Alpha Vantage API key not configured." };
 
   try {
-    const quote = await getQuote(symbol, apiKey);
+    const quote = await getQuoteData(symbol);
     return quote;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -678,11 +821,9 @@ async function executeGetLiveQuote(input: Record<string, unknown>) {
 async function executeGetPriceHistory(input: Record<string, unknown>) {
   const symbol = (input.symbol as string).toUpperCase();
   const full = input.full as boolean || false;
-  const apiKey = await getAlphaVantageKey();
-  if (!apiKey) return { error: "Alpha Vantage API key not configured." };
 
   try {
-    const bars = await getDailySeries(symbol, apiKey, full ? "full" : "compact");
+    const bars = await getHistoricalData(symbol, full ? "5y" : "6mo");
     const recent = bars.slice(-100);
     const closes = recent.map(b => b.close);
     const returns = closes.slice(1).map((c, i) => (c - closes[i]) / closes[i]);
@@ -714,11 +855,9 @@ async function executeMonteCarloSimulation(input: Record<string, unknown>) {
   const symbol = (input.symbol as string).toUpperCase();
   const days = (input.days as number) || 63;
   const simulations = Math.min((input.simulations as number) || 10000, 50000);
-  const apiKey = await getAlphaVantageKey();
-  if (!apiKey) return { error: "Alpha Vantage API key not configured." };
 
   try {
-    const bars = await getDailySeries(symbol, apiKey, "full");
+    const bars = await getHistoricalData(symbol, "5y");
     if (bars.length < 30) return { error: `Not enough historical data for ${symbol}.` };
 
     const closes = bars.map(b => b.close);
@@ -780,6 +919,25 @@ async function executeMonteCarloSimulation(input: Record<string, unknown>) {
   }
 }
 
+// GDELT returns 200 with HTML error pages when rate-limited or query is invalid.
+// Always check content-type before parsing.
+async function fetchGdeltJson(url: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("application/json") && !ct.includes("text/json")) {
+      // Peek at body to confirm it's actually JSON
+      const text = await res.text();
+      if (!text.trimStart().startsWith("{") && !text.trimStart().startsWith("[")) return null;
+      return JSON.parse(text) as Record<string, unknown>;
+    }
+    return await res.json() as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 async function searchGoogleNewsRSS(query: string) {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
@@ -807,16 +965,15 @@ async function executeWebSearch(input: Record<string, unknown>) {
   try {
     // Try GDELT first
     const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=15&format=json&sort=DateDesc`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const data = await fetchGdeltJson(url);
 
-    if (res.ok) {
-      const data = await res.json();
-      const articles = data.articles || [];
+    if (data) {
+      const articles = (data.articles as Array<Record<string, unknown>>) || [];
       return {
         query,
         source: "gdelt",
         resultCount: articles.length,
-        articles: articles.slice(0, 15).map((a: Record<string, unknown>) => ({
+        articles: articles.slice(0, 15).map((a) => ({
           title: a.title,
           url: a.url,
           source: a.domain || a.sourcecountry,
@@ -858,17 +1015,16 @@ async function executeGetOsintEvents(input: Record<string, unknown>) {
 
   try {
     const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=${limit}&format=json&sort=DateDesc&timespan=7d`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const data = await fetchGdeltJson(url);
 
-    if (res.ok) {
-      const data = await res.json();
-      const articles = data.articles || [];
+    if (data) {
+      const articles = (data.articles as Array<Record<string, unknown>>) || [];
       return {
         query,
         source: "gdelt",
         timespan: "7 days",
         resultCount: articles.length,
-        events: articles.map((a: Record<string, unknown>) => ({
+        events: articles.map((a) => ({
           title: a.title,
           url: a.url,
           source: a.domain,
@@ -972,10 +1128,10 @@ async function executeGetEsotericReading(input: Record<string, unknown>) {
 
 async function executeGetEconomicCalendar(input: Record<string, unknown>) {
   const daysAhead = (input.days_ahead as number) || 30;
-  const today = new Date().toISOString().split("T");
+  const today = new Date().toISOString().split("T")[0];
   const future = new Date();
   future.setDate(future.getDate() + daysAhead);
-  const futureStr = future.toISOString().split("T");
+  const futureStr = future.toISOString().split("T")[0];
 
   const year = new Date().getFullYear();
   const events = [
@@ -1006,20 +1162,19 @@ async function executeGetOptionsFlow(input: Record<string, unknown>) {
     // If symbol specified, get symbol-specific metrics
     const symbol = input.symbol as string;
     if (symbol) {
-      const apiKey = await getAlphaVantageKey();
-      if (apiKey) {
-        const { estimateOptionsMetrics } = await import("@/lib/market-data/options-flow");
-        const bars = await getDailySeries(symbol.toUpperCase(), apiKey, "compact");
-        const quote = await getQuote(symbol.toUpperCase(), apiKey);
-        const closes = bars.map(b => b.close);
-        const returns = closes.slice(1).map((c, i) => (c - closes[i]) / closes[i]);
-        const volumes = bars.map(b => b.volume);
-        const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+      const { estimateOptionsMetrics } = await import("@/lib/market-data/options-flow");
+      const [bars, quote] = await Promise.all([
+        getHistoricalData(symbol.toUpperCase(), "6mo"),
+        getQuoteData(symbol.toUpperCase()),
+      ]);
+      const closes = bars.map(b => b.close);
+      const returns = closes.slice(1).map((c, i) => (c - closes[i]) / closes[i]);
+      const volumes = bars.map(b => b.volume);
+      const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
 
-        result.symbolMetrics = estimateOptionsMetrics(
-          symbol.toUpperCase(), quote.price, returns, quote.volume, avgVolume
-        );
-      }
+      result.symbolMetrics = estimateOptionsMetrics(
+        symbol.toUpperCase(), quote.price, returns, quote.volume, avgVolume
+      );
     }
 
     return result;
@@ -1049,11 +1204,10 @@ async function executeExtractOsintEntities(input: Record<string, unknown>) {
 
     // Try GDELT first, fallback to Google News RSS
     const gdeltUrl = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query || "conflict OR crisis OR military")}&mode=ArtList&maxrecords=20&format=json&sort=DateDesc&timespan=3d`;
-    const res = await fetch(gdeltUrl, { signal: AbortSignal.timeout(10000) });
+    const gdeltData = await fetchGdeltJson(gdeltUrl);
 
-    if (res.ok) {
-      const data = await res.json();
-      articles = (data.articles || []) as Array<Record<string, unknown>>;
+    if (gdeltData) {
+      articles = ((gdeltData.articles as unknown[]) || []) as Array<Record<string, unknown>>;
     } else {
       const gnArticles = await searchGoogleNewsRSS(query || "conflict crisis military");
       articles = gnArticles.map(a => ({ title: a.title, url: a.url, domain: a.source, seendate: a.date }));
@@ -1090,6 +1244,70 @@ async function executeExtractOsintEntities(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `OSINT extraction failed: ${message}` };
+  }
+}
+
+async function executeGetAIProgression(input: Record<string, unknown>) {
+  try {
+    const { getAIProgressionSnapshot, getRemoteLaborIndex, getMETRData, getAI2027Timeline, getSectorAutomationRisk, getLaborDisplacementIndicators } = await import("@/lib/ai-progression");
+    const focus = (input.focus as string) || "overview";
+
+    switch (focus) {
+      case "rli":
+        return await getRemoteLaborIndex();
+      case "metr":
+        return getMETRData();
+      case "ai2027":
+        return getAI2027Timeline();
+      case "sectors":
+        return getSectorAutomationRisk();
+      case "displacement":
+        return getLaborDisplacementIndicators();
+      default:
+        return await getAIProgressionSnapshot();
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `AI progression data failed: ${message}` };
+  }
+}
+
+async function executeGetPredictionMarkets(input: Record<string, unknown>) {
+  try {
+    const { getPredictionMarkets } = await import("@/lib/prediction-markets");
+    const snapshot = await getPredictionMarkets();
+    const category = (input.category as string) || "all";
+
+    switch (category) {
+      case "geopolitical":
+        return { markets: snapshot.geopolitical, total: snapshot.geopolitical.length };
+      case "economic":
+        return { markets: snapshot.economic, total: snapshot.economic.length };
+      case "political":
+        return { markets: snapshot.political, total: snapshot.political.length };
+      case "movers":
+        return { topMovers: snapshot.topMovers, total: snapshot.topMovers.length };
+      default:
+        return snapshot;
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Prediction markets fetch failed: ${message}` };
+  }
+}
+
+async function executeGetCongressionalTrading(input: Record<string, unknown>) {
+  try {
+    const ticker = input.ticker as string;
+    if (ticker) {
+      const { getTradesForTicker } = await import("@/lib/congressional-trading");
+      return await getTradesForTicker(ticker);
+    }
+    const { getTradingSnapshot } = await import("@/lib/congressional-trading");
+    return await getTradingSnapshot();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Congressional trading fetch failed: ${message}` };
   }
 }
 
@@ -1133,6 +1351,66 @@ async function executeGetMacroData(input: Record<string, unknown>) {
   }
 }
 
+async function executeSaveToKnowledge(input: Record<string, unknown>) {
+  const title = input.title as string;
+  const content = input.content as string;
+  const category = input.category as string;
+  const tags = input.tags as string[] | undefined;
+  const confidence = (input.confidence as number) ?? 0.8;
+
+  if (!title || !content || !category) {
+    return { error: "title, content, and category are required" };
+  }
+
+  try {
+    // Check for duplicates by searching for similar titles
+    const existing = await searchKnowledge(title, { limit: 5 });
+    const duplicate = existing.find((e) => {
+      const titleSimilar = e.title.toLowerCase().trim() === title.toLowerCase().trim();
+      if (titleSimilar) return true;
+      // Check content overlap: if >60% of words match
+      const existingWords = new Set(e.content.toLowerCase().split(/\s+/));
+      const newWords = content.toLowerCase().split(/\s+/);
+      const overlap = newWords.filter((w) => existingWords.has(w)).length;
+      return overlap / newWords.length > 0.6 && newWords.length > 10;
+    });
+
+    if (duplicate) {
+      return {
+        stored: false,
+        reason: "duplicate_detected",
+        existingEntry: {
+          id: duplicate.id,
+          title: duplicate.title,
+          category: duplicate.category,
+        },
+        message: `This knowledge already exists in the base: "${duplicate.title}" (ID: ${duplicate.id}). Not storing duplicate.`,
+      };
+    }
+
+    const entry = await addKnowledge({
+      title,
+      content,
+      category,
+      tags: tags ? JSON.stringify(tags) : null,
+      confidence,
+      source: "chat",
+      status: "active",
+    });
+
+    return {
+      stored: true,
+      id: entry.id,
+      title: entry.title,
+      category: entry.category,
+      message: `Saved to knowledge base: "${entry.title}" (ID: ${entry.id})`,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Failed to save knowledge: ${message}` };
+  }
+}
+
 async function executeSearchKnowledge(input: Record<string, unknown>) {
   const query = input.query as string;
   const category = input.category as string | undefined;
@@ -1171,5 +1449,156 @@ async function executeSearchKnowledge(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Knowledge search failed: ${message}` };
+  }
+}
+
+async function executeGetTimeline(input: Record<string, unknown>) {
+  try {
+    const { getTimeline } = await import("@/lib/timeline/engine");
+    const events = await getTimeline({
+      types: input.types as string[] | undefined,
+      from: input.from as string | undefined,
+      to: input.to as string | undefined,
+      limit: (input.limit as number) || 20,
+    });
+    return { events, count: events.length };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Timeline fetch failed: ${message}` };
+  }
+}
+
+// ── New Intelligence System Executors ──
+
+async function executeGetIWStatus(input: Record<string, unknown>) {
+  try {
+    const scenarioId = input.scenario_id as string | undefined;
+    if (scenarioId) {
+      const status = await evaluateScenario(scenarioId);
+      if (!status) return { error: "Scenario not found" };
+      return status;
+    }
+    const statuses = await getAllScenarioStatuses();
+    return {
+      scenarios: statuses.map(s => ({
+        id: s.scenarioId,
+        name: s.name,
+        region: s.region,
+        escalationLevel: s.escalationLevel,
+        escalationName: s.escalationName,
+        score: s.score,
+        activeIndicators: s.activeIndicatorCount,
+        totalIndicators: s.totalIndicatorCount,
+        marketSectors: s.marketSectors,
+        marketImpact: s.marketImpact,
+      })),
+      highestEscalation: Math.max(...statuses.map(s => s.escalationLevel)),
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `I&W status failed: ${message}` };
+  }
+}
+
+async function executeGetMarketRegime() {
+  try {
+    const regime = await loadRegimeState("latest");
+    const shifts = await getLatestShifts();
+    if (!regime) {
+      const fresh = await detectCurrentRegime();
+      return { regime: fresh, shifts: [], note: "Fresh regime detection performed" };
+    }
+    return { regime, shifts };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Regime detection failed: ${message}` };
+  }
+}
+
+async function executeGetCorrelationMonitor() {
+  try {
+    let matrix = await getLatestCorrelations();
+    if (!matrix) {
+      matrix = await computeCorrelationMatrix();
+    }
+    return matrix;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Correlation monitor failed: ${message}` };
+  }
+}
+
+async function executeAssessSourceReliability(input: Record<string, unknown>) {
+  try {
+    const domain = input.domain as string;
+    const profile = getSourceProfile(domain);
+    const info = assessInformation([domain]);
+    return {
+      ...profile,
+      admiraltyRating: formatAdmiraltyRating(profile.reliability, info.accuracy),
+      informationAccuracy: info.accuracy,
+      accuracyExplanation: info.explanation,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Source assessment failed: ${message}` };
+  }
+}
+
+async function executeCreateACH(input: Record<string, unknown>) {
+  try {
+    const title = input.title as string;
+    const question = input.question as string;
+    const hypotheses = input.hypotheses as Array<{ label: string; description: string }> || [];
+    const evidence = input.evidence as Array<{ description: string; source: string; credibility?: string; relevance?: string }> || [];
+
+    const { id: analysisId } = await createACH(title, question);
+
+    for (const hyp of hypotheses) {
+      await addACHHypothesis(analysisId, hyp.label, hyp.description);
+    }
+
+    for (const ev of evidence) {
+      await addACHEvidence(analysisId, ev.description, ev.source, (ev.credibility as "high" | "medium" | "low") || "medium", (ev.relevance as "high" | "medium" | "low") || "medium");
+    }
+
+    const result = await evaluateMatrix(analysisId);
+    return { analysisId, ...result };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `ACH creation failed: ${message}` };
+  }
+}
+
+async function executeGetNowcast() {
+  try {
+    let nowcast = await getLatestNowcast();
+    if (!nowcast) {
+      nowcast = await generateNowcast();
+    }
+    return nowcast;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Nowcast failed: ${message}` };
+  }
+}
+
+async function executeAnalyzeCentralBank(input: Record<string, unknown>) {
+  try {
+    const text = input.text as string;
+    const institution = input.institution as string;
+    return analyzeCentralBankText(text, institution);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Central bank analysis failed: ${message}` };
+  }
+}
+
+async function executeGetCollectionGaps() {
+  try {
+    return await assessCoverage();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Collection gaps check failed: ${message}` };
   }
 }

@@ -125,6 +125,31 @@ export async function POST(
           toolUses: allToolUses.length > 0 ? JSON.stringify(allToolUses) : null,
           toolResults: allToolResults.length > 0 ? JSON.stringify(allToolResults) : null,
         });
+
+        // Generate follow-up suggestions
+        try {
+          const sugResponse = await client.messages.create({
+            model: await getChatModel(),
+            max_tokens: 300,
+            system: "Generate 3-4 short follow-up prompts the user might want to explore next based on this conversation. Return ONLY a JSON array of strings, nothing else. Each prompt should be concise (under 60 chars), actionable, and naturally continue the conversation. Do not wrap in markdown code blocks.",
+            messages: [
+              { role: "user", content: userMessage },
+              { role: "assistant", content: fullText || "(tool results provided above)" },
+              { role: "user", content: "Generate follow-up suggestions." },
+            ],
+          });
+          const sugText = sugResponse.content[0].type === "text" ? sugResponse.content[0].text : "";
+          const jsonMatch = sugText.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            const suggestions = JSON.parse(jsonMatch[0]) as string[];
+            if (Array.isArray(suggestions) && suggestions.length > 0) {
+              sendEvent({ type: "suggestions", suggestions: suggestions.slice(0, 4) });
+            }
+          }
+        } catch {
+          // Suggestions are best-effort, don't block the response
+        }
+
         sendEvent({ type: "done" });
         controller.close();
       } catch (err: unknown) {

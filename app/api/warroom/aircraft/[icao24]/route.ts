@@ -147,7 +147,7 @@ async function fetchFlightTrack(icao24: string): Promise<TrackPoint[]> {
     const path: unknown[][] = data.path || [];
 
     return path.map((p) => ({
-      time: (p as number) || 0,
+      time: (p[0] as number) || 0,
       lat: (p[1] as number) || 0,
       lng: (p[2] as number) || 0,
       altitude: (p[3] as number) || 0,

@@ -556,7 +556,7 @@ export default function SettingsPage() {
                             ? `$${((subscription.tier.price as number) / 100).toFixed(0)}/${subscription.tier.interval as string}`
                             : "Custom pricing"}
                         </p>
-                        {(subscription.subscription as Record<string, unknown>)?.currentPeriodEnd && (
+                        {Boolean((subscription.subscription as Record<string, unknown>)?.currentPeriodEnd) && (
                           <p className="text-[10px] text-navy-500 mt-1">
                             {(subscription.subscription as Record<string, unknown>)?.cancelAtPeriodEnd
                               ? "Cancels"
@@ -567,7 +567,7 @@ export default function SettingsPage() {
                           </p>
                         )}
                       </div>
-                      {(subscription.subscription as Record<string, unknown>)?.stripeCustomerId && (
+                      {Boolean((subscription.subscription as Record<string, unknown>)?.stripeCustomerId) && (
                         <Button
                           variant="outline"
                           size="sm"

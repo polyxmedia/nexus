@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, asc, and } from "drizzle-orm";
-import { getQuote } from "@/lib/market-data/alpha-vantage";
+import { getQuoteData } from "@/lib/market-data/yahoo";
 
 // GET - list all watchlists with items and live quotes
 export async function GET(req: NextRequest) {
@@ -14,25 +14,73 @@ export async function GET(req: NextRequest) {
       ? await db.select().from(schema.watchlists).where(eq(schema.watchlists.id, parseInt(watchlistId)))
       : await db.select().from(schema.watchlists).orderBy(asc(schema.watchlists.position));
 
-    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-
     const result = await Promise.all(
       lists.map(async (list) => {
-        const items = await db.select().from(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, list.id)).orderBy(asc(schema.watchlistItems.position));
+        const items = await db
+          .select()
+          .from(schema.watchlistItems)
+          .where(eq(schema.watchlistItems.watchlistId, list.id))
+          .orderBy(asc(schema.watchlistItems.position));
 
-        if (!withQuotes || !apiKey) {
-          return { ...list, items: items.map((it) => ({ ...it, quote: null })) };
+        if (!withQuotes) {
+          // Return last known prices from DB
+          return {
+            ...list,
+            items: items.map((it) => ({
+              ...it,
+              quote: it.lastPrice != null
+                ? {
+                    symbol: it.symbol,
+                    price: it.lastPrice,
+                    change: it.lastChange ?? 0,
+                    changePercent: it.lastChangePercent ?? 0,
+                    volume: it.lastVolume ?? 0,
+                    timestamp: it.lastUpdated ?? "",
+                  }
+                : null,
+            })),
+          };
         }
 
-        const enriched = [];
+        // Fetch live quotes, persist to DB, fall back to last known
+        const enriched: Record<string, unknown>[] = [];
         for (let i = 0; i < items.length; i++) {
+          const item = items[i];
           try {
-            const quote = await getQuote(items[i].symbol, apiKey);
-            enriched.push({ ...items[i], quote });
+            const quote = await getQuoteData(item.symbol);
+
+            // Persist the quote to DB
+            await db
+              .update(schema.watchlistItems)
+              .set({
+                lastPrice: quote.price,
+                lastChange: quote.change,
+                lastChangePercent: quote.changePercent,
+                lastVolume: quote.volume,
+                lastUpdated: new Date().toISOString(),
+              })
+              .where(eq(schema.watchlistItems.id, item.id));
+
+            enriched.push({ ...item, quote });
           } catch {
-            enriched.push({ ...items[i], quote: null });
+            // Fall back to last known price from DB
+            enriched.push({
+              ...item,
+              quote: item.lastPrice != null
+                ? {
+                    symbol: item.symbol,
+                    price: item.lastPrice,
+                    change: item.lastChange ?? 0,
+                    changePercent: item.lastChangePercent ?? 0,
+                    volume: item.lastVolume ?? 0,
+                    timestamp: item.lastUpdated ?? "",
+                    stale: true,
+                  }
+                : null,
+            });
           }
-          if (i < items.length - 1) await new Promise((r) => setTimeout(r, 250));
+          // Rate limit buffer between calls
+          if (i < items.length - 1) await new Promise((r) => setTimeout(r, 300));
         }
 
         return { ...list, items: enriched };
@@ -57,13 +105,53 @@ export async function POST(req: NextRequest) {
       if (!watchlistId || !symbol) {
         return NextResponse.json({ error: "watchlistId and symbol required" }, { status: 400 });
       }
-      const existing = await db.select().from(schema.watchlistItems).where(and(eq(schema.watchlistItems.watchlistId, watchlistId), eq(schema.watchlistItems.symbol, symbol.toUpperCase())));
+      const existing = await db
+        .select()
+        .from(schema.watchlistItems)
+        .where(
+          and(
+            eq(schema.watchlistItems.watchlistId, watchlistId),
+            eq(schema.watchlistItems.symbol, symbol.toUpperCase())
+          )
+        );
       if (existing.length > 0) {
         return NextResponse.json({ error: "Symbol already in watchlist" }, { status: 409 });
       }
-      const items = await db.select().from(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, watchlistId));
+      const items = await db
+        .select()
+        .from(schema.watchlistItems)
+        .where(eq(schema.watchlistItems.watchlistId, watchlistId));
       const maxPos = items.length > 0 ? Math.max(...items.map((i) => i.position)) + 1 : 0;
-      const [item] = await db.insert(schema.watchlistItems).values({ watchlistId, symbol: symbol.toUpperCase(), position: maxPos, addedAt: new Date().toISOString() }).returning();
+
+      // Try to fetch initial quote
+      let initialPrice: Record<string, unknown> = {};
+      try {
+        try {
+          const quote = await getQuoteData(symbol.toUpperCase());
+          initialPrice = {
+            lastPrice: quote.price,
+            lastChange: quote.change,
+            lastChangePercent: quote.changePercent,
+            lastVolume: quote.volume,
+            lastUpdated: new Date().toISOString(),
+          };
+        } catch {
+          // No initial price available
+        }
+      } catch {
+        // No initial price available
+      }
+
+      const [item] = await db
+        .insert(schema.watchlistItems)
+        .values({
+          watchlistId,
+          symbol: symbol.toUpperCase(),
+          position: maxPos,
+          addedAt: new Date().toISOString(),
+          ...initialPrice,
+        })
+        .returning();
       return NextResponse.json({ item });
     }
 
@@ -74,7 +162,10 @@ export async function POST(req: NextRequest) {
     }
     const allLists = await db.select().from(schema.watchlists);
     const maxPos = allLists.length > 0 ? Math.max(...allLists.map((l) => l.position)) + 1 : 0;
-    const [watchlist] = await db.insert(schema.watchlists).values({ name, position: maxPos, createdAt: new Date().toISOString() }).returning();
+    const [watchlist] = await db
+      .insert(schema.watchlists)
+      .values({ name, position: maxPos, createdAt: new Date().toISOString() })
+      .returning();
     return NextResponse.json({ watchlist });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -91,7 +182,15 @@ export async function PATCH(req: NextRequest) {
     if (action === "reorder_items") {
       const { watchlistId, itemIds } = body as { action: string; watchlistId: number; itemIds: number[] };
       for (let i = 0; i < itemIds.length; i++) {
-        await db.update(schema.watchlistItems).set({ position: i }).where(and(eq(schema.watchlistItems.id, itemIds[i]), eq(schema.watchlistItems.watchlistId, watchlistId)));
+        await db
+          .update(schema.watchlistItems)
+          .set({ position: i })
+          .where(
+            and(
+              eq(schema.watchlistItems.id, itemIds[i]),
+              eq(schema.watchlistItems.watchlistId, watchlistId)
+            )
+          );
       }
       return NextResponse.json({ ok: true });
     }

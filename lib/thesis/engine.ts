@@ -318,7 +318,7 @@ async function computeOverallConfidence(
   snapshots: TechnicalSnapshot[],
   gameTheoryAnalyses: GameTheoryAnalysis[],
   convergenceIntensity: number
-): number {
+): Promise<number> {
   let confidence = 0.5;
 
   // Higher convergence intensity = higher confidence

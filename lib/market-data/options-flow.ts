@@ -73,7 +73,7 @@ export async function getPutCallRatio(): Promise<PutCallData | null> {
       const { interpretation, signal } = interpretPCRatio(estimatedPCR);
 
       const result: PutCallData = {
-        date: new Date().toISOString().split("T"),
+        date: new Date().toISOString().split("T")[0],
         totalPCRatio: +estimatedPCR.toFixed(3),
         equityPCRatio: +(estimatedPCR * 0.85).toFixed(3),
         indexPCRatio: +(estimatedPCR * 1.15).toFixed(3),

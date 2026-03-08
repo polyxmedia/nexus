@@ -3,7 +3,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { CoinbaseClient } from "@/lib/coinbase/client";
 
-function getCoinbaseClient() {
+async function getCoinbaseClient() {
   const apiKeySetting = await db
     .select()
     .from(schema.settings)
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId");
 
-    const client = getCoinbaseClient();
+    const client = await getCoinbaseClient();
 
     if (productId) {
       const product = await client.getProduct(productId);

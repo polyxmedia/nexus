@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { NotificationToast } from "@/components/notifications/notification-toast";
 import { AuthProvider } from "@/components/providers/session-provider";
+import { AnalyticsTracker } from "@/components/analytics/tracker";
 
 export const metadata: Metadata = {
   title: "NEXUS - Signal Intelligence",
@@ -23,6 +24,7 @@ export default function RootLayout({
             <Sidebar />
             {children}
             <NotificationToast />
+            <AnalyticsTracker />
           </NotificationProvider>
         </AuthProvider>
       </body>

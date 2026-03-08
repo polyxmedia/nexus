@@ -66,7 +66,13 @@ export const authOptions = {
     strategy: "jwt" as const,
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET || "nexus-default-secret-change-in-production",
+  secret: (() => {
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret && process.env.NODE_ENV === "production") {
+      throw new Error("NEXTAUTH_SECRET must be set in production");
+    }
+    return secret || "nexus-dev-only-secret";
+  })(),
 };
 
 const handler = NextAuth(authOptions);

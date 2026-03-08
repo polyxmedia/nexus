@@ -145,7 +145,7 @@ export function extractEntities(text: string): ExtractedEntities {
 // Process a batch of OSINT articles and create/link entities in the graph
 export async function processOsintArticles(
   articles: Array<{ title: string; url?: string; date?: string; tone?: number }>
-): Array<ExtractedEntities & { title: string }> {
+): Promise<Array<ExtractedEntities & { title: string }>> {
   return articles.map(article => ({
     ...extractEntities(article.title),
     title: article.title,
@@ -157,7 +157,7 @@ export async function linkEntitiesToGraph(
   extracted: ExtractedEntities,
   sourceTitle: string,
   sourceDate: string
-): { entitiesCreated: number; relationshipsCreated: number } {
+): Promise<{ entitiesCreated: number; relationshipsCreated: number }> {
   let entitiesCreated = 0;
   let relationshipsCreated = 0;
 

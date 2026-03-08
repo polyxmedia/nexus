@@ -1,0 +1,41 @@
+import { NextRequest, NextResponse } from "next/server";
+import { resolvePredictions } from "@/lib/predictions/engine";
+
+// POST - callable by cron or scheduler to auto-resolve expired predictions
+export async function POST(req: NextRequest) {
+  try {
+    // Optional auth for external cron services
+    const authHeader = req.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const results = await resolvePredictions();
+
+    const summary = {
+      resolved: results.length,
+      outcomes: {
+        confirmed: results.filter((r) => r.outcome === "confirmed").length,
+        denied: results.filter((r) => r.outcome === "denied").length,
+        partial: results.filter((r) => r.outcome === "partial").length,
+        expired: results.filter((r) => r.outcome === "expired").length,
+      },
+      avgScore: results.length > 0
+        ? Math.round((results.reduce((s, r) => s + r.score, 0) / results.length) * 100) / 100
+        : null,
+      details: results.map((r) => ({
+        id: r.id,
+        outcome: r.outcome,
+        score: r.score,
+        notes: r.notes?.slice(0, 200),
+      })),
+      timestamp: new Date().toISOString(),
+    };
+
+    return NextResponse.json(summary);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

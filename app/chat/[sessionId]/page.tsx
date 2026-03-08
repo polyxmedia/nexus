@@ -127,6 +127,7 @@ export default function ChatSessionPage() {
                   turn.role === "assistant" &&
                   i === turns.length - 1
                 }
+                onSuggestionClick={sendMessage}
               />
             ))}
           </div>

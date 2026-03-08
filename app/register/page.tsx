@@ -1,18 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Radar } from "lucide-react";
 
 export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const referralCode = searchParams.get("ref") || "";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +39,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, referralCode: referralCode || undefined }),
       });
 
       const data = await res.json();
@@ -71,7 +81,9 @@ export default function RegisterPage() {
               NEXUS <span className="text-navy-400 font-normal">Intelligence</span>
             </h1>
           </div>
-          <p className="text-xs text-navy-500 mb-6 font-sans">Request platform access</p>
+          <p className="text-xs text-navy-500 mb-6 font-sans">
+            {referralCode ? "You've been referred to the platform" : "Request platform access"}
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -117,6 +129,13 @@ export default function RegisterPage() {
                 minLength={8}
               />
             </div>
+
+            {referralCode && (
+              <div className="flex items-center gap-2 py-2 px-3 rounded bg-accent-emerald/10 border border-accent-emerald/20">
+                <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />
+                <span className="text-[11px] text-accent-emerald font-mono">Referral: {referralCode}</span>
+              </div>
+            )}
 
             {error && (
               <p className="text-xs text-accent-rose font-sans">{error}</p>

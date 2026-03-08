@@ -121,7 +121,7 @@ function decayWeight(resolvedAt: string | null, now: Date): number {
 
 // ── Main Report ──
 
-export async function computePerformanceReport(): PerformanceReport | null {
+export async function computePerformanceReport(): Promise<PerformanceReport | null> {
   const resolved = await db
     .select()
     .from(schema.predictions)
@@ -447,10 +447,10 @@ function buildPromptSection(report: Omit<PerformanceReport, "promptSection">): s
     for (const [tf, data] of reliableTf) {
       lines.push(`  ${tf}: Brier ${data.brierScore.toFixed(3)}, ${(data.binaryAccuracy * 100).toFixed(0)}% confirmed (n=${data.count})`);
     }
-    const bestTf = reliableTf;
+    const bestTf = reliableTf[0];
     const worstTf = reliableTf[reliableTf.length - 1];
     if (reliableTf.length >= 2 && worstTf[1].brierScore - bestTf[1].brierScore > 0.1) {
-      lines.push(`  RECOMMENDATION: Favor ${bestTf} timeframe (Brier ${bestTf[1].brierScore.toFixed(3)}) over ${worstTf} (Brier ${worstTf[1].brierScore.toFixed(3)})`);
+      lines.push(`  RECOMMENDATION: Favor ${bestTf[0]} timeframe (Brier ${bestTf[1].brierScore.toFixed(3)}) over ${worstTf[0]} (Brier ${worstTf[1].brierScore.toFixed(3)})`);
     }
   }
 

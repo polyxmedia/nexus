@@ -92,12 +92,14 @@ export async function POST(request: Request) {
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
 
         if (existing.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const subAny = sub as any;
           await db
             .update(schema.subscriptions)
             .set({
               status: sub.status,
-              currentPeriodStart: new Date(sub.current_period_start * 1000).toISOString(),
-              currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString(),
+              currentPeriodStart: new Date((subAny.current_period_start || 0) * 1000).toISOString(),
+              currentPeriodEnd: new Date((subAny.current_period_end || 0) * 1000).toISOString(),
               cancelAtPeriodEnd: sub.cancel_at_period_end ? 1 : 0,
               updatedAt: new Date().toISOString(),
             })

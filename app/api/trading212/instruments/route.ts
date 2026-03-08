@@ -1,49 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
-import { Trading212Client, type Environment } from "@/lib/trading212/client";
+import { NextResponse } from "next/server";
+import { getT212Client } from "@/lib/trading212/client";
 
-// Cache instruments in memory (they rarely change)
 let cachedInstruments: unknown[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const apiKeySetting = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "t212_api_key"))
-      ;
-
-    const apiSecretSetting = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "t212_api_secret"))
-      ;
-
-    const apiKey = apiKeySetting[0]?.value || process.env.TRADING212_API_KEY;
-    const apiSecret = apiSecretSetting[0]?.value || process.env.TRADING212_SECRET;
-
-    if (!apiKey || !apiSecret) {
+    const t212 = await getT212Client();
+    if (!t212) {
       return NextResponse.json(
-        { error: "Trading212 API key and secret not configured" },
+        { error: "Trading 212 API key not configured. Add TRADING212_API_KEY to .env.local or Settings." },
         { status: 400 }
       );
     }
 
-    const envSetting = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "trading_environment"))
-      ;
-
-    const environment = (envSetting[0]?.value || "live") as Environment;
-
     const now = Date.now();
     if (!cachedInstruments || now - cacheTimestamp > CACHE_TTL_MS) {
-      const client = new Trading212Client(apiKey, apiSecret, environment);
-      cachedInstruments = await client.getInstruments() as unknown[];
+      cachedInstruments = await t212.client.getInstruments() as unknown[];
       cacheTimestamp = now;
     }
 

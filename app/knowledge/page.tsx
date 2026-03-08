@@ -440,165 +440,170 @@ export default function KnowledgePage() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Panel */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-[640px] max-h-[90vh] overflow-y-auto bg-navy-900 border border-navy-700 rounded-xl shadow-2xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-navy-700 sticky top-0 bg-navy-900 z-10">
-              <h2 className="text-sm font-bold text-navy-100">
-                {editingId ? "Edit Knowledge" : "Add Knowledge"}
-              </h2>
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/50 backdrop-blur-[2px]">
+          <div className="h-full w-[560px] bg-navy-950 border-l border-navy-700/60 flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-navy-800">
+              <div>
+                <h2 className="text-[11px] font-mono uppercase tracking-[0.12em] text-navy-100">
+                  {editingId ? "Edit Entry" : "New Knowledge Entry"}
+                </h2>
+                <p className="text-[9px] font-mono text-navy-600 mt-0.5">
+                  {editingId ? "Modify existing knowledge" : "Add to institutional memory"}
+                </p>
+              </div>
               <button
-                onClick={() => {
-                  setShowCreate(false);
-                  resetForm();
-                }}
-                className="text-navy-500 hover:text-navy-300"
+                onClick={() => { setShowCreate(false); resetForm(); }}
+                className="p-1.5 rounded text-navy-600 hover:text-navy-300 hover:bg-navy-800 transition-colors"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            <div className="px-5 py-4 space-y-4">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
               {/* Title */}
-              <div>
-                <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                  Title
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Title</label>
                 <input
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="Entry title..."
-                  className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-3 py-2 text-xs text-navy-200 outline-none focus:border-accent-cyan/50"
+                  className="w-full bg-navy-900 border border-navy-700 rounded-md px-3 py-2.5 text-[12px] text-navy-200 outline-none focus:border-accent-cyan/40 placeholder:text-navy-700 transition-colors"
                 />
               </div>
 
-              {/* Category */}
-              <div>
-                <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                  Category
-                </label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                  className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-3 py-2 text-xs text-navy-200 outline-none focus:border-accent-cyan/50"
-                >
-                  {CATEGORIES.filter((c) => c !== "all").map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </option>
-                  ))}
-                </select>
+              {/* Category — button group */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Category</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATEGORIES.filter((c) => c !== "all").map((cat) => {
+                    const active = formCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setFormCategory(cat)}
+                        className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider border transition-colors ${
+                          active
+                            ? CATEGORY_COLORS[cat] || "bg-navy-700 text-navy-100 border-navy-600"
+                            : "text-navy-600 border-navy-800 hover:text-navy-400 hover:border-navy-700"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Content */}
-              <div>
-                <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                  Content
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Content</label>
                 <textarea
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
-                  placeholder="Paste document content here..."
-                  rows={12}
-                  className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-3 py-2 text-xs text-navy-200 outline-none focus:border-accent-cyan/50 resize-y font-mono leading-relaxed"
+                  placeholder="Paste document content, analysis, or notes..."
+                  rows={10}
+                  className="w-full bg-navy-900 border border-navy-700 rounded-md px-3 py-2.5 text-[11px] text-navy-300 font-mono outline-none focus:border-accent-cyan/40 placeholder:text-navy-700 resize-none leading-relaxed transition-colors"
                 />
+                {formContent && (
+                  <p className="text-[8px] font-mono text-navy-700 text-right">
+                    {formContent.length} chars
+                  </p>
+                )}
               </div>
 
-              {/* Tags */}
-              <div>
-                <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                  Tags (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={formTags}
-                  onChange={(e) => setFormTags(e.target.value)}
-                  placeholder="xrp, swift, geopolitics, oil..."
-                  className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-3 py-2 text-xs text-navy-200 outline-none focus:border-accent-cyan/50"
-                />
+              {/* Tags + Source row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Tags</label>
+                  <input
+                    type="text"
+                    value={formTags}
+                    onChange={(e) => setFormTags(e.target.value)}
+                    placeholder="xrp, swift, oil..."
+                    className="w-full bg-navy-900 border border-navy-700 rounded-md px-3 py-2.5 text-[11px] text-navy-200 outline-none focus:border-accent-cyan/40 placeholder:text-navy-700 transition-colors"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Source</label>
+                  <input
+                    type="text"
+                    value={formSource}
+                    onChange={(e) => setFormSource(e.target.value)}
+                    placeholder="URL or reference..."
+                    className="w-full bg-navy-900 border border-navy-700 rounded-md px-3 py-2.5 text-[11px] text-navy-200 outline-none focus:border-accent-cyan/40 placeholder:text-navy-700 transition-colors"
+                  />
+                </div>
               </div>
 
-              {/* Source */}
-              <div>
-                <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                  Source
-                </label>
-                <input
-                  type="text"
-                  value={formSource}
-                  onChange={(e) => setFormSource(e.target.value)}
-                  placeholder="Where this came from..."
-                  className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-3 py-2 text-xs text-navy-200 outline-none focus:border-accent-cyan/50"
-                />
-              </div>
-
-              {/* Confidence */}
-              <div>
-                <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                  Confidence: {formConfidence}%
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={formConfidence}
-                  onChange={(e) =>
-                    setFormConfidence(parseInt(e.target.value))
-                  }
-                  className="mt-1 w-full accent-accent-cyan"
-                />
-                <div className="flex justify-between text-[8px] text-navy-600 mt-0.5">
-                  <span>0%</span>
-                  <span>50%</span>
-                  <span>100%</span>
+              {/* Confidence — stepped buttons */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Confidence</label>
+                  <span className="text-[10px] font-mono text-navy-300">{formConfidence}%</span>
+                </div>
+                <div className="flex gap-1.5">
+                  {[20, 40, 60, 80, 100].map((val) => (
+                    <button
+                      key={val}
+                      onClick={() => setFormConfidence(val)}
+                      className={`flex-1 py-1.5 rounded text-[10px] font-mono border transition-colors ${
+                        formConfidence === val
+                          ? "bg-accent-cyan/15 border-accent-cyan/40 text-accent-cyan"
+                          : "border-navy-800 text-navy-600 hover:border-navy-700 hover:text-navy-400"
+                      }`}
+                    >
+                      {val}%
+                    </button>
+                  ))}
                 </div>
               </div>
 
               {/* Date range */}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                    Valid From
-                  </label>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Valid From</label>
                   <input
                     type="date"
                     value={formValidFrom}
                     onChange={(e) => setFormValidFrom(e.target.value)}
-                    className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-3 py-2 text-xs text-navy-200 outline-none focus:border-accent-cyan/50"
+                    className="w-full bg-navy-900 border border-navy-700 rounded-md px-3 py-2.5 text-[11px] text-navy-400 outline-none focus:border-accent-cyan/40 transition-colors"
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] text-navy-500 uppercase tracking-wider">
-                    Valid Until
-                  </label>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono uppercase tracking-[0.1em] text-navy-500">Valid Until</label>
                   <input
                     type="date"
                     value={formValidUntil}
                     onChange={(e) => setFormValidUntil(e.target.value)}
-                    className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-3 py-2 text-xs text-navy-200 outline-none focus:border-accent-cyan/50"
+                    className="w-full bg-navy-900 border border-navy-700 rounded-md px-3 py-2.5 text-[11px] text-navy-400 outline-none focus:border-accent-cyan/40 transition-colors"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-navy-700 sticky bottom-0 bg-navy-900">
+            {/* Footer */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-navy-800">
               <button
-                onClick={() => {
-                  setShowCreate(false);
-                  resetForm();
-                }}
-                className="px-4 py-2 rounded text-xs text-navy-400 hover:text-navy-200 transition-colors"
+                onClick={() => { setShowCreate(false); resetForm(); }}
+                className="px-4 py-2 rounded text-[11px] font-mono text-navy-500 hover:text-navy-300 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={!formTitle.trim() || !formContent.trim() || saving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded bg-accent-cyan/10 border border-accent-cyan/30 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2 rounded-md bg-accent-cyan/10 border border-accent-cyan/30 text-[11px] font-mono text-accent-cyan hover:bg-accent-cyan/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+                {saving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Plus className="h-3 w-3" />
+                )}
                 {editingId ? "Save Changes" : "Add Entry"}
               </button>
             </div>

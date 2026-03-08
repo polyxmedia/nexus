@@ -1,3 +1,5 @@
+export type PoliticalBias = "far-left" | "left" | "center-left" | "center" | "center-right" | "right" | "far-right" | "unknown";
+
 export interface NewsArticle {
   title: string;
   url: string;
@@ -6,16 +8,39 @@ export interface NewsArticle {
   category: "world" | "markets" | "conflict" | "energy";
   imageUrl?: string;
   description?: string;
+  bias: PoliticalBias;
 }
 
 // In-memory cache (same pattern as alpha-vantage.ts)
 const cache = new Map<string, { data: NewsArticle[]; expiry: number }>();
-const CACHE_TTL_MS = 300_000; // 5 minutes
+const CACHE_TTL_MS = 600_000; // 10 minutes (more sources = slower fetches, cache longer)
 
 const RSS_FEEDS = [
+  // Center / Wire Services
   { url: "https://feeds.reuters.com/reuters/topNews", source: "Reuters" },
+  { url: "https://feeds.apnews.com/rss/topnews", source: "AP News" },
+  // Center-left / Intl public broadcasters
   { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC World" },
+  { url: "https://www.france24.com/en/rss", source: "France 24" },
+  { url: "https://rss.dw.com/rdf/rss-en-all", source: "Deutsche Welle" },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
+  // Center-left / Western press
+  { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
+  // Center-right / Business
+  { url: "https://feeds.content.dowjones.io/public/rss/mw_bulletins", source: "MarketWatch" },
+  { url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", source: "CNBC" },
+  // Center-right
+  { url: "https://feeds.skynews.com/feeds/rss/world.xml", source: "Sky News" },
+  // Specialist: geopolitics / foreign policy
+  { url: "https://foreignpolicy.com/feed/", source: "Foreign Policy" },
+  // Specialist: Middle East
+  { url: "https://www.timesofisrael.com/feed/", source: "Times of Israel" },
+  // Specialist: energy
+  { url: "https://oilprice.com/rss/main", source: "OilPrice" },
+  // Specialist: defense
+  { url: "https://www.defenseone.com/rss/all/", source: "Defense One" },
+  // Asia-Pacific
+  { url: "https://www.scmp.com/rss/91/feed", source: "SCMP" },
 ];
 
 const ENERGY_KEYWORDS = [
@@ -37,6 +62,93 @@ const MARKETS_KEYWORDS = [
   "recession", "central bank", "forex", "currency", "trade deficit",
   "ipo", "wall street", "federal reserve", "ecb", "boe",
 ];
+
+// Source-level political bias based on AllSides / Ad Fontes media bias ratings.
+// Keys are lowercase partial domain or source name matches.
+const SOURCE_BIAS: Record<string, PoliticalBias> = {
+  // Center
+  "reuters": "center",
+  "ap news": "center",
+  "apnews": "center",
+  "associated press": "center",
+  "bbc": "center",
+  "pbs": "center",
+  "npr": "center-left",
+  "the hill": "center",
+  "usa today": "center",
+  "abc news": "center",
+  "bloomberg": "center",
+  "financial times": "center",
+  "economist": "center",
+  "wall street journal": "center-right",
+  "wsj": "center-right",
+  // Left / Center-left
+  "cnn": "left",
+  "msnbc": "left",
+  "nbc news": "center-left",
+  "nbcnews": "center-left",
+  "cbs news": "center-left",
+  "cbsnews": "center-left",
+  "new york times": "center-left",
+  "nytimes": "center-left",
+  "washington post": "center-left",
+  "washingtonpost": "center-left",
+  "guardian": "center-left",
+  "politico": "center-left",
+  "vox": "left",
+  "huffpost": "left",
+  "huffington": "left",
+  "slate": "left",
+  "the atlantic": "center-left",
+  "buzzfeed": "left",
+  "vice": "left",
+  "al jazeera": "center-left",
+  "intercept": "far-left",
+  "jacobin": "far-left",
+  "mother jones": "left",
+  // Right / Center-right
+  "fox news": "right",
+  "foxnews": "right",
+  "fox business": "right",
+  "daily mail": "right",
+  "dailymail": "right",
+  "new york post": "right",
+  "nypost": "right",
+  "washington times": "right",
+  "washingtontimes": "right",
+  "national review": "right",
+  "daily wire": "right",
+  "dailywire": "right",
+  "breitbart": "far-right",
+  "newsmax": "far-right",
+  "oan": "far-right",
+  "epoch times": "far-right",
+  "daily caller": "right",
+  "dailycaller": "right",
+  "washington examiner": "center-right",
+  "forbes": "center-right",
+  // International
+  "rt.com": "far-right",
+  "sputnik": "far-right",
+  "xinhua": "far-left",
+  "cgtn": "far-left",
+  "south china morning post": "center",
+  "scmp": "center",
+  "france24": "center",
+  "dw.com": "center",
+  "deutsche welle": "center",
+  "haaretz": "center-left",
+  "times of israel": "center",
+  "sky news": "center-right",
+};
+
+function detectBias(source: string, domain?: string): PoliticalBias {
+  const check = `${source} ${domain || ""}`.toLowerCase();
+  for (const [key, bias] of Object.entries(SOURCE_BIAS)) {
+    if (check.includes(key)) return bias;
+  }
+  return "unknown";
+}
 
 function categorize(title: string, description?: string): NewsArticle["category"] {
   const text = `${title} ${description || ""}`.toLowerCase();
@@ -81,17 +193,22 @@ function parseRssItems(xml: string, source: string): NewsArticle[] {
       }
     }
 
-    const cleanTitle = stripCdata(stripHtml(title));
-    const cleanDescription = description ? stripCdata(stripHtml(description)) : undefined;
+    const cleanTitle = stripCdata(stripHtml(title)).trim();
+    const cleanLink = stripCdata(link).trim();
+    const cleanDescription = description ? stripCdata(stripHtml(description)).trim() : undefined;
+
+    // Skip empty/junk articles
+    if (!cleanTitle || cleanTitle.length < 5 || !cleanLink || !cleanLink.startsWith("http")) continue;
 
     articles.push({
       title: cleanTitle,
-      url: stripCdata(link),
+      url: cleanLink,
       source,
       date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
       category: categorize(cleanTitle, cleanDescription),
       imageUrl,
-      description: cleanDescription?.slice(0, 200),
+      description: cleanDescription && cleanDescription.length > 10 ? cleanDescription.slice(0, 200) : undefined,
+      bias: detectBias(source),
     });
   }
 
@@ -142,19 +259,27 @@ async function fetchGdeltArticles(): Promise<NewsArticle[]> {
     const json = await res.json();
     const rawArticles = json?.articles || [];
 
-    return rawArticles.map((a: Record<string, string>) => {
-      const title = a.title || "Untitled";
-      return {
-        title,
-        url: a.url || "",
-        source: a.domain || "GDELT",
-        date: a.seendate
-          ? new Date(a.seendate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, "$1-$2-$3T$4:$5:$6Z")).toISOString()
-          : new Date().toISOString(),
-        category: categorize(title),
-        imageUrl: a.socialimage || undefined,
-      } as NewsArticle;
-    });
+    return rawArticles
+      .filter((a: Record<string, string>) => {
+        const t = (a.title || "").trim();
+        const u = (a.url || "").trim();
+        return t.length >= 5 && u.startsWith("http");
+      })
+      .map((a: Record<string, string>) => {
+        const title = a.title.trim();
+        const domain = a.domain || "GDELT";
+        return {
+          title,
+          url: a.url,
+          source: domain,
+          date: a.seendate
+            ? new Date(a.seendate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, "$1-$2-$3T$4:$5:$6Z")).toISOString()
+            : new Date().toISOString(),
+          category: categorize(title),
+          imageUrl: a.socialimage || undefined,
+          bias: detectBias(domain, a.url),
+        } as NewsArticle;
+      });
   } catch {
     return [];
   }

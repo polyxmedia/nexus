@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,12 +12,12 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Eye,
   Pencil,
   ChevronDown,
   ChevronRight,
   RefreshCw,
   List,
+  Clock,
 } from "lucide-react";
 
 interface Quote {
@@ -27,6 +27,7 @@ interface Quote {
   changePercent: number;
   volume: number;
   timestamp: string;
+  stale?: boolean;
 }
 
 interface WatchlistItem {
@@ -34,6 +35,7 @@ interface WatchlistItem {
   watchlistId: number;
   symbol: string;
   position: number;
+  lastUpdated: string | null;
   quote: Quote | null;
 }
 
@@ -50,10 +52,13 @@ const POPULAR_SYMBOLS = [
   "VIX", "BTC", "ETH", "XRP", "SOL",
 ];
 
+const POLL_INTERVAL = 60_000; // Refresh quotes every 60s
+
 export default function WatchlistsPage() {
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [expandedLists, setExpandedLists] = useState<Set<number>>(new Set());
   const [showNewList, setShowNewList] = useState(false);
   const [newListName, setNewListName] = useState("");
@@ -62,26 +67,36 @@ export default function WatchlistsPage() {
   const [editingName, setEditingName] = useState<{ id: number; value: string } | null>(null);
   const [dragItem, setDragItem] = useState<{ watchlistId: number; itemId: number } | null>(null);
   const [dragOverItem, setDragOverItem] = useState<{ watchlistId: number; itemId: number } | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    fetchWatchlists();
-  }, []);
-
-  async function fetchWatchlists(withQuotes = true) {
+  const fetchWatchlists = useCallback(async (withQuotes = true) => {
     try {
       const res = await fetch(`/api/watchlists?quotes=${withQuotes}`);
       const data = await res.json();
       const lists: Watchlist[] = data.watchlists || [];
       setWatchlists(lists);
+      if (withQuotes) setLastRefresh(new Date());
       // Expand all by default on first load
-      if (expandedLists.size === 0 && lists.length > 0) {
-        setExpandedLists(new Set(lists.map((l) => l.id)));
-      }
+      setExpandedLists((prev) => {
+        if (prev.size === 0 && lists.length > 0) {
+          return new Set(lists.map((l) => l.id));
+        }
+        return prev;
+      });
+    } catch {
+      // silent
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, []);
+
+  // Initial load + polling
+  useEffect(() => {
+    fetchWatchlists(true);
+    pollRef.current = setInterval(() => fetchWatchlists(true), POLL_INTERVAL);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [fetchWatchlists]);
 
   async function refresh() {
     setRefreshing(true);
@@ -210,12 +225,39 @@ export default function WatchlistsPage() {
     return String(v);
   }
 
+  function timeAgo(date: Date): string {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  }
+
+  // Count total symbols with quotes across all watchlists
+  const totalSymbols = watchlists.reduce((s, w) => s + w.items.length, 0);
+  const quotedSymbols = watchlists.reduce(
+    (s, w) => s + w.items.filter((i) => i.quote).length,
+    0
+  );
+
   return (
     <PageContainer
       title="Watchlists"
       subtitle="Market Monitoring"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {lastRefresh && (
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-navy-500">
+              <Clock className="h-3 w-3" />
+              {timeAgo(lastRefresh)}
+            </div>
+          )}
+          {totalSymbols > 0 && (
+            <span className="text-[10px] font-mono text-navy-600">
+              {quotedSymbols}/{totalSymbols} priced
+            </span>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -232,6 +274,14 @@ export default function WatchlistsPage() {
         </div>
       }
     >
+      {/* Auto-refresh indicator */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-emerald/50 animate-pulse" />
+          <span className="text-[10px] font-mono text-navy-600">Auto-refresh every 60s</span>
+        </div>
+      </div>
+
       {/* New watchlist input */}
       {showNewList && (
         <div className="flex items-center gap-2 mb-4">
@@ -274,6 +324,7 @@ export default function WatchlistsPage() {
         <div className="space-y-3">
           {watchlists.map((list) => {
             const expanded = expandedLists.has(list.id);
+            const listQuoted = list.items.filter((i) => i.quote).length;
             return (
               <div key={list.id} className="border border-navy-700/30 rounded-md bg-navy-900/60 overflow-hidden">
                 {/* List Header */}
@@ -300,7 +351,12 @@ export default function WatchlistsPage() {
                         {list.name}
                       </span>
                     )}
-                    <span className="text-[10px] text-navy-600 font-mono">{list.items.length} symbols</span>
+                    <span className="text-[10px] text-navy-600 font-mono">
+                      {list.items.length} symbol{list.items.length !== 1 ? "s" : ""}
+                      {list.items.length > 0 && listQuoted < list.items.length && (
+                        <span className="text-accent-amber ml-1">({list.items.length - listQuoted} no price)</span>
+                      )}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -353,7 +409,26 @@ export default function WatchlistsPage() {
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    {filteredSuggestions.length > 0 && (
+                    {/* Show popular symbols when search is empty */}
+                    {!symbolSearch && (
+                      <div className="mt-2">
+                        <span className="text-[9px] font-mono text-navy-600 uppercase tracking-wider">Popular</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {POPULAR_SYMBOLS.filter(
+                            (s) => !list.items.some((i) => i.symbol === s)
+                          ).slice(0, 15).map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => addItem(list.id, s)}
+                              className="px-2 py-0.5 text-[10px] font-mono bg-navy-800/60 border border-navy-700/30 rounded text-navy-300 hover:bg-navy-700/60 hover:text-navy-100 transition-colors"
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {filteredSuggestions.length > 0 && symbolSearch && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {filteredSuggestions.slice(0, 10).map((s) => (
                           <button
@@ -388,6 +463,7 @@ export default function WatchlistsPage() {
                       const q = item.quote;
                       const isUp = q ? q.change > 0 : false;
                       const isDown = q ? q.change < 0 : false;
+                      const isStale = q && "stale" in q && q.stale;
                       const isDragOver = dragOverItem?.itemId === item.id && dragItem?.watchlistId === list.id;
 
                       return (
@@ -406,30 +482,37 @@ export default function WatchlistsPage() {
                             <GripVertical className="h-3 w-3 text-navy-600" />
                           </div>
                           <div className="flex items-center gap-2">
-                            {isUp && <TrendingUp className="h-3 w-3 text-accent-emerald" />}
-                            {isDown && <TrendingDown className="h-3 w-3 text-accent-rose" />}
-                            {!isUp && !isDown && <Minus className="h-3 w-3 text-navy-600" />}
+                            {q ? (
+                              isUp ? <TrendingUp className="h-3 w-3 text-accent-emerald" /> :
+                              isDown ? <TrendingDown className="h-3 w-3 text-accent-rose" /> :
+                              <Minus className="h-3 w-3 text-navy-600" />
+                            ) : (
+                              <Minus className="h-3 w-3 text-navy-700" />
+                            )}
                             <span className="text-xs font-mono text-navy-100 font-semibold">{item.symbol}</span>
+                            {isStale && (
+                              <span className="text-[8px] font-mono text-accent-amber/70 uppercase px-1 py-px rounded bg-accent-amber/10">stale</span>
+                            )}
                           </div>
-                          <span className="text-xs font-mono text-navy-200 text-right tabular-nums">
-                            {q ? q.price.toFixed(q.price >= 100 ? 2 : q.price >= 1 ? 2 : 4) : "-"}
+                          <span className={`text-xs font-mono text-right tabular-nums ${q ? (isStale ? "text-navy-300" : "text-navy-200") : "text-navy-600"}`}>
+                            {q ? q.price.toFixed(q.price >= 100 ? 2 : q.price >= 1 ? 2 : 4) : "--"}
                           </span>
                           <span
                             className={`text-xs font-mono text-right tabular-nums ${
-                              isUp ? "text-accent-emerald" : isDown ? "text-accent-rose" : "text-navy-500"
+                              !q ? "text-navy-600" : isUp ? "text-accent-emerald" : isDown ? "text-accent-rose" : "text-navy-500"
                             }`}
                           >
-                            {q ? `${q.change >= 0 ? "+" : ""}${q.change.toFixed(2)}` : "-"}
+                            {q ? `${q.change >= 0 ? "+" : ""}${q.change.toFixed(2)}` : "--"}
                           </span>
                           <span
                             className={`text-xs font-mono text-right tabular-nums ${
-                              isUp ? "text-accent-emerald" : isDown ? "text-accent-rose" : "text-navy-500"
+                              !q ? "text-navy-600" : isUp ? "text-accent-emerald" : isDown ? "text-accent-rose" : "text-navy-500"
                             }`}
                           >
-                            {q ? `${q.changePercent >= 0 ? "+" : ""}${q.changePercent.toFixed(2)}%` : "-"}
+                            {q ? `${q.changePercent >= 0 ? "+" : ""}${q.changePercent.toFixed(2)}%` : "--"}
                           </span>
                           <span className="text-[10px] font-mono text-navy-400 text-right tabular-nums">
-                            {q && q.volume ? formatVolume(q.volume) : "-"}
+                            {q && q.volume ? formatVolume(q.volume) : "--"}
                           </span>
                           <button
                             onClick={() => removeItem(item.id)}

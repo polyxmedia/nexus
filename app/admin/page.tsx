@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
+  BarChart3,
   CheckCircle2,
   CreditCard,
+  FlaskConical,
   Loader2,
   Plus,
   Save,
@@ -18,7 +20,9 @@ import {
   Trash2,
   Users,
   X,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 
 interface Tier {
   id: number;
@@ -46,9 +50,22 @@ interface UserRecord {
   } | null;
 }
 
+interface AnalyticsData {
+  period: { days: number; since: string };
+  totalViews: number;
+  uniqueSessions: number;
+  avgViewsPerSession: number;
+  topPages: { path: string; views: number; uniqueVisitors: number }[];
+  dailyViews: { date: string; views: number; unique: number }[];
+  devices: { deviceType: string | null; count: number }[];
+  referrers: { referrer: string | null; count: number }[];
+  hourly: { hour: string; count: number }[];
+}
+
 const ADMIN_TABS = [
   { id: "tiers", label: "Subscription Tiers", icon: CreditCard },
   { id: "users", label: "Users", icon: Users },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 function TierEditor({
@@ -89,7 +106,7 @@ function TierEditor({
       interval: form.interval,
       stripePriceId: form.stripePriceId || null,
       stripeProductId: form.stripeProductId || null,
-      features: form.features.split("\n").filter((f) => f.trim()),
+      features: form.features.split("\n").filter((f: string) => f.trim()),
       limits: typeof form.limits === "string" ? JSON.parse(form.limits) : form.limits,
       highlighted: form.highlighted ? 1 : 0,
       active: form.active ? 1 : 0,
@@ -261,6 +278,252 @@ function TierEditor({
   );
 }
 
+function AnalyticsPanel({
+  analytics,
+  loading,
+  days,
+  onChangeDays,
+  onLoad,
+}: {
+  analytics: AnalyticsData | null;
+  loading: boolean;
+  days: number;
+  onChangeDays: (d: number) => void;
+  onLoad: () => void;
+}) {
+  useEffect(() => {
+    onLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (loading && !analytics) {
+    return (
+      <div className="space-y-4 max-w-4xl">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-32 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!analytics) {
+    return (
+      <div className="border border-navy-700/50 border-dashed rounded p-8 text-center max-w-4xl">
+        <BarChart3 className="h-8 w-8 text-navy-600 mx-auto mb-3" />
+        <p className="text-sm text-navy-400">No analytics data yet</p>
+        <p className="text-[10px] text-navy-500 mt-1">
+          Page views will appear here as users navigate the platform.
+        </p>
+      </div>
+    );
+  }
+
+  const maxDailyViews = Math.max(...analytics.dailyViews.map((d) => d.views), 1);
+  const maxHourly = Math.max(...analytics.hourly.map((h) => h.count), 1);
+  const totalDevices = analytics.devices.reduce((sum, d) => sum + d.count, 0) || 1;
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      {/* Period selector */}
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] text-navy-400">
+          Anonymous, cookieless usage analytics. No PII collected.
+        </p>
+        <div className="flex items-center gap-1">
+          {[7, 14, 30, 90].map((d) => (
+            <button
+              key={d}
+              onClick={() => onChangeDays(d)}
+              className={`px-2.5 py-1 text-[10px] font-mono rounded transition-colors ${
+                days === d
+                  ? "bg-navy-700 text-navy-100"
+                  : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/50"
+              }`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Total Views", value: analytics.totalViews.toLocaleString() },
+          { label: "Unique Visitors", value: analytics.uniqueSessions.toLocaleString() },
+          { label: "Avg Pages/Visit", value: String(analytics.avgViewsPerSession) },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="border border-navy-700/40 rounded-lg bg-navy-900/30 px-4 py-3"
+          >
+            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-1">
+              {stat.label}
+            </div>
+            <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">
+              {stat.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Daily views chart */}
+      <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+        <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
+          Daily Pageviews
+        </div>
+        <div className="flex items-end gap-[2px] h-32">
+          {analytics.dailyViews.map((day) => (
+            <div
+              key={day.date}
+              className="flex-1 group relative"
+            >
+              <div
+                className="w-full bg-accent-cyan/30 hover:bg-accent-cyan/50 transition-colors rounded-t-sm"
+                style={{ height: `${(day.views / maxDailyViews) * 100}%`, minHeight: day.views > 0 ? 2 : 0 }}
+              />
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
+                <div className="bg-navy-800 border border-navy-700 rounded px-2 py-1 text-[9px] font-mono text-navy-200 whitespace-nowrap shadow-lg">
+                  {day.date}: {day.views} views, {day.unique} unique
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {analytics.dailyViews.length > 0 && (
+          <div className="flex justify-between mt-1.5">
+            <span className="text-[9px] font-mono text-navy-600">
+              {analytics.dailyViews[0]?.date}
+            </span>
+            <span className="text-[9px] font-mono text-navy-600">
+              {analytics.dailyViews[analytics.dailyViews.length - 1]?.date}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {/* Top Pages */}
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
+            Top Pages
+          </div>
+          <div className="space-y-1.5">
+            {analytics.topPages.slice(0, 10).map((page) => (
+              <div key={page.path} className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-navy-300 truncate flex-1">
+                  {page.path}
+                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-[10px] font-mono text-navy-500 tabular-nums">
+                    {page.uniqueVisitors} uniq
+                  </span>
+                  <span className="text-[10px] font-mono text-navy-200 tabular-nums w-12 text-right">
+                    {page.views}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {analytics.topPages.length === 0 && (
+              <p className="text-[10px] text-navy-600">No page data yet</p>
+            )}
+          </div>
+        </div>
+
+        {/* Device & Referrers */}
+        <div className="space-y-3">
+          {/* Devices */}
+          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
+              Devices
+            </div>
+            <div className="space-y-2">
+              {analytics.devices.map((d) => {
+                const pct = Math.round((d.count / totalDevices) * 100);
+                return (
+                  <div key={d.deviceType || "unknown"}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[11px] font-mono text-navy-300 capitalize">
+                        {d.deviceType || "unknown"}
+                      </span>
+                      <span className="text-[10px] font-mono text-navy-500 tabular-nums">
+                        {pct}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-navy-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-accent-cyan/50 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Referrers */}
+          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
+              Referrers
+            </div>
+            <div className="space-y-1.5">
+              {analytics.referrers.slice(0, 5).map((r) => (
+                <div
+                  key={r.referrer}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="text-[11px] font-mono text-navy-300 truncate flex-1">
+                    {r.referrer || "Direct"}
+                  </span>
+                  <span className="text-[10px] font-mono text-navy-200 tabular-nums">
+                    {r.count}
+                  </span>
+                </div>
+              ))}
+              {analytics.referrers.length === 0 && (
+                <p className="text-[10px] text-navy-600">No referrer data</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hourly distribution */}
+      <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+        <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
+          Hourly Distribution (UTC)
+        </div>
+        <div className="flex items-end gap-[3px] h-16">
+          {Array.from({ length: 24 }, (_, i) => {
+            const hour = String(i).padStart(2, "0");
+            const entry = analytics.hourly.find((h) => h.hour === hour);
+            const count = entry?.count || 0;
+            return (
+              <div key={hour} className="flex-1 group relative">
+                <div
+                  className="w-full bg-accent-amber/25 hover:bg-accent-amber/45 transition-colors rounded-t-sm"
+                  style={{ height: `${(count / maxHourly) * 100}%`, minHeight: count > 0 ? 2 : 0 }}
+                />
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
+                  <div className="bg-navy-800 border border-navy-700 rounded px-2 py-1 text-[9px] font-mono text-navy-200 whitespace-nowrap shadow-lg">
+                    {hour}:00 - {count} views
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex justify-between mt-1.5">
+          <span className="text-[9px] font-mono text-navy-600">00:00</span>
+          <span className="text-[9px] font-mono text-navy-600">12:00</span>
+          <span className="text-[9px] font-mono text-navy-600">23:00</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -272,11 +535,28 @@ export default function AdminPage() {
   const [showNewTier, setShowNewTier] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsDays, setAnalyticsDays] = useState(30);
 
   const fetchTiers = useCallback(async () => {
     const res = await fetch("/api/admin/tiers");
     const data = await res.json();
     setTiers(Array.isArray(data) ? data : []);
+  }, []);
+
+  const fetchAnalytics = useCallback(async (days: number) => {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/analytics?days=${days}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data);
+      }
+    } catch {
+      // silent
+    }
+    setAnalyticsLoading(false);
   }, []);
 
   const fetchUsers = useCallback(async () => {
@@ -372,6 +652,25 @@ export default function AdminPage() {
 
   return (
     <PageContainer title="Admin" subtitle="Platform administration">
+      {/* Backtest link */}
+      <Link
+        href="/admin/backtest"
+        className="group flex items-center justify-between mb-6 border border-accent-cyan/20 rounded-lg bg-accent-cyan/[0.03] px-5 py-4 hover:bg-accent-cyan/[0.06] hover:border-accent-cyan/30 transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <FlaskConical className="w-4 h-4 text-accent-cyan" />
+          <div>
+            <span className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
+              Signal Convergence Backtesting
+            </span>
+            <p className="font-sans text-[11px] text-navy-400 mt-0.5">
+              Validate prediction methodology against 10+ years of historical data with statistical significance testing
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-accent-cyan group-hover:translate-x-0.5 transition-transform" />
+      </Link>
+
       <Tabs.Root defaultValue="tiers">
         <Tabs.List className="flex gap-0 border-b border-navy-700 mb-6">
           {ADMIN_TABS.map((tab) => (
@@ -565,6 +864,21 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </Tabs.Content>
+        {/* Analytics Tab */}
+        <Tabs.Content value="analytics">
+          <AnalyticsPanel
+            analytics={analytics}
+            loading={analyticsLoading}
+            days={analyticsDays}
+            onChangeDays={(d) => {
+              setAnalyticsDays(d);
+              fetchAnalytics(d);
+            }}
+            onLoad={() => {
+              if (!analytics && !analyticsLoading) fetchAnalytics(analyticsDays);
+            }}
+          />
         </Tabs.Content>
       </Tabs.Root>
     </PageContainer>

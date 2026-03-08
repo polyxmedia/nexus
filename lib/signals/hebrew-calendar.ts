@@ -93,7 +93,7 @@ export function getHebrewCalendarEvents(year: number): HebrewCalendarSignal[] {
     if (!matched && ev.getFlags() & 0x1) {
       // CHAG flag
       events.push({
-        date: gregDate.toISOString().split("T"),
+        date: gregDate.toISOString().split("T")[0],
         hebrewDate: hdate.toString(),
         holiday: desc,
         type: "hebrew_holiday",

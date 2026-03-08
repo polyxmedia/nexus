@@ -10,9 +10,9 @@ export class Trading212Client {
   private baseUrl: string;
   private environment: Environment;
 
-  constructor(apiKey: string, apiSecret: string, environment: Environment = "live") {
-    const credentials = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
-    this.authHeader = `Basic ${credentials}`;
+  constructor(apiKey: string, _apiSecret: string, environment: Environment = "live") {
+    // Trading 212 API v0 uses the API key directly as the Authorization token
+    this.authHeader = apiKey;
     this.environment = environment;
     this.baseUrl = T212_BASE[environment];
   }
@@ -147,6 +147,40 @@ export class Trading212Client {
   getEnvironment() {
     return this.environment;
   }
+}
+
+// ── Shared credential resolver for all T212 API routes ──
+// Reads from DB settings first, falls back to env vars.
+// Environment priority: DB setting > TRADING212_ENVIRONMENT env var > "demo"
+import { db, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
+
+async function getSetting(key: string): Promise<string | null> {
+  try {
+    const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
+    return rows[0]?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getT212Client(): Promise<{ client: Trading212Client; environment: Environment } | null> {
+  const apiKey =
+    (await getSetting("t212_api_key")) ||
+    process.env.TRADING212_API_KEY ||
+    null;
+
+  if (!apiKey) return null;
+
+  const envFromDb = await getSetting("trading_environment");
+  const rawEnv =
+    envFromDb ||
+    process.env.TRADING212_ENVIRONMENT ||
+    "demo"; // default to demo — safer, and most dev keys are demo keys
+
+  const environment: Environment = rawEnv === "live" ? "live" : "demo";
+
+  return { client: new Trading212Client(apiKey, "", environment), environment };
 }
 
 // Dedup cache: hash -> timestamp

@@ -1,349 +1,653 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 
+// ── Scroll reveal ──
+function useReveal(threshold = 0.12) {
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return { ref, visible };
+}
 
-const intensityLevels = [
-  {
-    level: 1,
-    label: "Background Noise",
-    description:
-      "Routine events with minimal predictive value. Standard diplomatic communications, scheduled policy announcements, minor market fluctuations within normal range.",
-    color: "text-accent-emerald",
-    border: "border-accent-emerald/30",
-  },
-  {
-    level: 2,
-    label: "Low Activity",
-    description:
-      "Events that deviate slightly from baseline. Unusual troop movements, unexpected central bank commentary, minor calendar convergences. Worth monitoring but not actionable alone.",
-    color: "text-accent-emerald",
-    border: "border-accent-emerald/30",
-  },
-  {
-    level: 3,
-    label: "Elevated",
-    description:
-      "Clear departure from normal patterns. Multiple corroborating data points across at least two signal layers. Warrants active tracking and scenario planning.",
-    color: "text-accent-amber",
-    border: "border-accent-amber/30",
-  },
-  {
-    level: 4,
-    label: "High Alert",
-    description:
-      "Strong convergence across three or more layers. Historical pattern matching indicates significant probability of a disruptive event. Position sizing and hedging recommended.",
-    color: "text-accent-rose",
-    border: "border-accent-rose/30",
-  },
-  {
-    level: 5,
-    label: "Critical Convergence",
-    description:
-      "Maximum signal density. Rare alignment of geopolitical, calendar, celestial, and market signals. Historically associated with regime-changing events, black swans, and major inflection points.",
-    color: "text-accent-rose",
-    border: "border-accent-rose/30",
-  },
-];
+// ── Animated number ──
+function AnimNum({ value, suffix = "" }: { value: string; suffix?: string }) {
+  const [display, setDisplay] = useState(value);
+  const [scrambling, setScrambling] = useState(true);
+  const chars = "0123456789.x";
+
+  useEffect(() => {
+    if (!scrambling) return;
+    let frame = 0;
+    const maxFrames = 12;
+    const interval = setInterval(() => {
+      frame++;
+      if (frame >= maxFrames) {
+        setDisplay(value);
+        setScrambling(false);
+        clearInterval(interval);
+        return;
+      }
+      setDisplay(
+        value
+          .split("")
+          .map((ch, i) => (i < Math.floor((frame / maxFrames) * value.length) ? ch : chars[Math.floor(Math.random() * chars.length)]))
+          .join("")
+      );
+    }, 40);
+    return () => clearInterval(interval);
+  }, [value, scrambling, chars]);
+
+  return <span>{display}{suffix}</span>;
+}
+
+// ── Pulse ring SVG ──
+function PulseRing({ color, size = 120, delay = 0 }: { color: string; size?: number; delay?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" className="absolute opacity-20" style={{ animationDelay: `${delay}ms` }}>
+      <circle cx="60" cy="60" r="50" fill="none" stroke={color} strokeWidth="1" opacity="0.6">
+        <animate attributeName="r" from="20" to="55" dur="3s" begin={`${delay}ms`} repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.8" to="0" dur="3s" begin={`${delay}ms`} repeatCount="indefinite" />
+      </circle>
+      <circle cx="60" cy="60" r="20" fill="none" stroke={color} strokeWidth="0.5" opacity="0.4">
+        <animate attributeName="r" from="10" to="45" dur="3s" begin={`${delay + 800}ms`} repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.6" to="0" dur="3s" begin={`${delay + 800}ms`} repeatCount="indefinite" />
+      </circle>
+      <circle cx="60" cy="60" r="4" fill={color} opacity="0.9" />
+    </svg>
+  );
+}
+
+// ── Scan line background ──
+function ScanLines() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-[0.03]">
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(6,182,212,0.15) 2px, rgba(6,182,212,0.15) 3px)",
+          backgroundSize: "100% 4px",
+          animation: "scan-drift 8s linear infinite",
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Data ──
 
 const signalLayers = [
   {
-    name: "Geopolitical",
     tag: "GEO",
-    description:
-      "Conflicts, treaties, sanctions, regime changes, military deployments, and diplomatic shifts. Sourced from government publications, defense intelligence, and verified reporting networks.",
-    examples: [
-      "Troop mobilisation along contested borders",
-      "Sanctions packages targeting energy exports",
-      "Treaty withdrawals or renegotiations",
-    ],
+    name: "Geopolitical",
+    color: "#ef4444",
+    description: "Conflicts, treaties, sanctions, regime changes, military deployments, and diplomatic shifts. Sourced from government publications, defense intelligence, and verified reporting networks.",
+    examples: ["Troop mobilisation along contested borders", "Sanctions packages targeting energy exports", "Treaty withdrawals or renegotiations"],
+    decayRate: "Days to years",
+    decayLabel: "Variable",
   },
   {
-    name: "Calendar",
     tag: "CAL",
-    description:
-      "Hebrew holidays, Islamic calendar events, FOMC meetings, options expiry dates, fiscal year boundaries, and seasonal economic patterns. Many significant historical events cluster around specific calendar dates.",
-    examples: [
-      "FOMC rate decisions and dot-plot releases",
-      "Quadruple witching / options expiry",
-      "Hebrew calendar holidays and sabbatical cycles",
-    ],
+    name: "Calendar",
+    color: "#f59e0b",
+    description: "Hebrew holidays, Islamic calendar events, FOMC meetings, options expiry dates, fiscal year boundaries, and seasonal economic patterns. Many significant historical events cluster around specific calendar dates.",
+    examples: ["FOMC rate decisions and dot-plot releases", "Quadruple witching / options expiry", "Hebrew calendar holidays and sabbatical cycles"],
+    decayRate: "Weeks to months",
+    decayLabel: "Slow",
   },
   {
-    name: "Celestial",
     tag: "CEL",
-    description:
-      "Eclipses, planetary alignments, lunar cycles, and solar activity. Studied not for causation but for historical correlation with volatility clusters and sentiment shifts in markets.",
-    examples: [
-      "Solar and lunar eclipses",
-      "Mercury retrograde periods",
-      "Sunspot cycle peaks and troughs",
-    ],
+    name: "Celestial",
+    color: "#8b5cf6",
+    description: "Eclipses, planetary alignments, lunar cycles, and solar activity. Studied not for causation but for historical correlation with volatility clusters and sentiment shifts in markets.",
+    examples: ["Solar and lunar eclipses", "Mercury retrograde periods", "Sunspot cycle peaks and troughs"],
+    decayRate: "Weeks to months",
+    decayLabel: "Slow",
   },
   {
-    name: "Market",
     tag: "MKT",
-    description:
-      "Price action anomalies, unusual volume, options flow, dark pool activity, credit spreads, and cross-asset divergences. The quantitative backbone of signal detection.",
-    examples: [
-      "Unusual put/call ratio spikes",
-      "Credit default swap widening",
-      "Cross-asset correlation breakdowns",
-    ],
+    name: "Market",
+    color: "#06b6d4",
+    description: "Price action anomalies, unusual volume, options flow, dark pool activity, credit spreads, and cross-asset divergences. The quantitative backbone of signal detection.",
+    examples: ["Unusual put/call ratio spikes", "Credit default swap widening", "Cross-asset correlation breakdowns"],
+    decayRate: "Hours to days",
+    decayLabel: "Fast",
   },
   {
-    name: "OSINT",
     tag: "OSI",
-    description:
-      "Open source intelligence from social media, satellite imagery, shipping data, flight tracking, and news wire services. Real-time ground truth that validates or contradicts signals from other layers.",
-    examples: [
-      "Military aircraft transponder anomalies",
-      "Shipping route diversions near conflict zones",
-      "GDELT event spike detection",
-    ],
+    name: "OSINT",
+    color: "#10b981",
+    description: "Open source intelligence from social media, satellite imagery, shipping data, flight tracking, and news wire services. Real-time ground truth that validates or contradicts signals from other layers.",
+    examples: ["Military aircraft transponder anomalies", "Shipping route diversions near conflict zones", "GDELT event spike detection"],
+    decayRate: "Days to weeks",
+    decayLabel: "Medium",
   },
 ];
 
-export default function SignalTheoryPage() {
+const intensityLevels = [
+  { level: 1, label: "Background Noise", color: "#3b82f6", description: "Routine events with minimal predictive value. Standard diplomatic communications, scheduled policy announcements." },
+  { level: 2, label: "Low Activity", color: "#22c55e", description: "Events that deviate slightly from baseline. Unusual troop movements, unexpected central bank commentary." },
+  { level: 3, label: "Elevated", color: "#eab308", description: "Clear departure from normal patterns. Multiple corroborating data points across at least two signal layers." },
+  { level: 4, label: "High Alert", color: "#f97316", description: "Strong convergence across three or more layers. Historical pattern matching indicates significant probability of disruption." },
+  { level: 5, label: "Critical Convergence", color: "#ef4444", description: "Maximum signal density. Rare alignment across all layers. Historically associated with regime-changing events." },
+];
+
+const amplification = [
+  { layers: 2, multiplier: "1.4x", width: 28 },
+  { layers: 3, multiplier: "2.1x", width: 42 },
+  { layers: 4, multiplier: "3.2x", width: 64 },
+  { layers: 5, multiplier: "5.0x", width: 100 },
+];
+
+// ── Active layer selector for convergence diagram ──
+function ConvergenceDiagram() {
+  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
+  const convergenceCount = activeLayers.size;
+  const multiplier = convergenceCount <= 1 ? "1.0x" : amplification.find(a => a.layers === convergenceCount)?.multiplier || "1.0x";
+
+  const toggle = (tag: string) => {
+    setActiveLayers(prev => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  };
+
   return (
-    <main className="min-h-screen p-6 max-w-4xl mx-auto pt-24">
-      <div className="mb-10">
-        <h1 className="text-lg font-bold uppercase tracking-widest text-navy-100">Signal Theory</h1>
-        <p className="mt-1 text-xs text-navy-400">Theoretical framework behind NEXUS signal detection and convergence analysis</p>
-      </div>
-      <div className="max-w-4xl space-y-10">
-        {/* Section 1: What is a Signal? */}
-        <section>
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
-            01 / What is a Signal
-          </h2>
-          <div className="mt-3 rounded border border-navy-700/40 bg-navy-900/50 p-5">
-            <p className="font-sans text-sm leading-relaxed text-navy-400">
-              In the NEXUS context, a signal is a discrete event or data point
-              that indicates a potential geopolitical or market shift. Signals
-              are not predictions. They are observable phenomena, fragments of
-              information drawn from structured and unstructured sources, that
-              carry forward-looking implications when analysed in combination.
-            </p>
-            <p className="mt-3 font-sans text-sm leading-relaxed text-navy-400">
-              A single signal in isolation is noise. Multiple signals
-              converging across independent layers constitute a pattern worth
-              acting on. The NEXUS engine continuously ingests, scores, and
-              correlates signals to surface these convergence events before
-              they become consensus.
-            </p>
-          </div>
-        </section>
-
-        {/* Section 2: Signal Layers */}
-        <section>
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
-            02 / Signal Layers
-          </h2>
-          <p className="mt-2 font-sans text-sm text-navy-400">
-            NEXUS operates across five distinct signal layers. Each layer
-            captures a different dimension of the information landscape.
-          </p>
-          <div className="mt-4 space-y-3">
-            {signalLayers.map((layer) => (
-              <div
-                key={layer.tag}
-                className="rounded border border-navy-700/40 bg-navy-900/50 p-5"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-100 rounded bg-navy-800 px-2 py-0.5">
-                    {layer.tag}
-                  </span>
-                  <h3 className="font-mono text-sm font-semibold text-navy-100">
-                    {layer.name}
-                  </h3>
-                </div>
-                <p className="mt-2 font-sans text-sm leading-relaxed text-navy-400">
-                  {layer.description}
-                </p>
-                <ul className="mt-3 space-y-1">
-                  {layer.examples.map((ex) => (
-                    <li
-                      key={ex}
-                      className="flex items-start gap-2 font-sans text-xs text-navy-500"
-                    >
-                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-navy-600" />
-                      {ex}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Section 3: Intensity Scoring */}
-        <section>
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
-            03 / Intensity Scoring
-          </h2>
-          <p className="mt-2 font-sans text-sm text-navy-400">
-            Every signal receives an intensity score on a 1-5 scale. The score
-            reflects both the signal's standalone significance and its
-            correlation density with other active signals.
-          </p>
-          <div className="mt-4 space-y-2">
-            {intensityLevels.map((level) => (
-              <div
-                key={level.level}
-                className={`flex items-start gap-4 rounded border ${level.border} bg-navy-900/50 p-4`}
-              >
-                <span
-                  className={`font-mono text-2xl font-bold ${level.color}`}
+    <div className="relative">
+      {/* Central convergence indicator */}
+      <div className="flex items-center justify-center mb-8">
+        <div className="relative flex items-center justify-center w-32 h-32">
+          {/* Rings for active layers */}
+          {signalLayers.map((layer, i) => {
+            const active = activeLayers.has(layer.tag);
+            const radius = 24 + i * 8;
+            return (
+              <svg key={layer.tag} className="absolute inset-0" viewBox="0 0 128 128">
+                <circle
+                  cx="64" cy="64" r={radius}
+                  fill="none"
+                  stroke={layer.color}
+                  strokeWidth={active ? 2 : 0.5}
+                  opacity={active ? 0.8 : 0.15}
+                  strokeDasharray={active ? "none" : "2 4"}
+                  style={{ transition: "all 0.5s ease" }}
                 >
-                  {level.level}
-                </span>
-                <div>
-                  <h3
-                    className={`font-mono text-xs font-semibold uppercase tracking-widest ${level.color}`}
+                  {active && (
+                    <animate attributeName="stroke-opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite" />
+                  )}
+                </circle>
+              </svg>
+            );
+          })}
+          {/* Center score */}
+          <div className="relative z-10 flex flex-col items-center">
+            <span
+              className="font-mono text-2xl font-bold transition-all duration-500"
+              style={{ color: convergenceCount >= 4 ? "#ef4444" : convergenceCount >= 3 ? "#f59e0b" : convergenceCount >= 2 ? "#10b981" : "#5c5c5c" }}
+            >
+              {multiplier}
+            </span>
+            <span className="font-mono text-[9px] uppercase tracking-widest text-navy-400">
+              {convergenceCount <= 1 ? "baseline" : `${convergenceCount}-layer`}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Layer toggles */}
+      <div className="flex flex-wrap justify-center gap-2">
+        {signalLayers.map((layer) => {
+          const active = activeLayers.has(layer.tag);
+          return (
+            <button
+              key={layer.tag}
+              onClick={() => toggle(layer.tag)}
+              className="group relative px-4 py-2 rounded border font-mono text-xs uppercase tracking-widest transition-all duration-300"
+              style={{
+                borderColor: active ? layer.color : "rgba(31,31,31,0.8)",
+                backgroundColor: active ? `${layer.color}10` : "rgba(10,10,10,0.6)",
+                color: active ? layer.color : "#5c5c5c",
+                boxShadow: active ? `0 0 20px ${layer.color}15, inset 0 1px 0 ${layer.color}10` : "none",
+              }}
+            >
+              <span className="relative z-10">{layer.tag}</span>
+              {active && (
+                <div
+                  className="absolute inset-0 rounded opacity-5"
+                  style={{ backgroundColor: layer.color }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-center text-[11px] font-mono text-navy-500 mt-4">
+        Toggle layers to see convergence amplification
+      </p>
+    </div>
+  );
+}
+
+// ── Main page ──
+export default function SignalTheoryPage() {
+  const hero = useReveal(0.1);
+  const layersSection = useReveal();
+  const intensitySection = useReveal();
+  const decaySection = useReveal();
+  const convergenceSection = useReveal();
+  const formulaSection = useReveal();
+
+  return (
+    <>
+      <style jsx global>{`
+        @keyframes scan-drift {
+          from { transform: translateY(0); }
+          to { transform: translateY(100px); }
+        }
+        @keyframes signal-trace {
+          0% { stroke-dashoffset: 400; }
+          100% { stroke-dashoffset: -400; }
+        }
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glow-pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+        .reveal-up { opacity: 0; transform: translateY(16px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+        .reveal-up.visible { opacity: 1; transform: translateY(0); }
+        .stagger-1 { transition-delay: 0.1s; }
+        .stagger-2 { transition-delay: 0.2s; }
+        .stagger-3 { transition-delay: 0.3s; }
+        .stagger-4 { transition-delay: 0.4s; }
+        .stagger-5 { transition-delay: 0.5s; }
+        .stagger-6 { transition-delay: 0.6s; }
+      `}</style>
+
+      <ScanLines />
+
+      <main className="relative z-10 min-h-screen pt-20 pb-24">
+        {/* ── Hero ── */}
+        <div ref={hero.ref} className="max-w-5xl mx-auto px-6">
+          <div className={`reveal-up ${hero.visible ? "visible" : ""}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-px flex-1 max-w-[60px] bg-gradient-to-r from-transparent to-accent-cyan/40" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent-cyan/70">Research / Signal Theory</span>
+              <div className="h-px flex-1 max-w-[60px] bg-gradient-to-l from-transparent to-accent-cyan/40" />
+            </div>
+          </div>
+
+          <div className={`reveal-up stagger-1 ${hero.visible ? "visible" : ""}`}>
+            <h1 className="text-center font-sans text-3xl md:text-4xl font-bold text-navy-100 tracking-tight leading-tight">
+              Signal Theory
+            </h1>
+          </div>
+
+          <div className={`reveal-up stagger-2 ${hero.visible ? "visible" : ""}`}>
+            <p className="text-center font-sans text-sm md:text-base text-navy-400 mt-4 max-w-2xl mx-auto leading-relaxed">
+              The theoretical framework behind NEXUS signal detection and convergence analysis.
+              How independent data layers combine to surface regime-changing events before they become consensus.
+            </p>
+          </div>
+
+          {/* Signal pulse visualization */}
+          <div className={`reveal-up stagger-3 ${hero.visible ? "visible" : ""} flex justify-center mt-10 mb-6`}>
+            <div className="relative w-full max-w-3xl h-20">
+              <svg viewBox="0 0 800 80" className="w-full h-full" preserveAspectRatio="none">
+                {/* Baseline */}
+                <line x1="0" y1="40" x2="800" y2="40" stroke="#1f1f1f" strokeWidth="1" />
+                {/* Signal trace */}
+                <path
+                  d="M0,40 L100,40 L120,40 L140,38 L160,42 L180,35 L200,45 L210,20 L220,60 L230,15 L240,65 L250,10 L260,55 L270,30 L280,40 L300,40 L400,40 L420,38 L440,42 L450,25 L460,55 L470,18 L480,52 L490,40 L550,40 L600,40 L620,35 L640,45 L650,22 L660,58 L670,40 L700,40 L800,40"
+                  fill="none"
+                  stroke="url(#signal-gradient)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeDasharray="200"
+                  style={{ animation: "signal-trace 6s linear infinite" }}
+                />
+                {/* Glow behind peaks */}
+                <path
+                  d="M0,40 L100,40 L120,40 L140,38 L160,42 L180,35 L200,45 L210,20 L220,60 L230,15 L240,65 L250,10 L260,55 L270,30 L280,40 L300,40 L400,40 L420,38 L440,42 L450,25 L460,55 L470,18 L480,52 L490,40 L550,40 L600,40 L620,35 L640,45 L650,22 L660,58 L670,40 L700,40 L800,40"
+                  fill="none"
+                  stroke="url(#signal-gradient)"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  opacity="0.15"
+                  filter="blur(4px)"
+                  strokeDasharray="200"
+                  style={{ animation: "signal-trace 6s linear infinite" }}
+                />
+                <defs>
+                  <linearGradient id="signal-gradient" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#06b6d4" />
+                    <stop offset="35%" stopColor="#ef4444" />
+                    <stop offset="55%" stopColor="#f59e0b" />
+                    <stop offset="80%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#06b6d4" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section 01: What is a Signal ── */}
+        <section className="max-w-5xl mx-auto px-6 mt-16">
+          <div ref={layersSection.ref}>
+            <div className={`reveal-up ${layersSection.visible ? "visible" : ""}`}>
+              <div className="flex items-center gap-4 mb-6">
+                <span className="font-mono text-[10px] text-navy-500 tracking-widest">01</span>
+                <div className="h-px flex-1 bg-navy-800" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-navy-400">What is a Signal</span>
+                <div className="h-px flex-1 bg-navy-800" />
+              </div>
+            </div>
+
+            <div className={`reveal-up stagger-1 ${layersSection.visible ? "visible" : ""}`}>
+              <div className="relative rounded-lg border border-navy-700/30 bg-navy-900/40 backdrop-blur-sm p-6 md:p-8 overflow-hidden">
+                {/* Subtle corner accents */}
+                <div className="absolute top-0 left-0 w-12 h-px bg-gradient-to-r from-accent-cyan/40 to-transparent" />
+                <div className="absolute top-0 left-0 h-12 w-px bg-gradient-to-b from-accent-cyan/40 to-transparent" />
+                <div className="absolute bottom-0 right-0 w-12 h-px bg-gradient-to-l from-accent-cyan/40 to-transparent" />
+                <div className="absolute bottom-0 right-0 h-12 w-px bg-gradient-to-t from-accent-cyan/40 to-transparent" />
+
+                <p className="font-sans text-sm leading-relaxed text-navy-300">
+                  In the NEXUS context, a <span className="text-navy-100 font-medium">signal</span> is a discrete event or data point
+                  that indicates a potential geopolitical or market shift. Signals are not predictions. They are observable
+                  phenomena, fragments of information drawn from structured and unstructured sources, that carry forward-looking
+                  implications when analysed in combination.
+                </p>
+                <p className="mt-4 font-sans text-sm leading-relaxed text-navy-300">
+                  A single signal in isolation is noise. Multiple signals converging across independent layers constitute
+                  a pattern worth acting on. The NEXUS engine continuously ingests, scores, and correlates signals to
+                  surface these <span className="text-accent-cyan">convergence events</span> before they become consensus.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Section 02: Signal Layers ── */}
+        <section className="max-w-5xl mx-auto px-6 mt-20">
+          <div ref={intensitySection.ref}>
+            <div className={`reveal-up ${intensitySection.visible ? "visible" : ""}`}>
+              <div className="flex items-center gap-4 mb-3">
+                <span className="font-mono text-[10px] text-navy-500 tracking-widest">02</span>
+                <div className="h-px flex-1 bg-navy-800" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-navy-400">Signal Layers</span>
+                <div className="h-px flex-1 bg-navy-800" />
+              </div>
+              <p className="font-sans text-sm text-navy-400 mb-8 text-center max-w-xl mx-auto">
+                NEXUS operates across five distinct signal layers. Each captures a different dimension of the information landscape.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              {signalLayers.map((layer, i) => (
+                <div
+                  key={layer.tag}
+                  className={`reveal-up stagger-${i + 1} ${intensitySection.visible ? "visible" : ""}`}
+                >
+                  <div
+                    className="group relative rounded-lg border border-navy-700/20 bg-navy-900/30 backdrop-blur-sm p-5 hover:border-navy-600/40 transition-all duration-500 overflow-hidden"
                   >
-                    {level.label}
-                  </h3>
-                  <p className="mt-1 font-sans text-sm leading-relaxed text-navy-400">
-                    {level.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+                    {/* Left color accent */}
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-px transition-all duration-500 group-hover:w-[2px]"
+                      style={{ backgroundColor: layer.color, opacity: 0.5 }}
+                    />
+                    {/* Glow on hover */}
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-24 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                      style={{ background: `linear-gradient(to right, ${layer.color}08, transparent)` }}
+                    />
 
-        {/* Section 4: Signal Decay */}
-        <section>
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
-            04 / Signal Decay
-          </h2>
-          <div className="mt-3 rounded border border-navy-700/40 bg-navy-900/50 p-5">
-            <p className="font-sans text-sm leading-relaxed text-navy-400">
-              Signals are not permanent. Every signal has a half-life, a
-              duration after which its relevance decays by 50%. The decay rate
-              varies by layer and signal type.
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded bg-navy-800/60 p-3">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-300">
-                  Fast Decay
-                </span>
-                <p className="mt-1 font-sans text-xs text-navy-400">
-                  Market signals (hours to days). Price action and flow data
-                  lose predictive power rapidly as they get priced in.
-                </p>
-              </div>
-              <div className="rounded bg-navy-800/60 p-3">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-300">
-                  Medium Decay
-                </span>
-                <p className="mt-1 font-sans text-xs text-navy-400">
-                  OSINT and geopolitical signals (days to weeks). Ground-truth
-                  events remain relevant until the situation resolves or
-                  escalates.
-                </p>
-              </div>
-              <div className="rounded bg-navy-800/60 p-3">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-300">
-                  Slow Decay
-                </span>
-                <p className="mt-1 font-sans text-xs text-navy-400">
-                  Calendar and celestial signals (weeks to months). Scheduled
-                  events have long lead times and their influence builds as the
-                  date approaches.
-                </p>
-              </div>
-              <div className="rounded bg-navy-800/60 p-3">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-300">
-                  Persistent
-                </span>
-                <p className="mt-1 font-sans text-xs text-navy-400">
-                  Structural geopolitical shifts (months to years). Sanctions
-                  regimes, alliance changes, and territorial disputes create
-                  long-duration signal fields.
-                </p>
-              </div>
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-start gap-4">
+                      <div className="flex items-center gap-3 md:w-40 shrink-0">
+                        <span
+                          className="font-mono text-[11px] font-bold tracking-wider"
+                          style={{ color: layer.color }}
+                        >
+                          {layer.tag}
+                        </span>
+                        <div>
+                          <span className="font-mono text-xs font-semibold text-navy-100">{layer.name}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: layer.color, opacity: 0.7 }} />
+                            <span className="font-mono text-[9px] text-navy-500 uppercase tracking-wider">{layer.decayLabel} decay</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex-1">
+                        <p className="font-sans text-sm text-navy-400 leading-relaxed">{layer.description}</p>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {layer.examples.map((ex) => (
+                            <span key={ex} className="inline-flex items-center gap-1.5 font-mono text-[10px] text-navy-500 bg-navy-800/60 rounded px-2 py-1 border border-navy-700/20">
+                              <span className="w-1 h-1 rounded-full bg-navy-600 shrink-0" />
+                              {ex}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="mt-4 font-sans text-sm leading-relaxed text-navy-400">
-              The decay function follows an exponential curve. A signal's
-              effective intensity at time <span className="font-mono text-navy-300">t</span> is
-              calculated as <span className="font-mono text-navy-300">I(t) = I0 * e^(-lambda * t)</span>,
-              where <span className="font-mono text-navy-300">lambda</span> is
-              the decay constant derived from the signal's half-life.
-            </p>
           </div>
         </section>
 
-        {/* Section 5: Cross-Layer Amplification */}
-        <section>
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
-            05 / Cross-Layer Amplification
-          </h2>
-          <div className="mt-3 rounded border border-navy-700/40 bg-navy-900/50 p-5">
-            <p className="font-sans text-sm leading-relaxed text-navy-400">
-              The core insight of NEXUS signal theory: when signals from
-              independent layers converge temporally, their combined intensity
-              is greater than the sum of parts. This is cross-layer
-              amplification.
-            </p>
-            <p className="mt-3 font-sans text-sm leading-relaxed text-navy-400">
-              Two simultaneous Level 2 signals from different layers do not
-              produce a Level 4. Instead, the convergence is scored using a
-              non-linear amplification function that accounts for the
-              independence of the source layers. Signals from highly
-              independent layers (e.g. celestial + market) receive a stronger
-              amplification multiplier than signals from correlated layers
-              (e.g. geopolitical + OSINT).
-            </p>
-            <div className="mt-4 rounded bg-navy-800/60 p-4">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-300">
-                Amplification Matrix
-              </span>
-              <div className="mt-3 space-y-2 font-mono text-xs text-navy-400">
-                <div className="flex justify-between border-b border-navy-700/30 pb-1">
-                  <span>2 layers converging</span>
-                  <span className="text-accent-emerald">1.4x multiplier</span>
-                </div>
-                <div className="flex justify-between border-b border-navy-700/30 pb-1">
-                  <span>3 layers converging</span>
-                  <span className="text-accent-amber">2.1x multiplier</span>
-                </div>
-                <div className="flex justify-between border-b border-navy-700/30 pb-1">
-                  <span>4 layers converging</span>
-                  <span className="text-accent-rose">3.2x multiplier</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>5 layers converging</span>
-                  <span className="text-accent-rose">5.0x multiplier</span>
+        {/* ── Section 03: Intensity Scoring ── */}
+        <section className="max-w-5xl mx-auto px-6 mt-20">
+          <div ref={decaySection.ref}>
+            <div className={`reveal-up ${decaySection.visible ? "visible" : ""}`}>
+              <div className="flex items-center gap-4 mb-3">
+                <span className="font-mono text-[10px] text-navy-500 tracking-widest">03</span>
+                <div className="h-px flex-1 bg-navy-800" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-navy-400">Intensity Scoring</span>
+                <div className="h-px flex-1 bg-navy-800" />
+              </div>
+              <p className="font-sans text-sm text-navy-400 mb-8 text-center max-w-xl mx-auto">
+                Every signal receives an intensity score from 1 to 5. The score reflects standalone significance
+                and correlation density with other active signals.
+              </p>
+            </div>
+
+            {/* Visual intensity bar */}
+            <div className={`reveal-up stagger-1 ${decaySection.visible ? "visible" : ""}`}>
+              <div className="relative rounded-lg border border-navy-700/20 bg-navy-900/30 backdrop-blur-sm p-6 overflow-hidden">
+                <div className="space-y-4">
+                  {intensityLevels.map((level) => (
+                    <div key={level.level} className="group flex items-start gap-4">
+                      {/* Number + bar */}
+                      <div className="flex items-center gap-3 shrink-0 w-48">
+                        <span
+                          className="font-mono text-xl font-bold w-8 text-right tabular-nums"
+                          style={{ color: level.color }}
+                        >
+                          {level.level}
+                        </span>
+                        <div className="flex-1 h-1.5 rounded-full bg-navy-800 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-1000"
+                            style={{
+                              width: `${level.level * 20}%`,
+                              backgroundColor: level.color,
+                              boxShadow: `0 0 8px ${level.color}40`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <span className="font-mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: level.color }}>
+                          {level.label}
+                        </span>
+                        <p className="font-sans text-xs text-navy-400 mt-0.5 leading-relaxed">{level.description}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            <p className="mt-4 font-sans text-sm leading-relaxed text-navy-400">
-              Full five-layer convergence is exceptionally rare. When it
-              occurs, the system flags a Level 5 critical convergence event
-              regardless of the individual signal intensities. Historical
-              back-testing shows these events precede major market dislocations
-              or geopolitical inflection points within a 72-hour window.
-            </p>
           </div>
         </section>
-      </div>
 
-      {/* CTA */}
-      <div className="mt-12 rounded border border-navy-700/40 bg-navy-900/50 p-8 text-center">
-        <h3 className="font-mono text-sm font-semibold uppercase tracking-widest text-navy-100 mb-2">
-          Explore live signals
-        </h3>
-        <p className="font-sans text-sm text-navy-400 mb-5 max-w-lg mx-auto">
-          Monitor real-time signal detection across all five layers with intensity scoring and convergence alerts.
-        </p>
-        <a
-          href="/register"
-          className="inline-block px-6 py-2.5 font-mono text-[11px] uppercase tracking-widest text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
-        >
-          Request Access
-        </a>
-      </div>
-    </main>
+        {/* ── Section 04: Signal Decay ── */}
+        <section className="max-w-5xl mx-auto px-6 mt-20">
+          <div ref={convergenceSection.ref}>
+            <div className={`reveal-up ${convergenceSection.visible ? "visible" : ""}`}>
+              <div className="flex items-center gap-4 mb-3">
+                <span className="font-mono text-[10px] text-navy-500 tracking-widest">04</span>
+                <div className="h-px flex-1 bg-navy-800" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-navy-400">Signal Decay</span>
+                <div className="h-px flex-1 bg-navy-800" />
+              </div>
+            </div>
+
+            <div className={`reveal-up stagger-1 ${convergenceSection.visible ? "visible" : ""}`}>
+              <div className="relative rounded-lg border border-navy-700/20 bg-navy-900/30 backdrop-blur-sm p-6 overflow-hidden">
+                <p className="font-sans text-sm text-navy-300 leading-relaxed mb-6">
+                  Signals are not permanent. Every signal has a half-life, a duration after which its relevance decays by 50%.
+                  The decay function follows an exponential curve:
+                </p>
+
+                {/* Formula */}
+                <div className="flex justify-center mb-6">
+                  <code className="font-mono text-sm text-navy-200 bg-navy-800/60 rounded px-4 py-2.5">
+                    I(t) = I<sub>0</sub> &middot; e<sup>-&lambda;t</sup>
+                  </code>
+                </div>
+
+                {/* Decay grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: "Fast", time: "Hours to days", desc: "Market signals lose predictive power as they get priced in.", color: "#06b6d4" },
+                    { label: "Medium", time: "Days to weeks", desc: "OSINT and geopolitical events remain relevant until resolved.", color: "#10b981" },
+                    { label: "Slow", time: "Weeks to months", desc: "Calendar and celestial signals build influence as the date approaches.", color: "#f59e0b" },
+                    { label: "Persistent", time: "Months to years", desc: "Structural shifts create long-duration signal fields.", color: "#ef4444" },
+                  ].map((decay) => (
+                    <div key={decay.label} className="rounded border border-navy-700/20 bg-navy-800/30 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: decay.color }} />
+                        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-200">{decay.label}</span>
+                      </div>
+                      <span className="font-mono text-[9px] text-navy-500 uppercase tracking-wider">{decay.time}</span>
+                      <p className="font-sans text-xs text-navy-400 mt-2 leading-relaxed">{decay.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Section 05: Cross-Layer Amplification ── */}
+        <section className="max-w-5xl mx-auto px-6 mt-20">
+          <div ref={formulaSection.ref}>
+            <div className={`reveal-up ${formulaSection.visible ? "visible" : ""}`}>
+              <div className="flex items-center gap-4 mb-3">
+                <span className="font-mono text-[10px] text-navy-500 tracking-widest">05</span>
+                <div className="h-px flex-1 bg-navy-800" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-navy-400">Cross-Layer Amplification</span>
+                <div className="h-px flex-1 bg-navy-800" />
+              </div>
+            </div>
+
+            <div className={`reveal-up stagger-1 ${formulaSection.visible ? "visible" : ""}`}>
+              <div className="relative rounded-lg border border-navy-700/20 bg-navy-900/30 backdrop-blur-sm p-6 overflow-hidden">
+                <p className="font-sans text-sm text-navy-300 leading-relaxed mb-2">
+                  The core insight of NEXUS signal theory: when signals from independent layers converge temporally,
+                  their combined intensity is greater than the sum of parts. Signals from highly independent layers
+                  (celestial + market) receive stronger amplification than correlated layers (geopolitical + OSINT).
+                </p>
+                <p className="font-sans text-sm text-navy-400 leading-relaxed mb-8">
+                  Full five-layer convergence is exceptionally rare. When it occurs, the system flags a Level 5 critical
+                  convergence event regardless of individual signal intensities. Historical back-testing shows these
+                  events precede major market dislocations within a 72-hour window.
+                </p>
+
+                {/* Interactive convergence diagram */}
+                <ConvergenceDiagram />
+
+                {/* Amplification table */}
+                <div className="mt-8 rounded border border-navy-700/20 bg-navy-800/20 overflow-hidden">
+                  <div className="grid grid-cols-3 gap-px text-center font-mono text-[10px] uppercase tracking-widest text-navy-500 bg-navy-700/10">
+                    <div className="bg-navy-900/60 py-2.5 px-3">Layers</div>
+                    <div className="bg-navy-900/60 py-2.5 px-3">Multiplier</div>
+                    <div className="bg-navy-900/60 py-2.5 px-3">Intensity</div>
+                  </div>
+                  {amplification.map((row) => (
+                    <div key={row.layers} className="grid grid-cols-3 gap-px text-center border-t border-navy-700/10">
+                      <div className="bg-navy-900/30 py-3 font-mono text-xs text-navy-300">{row.layers}</div>
+                      <div className="bg-navy-900/30 py-3 font-mono text-xs font-bold" style={{ color: row.layers >= 4 ? "#ef4444" : row.layers >= 3 ? "#f59e0b" : "#10b981" }}>
+                        <AnimNum value={row.multiplier.replace("x", "")} suffix="x" />
+                      </div>
+                      <div className="bg-navy-900/30 py-3 px-4">
+                        <div className="w-full h-1.5 rounded-full bg-navy-800 overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${row.width}%`,
+                              backgroundColor: row.layers >= 4 ? "#ef4444" : row.layers >= 3 ? "#f59e0b" : "#10b981",
+                              boxShadow: `0 0 6px ${row.layers >= 4 ? "#ef444440" : row.layers >= 3 ? "#f59e0b40" : "#10b98140"}`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA ── */}
+        <section className="max-w-5xl mx-auto px-6 mt-20">
+          <div className="relative rounded-lg border border-navy-700/20 bg-navy-900/20 backdrop-blur-sm p-10 text-center overflow-hidden">
+            {/* Background pulse */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <PulseRing color="#06b6d4" size={300} delay={0} />
+              <PulseRing color="#06b6d4" size={300} delay={1500} />
+            </div>
+
+            <div className="relative z-10">
+              <h3 className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-navy-200 mb-3">
+                Explore Live Signals
+              </h3>
+              <p className="font-sans text-sm text-navy-400 mb-6 max-w-md mx-auto leading-relaxed">
+                Monitor real-time signal detection across all five layers with intensity scoring and convergence alerts.
+              </p>
+              <a
+                href="/register"
+                className="group inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.06] font-mono text-[11px] uppercase tracking-widest text-navy-100 hover:bg-white/[0.1] hover:border-white/[0.15] transition-all duration-300"
+              >
+                Request Access
+                <svg className="w-3 h-3 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+    </>
   );
 }

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 export async function POST(request: Request) {
   try {
-    const { username, password } = await request.json();
+    const { username, password, referralCode } = await request.json();
 
     if (!username || !password) {
       return NextResponse.json(
@@ -41,11 +41,42 @@ export async function POST(request: Request) {
       );
     }
 
+    // Create user
     const hashed = await hashPassword(password);
+    const userPayload: Record<string, string> = { password: hashed, role: "user" };
+
+    // Track referral if code provided
+    if (referralCode) {
+      userPayload.referredBy = referralCode;
+    }
+
     await db.insert(schema.settings).values({
       key: `user:${username}`,
-      value: JSON.stringify({ password: hashed, role: "user" }),
+      value: JSON.stringify(userPayload),
     });
+
+    // Create referral record if valid code
+    if (referralCode) {
+      try {
+        const codeRows = await db
+          .select()
+          .from(schema.referralCodes)
+          .where(eq(schema.referralCodes.code, referralCode));
+
+        if (codeRows.length > 0 && codeRows[0].isActive) {
+          await db.insert(schema.referrals).values({
+            referralCodeId: codeRows[0].id,
+            referrerId: codeRows[0].userId,
+            referredUserId: `user:${username}`,
+            status: "signed_up",
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        // Don't block registration if referral tracking fails
+        console.error("Referral tracking error:", err);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch {

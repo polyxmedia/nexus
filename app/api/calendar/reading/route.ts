@@ -8,70 +8,70 @@ import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getModel } from "@/lib/ai/model";
 
 export async function POST(request: NextRequest) {
-  const { date } = await request.json();
-  if (!date) {
-    return NextResponse.json({ error: "date required" }, { status: 400 });
-  }
+  try {
+    const { date } = await request.json();
+    if (!date) {
+      return NextResponse.json({ error: "date required" }, { status: 400 });
+    }
 
-  const apiKeySetting = await db.select().from(schema.settings)
-    .where(eq(schema.settings.key, "anthropic_api_key"))
-    ;
+    const apiKeyRows = await db.select().from(schema.settings)
+      .where(eq(schema.settings.key, "anthropic_api_key"));
 
-  const apiKey = apiKeySetting?.value || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 400 });
-  }
+    const apiKey = apiKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 400 });
+    }
 
-  // Build context about this date
-  const d = new Date(date + "T12:00:00Z");
-  const hdate = new HDate(d);
-  const hebrewDateStr = hdate.toString();
-  const hebrewYear = hdate.getFullYear();
-  const dayOfWeek = d.toLocaleDateString("en-US", { weekday: "long" });
-  const gregorianFormatted = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    // Build context about this date
+    const d = new Date(date + "T12:00:00Z");
+    const hdate = new HDate(d);
+    const hebrewDateStr = hdate.toString();
+    const hebrewYear = hdate.getFullYear();
+    const dayOfWeek = d.toLocaleDateString("en-US", { weekday: "long" });
+    const gregorianFormatted = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-  // Get Hebrew calendar events for this date
-  const startAbs = hdate.abs();
-  const calEvents = HebrewCalendar.calendar({
-    start: new HDate(startAbs),
-    end: new HDate(startAbs),
-    il: false,
-    noMinorFast: false,
-    noModern: false,
-    noRoshChodesh: false,
-    noSpecialShabbat: false,
-    sedrot: true,
-    omer: true,
-  });
+    // Get Hebrew calendar events for this date
+    const startAbs = hdate.abs();
+    const calEvents = HebrewCalendar.calendar({
+      start: new HDate(startAbs),
+      end: new HDate(startAbs),
+      il: false,
+      noMinorFast: false,
+      noModern: false,
+      noRoshChodesh: false,
+      noSpecialShabbat: false,
+      sedrot: true,
+      omer: true,
+    });
 
-  const holidays = calEvents.map(ev => ({
-    name: ev.render("en"),
-    category: ev.getFlags(),
-    desc: ev.getDesc(),
-  }));
+    const holidays = calEvents.map(ev => ({
+      name: ev.render("en"),
+      category: ev.getFlags(),
+      desc: ev.getDesc(),
+    }));
 
-  const holidayNames = holidays.map(h => h.name);
+    const holidayNames = holidays.map(h => h.name);
 
-  // Check for signals on or near this date
-  const allSignals = await db.select().from(schema.signals);
-  const signals = allSignals.filter(s => {
-    const diff = Math.abs(new Date(s.date).getTime() - d.getTime());
-    return diff < 3 * 24 * 60 * 60 * 1000; // within 3 days
-  });
+    // Check for signals on or near this date
+    const allSignals = await db.select().from(schema.signals);
+    const signals = allSignals.filter(s => {
+      const diff = Math.abs(new Date(s.date).getTime() - d.getTime());
+      return diff < 3 * 24 * 60 * 60 * 1000; // within 3 days
+    });
 
-  const signalContext = signals.map(s => `- ${s.title} (intensity ${s.intensity}/5, category: ${s.category})`).join("\n");
+    const signalContext = signals.map(s => `- ${s.title} (intensity ${s.intensity}/5, category: ${s.category})`).join("\n");
 
-  // Shmita check
-  const shmitaYear = (hebrewYear % 7 === 0);
-  const yearInCycle = hebrewYear % 7;
+    // Shmita check
+    const shmitaYear = (hebrewYear % 7 === 0);
+    const yearInCycle = hebrewYear % 7;
 
-  // Islamic calendar
-  const hijri = getHijriDateInfo(d);
+    // Islamic calendar
+    const hijri = getHijriDateInfo(d);
 
-  // Esoteric reading (Chinese numerology, Gann, lunar, pi cycle, etc.)
-  const esoteric = getEsotericReading(d);
+    // Esoteric reading (Chinese numerology, Gann, lunar, pi cycle, etc.)
+    const esoteric = getEsotericReading(d);
 
-  const prompt = `Provide a comprehensive intelligence reading for this date:
+    const prompt = `Provide a comprehensive intelligence reading for this date:
 
 **Gregorian:** ${dayOfWeek}, ${gregorianFormatted}
 **Hebrew:** ${hebrewDateStr} (Year ${hebrewYear})
@@ -156,13 +156,11 @@ Rate the overall convergence intensity of this date from 1-5:
 
 Provide the score as a single number and a one-line justification.`;
 
-
-  try {
     const client = new Anthropic({ apiKey });
 
     const response = await client.messages.create({
       model: await getModel(),
-      max_tokens: 3000,
+      max_tokens: 4096,
       system: "You are a geopolitical-spiritual market intelligence analyst specializing in the intersection of sacred calendars (Hebrew, Chinese, celestial), numerological systems (Chinese, Pythagorean, Gann), cyclical models (Kondratieff, Armstrong ECM, lunar), and financial markets. You draw on kabbalistic tradition, Torah scholarship, Chinese metaphysics (Five Elements, Flying Stars, Ba Zi), and quantitative market history. You understand that these systems are not superstition but cultural decision-making frameworks used by state actors: Israel times military operations around Hebrew holidays, China schedules major announcements on numerologically auspicious dates (08/08/08 Olympics, IPO pricing with 8s), and institutional traders use Gann and Fibonacci. Be specific with dates, scripture references, cycle positions, and market data. Avoid vague platitudes. Write with the precision of an intelligence briefing.",
       messages: [{ role: "user", content: prompt }],
     });
@@ -194,7 +192,8 @@ Provide the score as a single number and a one-line justification.`;
       },
     });
   } catch (error) {
-    console.error("Calendar reading error:", error);
-    return NextResponse.json({ error: "Failed to generate reading" }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Calendar reading error:", message, error);
+    return NextResponse.json({ error: `Failed to generate reading: ${message}` }, { status: 500 });
   }
 }

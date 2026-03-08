@@ -5,10 +5,10 @@ import { getDailySeries, getQuote, type DailyBar } from "./alpha-vantage";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
-async function getApiKey(): string | null {
-  const setting = await db.select().from(schema.settings)
+async function getApiKey(): Promise<string | null> {
+  const rows = await db.select().from(schema.settings)
     .where(eq(schema.settings.key, "alpha_vantage_api_key"));
-  return setting?.value || process.env.ALPHA_VANTAGE_API_KEY || null;
+  return rows[0]?.value || process.env.ALPHA_VANTAGE_API_KEY || null;
 }
 
 // Compute daily log returns from close prices
@@ -230,7 +230,7 @@ export async function computePortfolioRisk(
   beta: number | null;
   sharpeData: { annualizedReturn: number; annualizedVol: number; sharpe: number } | null;
 }> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   if (!apiKey) throw new Error("Alpha Vantage API key not configured");
 
   const tickers = [...new Set(positions.map(p => p.ticker.toUpperCase()))];
@@ -319,7 +319,7 @@ export async function computePortfolioRisk(
   }
 
   // Sharpe-like data
-  let sharpeData = null;
+  let sharpeData: { annualizedReturn: number; annualizedVol: number; sharpe: number } | null = null;
   if (portfolioReturns.length > 20) {
     const mu = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
     const sigma = Math.sqrt(portfolioReturns.reduce((s, r) => s + (r - mu) ** 2, 0) / portfolioReturns.length);

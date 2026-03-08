@@ -92,16 +92,13 @@ export function scoreConvergences(
     // Convergence bonus: +1 for each additional layer beyond the first
     const convergenceBonus = Math.max(0, layers.length - 1);
 
-    // Esoteric adjustment (composite score ranges -10 to +10, normalize to -1 to +1)
-    const esotericAdjust = esoteric.compositeScore / 10;
+    // Esoteric reading kept for cultural context only — does NOT feed trading intensity.
+    // Stripped from composite per analysis: lunar phase, Chinese zodiac, numerology,
+    // flying stars, Kondratieff. Hebrew/Islamic calendars already feed as first-class
+    // event layers above.
 
-    // Add esoteric as a layer if score is notable
-    if (Math.abs(esoteric.compositeScore) >= 2) {
-      layers.push("esoteric");
-    }
-
-    // Raw intensity
-    const rawIntensity = Math.min(baseScore + convergenceBonus + esotericAdjust, 10);
+    // Raw intensity (no esoteric adjustment)
+    const rawIntensity = Math.min(baseScore + convergenceBonus, 10);
 
     // Normalize to 1-5 scale
     const intensity = Math.max(1, Math.min(5, Math.ceil(rawIntensity / 2)));

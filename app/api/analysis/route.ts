@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
 import { analyzeSignal } from "@/lib/analysis/claude";
+import { runRedTeamAssessment } from "@/lib/analysis/red-team";
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,6 +37,21 @@ export async function POST(request: NextRequest) {
     const analysisData = await analyzeSignal(signal, apiKey);
 
     const result = await db.insert(schema.analyses).values(analysisData).returning();
+
+    // Non-blocking red team challenge
+    const analysisRecord = result[0];
+    if (analysisRecord) {
+      runRedTeamAssessment(analysisRecord, apiKey)
+        .then(async (rtAssessment) => {
+          await db
+            .update(schema.analyses)
+            .set({ redTeamAssessment: JSON.stringify(rtAssessment) })
+            .where(eq(schema.analyses.id, analysisRecord.id));
+        })
+        .catch((err) => {
+          console.error("Red team assessment failed:", err);
+        });
+    }
 
     return NextResponse.json(result);
   } catch (error) {

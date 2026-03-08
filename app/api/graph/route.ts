@@ -31,6 +31,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST() {
-  const result = syncEntityGraph();
+  const result = await syncEntityGraph();
   return NextResponse.json({ success: true, ...result });
 }

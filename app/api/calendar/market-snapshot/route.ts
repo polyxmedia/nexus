@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "date parameter required (YYYY-MM-DD)" }, { status: 400 });
     }
 
-    const targetDate = new Date(date + "T12:00:00Z");
+    const dateStr: string = date;
+    const targetDate = new Date(dateStr + "T12:00:00Z");
     const period1 = new Date(targetDate);
     period1.setDate(period1.getDate() - 5);
     const period2 = new Date(targetDate);
@@ -47,8 +48,8 @@ export async function GET(request: NextRequest) {
         for (let i = 0; i < quotes.length; i++) {
           const q = quotes[i];
           if (!q.close) continue;
-          const qDate = new Date(q.date).toISOString().split("T");
-          if (qDate <= date) {
+          const qDate = new Date(q.date).toISOString().split("T")[0];
+          if (qDate <= dateStr) {
             prevBar = targetBar;
             targetBar = { close: q.close };
           }

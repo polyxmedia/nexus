@@ -33,10 +33,10 @@ export async function POST() {
               .from(schema.signals)
               .where(eq(schema.signals.status, "active"))
               ;
-            const highIntensity = signals.filter((s) => s.intensity >= (condition.threshold || 4));
+            const highIntensity = signals.filter((s: { intensity: number }) => s.intensity >= (condition.threshold || 4));
             if (highIntensity.length > 0) {
               shouldTrigger = true;
-              message = `${highIntensity.length} active signal(s) at intensity ${condition.threshold || 4}+: ${highIntensity.map((s) => s.title).join(", ")}`;
+              message = `${highIntensity.length} active signal(s) at intensity ${condition.threshold || 4}+: ${highIntensity.map((s: { title: string }) => s.title).join(", ")}`;
             }
             break;
           }
@@ -44,7 +44,7 @@ export async function POST() {
             const allPreds = await db
               .select()
               .from(schema.predictions);
-            const predictions = allPreds.filter((p) => !p.outcome && new Date(p.deadline) <= new Date(Date.now() + 24 * 60 * 60_000));
+            const predictions = allPreds.filter((p: { outcome: string | null; deadline: string }) => !p.outcome && new Date(p.deadline) <= new Date(Date.now() + 24 * 60 * 60_000));
             if (predictions.length > 0) {
               shouldTrigger = true;
               message = `${predictions.length} prediction(s) due within 24h`;

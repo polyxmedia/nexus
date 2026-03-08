@@ -37,7 +37,7 @@ export async function GET() {
           .where(eq(schema.alertHistory.dismissed, 0))
           ;
         sendEvent({ type: "update", alerts: newAlerts });
-      }, 30_000);
+      }, 10_000);
 
       // Keepalive
       const keepalive = setInterval(() => {

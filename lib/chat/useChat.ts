@@ -14,6 +14,7 @@ export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
   toolCalls: ToolCall[];
+  suggestions?: string[];
 }
 
 export interface ChatMessage {
@@ -157,6 +158,18 @@ export function useChat(sessionId: number) {
                           ? { ...tc, status: "done" as const, result: event.result }
                           : tc
                       ),
+                    };
+                  }
+                  return updated;
+                });
+              } else if (event.type === "suggestions") {
+                setTurns((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      suggestions: event.suggestions as string[],
                     };
                   }
                   return updated;

@@ -66,11 +66,11 @@ export function PublicFooter() {
           <div>
             <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Company</h4>
             <div className="space-y-2.5">
-              <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">About</a>
-              <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Careers</a>
-              <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Contact</a>
-              <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">API Docs</a>
-              <a href="#" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Status Page</a>
+              <Link href="/about" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">About</Link>
+              <Link href="/careers" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Careers</Link>
+              <Link href="/contact" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Contact</Link>
+              <Link href="/docs" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">API Docs</Link>
+              <Link href="/status" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Status Page</Link>
             </div>
           </div>
         </div>
@@ -78,10 +78,10 @@ export function PublicFooter() {
         {/* Bottom bar */}
         <div className="border-t border-navy-800/40 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-6 text-[10px] text-navy-600 tracking-wide font-mono">
-            <a href="#" className="hover:text-navy-400 transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-navy-400 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-navy-400 transition-colors">Cookie Policy</a>
-            <a href="#" className="hover:text-navy-400 transition-colors">Security</a>
+            <Link href="/terms" className="hover:text-navy-400 transition-colors">Terms of Service</Link>
+            <Link href="/privacy" className="hover:text-navy-400 transition-colors">Privacy Policy</Link>
+            <Link href="/cookies" className="hover:text-navy-400 transition-colors">Cookie Policy</Link>
+            <Link href="/security" className="hover:text-navy-400 transition-colors">Security</Link>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-[10px] font-mono text-navy-700">NEXUS v1.0</span>
@@ -89,6 +89,18 @@ export function PublicFooter() {
               {new Date().getFullYear()} NEXUS INTEL. All rights reserved.
             </span>
           </div>
+        </div>
+
+        {/* Polyxmedia credit */}
+        <div className="border-t border-navy-800/20 mt-6 pt-4 text-center">
+          <a
+            href="https://polyxmedia.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[9px] font-mono text-navy-700 hover:text-navy-500 transition-colors tracking-wide"
+          >
+            A polyxmedia product
+          </a>
         </div>
       </div>
     </footer>

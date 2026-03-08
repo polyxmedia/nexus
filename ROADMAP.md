@@ -1,5 +1,280 @@
 # Nexus Roadmap
 
+## NEXUS v2 — Critical Intelligence Upgrades
+
+> From platform self-assessment. These are the features that transform NEXUS from "good analyst you have to ask" into "intelligence officer who wakes you up."
+
+### v2.1 Proactive Push System (Event-Driven, Not Query-Driven)
+- [ ] Continuous monitoring loop (5-min intervals) comparing live data against active theses/positions
+- [ ] Threshold-based alert push: price targets, kill conditions, convergence detection
+- [ ] Auto-generate briefings when signal convergence detected
+- [ ] Browser push notifications for critical alerts
+- [ ] "You shouldn't have to ask" paradigm: NEXUS tells you before you think to check
+
+### v2.2 Red Team Adversarial Layer
+- [ ] Second Claude call in analysis pipeline challenging every thesis
+- [ ] Structural devil's advocate: attacks assumptions, prices alternative scenarios
+- [ ] Output: adjusted confidence, explicit risk caveats, counterarguments stored alongside analysis
+- [ ] Display as "Challenge" section on signal/thesis detail pages
+- [ ] Prevents confirmation bias structurally rather than hoping the analyst catches it
+
+### v2.3 Prediction Auto-Resolve & Self-Calibration
+- [ ] Cron job checking expired predictions against real market data
+- [ ] Auto-score hit/miss using concrete resolution criteria
+- [ ] Feed results into Brier score calibration per category
+- [ ] Track confidence accuracy over time (calibration curve)
+- [ ] Surface insights: "underconfident on geo, overconfident on celestial"
+- [ ] After 6 months: self-calibrating prediction engine
+
+### v2.4 Three-Brain Architecture
+- [ ] SENTINEL agent: lightweight, always-on, pattern detection, anomaly alerts (speed-optimised)
+- [ ] ANALYST agent: deep reasoning, thesis generation, convergence analysis (depth-optimised)
+- [ ] EXECUTOR agent: position sizing, entry/exit, risk calculations (precision-optimised)
+- [ ] Coordination: Sentinel detects -> Analyst reasons -> Executor acts
+- [ ] Each brain has specialised prompts and restricted tool access
+
+### v2.5 Conditional Monte Carlo Simulation
+- [ ] Scenario-weighted simulation (not just historical returns)
+- [ ] Define regime-specific parameters (wartime vol, ceasefire shock, supply crisis drift)
+- [ ] Blend scenarios by probability weights
+- [ ] Output actual probability distributions for positions
+- [ ] Visual comparison of scenario outcomes on trading page
+
+### v2.6 Market Data Upgrade
+- [ ] Replace Alpha Vantage free tier with Polygon.io or IEX Cloud (~$50/mo)
+- [ ] Options flow data via Quandl/Nasdaq Data Link (~$50/mo)
+- [ ] TradingView webhook integration for technical alerts (~$30/mo)
+- [ ] Futures curves and COT report data
+
+### v2.7 AIS Ship Tracking
+- [ ] AIS data feed for real-time vessel monitoring (~$100/mo)
+- [ ] Chokepoint monitoring: Hormuz, Suez, Malacca, Bab el-Mandeb
+- [ ] Tanker traffic anomaly detection (hours before news reports)
+- [ ] Auto-generate signals when traffic patterns deviate from baseline
+- [ ] Overlay on war room map alongside aircraft tracking
+
+### v2.8 Knowledge Graph Enhancement
+- [ ] Relationship traversal on existing entity graph
+- [ ] Auto-link chain: positions -> drivers -> events -> signals -> convergences
+- [ ] Graph-based reasoning: queries traverse connections, not just keywords
+- [ ] Visual graph explorer with path highlighting
+
+### v2.9 Operator Dashboard v2
+- [ ] At-a-glance portfolio with action flags (SELL/HOLD/WAITING)
+- [ ] Active alerts with severity levels and countdown timers
+- [ ] Current regime indicator (WARTIME/PEACETIME)
+- [ ] Active thesis confidence meter
+- [ ] Next signal with countdown
+
+### v2.10 Infrastructure Targets
+| Service | Purpose | Monthly |
+|---------|---------|---------|
+| Polygon.io / IEX | Real-time market data | ~$50 |
+| Quandl | Options flow, COT | ~$50 |
+| TradingView | Technical alerts | ~$30 |
+| AIS tracking | Ship/tanker monitoring | ~$100 |
+| FlightRadar24 | Military aircraft upgrade | ~$50 |
+| Hosting | Railway/Fly.io | ~$30 |
+| **Total** | | **~$310/mo** |
+
+---
+
+## CRITICAL: Security Hardening (Pre-Deploy)
+
+### Rate Limiting
+- [ ] Add rate limiting on auth endpoints (login, register) to prevent brute-force attacks
+- [ ] Add rate limiting on trading endpoints (Trading212, Coinbase orders) to prevent abuse
+- [ ] Add rate limiting on AI/chat endpoints to prevent resource exhaustion
+- [ ] Consider Vercel/Cloudflare WAF for edge-level rate limiting
+
+### Settings API Hardening
+- [ ] Filter out `user:*` keys from the settings GET response (currently exposes password hashes)
+- [ ] Stop returning last 4 chars of API keys in masked output
+
+### CSRF Protection
+- [ ] Add origin/referer validation on state-changing endpoints (POST/PUT/DELETE)
+- [ ] Validate origin header on trading and settings routes
+
+### API Key Encryption at Rest
+- [ ] Encrypt API keys stored in the settings table (AES-256 or similar)
+- [ ] Decrypt only at point of use, never return plaintext to frontend
+
+### Input Validation & Limits
+- [ ] Add max length validation on chat messages to prevent resource exhaustion
+- [ ] Add max length validation on knowledge content submissions
+- [ ] Add request body size limits on all POST endpoints
+
+## NEXUS v3 — Critical New Features
+
+> Intelligence capabilities that close the loop between signal detection, market positioning, and real-world power dynamics.
+
+### v3.1 Prediction Markets Integration (Polymarket / Kalshi)
+- [ ] Real-time probability feeds from Polymarket and Kalshi
+- [ ] Geopolitical event markets (elections, conflicts, policy decisions)
+- [ ] Cross-reference prediction market odds against NEXUS prediction engine confidence
+- [ ] Arbitrage detection: where NEXUS disagrees with market pricing
+- [ ] Dashboard widget with top movers and divergence alerts
+- [ ] Chat tool for querying prediction market data
+- [ ] Historical accuracy comparison: prediction markets vs NEXUS Brier scores
+
+### v3.2 Congressional & Insider Trading Tracker
+- [ ] SEC Form 4 filings feed (corporate insider buys/sells)
+- [ ] Congressional STOCK Act disclosure tracking (House + Senate)
+- [ ] Cluster buy detection (multiple insiders buying same stock within window)
+- [ ] Insider buy/sell ratio by sector with historical signal accuracy
+- [ ] Congressional trading by committee (Armed Services, Finance, Intelligence)
+- [ ] Cross-reference insider trades with upcoming signals and catalysts
+- [ ] Dashboard widget with latest filings and cluster alerts
+- [ ] Chat tool for querying insider/congressional activity
+
+### v3.3 Sanctions & Export Controls Tracker
+- [ ] OFAC SDN list monitoring with change detection
+- [ ] BIS Entity List updates (chip export restrictions)
+- [ ] EU/UK sanctions list tracking
+- [ ] Auto-generate signals when sanctions target new entities/sectors
+- [ ] Cross-reference sanctioned entities with knowledge graph
+- [ ] Market impact scoring per sanctions action
+- [ ] Dashboard widget with latest sanctions activity
+
+### v3.4 On-Chain Analytics
+- [ ] Whale wallet movement tracking (top 100 wallets per chain)
+- [ ] Exchange inflow/outflow monitoring (accumulation vs distribution)
+- [ ] Stablecoin flow analysis (USDT/USDC mint/burn as liquidity proxy)
+- [ ] DeFi TVL tracking across major protocols
+- [ ] Cross-reference on-chain signals with Coinbase trading integration
+- [ ] Dashboard widget with whale alerts and flow metrics
+- [ ] Chat tool for on-chain intelligence queries
+
+### v3.5 Shipping & Dark Fleet Intelligence
+- [ ] AIS vessel tracking integration
+- [ ] Chokepoint monitoring: Hormuz, Suez, Malacca, Bab el-Mandeb, Panama
+- [ ] Dark fleet detection (AIS transponder gaps, sanctioned oil movements)
+- [ ] Tanker traffic anomaly scoring (deviation from baseline patterns)
+- [ ] Commodity flow signals hours before news reports
+- [ ] Overlay on war room map alongside aircraft tracking
+- [ ] Auto-generate signals on traffic pattern anomalies
+
+### v3.6 Signal Backtester
+- [ ] Run historical signal engine against past price data
+- [ ] Score convergence accuracy: did intensity 4-5 signals predict moves?
+- [ ] Per-layer accuracy breakdown (celestial, hebrew, geopolitical, esoteric)
+- [ ] Backtest specific signal types against specific asset classes
+- [ ] Calibration dashboard: where the engine is strong vs weak
+- [ ] Feed results into prediction engine confidence adjustment
+
+### v3.7 Narrative Tracker
+- [ ] Track narrative shifts across X/Twitter, Reddit, financial media
+- [ ] Narrative clustering: group related stories into themes
+- [ ] Narrative momentum scoring (rising, peaking, fading)
+- [ ] Divergence detection: when narrative contradicts price action
+- [ ] Feed narrative signals into thesis generation
+- [ ] Dashboard widget with trending narratives and sentiment shift
+
+### v3.8 Bond Auction Intelligence
+- [ ] Treasury auction bid-to-cover ratios
+- [ ] Indirect bidder % (foreign central bank demand proxy)
+- [ ] Direct vs indirect vs dealer allocation trends
+- [ ] Auto-generate signals on auction demand anomalies
+- [ ] Historical auction impact on yield curve
+- [ ] Feed into liquidity and macro regime assessment
+
+### v3.9 Election Cycle Overlay
+- [ ] Presidential cycle market patterns mapped to signal timeline
+- [ ] Midterm election effects on sector rotation
+- [ ] Policy uncertainty index integration
+- [ ] Election prediction market data (from v3.1 Polymarket feed)
+- [ ] Historical election-year performance by asset class
+- [ ] Auto-adjust signal weights during election windows
+
+### v3.10 Automated Alert Chains
+- [ ] Signal intensity 5 auto-generates prediction and trade recommendation
+- [ ] Configurable action chains: detect -> reason -> notify -> stage trade
+- [ ] Multi-channel delivery: in-app, push, email, Telegram
+- [ ] Escalation levels based on convergence density
+- [ ] Close the loop from signal detection to position management
+
+### v3.11 MCP Server for External Agents
+- [ ] Expose NEXUS intelligence layer as MCP tool server
+- [ ] External AI agents can query signals, predictions, macro data, knowledge
+- [ ] Authentication and rate limiting for external consumers
+- [ ] Tool definitions matching internal chat tool capabilities
+- [ ] Documentation and example agent implementations
+
+### v3.12 AI Progression Tracker
+- [x] Remote Labor Index (remotelabor.ai) integration
+- [x] METR time horizon tracking
+- [x] AI 2027 scenario milestone tracker
+- [x] Sector automation risk with adoption rates
+- [x] Labor displacement indicators
+- [x] Dashboard widget with overview/sectors/timeline tabs
+- [x] Chat tool for AI progression queries
+- [ ] Live API integration when RLI dashboard API becomes public
+- [ ] Historical RLI tracking over time (store snapshots)
+- [ ] Cross-reference AI displacement data with labor market FRED data
+
+### v3.13 Systemic Risk & Tail Risk Engine
+> Empirically validated crisis detection. Kritzman et al. (2011, Journal of Portfolio Management) proved out-of-sample across 40+ years.
+- [ ] Absorption ratio: PCA on multi-asset returns, track fraction of variance explained by top eigenvectors
+- [ ] Turbulence index: Mahalanobis distance of current returns from historical mean vector
+- [ ] Combined stress dashboard: rising absorption + rising turbulence = crisis warning
+- [ ] Historical overlay: flag when current readings match pre-crisis signatures (2007, 2020, 2022)
+- [ ] Feed into regime detection as a fragility dimension
+- [ ] Chat tool for querying current systemic stress level
+- [ ] Dashboard widget with absorption ratio gauge and turbulence time series
+
+### v3.14 Bayesian Change-Point Detection (BOCPD)
+> Adams & MacKay (2007) algorithm. Detects structural breaks in real-time without predefined breakpoints.
+- [ ] Online BOCPD engine processing each new data point as it arrives
+- [ ] Apply to: GPR index, VIX, signal intensity scores, commodity prices, correlation pairs
+- [ ] Automatic regime labeling when change-point detected (replaces static threshold detection)
+- [ ] Historical change-point overlay on charts
+- [ ] Alert generation on high-confidence change-points
+- [ ] Feed detected regime shifts into thesis generation context
+- [ ] Chat tool for querying detected change-points across data streams
+
+### v3.15 Aggregate Short Interest Signal
+> Review of Asset Pricing Studies (2023): "one of the strongest known predictors of the equity risk premium."
+- [ ] FINRA short interest data ingestion (twice monthly)
+- [ ] Aggregate short interest ratio tracking (total short / total shares outstanding)
+- [ ] Per-sector short interest breakdown
+- [ ] Cross-reference high short interest sectors with geopolitical signal exposure
+- [ ] Extreme readings (>2 SD from 52-week mean) auto-generate contrarian signals
+- [ ] Historical short interest vs forward returns validation
+- [ ] Chat tool and dashboard widget
+
+### v3.16 GPR Threats vs Acts Decomposition
+> Caldara & Iacoviello (AER 2022). Threats sub-index moves faster and is more tradeable than composite.
+- [ ] Ingest GPR daily index with threats/acts decomposition from matteoiacoviello.com
+- [ ] Build proprietary industry-specific GPR from earnings call NLP (Fed study Aug 2025 methodology)
+- [ ] Track GPR by region (Middle East, East Asia, Europe) using GDELT/ACLED feeds
+- [ ] Asset-class-specific response functions (oil to ME GPR, semis to East Asia GPR)
+- [ ] Auto-generate signals on GPR threshold crossings
+- [ ] Feed GPR decomposition into thesis layer inputs
+- [ ] Chat tool for querying current GPR levels and sub-indices
+
+### v3.17 Gamma Exposure (GEX) Engine
+> Dealer hedging mechanics from Black-Scholes framework. Determines whether options market amplifies or dampens moves.
+- [ ] Compute net dealer gamma from options chain data (existing options flow API)
+- [ ] Track aggregate GEX level and sign (positive = dampening, negative = amplifying)
+- [ ] Identify "zero gamma" level as volatility inflection point
+- [ ] Put wall and call wall as support/resistance levels
+- [ ] GEX flip alerts when aggregate gamma crosses zero
+- [ ] Historical GEX vs realized volatility validation
+- [ ] Dashboard widget with GEX gauge and key strike levels
+- [ ] Chat tool for querying current gamma positioning
+
+### v3.18 Insider Purchase Clustering
+> Lakonishok & Lee (2001, RFS): insider purchase firms outperform by 7.8% annually. Only buys matter, sells are noise.
+- [ ] SEC EDGAR Form 4 RSS feed parser (near-real-time)
+- [ ] Filter for open-market purchases only (exclude option exercises, grants)
+- [ ] Cluster detection: multiple insiders buying same stock within 14-day window
+- [ ] Cross-reference insider buys with geopolitical exposure (defense, energy, shipping)
+- [ ] Congressional STOCK Act disclosure overlay (from v3.2)
+- [ ] Auto-generate signals on cluster buy detection
+- [ ] Chat tool and dashboard widget with latest filings
+
+---
+
 ## Phase 1: Core Terminal Features (Current)
 
 ### Watchlists
@@ -190,3 +465,119 @@
 ### Marketing
 - [x] Landing page with animated bento grid
 - [x] Pricing tiers (Analyst/Operator/Institution)
+- [x] Game Theory standalone page (Nash equilibria, escalation ladder, Schelling points, dominant strategies)
+- [x] Prediction resolution queue (`/predictions/resolve`) with Brier score auto-calc
+- [x] Thesis AI suggestions based on active signal context
+- [x] Thesis executive summary markdown rendering
+- [x] Entity Graph redesigned as list/detail explorer
+
+---
+
+## System Gaps (from audit 2026-03-08)
+
+### P0 — Critical
+
+#### Alert Delivery Pipeline
+Alerts evaluate and write to history but are never delivered in real-time. `/api/alerts/stream` SSE route exists but nothing consumes it.
+- [ ] Wire `NotificationBell` to SSE stream or polling fallback
+- [ ] Show toast on new alert trigger
+- [ ] Add sidebar badge count for undismissed alerts
+- [ ] Stretch: email delivery via Resend or SendGrid
+
+#### Subscription Gating
+Tier system is seeded and Stripe processes payments, but no gating is enforced in the UI or API routes.
+- [ ] Add `requireTier(minTier)` middleware helper for API routes
+- [ ] Gate premium dashboard widgets behind tier check
+- [ ] Show upgrade prompt when a gated feature is accessed on a lower tier
+- [ ] Surface current tier visibly in the settings page
+
+### P1 — High Priority
+
+#### Signal Generation UI Trigger
+No user-facing button to run signal detection. `/api/scheduler` route exists but requires manual HTTP calls.
+- [ ] Add "Run Detection" button to the signals page header
+- [ ] Show last-run timestamp and next scheduled time
+- [ ] Spinner with refresh-on-complete
+- [ ] Stretch: schedule configuration UI (daily / weekly / on-demand)
+
+#### Signal → Trade Closed-Loop View
+Chain Signal → Prediction → Trade → Outcome exists in DB but no connected view surfaces it.
+- [ ] Add "Lineage" panel to signal detail page showing downstream predictions and trades
+- [ ] Add signal origin to thesis detail page
+- [ ] Approximate P&L attribution on the trading page
+
+#### Portfolio Performance History
+`portfolioSnapshots` table is populated but there is no historical chart.
+- [ ] Equity curve chart on trading page (value over time from snapshots)
+- [ ] Show peak, trough, drawdown, and cumulative return
+- [ ] Add daily snapshot cron or trigger on portfolio page load
+
+### P2 — Medium Priority
+
+#### Onboarding Flow
+New users land on an empty dashboard with no guidance.
+- [ ] First-login welcome modal with step-by-step setup (connect broker, set API keys, run detection, generate thesis)
+- [ ] Persist onboarding state in settings table
+- [ ] Show completion indicator until all steps done
+
+#### Export / Reporting
+No way to export intelligence output.
+- [ ] Thesis PDF export (title, summary, trading actions, layer inputs)
+- [ ] Signals and predictions CSV export
+- [ ] Weekly digest auto-generation (markdown summary of signals, resolved predictions, trades)
+
+#### Game Theory: DB Persistence and AI Matching
+Scenarios are hardcoded in `lib/game-theory/actors.ts`. The `game_theory_scenarios` DB table is out of sync.
+- [ ] Persist analysis results to `game_theory_scenarios` with timestamps
+- [ ] Allow users to annotate scenarios with current event notes
+- [ ] "Which scenario most matches current signals?" AI cross-reference prompt
+
+#### Knowledge Bank UX
+The ingest UI is functional but rough.
+- [ ] Bulk import (paste text, upload markdown file)
+- [ ] Duplicate detection warnings before saving
+- [ ] "Refresh embeddings" button for stale entries
+- [ ] Surface knowledge entries in signal and thesis detail as supporting context
+
+### P3 — Lower Priority
+
+#### Mobile / Responsive Layout
+Entire app uses `ml-48` fixed sidebar. Nothing works below ~1200px.
+- [ ] Hamburger menu for sidebar on mobile
+- [ ] Responsive page containers
+- [ ] Priority: dashboard, signals list, thesis list
+
+#### ACLED Conflict Data
+Mentioned in system design but not implemented.
+- [ ] `/api/acled` route using ACLED API
+- [ ] ACLED events layer on War Room map
+- [ ] Feed ACLED into geopolitical signal detection
+
+#### Referral Payout Mechanism
+Commissions tracked but no payout flow.
+- [ ] Stripe Connect or manual payout queue
+- [ ] "Request Payout" button once threshold is reached
+- [ ] Payout history on referrals page
+
+#### Model Selection in Settings
+`getModel()` utility exists but model is effectively hardcoded.
+- [ ] Add model preference setting (Opus / Sonnet / Haiku) per feature category
+- [ ] Surface in settings under AI Configuration
+
+#### Esoteric Signals (Cultural Context Only)
+Stripped from trading composite: lunar phase, Chinese zodiac, numerology, flying stars, Kondratieff. Kept: Hebrew/Islamic calendars (first-class event layers). Esoteric data still available via `/api/esoteric` and calendar page.
+- [ ] Surface as dedicated "Cultural Context" tab on calendar page (display only, clearly labeled non-trading)
+
+#### Options Data Feed into Signals
+Put/call ratio extremes should trigger a market signal. Currently options widget is display-only.
+- [ ] Feed PCR extremes into the signal detection layer
+- [ ] Add options flow summary to thesis layer inputs
+
+### Technical Debt
+
+- [ ] `lib/knowledge/ingest-final.ts` in root — unclear status, move or delete
+- [ ] Signal scheduling has no retry logic or error recovery
+- [ ] No structured error types across API routes (all ad hoc strings)
+- [ ] No end-to-end or unit tests
+- [ ] JSON stored in `text` Drizzle columns — migrate to `jsonb` for query performance on large datasets
+- [ ] `gameTheoryScenarios` DB table exists but scenarios are hardcoded — reconcile or remove table

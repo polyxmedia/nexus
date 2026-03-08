@@ -112,7 +112,7 @@ function getNFPDates(year: number): EconomicEvent[] {
     // Find first Friday
     const d = new Date(year, month, 1);
     while (d.getDay() !== 5) d.setDate(d.getDate() + 1);
-    const dateStr = d.toISOString().split("T");
+    const dateStr = d.toISOString().split("T")[0];
     events.push({
       date: dateStr,
       holiday: `NFP Report (${d.toLocaleDateString("en-US", { month: "short" })})`,
@@ -136,7 +136,7 @@ function getCPIDates(year: number): EconomicEvent[] {
     // Find next Wednesday near the 10th
     while (d.getDay() !== 3) d.setDate(d.getDate() + 1);
     if (d.getDate() > 16) d.setDate(d.getDate() - 7);
-    const dateStr = d.toISOString().split("T");
+    const dateStr = d.toISOString().split("T")[0];
     events.push({
       date: dateStr,
       holiday: `CPI Report (${d.toLocaleDateString("en-US", { month: "short" })})`,
@@ -203,7 +203,7 @@ function getOPEXDates(year: number): EconomicEvent[] {
     const d = new Date(year, month, 1);
     while (d.getDay() !== 5) d.setDate(d.getDate() + 1);
     d.setDate(d.getDate() + 14); // 3rd Friday
-    const dateStr = d.toISOString().split("T");
+    const dateStr = d.toISOString().split("T")[0];
 
     if (WITCHING_MONTHS.has(month)) {
       events.push({
@@ -238,7 +238,7 @@ function getVIXExpiryDates(year: number): EconomicEvent[] {
     const d = new Date(year, month, 1);
     while (d.getDay() !== 3) d.setDate(d.getDate() + 1);
     d.setDate(d.getDate() + 14); // 3rd Wednesday
-    const dateStr = d.toISOString().split("T");
+    const dateStr = d.toISOString().split("T")[0];
     events.push({
       date: dateStr,
       holiday: `VIX Expiry (${d.toLocaleDateString("en-US", { month: "short" })})`,

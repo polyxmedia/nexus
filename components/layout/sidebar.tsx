@@ -11,16 +11,20 @@ import {
   Calendar,
   Clock,
   Crosshair,
+  Dice5,
   FileText,
   LayoutDashboard,
   Lock,
   LogOut,
   MessageSquare,
+  Monitor,
   Newspaper,
   Network,
   Radar,
   Settings,
+  Share2,
   Shield,
+  Swords,
   TrendingUp,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -28,6 +32,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 
 const mainNav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Ops Center", href: "/dashboard/operator", icon: Monitor },
   { name: "Chat", href: "/chat", icon: MessageSquare },
 ];
 
@@ -36,6 +41,7 @@ const intelligenceNav = [
   { name: "News", href: "/news", icon: Newspaper },
   { name: "Signals", href: "/signals", icon: Activity },
   { name: "Predictions", href: "/predictions", icon: Crosshair },
+  { name: "Game Theory", href: "/game-theory", icon: Swords },
   { name: "Knowledge", href: "/knowledge", icon: BookOpen },
 ];
 
@@ -49,6 +55,7 @@ const marketsNav = [
 const toolsNav = [
   { name: "Timeline", href: "/timeline", icon: Clock },
   { name: "Graph", href: "/graph", icon: Network },
+  { name: "Simulation", href: "/simulation", icon: Dice5 },
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Alerts", href: "/alerts", icon: Bell },
 ];
@@ -91,7 +98,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  if (pathname === "/" || pathname === "/landing" || pathname.startsWith("/research") || pathname === "/register" || pathname === "/login") return null;
+  const publicPages = ["/", "/landing", "/register", "/login", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security"];
+  if (publicPages.includes(pathname) || pathname.startsWith("/research")) return null;
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-48 border-r border-navy-700/50 bg-navy-950">
@@ -117,6 +125,18 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="border-t border-navy-700/50 p-2">
+          <Link
+            href="/referrals"
+            className={cn(
+              "mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
+              pathname.startsWith("/referrals")
+                ? "bg-navy-800/80 text-navy-100"
+                : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
+            )}
+          >
+            <Share2 className="h-4 w-4 shrink-0 opacity-70" />
+            Referrals
+          </Link>
           <Link
             href="/admin"
             className={cn(

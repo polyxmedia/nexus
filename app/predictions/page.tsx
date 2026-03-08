@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import { Metric } from "@/components/ui/metric";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,7 @@ interface FeedbackReport {
 const POLL_INTERVAL = 30_000;
 
 export default function PredictionsPage() {
+  const router = useRouter();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -939,7 +941,11 @@ export default function PredictionsPage() {
                   const catConfig = CATEGORY_CONFIG[p.category];
                   const CatIcon = catConfig?.icon || Globe;
                   return (
-                    <div key={p.id} className={`border rounded-md p-4 transition-colors ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}>
+                    <div
+                      key={p.id}
+                      onClick={() => router.push(`/predictions/${p.id}`)}
+                      className={`border rounded-md p-4 transition-colors cursor-pointer hover:border-navy-600/60 ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}
+                    >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3 flex-1 min-w-0">
                           <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
@@ -985,37 +991,50 @@ export default function PredictionsPage() {
                   const Icon = config.icon;
                   const grounding = getGrounding(p);
                   const catConfig = CATEGORY_CONFIG[p.category];
+                  const isHit = p.outcome === "confirmed";
+                  const isMiss = p.outcome === "denied";
                   return (
-                    <div key={p.id} className={`border rounded-md p-4 ${config.border} ${config.bg}`}>
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <div className={`flex-shrink-0 mt-0.5 ${config.color}`}>
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
-                            {p.outcomeNotes && <p className="text-[10px] text-navy-400 mt-1.5 leading-relaxed">{p.outcomeNotes}</p>}
-                            {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
+                    <div
+                      key={p.id}
+                      onClick={() => router.push(`/predictions/${p.id}`)}
+                      className={`border rounded-md overflow-hidden cursor-pointer hover:border-navy-600/60 transition-colors ${config.border} ${config.bg}`}
+                    >
+                      <div className="flex">
+                        {/* Prominent outcome strip */}
+                        <div className={`w-14 flex-shrink-0 flex flex-col items-center justify-center gap-1 ${
+                          isHit ? "bg-accent-emerald/15" : isMiss ? "bg-accent-rose/15" : p.outcome === "partial" ? "bg-accent-amber/15" : "bg-navy-800/30"
+                        }`}>
+                          <Icon className={`h-5 w-5 ${config.color}`} />
+                          <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${config.color}`}>
+                            {config.label}
+                          </span>
                           {p.score != null && (
-                            <span className={`text-sm font-bold font-mono ${p.score >= 0.7 ? "text-accent-emerald" : p.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
+                            <span className={`text-xs font-bold font-mono ${p.score >= 0.7 ? "text-accent-emerald" : p.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
                               {(p.score * 100).toFixed(0)}%
                             </span>
                           )}
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${config.color} ${config.bg} border ${config.border}`}>
-                            {config.label}
-                          </span>
-                          <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
-                            {p.category}
-                          </span>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4 mt-2.5 ml-7">
-                        <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                        <span className="text-[10px] text-navy-600 font-mono">Confidence: {(p.confidence * 100).toFixed(0)}%</span>
-                        {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
+
+                        {/* Content */}
+                        <div className="flex-1 p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
+                              {p.outcomeNotes && <p className="text-[10px] text-navy-400 mt-1.5 leading-relaxed">{p.outcomeNotes}</p>}
+                              {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {confidenceBar(p.confidence)}
+                              <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
+                                {p.category}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 mt-2.5">
+                            <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                            {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );

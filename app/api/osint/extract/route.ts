@@ -22,16 +22,16 @@ export async function GET(req: NextRequest) {
     }));
 
     // Extract entities from all articles
-    const extracted = processOsintArticles(articles);
+    const extracted = await processOsintArticles(articles);
 
     // Link to graph
     let totalEntities = 0;
     let totalRelationships = 0;
-    const today = new Date().toISOString().split("T");
+    const today = new Date().toISOString().split("T")[0];
 
     for (const item of extracted) {
       if (item.actors.length > 0 || item.tickers.length > 0) {
-        const { entitiesCreated, relationshipsCreated } = linkEntitiesToGraph(
+        const { entitiesCreated, relationshipsCreated } = await linkEntitiesToGraph(
           item,
           item.title,
           today

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import { BriefingCard } from "@/components/ui/briefing-card";
+import { Markdown } from "@/components/ui/markdown";
 import { Metric } from "@/components/ui/metric";
 import { StatusDot } from "@/components/ui/status-dot";
 import { DataGrid, type Column } from "@/components/ui/data-grid";
@@ -11,8 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, Sparkles, RefreshCw, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import type { ThesisSuggestion } from "@/app/api/thesis/suggestions/route";
 
 interface TradingAction {
   ticker: string;
@@ -39,6 +41,53 @@ interface ThesisSummary {
   symbols: string[];
 }
 
+const ANGLE_COLORS: Record<string, string> = {
+  geopolitical: "#ef4444",
+  macro: "#f59e0b",
+  celestial: "#8b5cf6",
+  technical: "#10b981",
+  convergence: "#06b6d4",
+};
+
+function SuggestionCard({
+  suggestion,
+  onSelect,
+}: {
+  suggestion: ThesisSuggestion;
+  onSelect: (symbols: string[]) => void;
+}) {
+  const color = ANGLE_COLORS[suggestion.angle] || "#64748b";
+  return (
+    <button
+      onClick={() => onSelect(suggestion.symbols)}
+      className="w-full text-left p-3 rounded border border-navy-700/40 bg-navy-900/40 hover:bg-navy-900 hover:border-navy-600 transition-all group"
+    >
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <span className="text-xs font-medium text-navy-200 group-hover:text-white transition-colors leading-snug">
+          {suggestion.title}
+        </span>
+        <ArrowRight className="h-3 w-3 text-navy-600 group-hover:text-navy-400 shrink-0 mt-0.5 transition-colors" />
+      </div>
+      <p className="text-[11px] text-navy-500 leading-snug mb-2">{suggestion.rationale}</p>
+      <div className="flex items-center gap-2">
+        <span
+          className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded"
+          style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}30` }}
+        >
+          {suggestion.angle}
+        </span>
+        <div className="flex gap-1">
+          {suggestion.symbols.map(s => (
+            <span key={s} className="text-[10px] font-mono text-navy-400 bg-navy-800 px-1.5 py-0.5 rounded">
+              {s}
+            </span>
+          ))}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function ThesisPage() {
   const router = useRouter();
   const [theses, setTheses] = useState<ThesisSummary[]>([]);
@@ -46,8 +95,10 @@ export default function ThesisPage() {
   const [generating, setGenerating] = useState(false);
   const [symbolInput, setSymbolInput] = useState("SPY,QQQ,IWM");
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<ThesisSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
-  const fetchTheses = () => {
+  const fetchTheses = useCallback(() => {
     setLoading(true);
     fetch("/api/thesis")
       .then((r) => r.json())
@@ -56,11 +107,24 @@ export default function ThesisPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, []);
+
+  const fetchSuggestions = useCallback(async () => {
+    setSuggestionsLoading(true);
+    try {
+      const res = await fetch("/api/thesis/suggestions");
+      const data = await res.json();
+      setSuggestions(data.suggestions || []);
+    } catch {
+      // fail silently
+    }
+    setSuggestionsLoading(false);
+  }, []);
 
   useEffect(() => {
     fetchTheses();
-  }, []);
+    fetchSuggestions();
+  }, [fetchTheses, fetchSuggestions]);
 
   const generateThesis = async () => {
     const symbols = symbolInput
@@ -160,7 +224,7 @@ export default function ThesisPage() {
       subtitle="Intelligence briefings and trading actions"
     >
       {/* Generate Section */}
-      <div className="border border-navy-700 rounded bg-navy-900/80 p-4 mb-6">
+      <div className="border border-navy-700 rounded bg-navy-900/80 p-4 mb-4">
         <div className="flex items-end gap-3">
           <div className="flex-1">
             <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">
@@ -169,13 +233,11 @@ export default function ThesisPage() {
             <Input
               value={symbolInput}
               onChange={(e) => setSymbolInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") generateThesis(); }}
               placeholder="SPY,QQQ,IWM,AAPL"
             />
           </div>
-          <Button
-            onClick={generateThesis}
-            disabled={generating}
-          >
+          <Button onClick={generateThesis} disabled={generating}>
             {generating ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
@@ -189,8 +251,51 @@ export default function ThesisPage() {
             )}
           </Button>
         </div>
-        {error && (
-          <p className="text-xs text-accent-rose mt-2">{error}</p>
+        {error && <p className="text-xs text-accent-rose mt-2">{error}</p>}
+      </div>
+
+      {/* AI Suggestions */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-accent-cyan" />
+            <span className="text-[10px] text-navy-500 uppercase tracking-wider font-mono">
+              AI Suggestions
+            </span>
+            <span className="text-[10px] text-navy-600 font-mono">
+              based on active signals and context
+            </span>
+          </div>
+          <button
+            onClick={fetchSuggestions}
+            disabled={suggestionsLoading}
+            className="flex items-center gap-1 text-[10px] text-navy-500 hover:text-navy-300 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={`h-2.5 w-2.5 ${suggestionsLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+
+        {suggestionsLoading ? (
+          <div className="grid grid-cols-2 gap-2">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </div>
+        ) : suggestions.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2">
+            {suggestions.map((s, i) => (
+              <SuggestionCard
+                key={i}
+                suggestion={s}
+                onSelect={(symbols) => setSymbolInput(symbols.join(","))}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-[11px] text-navy-600 py-2">
+            No suggestions available. Ensure signals are active and your Anthropic API key is configured.
+          </div>
         )}
       </div>
 
@@ -232,34 +337,22 @@ export default function ThesisPage() {
               {/* Metrics Row */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="border border-navy-700 rounded px-4">
-                  <Metric
-                    label="Market Regime"
-                    value={activeThesis.marketRegime.replace("_", " ")}
-                  />
+                  <Metric label="Market Regime" value={activeThesis.marketRegime.replace("_", " ")} />
                 </div>
                 <div className="border border-navy-700 rounded px-4">
-                  <Metric
-                    label="Volatility"
-                    value={activeThesis.volatilityOutlook}
-                  />
+                  <Metric label="Volatility" value={activeThesis.volatilityOutlook} />
                 </div>
                 <div className="border border-navy-700 rounded px-4">
-                  <Metric
-                    label="Convergence"
-                    value={`${activeThesis.convergenceDensity.toFixed(1)}/10`}
-                  />
+                  <Metric label="Convergence" value={`${activeThesis.convergenceDensity.toFixed(1)}/10`} />
                 </div>
                 <div className="border border-navy-700 rounded px-4">
-                  <Metric
-                    label="Confidence"
-                    value={`${(activeThesis.overallConfidence * 100).toFixed(0)}%`}
-                  />
+                  <Metric label="Confidence" value={`${(activeThesis.overallConfidence * 100).toFixed(0)}%`} />
                 </div>
               </div>
 
               {/* Executive Summary */}
               <BriefingCard title="Executive Summary">
-                {activeThesis.executiveSummary}
+                <Markdown>{activeThesis.executiveSummary}</Markdown>
               </BriefingCard>
 
               {/* Trading Actions */}
@@ -276,9 +369,7 @@ export default function ThesisPage() {
                         key: "direction",
                         header: "Direction",
                         accessor: (row) => (
-                          <Badge
-                            variant={row.direction === "BUY" ? "status" : "default"}
-                          >
+                          <Badge variant={row.direction === "BUY" ? "status" : "default"}>
                             {row.direction}
                           </Badge>
                         ),
@@ -287,9 +378,7 @@ export default function ThesisPage() {
                         key: "ticker",
                         header: "Ticker",
                         accessor: (row) => (
-                          <span className="font-semibold text-navy-100">
-                            {row.ticker}
-                          </span>
+                          <span className="font-semibold text-navy-100">{row.ticker}</span>
                         ),
                         sortAccessor: (row) => row.ticker,
                       },
@@ -302,8 +391,7 @@ export default function ThesisPage() {
                       {
                         key: "confidence",
                         header: "Conf.",
-                        accessor: (row) =>
-                          `${(row.confidence * 100).toFixed(0)}%`,
+                        accessor: (row) => `${(row.confidence * 100).toFixed(0)}%`,
                         sortAccessor: (row) => row.confidence,
                       },
                       {
@@ -342,7 +430,7 @@ export default function ThesisPage() {
             <div className="text-center py-16">
               <FileText className="h-8 w-8 text-navy-600 mx-auto mb-3" />
               <p className="text-xs text-navy-500">
-                No theses generated yet. Enter symbols above and generate your first intelligence briefing.
+                No theses generated yet. Select a suggestion above or enter symbols to generate your first intelligence briefing.
               </p>
             </div>
           )}

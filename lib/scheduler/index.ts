@@ -93,10 +93,52 @@ registerJob("alert-check", 60_000, async () => {
   if (!res.ok && res.status !== 404) throw new Error(`Alert check failed: ${res.status}`);
 });
 
+registerJob("monitor-sweep", 5 * 60_000, async () => {
+  // Master monitoring sweep every 5 minutes: alerts + prediction resolution
+  const res = await fetch(`${getBaseUrl()}/api/scheduler/monitor`, { method: "POST" });
+  if (!res.ok) throw new Error(`Monitor sweep failed: ${res.status}`);
+});
+
+registerJob("intelligence-cycle", 5 * 60_000, async () => {
+  // Three-brain intelligence cycle: Sentinel -> Analyst -> Executor
+  const res = await fetch(`${getBaseUrl()}/api/agents/cycle`, { method: "POST" });
+  if (!res.ok) throw new Error(`Intelligence cycle failed: ${res.status}`);
+});
+
 registerJob("prediction-daily", 6 * 60 * 60_000, async () => {
   // Run prediction lifecycle every 6 hours: resolve overdue, then generate new
   const res = await fetch(`${getBaseUrl()}/api/predictions/daily`, { method: "POST" });
   if (!res.ok) throw new Error(`Prediction daily cycle failed: ${res.status}`);
+});
+
+registerJob("knowledge-live-ingest", 30 * 60_000, async () => {
+  // Refresh live knowledge base with real-time geopolitical intelligence every 30 minutes
+  const res = await fetch(`${getBaseUrl()}/api/knowledge/refresh`, { method: "POST" });
+  if (!res.ok) throw new Error(`Knowledge live ingest failed: ${res.status}`);
+});
+
+registerJob("iw-auto-detect", 15 * 60_000, async () => {
+  // Auto-detect I&W indicators from OSINT feeds every 15 minutes
+  const res = await fetch(`${getBaseUrl()}/api/iw/evaluate`, { method: "POST" });
+  if (!res.ok) throw new Error(`I&W auto-detect failed: ${res.status}`);
+});
+
+registerJob("regime-detection", 60 * 60_000, async () => {
+  // Evaluate market regime and correlations hourly
+  const res = await fetch(`${getBaseUrl()}/api/regime`, { method: "POST" });
+  if (!res.ok) throw new Error(`Regime detection failed: ${res.status}`);
+});
+
+registerJob("nowcast-update", 4 * 60 * 60_000, async () => {
+  // Generate economic nowcast every 4 hours
+  const res = await fetch(`${getBaseUrl()}/api/nowcast`, { method: "POST" });
+  if (!res.ok) throw new Error(`Nowcast update failed: ${res.status}`);
+});
+
+registerJob("collection-gaps-check", 2 * 60 * 60_000, async () => {
+  // Check intelligence collection gaps every 2 hours
+  const res = await fetch(`${getBaseUrl()}/api/collection-gaps`);
+  if (!res.ok) throw new Error(`Collection gaps check failed: ${res.status}`);
 });
 
 function getBaseUrl() {

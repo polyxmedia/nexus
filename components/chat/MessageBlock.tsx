@@ -9,9 +9,10 @@ import remarkGfm from "remark-gfm";
 interface MessageBlockProps {
   turn: ChatTurn;
   isStreaming?: boolean;
+  onSuggestionClick?: (suggestion: string) => void;
 }
 
-export function MessageBlock({ turn, isStreaming }: MessageBlockProps) {
+export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBlockProps) {
   if (turn.role === "user") {
     return (
       <div className="flex justify-end mb-4">
@@ -104,6 +105,21 @@ export function MessageBlock({ turn, isStreaming }: MessageBlockProps) {
           {isStreaming && turn.content && (
             <span className="inline-block w-1.5 h-4 bg-accent-cyan animate-pulse ml-0.5" />
           )}
+        </div>
+      )}
+
+      {/* Follow-up suggestions */}
+      {!isStreaming && turn.suggestions && turn.suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {turn.suggestions.map((suggestion, idx) => (
+            <button
+              key={idx}
+              onClick={() => onSuggestionClick?.(suggestion)}
+              className="rounded-full border border-navy-700/30 bg-navy-900/60 px-3 py-1.5 text-[11px] font-mono text-navy-400 hover:text-navy-100 hover:border-navy-500/40 hover:bg-navy-800/50 transition-all"
+            >
+              {suggestion}
+            </button>
+          ))}
         </div>
       )}
     </div>

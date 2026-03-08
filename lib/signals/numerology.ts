@@ -353,7 +353,7 @@ export function getGannCycles(fromDate: Date): GannTimeCycle[] {
 
   return cycles.map(c => {
     const next = new Date(fromDate.getTime() + c.days * 86400000);
-    return { ...c, nextDate: next.toISOString().split("T") };
+    return { ...c, nextDate: next.toISOString().split("T")[0] };
   });
 }
 
@@ -388,7 +388,7 @@ export function getArmstrongPiCycle(referenceDate: Date): PiCyclePoint[] {
     if (peakDate.getFullYear() >= 2007 && peakDate.getFullYear() <= 2035) {
       points.push({
         label: `ECM Peak ${peakDate.getFullYear()}`,
-        date: peakDate.toISOString().split("T"),
+        date: peakDate.toISOString().split("T")[0],
         type: "peak",
         daysFromNow: Math.round((peakMs - referenceDate.getTime()) / 86400000),
       });
@@ -396,7 +396,7 @@ export function getArmstrongPiCycle(referenceDate: Date): PiCyclePoint[] {
     if (troughDate.getFullYear() >= 2007 && troughDate.getFullYear() <= 2035) {
       points.push({
         label: `ECM Trough ${troughDate.getFullYear()}`,
-        date: troughDate.toISOString().split("T"),
+        date: troughDate.toISOString().split("T")[0],
         type: "trough",
         daysFromNow: Math.round((troughMs - referenceDate.getTime()) / 86400000),
       });
@@ -567,7 +567,7 @@ export interface EsotericReading {
 
 export function getEsotericReading(date: Date): EsotericReading {
   const year = date.getFullYear();
-  const dateStr = date.toISOString().split("T");
+  const dateStr = date.toISOString().split("T")[0];
 
   const chineseNumerology = scoreDateNumerology(date);
   const sexagenaryCycle = getSexagenaryCycle(year);
@@ -578,7 +578,8 @@ export function getEsotericReading(date: Date): EsotericReading {
   const piCycle = getArmstrongPiCycle(date);
   const kondratieff = getKondratieffPosition(year);
 
-  // Composite scoring
+  // Composite scoring (cultural context only, does NOT feed trading intensity)
+  // These indicators are kept for curiosity/cultural context display.
   let score = 0;
 
   // Chinese numerology of the date
@@ -602,7 +603,7 @@ export function getEsotericReading(date: Date): EsotericReading {
   // Pi cycle proximity (within 30 days of a turn = significant)
   const nearPi = piCycle.filter(p => Math.abs(p.daysFromNow) <= 30);
   if (nearPi.length > 0) {
-    score += nearPi.type === "peak" ? 1 : -1;
+    score += nearPi[0].type === "peak" ? 1 : -1;
   }
 
   // Kondratieff season
@@ -620,6 +621,12 @@ export function getEsotericReading(date: Date): EsotericReading {
         : score >= -3
           ? "Unfavorable alignment. Elevated risk of disruption, losses, or instability."
           : "Strongly adverse convergence. Defensive positioning recommended across all frameworks.";
+
+  // NOTE: compositeScore is for cultural context display only.
+  // Stripped from trading composite: lunar phase, Chinese zodiac, numerology,
+  // flying stars, Kondratieff. These do NOT feed signal intensity or thesis confidence.
+  // Kept in trading composite: Hebrew calendar, Islamic calendar, dual calendar
+  // overlap, evangelical prophecy dates (fed as first-class event layers, not here).
 
   return {
     date: dateStr,

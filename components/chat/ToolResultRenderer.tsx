@@ -18,6 +18,8 @@ import { OptionsFlowWidget } from "./widgets/OptionsFlowWidget";
 import { PortfolioRiskWidget } from "./widgets/PortfolioRiskWidget";
 import { MacroWidget } from "./widgets/MacroWidget";
 import { KnowledgeWidget } from "./widgets/KnowledgeWidget";
+import { SaveKnowledgeWidget } from "./widgets/SaveKnowledgeWidget";
+import { TimelineWidget } from "./widgets/TimelineWidget";
 
 interface ToolResultRendererProps {
   toolName: string;
@@ -66,6 +68,10 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       return <MacroWidget data={data} />;
     case "search_knowledge":
       return <KnowledgeWidget data={data} />;
+    case "add_knowledge":
+      return <SaveKnowledgeWidget data={data} />;
+    case "get_timeline":
+      return <TimelineWidget data={data} />;
     case "get_operator_context":
       return (
         <div className="my-2 border border-accent-cyan/30 rounded bg-accent-cyan/5 px-3 py-2 text-xs text-accent-cyan flex items-center gap-2">

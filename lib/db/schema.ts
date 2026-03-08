@@ -32,6 +32,7 @@ export const analyses = pgTable("analyses", {
   celestialAnalysis: text("celestial_analysis"),
   historicalParallels: text("historical_parallels"),
   riskFactors: text("risk_factors"), // JSON array
+  redTeamAssessment: text("red_team_assessment"), // JSON: adversarial challenge
   modelUsed: text("model_used").notNull(),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
@@ -263,6 +264,11 @@ export const watchlistItems = pgTable("watchlist_items", {
   watchlistId: integer("watchlist_id").notNull().references(() => watchlists.id),
   symbol: text("symbol").notNull(),
   position: integer("position").notNull().default(0),
+  lastPrice: doublePrecision("last_price"),
+  lastChange: doublePrecision("last_change"),
+  lastChangePercent: doublePrecision("last_change_percent"),
+  lastVolume: integer("last_volume"),
+  lastUpdated: text("last_updated"),
   addedAt: text("added_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -296,6 +302,59 @@ export const subscriptions = pgTable("subscriptions", {
   cancelAtPeriodEnd: integer("cancel_at_period_end").notNull().default(0),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Referrals & Commissions ──
+
+export const referralCodes = pgTable("referral_codes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(), // the referrer (user:{username})
+  code: text("code").notNull().unique(), // short unique code e.g. "andre-7x3k"
+  commissionRate: doublePrecision("commission_rate").notNull().default(0.20), // 20% default
+  isActive: integer("is_active").notNull().default(1),
+  clicks: integer("clicks").notNull().default(0),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const referrals = pgTable("referrals", {
+  id: serial("id").primaryKey(),
+  referralCodeId: integer("referral_code_id").notNull().references(() => referralCodes.id),
+  referrerId: text("referrer_id").notNull(), // user:{username} of referrer
+  referredUserId: text("referred_user_id").notNull(), // user:{username} of new user
+  status: text("status").notNull().default("signed_up"), // signed_up | subscribed | churned
+  subscribedAt: text("subscribed_at"),
+  subscriptionTierId: integer("subscription_tier_id").references(() => subscriptionTiers.id),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const commissions = pgTable("commissions", {
+  id: serial("id").primaryKey(),
+  referralId: integer("referral_id").notNull().references(() => referrals.id),
+  referrerId: text("referrer_id").notNull(),
+  amount: integer("amount").notNull(), // in cents
+  currency: text("currency").notNull().default("usd"),
+  status: text("status").notNull().default("pending"), // pending | approved | paid | rejected
+  periodStart: text("period_start").notNull(),
+  periodEnd: text("period_end").notNull(),
+  paidAt: text("paid_at"),
+  paymentMethod: text("payment_method"), // paypal | bank_transfer | stripe
+  paymentReference: text("payment_reference"), // transaction ID
+  notes: text("notes"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Analytics ──
+
+export const analyticsEvents = pgTable("analytics_events", {
+  id: serial("id").primaryKey(),
+  eventType: text("event_type").notNull().default("pageview"),
+  path: text("path").notNull(),
+  referrer: text("referrer"),
+  sessionHash: text("session_hash"),
+  userAgentHash: text("user_agent_hash"),
+  country: text("country"),
+  deviceType: text("device_type"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
 // Type exports
@@ -340,3 +399,11 @@ export type SubscriptionTier = typeof subscriptionTiers.$inferSelect;
 export type NewSubscriptionTier = typeof subscriptionTiers.$inferInsert;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
+export type ReferralCode = typeof referralCodes.$inferSelect;
+export type NewReferralCode = typeof referralCodes.$inferInsert;
+export type Referral = typeof referrals.$inferSelect;
+export type NewReferral = typeof referrals.$inferInsert;
+export type Commission = typeof commissions.$inferSelect;
+export type NewCommission = typeof commissions.$inferInsert;
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+export type NewAnalyticsEvent = typeof analyticsEvents.$inferInsert;

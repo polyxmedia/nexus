@@ -27,7 +27,7 @@ export async function GET() {
       .from(schema.settings)
       .where(like(schema.settings.key, "user:%"));
 
-    const users = userSettings.map((s) => {
+    const users = userSettings.map((s: { key: string; value: string; updatedAt: string | null }) => {
       const username = s.key.replace("user:", "");
       const data = JSON.parse(s.value);
       return {
@@ -40,9 +40,9 @@ export async function GET() {
 
     // Get subscription data for each user
     const subs = await db.select().from(schema.subscriptions);
-    const subMap = new Map(subs.map((s) => [s.userId, s]));
+    const subMap = new Map(subs.map((s: { userId: string; [key: string]: unknown }) => [s.userId, s]));
 
-    const enriched = users.map((u) => ({
+    const enriched = users.map((u: { username: string; role: string; tier: string; createdAt: string | null }) => ({
       ...u,
       subscription: subMap.get(u.username) || null,
     }));

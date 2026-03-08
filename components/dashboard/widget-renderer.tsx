@@ -1229,6 +1229,222 @@ function GdpNowcastWidget() {
   );
 }
 
+// ── AI Progression Widget ──
+
+interface AIProgressionData {
+  rli: { bestRate: number; models: Array<{ name: string; automationRate: number }> } | null;
+  metr: { doublingTimeDays: number; latestModels: Array<{ model: string; fiftyPctHorizon: string; date: string }> } | null;
+  ai2027: { progressPace: number; milestones: Array<{ date: string; title: string; status: string; category: string }> } | null;
+  sectors: Array<{ sector: string; automationRisk: number; aiAdoption: number; trend: string }>;
+  displacement: { aiReplacementRate: number; routineJobDecline: number; technicalJobGrowth: number; aiWorkPercentage: number; enterpriseAdoption: number; productivityGain: number } | null;
+  compositeScore: number;
+  regime: string;
+}
+
+function AIProgressionWidget() {
+  const [data, setData] = useState<AIProgressionData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"overview" | "sectors" | "timeline">("overview");
+
+  useEffect(() => {
+    fetch("/api/ai-progression")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <WidgetSkeleton lines={8} />;
+  if (!data) return <WidgetError message="No AI progression data" />;
+
+  const regimeColor = data.regime === "transformation" ? "text-accent-rose"
+    : data.regime === "displacement" ? "text-accent-amber"
+    : data.regime === "inflection" ? "text-accent-cyan"
+    : data.regime === "accelerating" ? "text-accent-emerald"
+    : "text-navy-400";
+
+  const tabs = [
+    { key: "overview" as const, label: "Overview" },
+    { key: "sectors" as const, label: "Sectors" },
+    { key: "timeline" as const, label: "AI 2027" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* Regime header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-[9px] text-navy-500 block">AI Progression Score</span>
+          <span className="text-xl font-mono text-navy-100 font-bold">{data.compositeScore}/100</span>
+        </div>
+        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${regimeColor} bg-navy-800/60 uppercase`}>
+          {data.regime}
+        </span>
+      </div>
+
+      {/* Score bar */}
+      <div className="h-1.5 bg-navy-800 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${
+            data.compositeScore > 60 ? "bg-accent-rose" : data.compositeScore > 40 ? "bg-accent-amber" : "bg-accent-cyan"
+          }`}
+          style={{ width: `${data.compositeScore}%` }}
+        />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-navy-700/20 pb-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded transition-colors ${
+              tab === t.key ? "bg-navy-800 text-navy-200" : "text-navy-500 hover:text-navy-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {tab === "overview" && (
+        <div className="space-y-2">
+          {/* Remote Labor Index */}
+          {data.rli && (
+            <div className="p-2 rounded bg-navy-800/40 border border-navy-700/20">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider">Remote Labor Index</span>
+                <span className="text-[10px] font-mono text-accent-cyan font-bold">{data.rli.bestRate.toFixed(1)}%</span>
+              </div>
+              <div className="space-y-1">
+                {data.rli.models.slice(0, 4).map((m) => (
+                  <div key={m.name} className="flex items-center gap-2">
+                    <span className="text-[9px] text-navy-400 w-28 truncate">{m.name}</span>
+                    <div className="flex-1 h-1 bg-navy-700/40 rounded-full overflow-hidden">
+                      <div className="h-full bg-accent-cyan/60 rounded-full" style={{ width: `${Math.min(m.automationRate * 10, 100)}%` }} />
+                    </div>
+                    <span className="text-[9px] font-mono text-navy-300 w-8 text-right">{m.automationRate.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Key displacement metrics */}
+          {data.displacement && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-2 rounded bg-navy-800/40 border border-navy-700/20">
+                <span className="text-[9px] text-navy-500 block">Companies replacing workers</span>
+                <span className="text-sm font-mono text-accent-rose font-bold">{data.displacement.aiReplacementRate}%</span>
+              </div>
+              <div className="p-2 rounded bg-navy-800/40 border border-navy-700/20">
+                <span className="text-[9px] text-navy-500 block">Routine job decline</span>
+                <span className="text-sm font-mono text-accent-amber font-bold">-{data.displacement.routineJobDecline}%</span>
+              </div>
+              <div className="p-2 rounded bg-navy-800/40 border border-navy-700/20">
+                <span className="text-[9px] text-navy-500 block">AI-assisted work time</span>
+                <span className="text-sm font-mono text-accent-cyan font-bold">{data.displacement.aiWorkPercentage}%</span>
+              </div>
+              <div className="p-2 rounded bg-navy-800/40 border border-navy-700/20">
+                <span className="text-[9px] text-navy-500 block">Enterprise adoption</span>
+                <span className="text-sm font-mono text-accent-emerald font-bold">{data.displacement.enterpriseAdoption}%</span>
+              </div>
+            </div>
+          )}
+
+          {/* METR */}
+          {data.metr && (
+            <div className="pt-1 border-t border-navy-700/20">
+              <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider">METR Time Horizon</span>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[10px] text-navy-400">Capability doubling time</span>
+                <span className="text-[11px] font-mono text-navy-200 font-bold">{data.metr.doublingTimeDays} days</span>
+              </div>
+              {data.metr.latestModels.slice(0, 3).map((m) => (
+                <div key={m.model} className="flex items-center justify-between mt-0.5">
+                  <span className="text-[9px] text-navy-400">{m.model}</span>
+                  <span className="text-[10px] font-mono text-navy-300">{m.fiftyPctHorizon} @ 50%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "sectors" && (
+        <div className="space-y-1.5">
+          {data.sectors.map((s) => {
+            const riskColor = s.automationRisk >= 70 ? "bg-accent-rose" : s.automationRisk >= 50 ? "bg-accent-amber" : s.automationRisk >= 30 ? "bg-accent-cyan" : "bg-navy-600";
+            const trendLabel = s.trend === "accelerating" ? "ACC" : s.trend === "stable" ? "STB" : "ERL";
+            const trendColor = s.trend === "accelerating" ? "text-accent-rose" : s.trend === "stable" ? "text-accent-amber" : "text-navy-400";
+            return (
+              <div key={s.sector} className="p-2 rounded bg-navy-800/40 border border-navy-700/20">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-navy-200 font-medium">{s.sector}</span>
+                  <span className={`text-[8px] font-mono ${trendColor} uppercase`}>{trendLabel}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <div className="flex justify-between mb-0.5">
+                      <span className="text-[8px] text-navy-500">Automation risk</span>
+                      <span className="text-[9px] font-mono text-navy-300">{s.automationRisk}%</span>
+                    </div>
+                    <div className="h-1 bg-navy-700/40 rounded-full overflow-hidden">
+                      <div className={`h-full ${riskColor}/60 rounded-full`} style={{ width: `${s.automationRisk}%` }} />
+                    </div>
+                  </div>
+                  <div className="w-16 text-right">
+                    <span className="text-[8px] text-navy-500 block">Adoption</span>
+                    <span className="text-[10px] font-mono text-navy-300">{s.aiAdoption}%</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === "timeline" && data.ai2027 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] font-mono text-navy-500">Progress pace vs AI 2027</span>
+            <span className="text-[11px] font-mono text-accent-amber font-bold">{data.ai2027.progressPace}%</span>
+          </div>
+          <div className="h-1 bg-navy-700/40 rounded-full overflow-hidden mb-2">
+            <div className="h-full bg-accent-amber/60 rounded-full" style={{ width: `${data.ai2027.progressPace}%` }} />
+          </div>
+          {data.ai2027.milestones.map((m, i) => {
+            const statusColor = m.status === "passed" ? "bg-accent-emerald"
+              : m.status === "on_track" ? "bg-accent-cyan"
+              : m.status === "delayed" ? "bg-accent-rose"
+              : "bg-navy-600";
+            const catColor = m.category === "risk" ? "text-accent-rose"
+              : m.category === "governance" ? "text-accent-amber"
+              : m.category === "capability" ? "text-accent-cyan"
+              : "text-navy-400";
+            return (
+              <div key={i} className="flex gap-2">
+                <div className="flex flex-col items-center">
+                  <div className={`w-2 h-2 rounded-full ${statusColor} shrink-0 mt-1`} />
+                  {i < data.ai2027!.milestones.length - 1 && <div className="w-px flex-1 bg-navy-700/30" />}
+                </div>
+                <div className="pb-2 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono text-navy-500">{m.date}</span>
+                    <span className={`text-[8px] font-mono uppercase ${catColor}`}>{m.category}</span>
+                  </div>
+                  <span className="text-[10px] text-navy-200 block leading-tight">{m.title}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Renderer ──
 
 export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
@@ -1280,6 +1496,8 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <HousingConsumerWidget />;
       case "gdp_nowcast":
         return <GdpNowcastWidget />;
+      case "ai_progression":
+        return <AIProgressionWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1317,4 +1535,6 @@ export const AVAILABLE_WIDGETS = [
   // Tier 3
   { type: "housing_consumer", name: "Housing & Consumer", description: "Housing starts, consumer sentiment, retail sales", defaultWidth: 1, defaultConfig: {} },
   { type: "gdp_nowcast", name: "GDP Nowcast", description: "Real GDP growth with regime and industrial production", defaultWidth: 1, defaultConfig: {} },
+  // AI
+  { type: "ai_progression", name: "AI Progression", description: "Remote Labor Index, AI 2027 timeline, sector automation risk", defaultWidth: 2, defaultConfig: {} },
 ];
