@@ -14,7 +14,7 @@ export function PublicFooter() {
                 NEXUS <span className="text-navy-400 font-normal">Intelligence</span>
               </span>
             </div>
-            <p className="text-[11px] text-navy-500 leading-relaxed font-sans mb-4">
+            <p className="text-[11px] text-navy-400 leading-relaxed font-sans mb-4">
               Signal intelligence platform for geopolitical-market convergence analysis.
             </p>
             <div className="flex items-center gap-1.5">
@@ -27,13 +27,13 @@ export function PublicFooter() {
           <div>
             <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Platform</h4>
             <div className="space-y-2.5">
-              <Link href="/warroom" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">War Room</Link>
-              <Link href="/chat" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">AI Analyst</Link>
-              <Link href="/dashboard" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Dashboard</Link>
-              <Link href="/signals" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Signals</Link>
-              <Link href="/predictions" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Predictions</Link>
-              <Link href="/trading" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Trading</Link>
-              <Link href="/graph" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Entity Graph</Link>
+              <Link href="/warroom" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">War Room</Link>
+              <Link href="/chat" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">AI Analyst</Link>
+              <Link href="/dashboard" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Dashboard</Link>
+              <Link href="/signals" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Signals</Link>
+              <Link href="/predictions" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Predictions</Link>
+              <Link href="/trading" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Trading</Link>
+              <Link href="/graph" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Entity Graph</Link>
             </div>
           </div>
 
@@ -41,11 +41,11 @@ export function PublicFooter() {
           <div>
             <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Intelligence</h4>
             <div className="space-y-2.5">
-              <Link href="/thesis" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Daily Thesis</Link>
-              <Link href="/knowledge" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Knowledge Bank</Link>
-              <Link href="/timeline" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Timeline</Link>
-              <Link href="/calendar" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Calendar</Link>
-              <Link href="/alerts" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Alerts</Link>
+              <Link href="/thesis" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Daily Thesis</Link>
+              <Link href="/knowledge" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Knowledge Bank</Link>
+              <Link href="/timeline" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Timeline</Link>
+              <Link href="/calendar" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Calendar</Link>
+              <Link href="/alerts" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Alerts</Link>
             </div>
           </div>
 
@@ -53,12 +53,12 @@ export function PublicFooter() {
           <div>
             <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Research</h4>
             <div className="space-y-2.5">
-              <Link href="/research/methodology" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Methodology</Link>
-              <Link href="/research/signal-theory" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Signal Theory</Link>
-              <Link href="/research/calendar-correlations" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Calendar Correlations</Link>
-              <Link href="/research/game-theory" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Game Theory Models</Link>
-              <Link href="/research/prediction-accuracy" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Prediction Accuracy</Link>
-              <Link href="/research/whitepapers" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Whitepapers</Link>
+              <Link href="/research/methodology" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Methodology</Link>
+              <Link href="/research/signal-theory" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Signal Theory</Link>
+              <Link href="/research/calendar-correlations" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Calendar Correlations</Link>
+              <Link href="/research/game-theory" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Game Theory Models</Link>
+              <Link href="/research/prediction-accuracy" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Prediction Accuracy</Link>
+              <Link href="/research/whitepapers" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Whitepapers</Link>
             </div>
           </div>
 
@@ -66,12 +66,12 @@ export function PublicFooter() {
           <div>
             <h4 className="text-[10px] font-mono text-navy-400 uppercase tracking-[0.2em] mb-4">Company</h4>
             <div className="space-y-2.5">
-              <Link href="/about" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">About</Link>
-              <Link href="/investors" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Investors</Link>
-              <Link href="/careers" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Careers</Link>
-              <Link href="/contact" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Contact</Link>
-              <Link href="/docs" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">API Docs</Link>
-              <Link href="/status" className="block text-[11px] text-navy-500 hover:text-navy-200 transition-colors font-sans">Status Page</Link>
+              <Link href="/about" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">About</Link>
+              <Link href="/investors" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Investors</Link>
+              <Link href="/careers" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Careers</Link>
+              <Link href="/contact" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Contact</Link>
+              <Link href="/docs" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">API Docs</Link>
+              <Link href="/status" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Status Page</Link>
             </div>
           </div>
         </div>

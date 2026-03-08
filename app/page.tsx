@@ -760,7 +760,7 @@ export default function LandingPage() {
                     <div className="w-1 h-1 rounded-full bg-accent-cyan/40 mt-1.5 shrink-0" />
                     <span className="text-[11px] font-sans">
                       <span className="text-navy-300">{item.label}</span>
-                      <span className="text-navy-600 ml-1.5">{item.detail}</span>
+                      <span className="text-navy-400 ml-1.5">{item.detail}</span>
                     </span>
                   </div>
                 ))}
@@ -828,7 +828,7 @@ export default function LandingPage() {
                       <span className="text-[13px] text-navy-200 group-hover:text-navy-100 transition-colors font-sans">
                         {item.name}
                       </span>
-                      <span className="text-[11px] text-navy-600 ml-3 font-sans">
+                      <span className="text-[11px] text-navy-400 ml-3 font-sans">
                         {item.desc}
                       </span>
                     </div>
@@ -903,7 +903,7 @@ export default function LandingPage() {
                   {billingAnnual && tier.price !== "Custom" && (
                     <span className="text-[10px] text-navy-500 font-mono">billed annually</span>
                   )}
-                  <p className="text-[11px] text-navy-500 mt-2">{tier.description}</p>
+                  <p className="text-[11px] text-navy-400 mt-2">{tier.description}</p>
                 </div>
 
                 <div className="space-y-2.5 mb-8">
