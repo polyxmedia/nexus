@@ -16,11 +16,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { username, password, referralCode } = await request.json();
+    const { username, password, email, referralCode } = await request.json();
 
     if (!username || !password) {
       return NextResponse.json(
         { error: "Username and password are required" },
+        { status: 400 }
+      );
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json(
+        { error: "Invalid email address" },
         { status: 400 }
       );
     }
@@ -55,7 +62,7 @@ export async function POST(request: Request) {
 
     // Create user
     const hashed = await hashPassword(password);
-    const userPayload: Record<string, string> = { password: hashed, role: "user" };
+    const userPayload: Record<string, string> = { password: hashed, role: "user", ...(email ? { email } : {}) };
 
     // Track referral if code provided
     if (referralCode) {
