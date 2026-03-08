@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBOCPDSnapshot } from "@/lib/bocpd";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);
     const stream = searchParams.get("stream") || undefined;

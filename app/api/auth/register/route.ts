@@ -3,29 +3,34 @@ import { hashPassword } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { sendEmail } from "@/lib/email";
+import { welcomeEmail } from "@/lib/email/templates";
 
 export async function POST(request: Request) {
-  // Rate limit: 5 registrations per IP per hour
+  // Rate limit: 5 registrations per IP per hour (skipped for localhost dev/test)
   const ip = getClientIp(request);
-  const rl = rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
-  if (!rl.allowed) {
-    return NextResponse.json(
-      { error: "Too many registration attempts. Try again later." },
-      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
-    );
+  const isLocalhost = ip === "127.0.0.1" || ip === "::1" || ip === "unknown";
+  if (!isLocalhost) {
+    const rl = rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many registration attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+      );
+    }
   }
 
   try {
     const { username, password, email, referralCode } = await request.json();
 
-    if (!username || !password) {
+    if (!username || !password || !email) {
       return NextResponse.json(
-        { error: "Username and password are required" },
+        { error: "Username, email and password are required" },
         { status: 400 }
       );
     }
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
         { error: "Invalid email address" },
         { status: 400 }
@@ -62,7 +67,7 @@ export async function POST(request: Request) {
 
     // Create user
     const hashed = await hashPassword(password);
-    const userPayload: Record<string, string> = { password: hashed, role: "user", ...(email ? { email } : {}) };
+    const userPayload: Record<string, string> = { password: hashed, role: "user", email };
 
     // Track referral if code provided
     if (referralCode) {
@@ -96,6 +101,13 @@ export async function POST(request: Request) {
         console.error("Referral tracking error:", err);
       }
     }
+
+    // Send welcome email (non-blocking)
+    const baseUrl = process.env.NEXTAUTH_URL || "https://nexusintel.io";
+    const template = welcomeEmail(username, `${baseUrl}/login`);
+    sendEmail({ to: email, ...template }).catch((err) =>
+      console.error("Welcome email failed:", err)
+    );
 
     return NextResponse.json({ success: true });
   } catch {

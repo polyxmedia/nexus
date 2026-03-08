@@ -49,44 +49,38 @@ const PALETTE: Record<VesselType, { fill: string; stroke: string; label: string 
   other: { fill: "#64748b", stroke: "#94a3b8", label: "VESSEL" },
 };
 
-// ── Vessel silhouettes (distinct profiles per type, like Monopoly pieces) ──
+// ── Vessel silhouettes (clean minimal shapes) ──
 
 const SILHOUETTES: Record<VesselType, { path: string; vbox: string; size: number }> = {
-  // Warship: destroyer profile with superstructure, radar mast, gun turret
   military: {
-    path: `<path d="M16 2L18 5L19 8L18.5 9L19 10L18 11L17 10.5L17 13L18 14L18 17L16 19L4 19L2 17L2 14L3 13L3 10.5L2 11L1 10L1.5 9L1 8L2 5L4 2Z" /><rect x="6" y="5" width="8" height="3" rx="0.5" opacity="0.5"/><rect x="8" y="3" width="4" height="3" rx="0.3" opacity="0.4"/><line x1="10" y1="1" x2="10" y2="4" stroke-width="0.8" opacity="0.6"/>`,
-    vbox: "0 0 20 20",
+    path: `<polygon points="10,1 15,8 14,16 6,16 5,8"/>`,
+    vbox: "0 0 20 17",
+    size: 18,
+  },
+  tanker: {
+    path: `<path d="M10,2 L14,5 L14,15 L10,17 L6,15 L6,5 Z"/>`,
+    vbox: "0 0 20 19",
     size: 16,
   },
-  // Tanker: wide bulky hull, low profile, pipe structures on deck
-  tanker: {
-    path: `<path d="M10 1L14 4L15 7L15 15L14 18L10 20L6 18L5 15L5 7L6 4Z" /><rect x="7" y="5" width="6" height="2" rx="0.5" opacity="0.35"/><rect x="7" y="8" width="6" height="2" rx="0.5" opacity="0.35"/><rect x="7" y="11" width="6" height="2" rx="0.5" opacity="0.35"/><circle cx="10" cy="15.5" r="1.5" opacity="0.4"/>`,
-    vbox: "0 0 20 21",
-    size: 13,
-  },
-  // Cargo: container ship with stacked containers, bridge at stern
   cargo: {
-    path: `<path d="M10 1L14 4L15 8L15 16L13 19L7 19L5 16L5 8L6 4Z" /><rect x="7" y="4" width="6" height="3" rx="0.3" opacity="0.4"/><rect x="7.5" y="8" width="2.2" height="2" opacity="0.3"/><rect x="10.3" y="8" width="2.2" height="2" opacity="0.3"/><rect x="7.5" y="10.5" width="2.2" height="2" opacity="0.25"/><rect x="10.3" y="10.5" width="2.2" height="2" opacity="0.25"/><rect x="8" y="14" width="4" height="3" rx="0.5" opacity="0.45"/>`,
-    vbox: "0 0 20 20",
-    size: 12,
+    path: `<path d="M10,2 L14,5 L14,14 L10,17 L6,14 L6,5 Z"/>`,
+    vbox: "0 0 20 19",
+    size: 15,
   },
-  // Passenger: cruise ship with multiple decks, funnel
   passenger: {
-    path: `<path d="M10 1L13 3L14 6L14 16L12 19L8 19L6 16L6 6L7 3Z" /><rect x="7.5" y="4" width="5" height="2" rx="0.8" opacity="0.35"/><rect x="7.5" y="7" width="5" height="2" rx="0.8" opacity="0.35"/><rect x="7.5" y="10" width="5" height="2" rx="0.8" opacity="0.35"/><path d="M9 2L9 4L11 4L11 2" opacity="0.5"/><circle cx="10" cy="15" r="1" opacity="0.3"/>`,
-    vbox: "0 0 20 20",
+    path: `<path d="M10,2 L13,5 L13,14 L10,17 L7,14 L7,5 Z"/>`,
+    vbox: "0 0 20 19",
+    size: 15,
+  },
+  fishing: {
+    path: `<polygon points="10,3 13,7 12,14 8,14 7,7"/>`,
+    vbox: "0 0 20 17",
     size: 12,
   },
-  // Fishing: small trawler with boom/crane arms
-  fishing: {
-    path: `<path d="M10 3L13 6L13 14L12 17L8 17L7 14L7 6Z" /><line x1="10" y1="2" x2="10" y2="6" stroke-width="0.8" opacity="0.6"/><line x1="10" y1="4" x2="5" y2="8" stroke-width="0.6" opacity="0.4"/><line x1="10" y1="4" x2="15" y2="8" stroke-width="0.6" opacity="0.4"/><rect x="8.5" y="8" width="3" height="2" rx="0.3" opacity="0.35"/>`,
-    vbox: "0 0 20 18",
-    size: 10,
-  },
-  // Other: simple generic vessel
   other: {
-    path: `<path d="M10 2L13 5L13 14L11 17L9 17L7 14L7 5Z" /><rect x="8.5" y="5" width="3" height="2" rx="0.5" opacity="0.35"/>`,
-    vbox: "0 0 20 18",
-    size: 10,
+    path: `<polygon points="10,3 13,7 12,14 8,14 7,7"/>`,
+    vbox: "0 0 20 17",
+    size: 12,
   },
 };
 
@@ -107,11 +101,14 @@ function getIcon(course: number, vesselType: VesselType, speed: number): L.DivIc
   const size = sil.size;
   const half = size / 2;
   const isMil = vesselType === "military";
-  const glow = isMil ? "filter:drop-shadow(0 0 5px rgba(239,68,68,0.6));" : "";
-  const op = moving ? 1 : 0.4;
+  const glow = isMil
+    ? "filter:drop-shadow(0 0 3px rgba(239,68,68,0.5));"
+    : "";
+  const op = moving ? 0.85 : 0.4;
+  const sw = "0";
 
   icon = L.divIcon({
-    html: `<svg viewBox="${sil.vbox}" width="${size}" height="${size}" style="transform:rotate(${cBucket}deg);${glow}" fill="${fill}" stroke="${stroke}" stroke-width="0.5" opacity="${op}">${sil.path}</svg>`,
+    html: `<svg viewBox="${sil.vbox}" width="${size}" height="${size}" style="transform:rotate(${cBucket}deg);${glow}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}">${sil.path}</svg>`,
     className: "",
     iconSize: [size, size],
     iconAnchor: [half, half],
@@ -276,6 +273,7 @@ export function VesselLayer({ vessels, onVesselClick }: VesselLayerProps) {
       });
 
       marker.on("click", () => {
+        map.flyTo([v.lat, v.lng], Math.max(map.getZoom(), 6), { duration: 0.6 });
         onVesselClick?.(v);
       });
 

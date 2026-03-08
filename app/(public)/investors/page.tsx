@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { PublicNav } from "@/components/layout/public-nav";
-import { PublicFooter } from "@/components/layout/public-footer";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -57,9 +55,6 @@ function DiffRow({ label, nexus, rest }: { label: string; nexus: string; rest: s
 
 export default function InvestorsPage() {
   return (
-    <div className="min-h-screen bg-navy-950 flex flex-col">
-      <PublicNav />
-
       <main className="flex-1 pt-14">
         {/* ── Hero ── */}
         <section className="relative border-b border-navy-800/40">
@@ -126,10 +121,10 @@ export default function InvestorsPage() {
               </div>
               <div className="space-y-3">
                 {[
-                  { icon: Layers, text: "Geopolitical, macro, and celestial signals tracked by separate teams with no cross-synthesis" },
+                  { icon: Layers, text: "Geopolitical, macro, and OSINT signals tracked by separate teams with no cross-synthesis" },
                   { icon: BarChart3, text: "Market positioning decisions made without access to real-time OSINT or escalation modeling" },
                   { icon: Brain, text: "No systematic way to score, backtest, or validate analyst predictions against market outcomes" },
-                  { icon: Globe, text: "Calendar anomalies (FOMC, OPEX, Hebrew/Islamic cycles) largely ignored as data inputs" },
+                  { icon: Globe, text: "Calendar and event-driven context largely siloed from quantitative signal analysis" },
                 ].map(({ icon: Icon, text }, i) => (
                   <div key={i} className="flex items-start gap-3 p-4 border border-navy-800/40 rounded-lg bg-navy-900/20">
                     <Icon className="h-4 w-4 text-navy-600 mt-0.5 shrink-0" />
@@ -144,10 +139,10 @@ export default function InvestorsPage() {
           <section>
             <SectionLabel label="02 — The Platform" />
             <h2 className="font-sans text-2xl font-light text-navy-100 mb-5 leading-snug max-w-2xl">
-              Six signal layers. One synthesis engine. One actionable output.
+              Four primary signal layers. Narrative overlay. One synthesis engine.
             </h2>
             <p className="font-sans text-sm text-navy-400 leading-relaxed mb-10 max-w-2xl">
-              NEXUS runs a continuous convergence engine across geopolitical, market structure, celestial-cyclical, calendar, OSINT, and economic layers. When signals align, the system scores the event, generates a structured thesis, and connects it directly to execution.
+              NEXUS runs a continuous convergence engine across geopolitical, market structure, OSINT, and systemic risk layers, with calendar and celestial data as narrative/actor-belief context. When primary signals align, the system scores the event, generates a structured thesis, and connects it directly to execution.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
@@ -162,7 +157,7 @@ export default function InvestorsPage() {
                   icon: Zap,
                   label: "Signal Engine",
                   color: "text-accent-amber",
-                  desc: "Convergence events scored 1–5 across 6 layers. Intensity threshold alerts. Full signal history with market correlation.",
+                  desc: "Convergence events scored 1–5 across 4 primary layers + narrative overlay. Intensity threshold alerts. Full signal history with market correlation.",
                 },
                 {
                   icon: Brain,
@@ -218,7 +213,7 @@ export default function InvestorsPage() {
                 <tbody className="px-5">
                   <tr className="border-b border-navy-800/60">
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-400">Signal synthesis</td>
-                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">6 layers fused into scored convergence events</td>
+                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">4 primary layers + narrative overlay fused into scored convergence events</td>
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-600">Data terminals; no cross-layer synthesis</td>
                   </tr>
                   <tr className="border-b border-navy-800/60">
@@ -337,14 +332,14 @@ export default function InvestorsPage() {
               Platform built. Core capabilities live. Ready for capital to accelerate.
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-              <Stat value="6" label="Signal layers live" sub="GEO, CAL, CEL, MKT, OSI, ECO" />
+              <Stat value="4+" label="Signal layers live" sub="GEO, MKT, OSI, SYS + narrative overlay" />
               <Stat value="20+" label="AI analyst tools" sub="Market regime, on-chain, shipping, game theory..." />
               <Stat value="73%" label="Prediction accuracy" sub="Backtested with temporal isolation" />
               <Stat value="3" label="Subscription tiers" sub="Seeded and live in Stripe" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                "Signal convergence engine operational across all 6 layers",
+                "Signal convergence engine operational across 4 primary layers + narrative overlay",
                 "AI analyst with 20+ live intelligence tools (Claude Opus 4.6)",
                 "Backtesting engine with Brier score + p-value significance testing",
                 "War Room with live aircraft tracking (OpenSky) and GDELT OSINT",
@@ -378,8 +373,8 @@ export default function InvestorsPage() {
               </div>
               <div className="space-y-2">
                 {[
-                  ["Signal Engine", "Proprietary convergence scoring across 6 layers"],
-                  ["AI", "Anthropic Claude Opus 4.6 + 20+ custom tool definitions"],
+                  ["Signal Engine", "Proprietary convergence scoring across 4 primary layers + narrative overlay"],
+                  ["AI", "Anthropic Claude Opus 4.6 + 25+ custom tool definitions"],
                   ["Embeddings", "Voyage AI + pgvector semantic knowledge retrieval"],
                   ["Infrastructure", "Next.js 15, PostgreSQL (Neon), Vercel-ready"],
                   ["Payments", "Stripe Checkout + Portal + Webhooks"],
@@ -475,8 +470,5 @@ export default function InvestorsPage() {
 
         </div>
       </main>
-
-      <PublicFooter />
-    </div>
   );
 }

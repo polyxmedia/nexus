@@ -1,7 +1,8 @@
-import { pgTable, text, integer, serial, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, doublePrecision, uuid } from "drizzle-orm/pg-core";
 
 export const signals = pgTable("signals", {
   id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
   title: text("title").notNull(),
   description: text("description").notNull(),
   date: text("date").notNull(), // ISO date string
@@ -39,6 +40,7 @@ export const analyses = pgTable("analyses", {
 
 export const predictions = pgTable("predictions", {
   id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
   signalId: integer("signal_id").references(() => signals.id),
   analysisId: integer("analysis_id").references(() => analyses.id),
   claim: text("claim").notNull(),
@@ -47,10 +49,23 @@ export const predictions = pgTable("predictions", {
   confidence: doublePrecision("confidence").notNull(), // 0-1
   category: text("category").notNull(), // market | geopolitical | celestial
   metrics: text("metrics"), // JSON: what to measure for scoring
-  outcome: text("outcome"), // confirmed | denied | partial | expired
+  outcome: text("outcome"), // confirmed | denied | partial | expired | post_event
   outcomeNotes: text("outcome_notes"),
   score: doublePrecision("score"), // 0-1 accuracy score
   resolvedAt: text("resolved_at"),
+  // Fix 1: Regime-aware tagging
+  regimeAtCreation: text("regime_at_creation"), // peacetime | transitional | wartime
+  referencePrices: text("reference_prices"), // JSON: {SPY: 520, WTI: 78, GLD: 2350}
+  regimeInvalidated: integer("regime_invalidated").notNull().default(0),
+  invalidatedReason: text("invalidated_reason"),
+  // Fix 2: Pre-event lock
+  preEvent: integer("pre_event").notNull().default(1), // 1=pre-event, 0=post-event
+  // Fix 3: Direction vs Level split
+  direction: text("direction"), // up | down | flat
+  priceTarget: doublePrecision("price_target"),
+  referenceSymbol: text("reference_symbol"),
+  directionCorrect: integer("direction_correct"), // 0 | 1 at resolution
+  levelCorrect: integer("level_correct"), // 0 | 1 at resolution
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -96,6 +111,7 @@ export const settings = pgTable("settings", {
 
 export const theses = pgTable("theses", {
   id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
   title: text("title").notNull(),
   status: text("status").notNull().default("active"), // active | expired | superseded
   generatedAt: text("generated_at").notNull().$defaultFn(() => new Date().toISOString()),
@@ -129,6 +145,7 @@ export const chatProjects = pgTable("chat_projects", {
 
 export const chatSessions = pgTable("chat_sessions", {
   id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
   userId: text("user_id").notNull().default("legacy"),
   title: text("title").notNull().default("New Chat"),
   projectId: integer("project_id").references(() => chatProjects.id),
@@ -153,6 +170,21 @@ export const gameTheoryScenarios = pgTable("game_theory_scenarios", {
   title: text("title").notNull(),
   analysis: text("analysis").notNull(), // JSON GameTheoryAnalysis
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Scenario States (wartime game-theory branch) ──
+
+export const scenarioStates = pgTable("scenario_states", {
+  id: serial("id").primaryKey(),
+  scenarioId: text("scenario_id").notNull(),
+  regime: text("regime").notNull().default("peacetime"), // peacetime | transitional | wartime
+  state: text("state").notNull().default("baseline"), // baseline | escalating | wartime | de-escalating
+  triggeredThresholds: text("triggered_thresholds"), // JSON array of threshold events that fired
+  activeTrajectories: text("active_trajectories"), // JSON: escalation trajectories being tracked
+  invalidatedStrategies: text("invalidated_strategies"), // JSON: strategies no longer viable (e.g., "Negotiate" after strikes)
+  contextSnapshot: text("context_snapshot"), // JSON: regime state + market data at transition
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
 });
 
 // ── Entity Graph ──
@@ -350,6 +382,7 @@ export const commissions = pgTable("commissions", {
 
 export const supportTickets = pgTable("support_tickets", {
   id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
   userId: text("user_id").notNull(), // user:{username}
   title: text("title").notNull(),
   description: text("description").notNull(),
@@ -400,6 +433,8 @@ export type ThesisRecord = typeof theses.$inferSelect;
 export type NewThesisRecord = typeof theses.$inferInsert;
 export type MarketSnapshotRecord = typeof marketSnapshots.$inferSelect;
 export type GameTheoryScenarioRecord = typeof gameTheoryScenarios.$inferSelect;
+export type ScenarioState = typeof scenarioStates.$inferSelect;
+export type NewScenarioState = typeof scenarioStates.$inferInsert;
 export type ChatProject = typeof chatProjects.$inferSelect;
 export type NewChatProject = typeof chatProjects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;

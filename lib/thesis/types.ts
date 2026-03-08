@@ -158,6 +158,7 @@ export interface ThesisLayerInput {
 
 export interface Thesis {
   id?: number;
+  uuid?: string;
   title: string;
   status: ThesisStatus;
   generatedAt: string;

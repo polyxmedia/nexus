@@ -4,8 +4,11 @@ import { eq, desc } from "drizzle-orm";
 import { getQuote, getDailySeries } from "@/lib/market-data/alpha-vantage";
 import { computeTechnicalSnapshot } from "@/lib/market-data/indicators";
 import { getMarketSentiment } from "@/lib/market-data/sentiment";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");

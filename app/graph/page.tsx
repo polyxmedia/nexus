@@ -7,6 +7,7 @@ import { EntityDetailPanel } from "@/components/graph/entity-detail-panel";
 import { EntityListPanel } from "@/components/graph/entity-list-panel";
 import { GraphEmptyState, GraphTipBanner } from "@/components/graph/graph-empty-state";
 import { NODE_COLORS, NODE_TYPE_LABELS } from "@/lib/graph/constants";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import type { GraphNodeData, GraphEdgeData } from "@/components/graph/graph-canvas";
 
 const GraphCanvas = dynamic(
@@ -233,6 +234,7 @@ export default function GraphPage() {
 
   return (
     <div className="ml-48 h-screen flex flex-col bg-navy-950">
+      <UpgradeGate minTier="operator" feature="Entity relationship graph">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-navy-800/40 px-4 h-12 shrink-0">
         <div className="flex items-center gap-3">
@@ -342,6 +344,7 @@ export default function GraphPage() {
           </>
         )}
       </div>
+      </UpgradeGate>
     </div>
   );
 }

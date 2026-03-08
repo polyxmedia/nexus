@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexusintel.io";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -39,6 +39,7 @@ export default function robots(): MetadataRoute.Robots {
           "/admin",
           "/login",
           "/register",
+          "/research/whitepapers",
         ],
       },
     ],

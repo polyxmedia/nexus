@@ -58,7 +58,6 @@ export function PublicFooter() {
               <Link href="/research/calendar-correlations" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Calendar Correlations</Link>
               <Link href="/research/game-theory" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Game Theory Models</Link>
               <Link href="/research/prediction-accuracy" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Prediction Accuracy</Link>
-              <Link href="/research/whitepapers" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Whitepapers</Link>
             </div>
           </div>
 
@@ -69,6 +68,7 @@ export function PublicFooter() {
               <Link href="/about" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">About</Link>
               <Link href="/investors" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Investors</Link>
               <Link href="/careers" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Careers</Link>
+              <Link href="/media" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Media</Link>
               <Link href="/contact" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Contact</Link>
               <Link href="/docs" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">API Docs</Link>
               <Link href="/status" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Status Page</Link>

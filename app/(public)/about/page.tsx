@@ -88,14 +88,14 @@ const pipelineSteps = [
     tag: "DETECT",
     color: "#06b6d4",
     title: "Signal Detection",
-    body: "Five independent layers scan continuously. Geopolitical escalation, economic calendar anomalies, celestial cycles, market microstructure, open-source intelligence. Each layer runs its own detection logic. When something meaningful shifts, the system registers it.",
+    body: "Four primary layers scan continuously: geopolitical escalation, market microstructure, open-source intelligence, and systemic risk. Calendar and celestial data run as narrative overlay for actor-belief context. Each layer runs its own detection logic. When something meaningful shifts, the system registers it.",
   },
   {
     icon: Layers,
     tag: "CONVERGE",
     color: "#f59e0b",
     title: "Convergence Scoring",
-    body: "Independent signals are scored for temporal and thematic overlap. Two layers lining up is interesting. Three is significant. Five is a rare-event window. The scoring is non-linear because the real world is non-linear.",
+    body: "Independent signals are scored for temporal and thematic overlap. Two primary layers lining up is interesting. Three is significant. Four is a rare-event window. The scoring is non-linear because the real world is non-linear. Narrative overlays add context but no convergence weight.",
   },
   {
     icon: Brain,
@@ -227,7 +227,7 @@ export default function AboutPage() {
           >
             <Link
               href="/register"
-              className="group inline-flex items-center gap-2.5 px-6 py-2.5 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-accent-cyan hover:bg-accent-cyan/90 rounded-lg transition-all"
+              className="group inline-flex items-center gap-2.5 px-6 py-2.5 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 hover:bg-white rounded-lg transition-all"
             >
               Start Free Trial
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -372,9 +372,10 @@ export default function AboutPage() {
             style={{ transitionDelay: "100ms" }}
           >
             <p className="font-sans text-xl md:text-2xl font-light text-navy-200 leading-relaxed max-w-3xl mb-8">
-              NEXUS is a geopolitical intelligence platform that detects
-              signals across five independent data layers, identifies when
-              they converge, synthesises them into actionable theses, and
+              NEXUS is an integrated indicator platform that pulls
+              geopolitical, market microstructure, OSINT, systemic risk,
+              shipping, and game theory data into one place, identifies when
+              signals converge, synthesises them into actionable theses, and
               lets you execute directly from the same interface.
             </p>
           </div>
@@ -711,7 +712,7 @@ export default function AboutPage() {
             <div className="flex flex-wrap items-center justify-center gap-5">
               <Link
                 href="/register"
-                className="group inline-flex items-center gap-2.5 px-8 py-3 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-accent-cyan hover:bg-accent-cyan/90 rounded-lg transition-all font-medium"
+                className="group inline-flex items-center gap-2.5 px-8 py-3 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 hover:bg-white rounded-lg transition-all font-medium"
               >
                 Start Free Trial
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />

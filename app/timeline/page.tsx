@@ -23,6 +23,7 @@ import {
   Crosshair,
   ExternalLink,
 } from "lucide-react";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
 interface TimelineEntry {
   id: number;
@@ -162,7 +163,7 @@ export default function TimelinePage() {
         const data = await res.json();
         if (data.session) {
           const prompt = `Analyze this timeline event and provide intelligence assessment:\n\n**${event.title}**\n${event.description || ""}\n\nType: ${event.type} | Severity: ${event.severity}/5 | Category: ${event.category || "N/A"}`;
-          router.push(`/chat/${data.session.id}?prompt=${encodeURIComponent(prompt)}`);
+          router.push(`/chat/${data.session.uuid}?prompt=${encodeURIComponent(prompt)}`);
         }
         break;
       }
@@ -187,7 +188,7 @@ export default function TimelinePage() {
         const data = await res.json();
         if (data.session) {
           const prompt = `Based on this event, generate a formal prediction with target, timeframe, and confidence:\n\n**${event.title}**\n${event.description || ""}\n\nSeverity: ${event.severity}/5 | Category: ${event.category || "N/A"}`;
-          router.push(`/chat/${data.session.id}?prompt=${encodeURIComponent(prompt)}`);
+          router.push(`/chat/${data.session.uuid}?prompt=${encodeURIComponent(prompt)}`);
         }
         break;
       }
@@ -200,7 +201,7 @@ export default function TimelinePage() {
           const data = await res.json();
           if (data.session) {
             const prompt = `Based on this event, suggest trading positions with specific tickers, entry/exit levels, and sizing:\n\n**${event.title}**\n${event.description || ""}`;
-            router.push(`/chat/${data.session.id}?prompt=${encodeURIComponent(prompt)}`);
+            router.push(`/chat/${data.session.uuid}?prompt=${encodeURIComponent(prompt)}`);
           }
         }
         break;
@@ -357,6 +358,7 @@ export default function TimelinePage() {
 
   return (
     <div className="ml-48 min-h-screen bg-navy-950">
+      <UpgradeGate minTier="analyst" feature="Event timeline">
       {/* Header */}
       <div className="sticky top-0 z-10 border-b border-navy-700 bg-navy-950/95 backdrop-blur-md">
         <div className="flex items-center justify-between px-6 h-16">
@@ -535,6 +537,7 @@ export default function TimelinePage() {
           </div>
         )}
       </div>
+      </UpgradeGate>
     </div>
   );
 }

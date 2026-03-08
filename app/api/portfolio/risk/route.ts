@@ -3,8 +3,11 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { Trading212Client } from "@/lib/trading212/client";
 import { computePortfolioRisk, STRESS_SCENARIOS, stressTestPortfolio } from "@/lib/market-data/risk-analytics";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     // Get T212 credentials
     const apiKeySetting = await db.select().from(schema.settings)

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runMonteCarloSimulation, type Scenario } from "@/lib/simulation/monte-carlo";
 import { presets } from "@/lib/simulation/presets";
+import { requireTier } from "@/lib/auth/require-tier";
 
 // POST - run simulation
 export async function POST(req: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const body = await req.json();
     const {
@@ -59,6 +62,8 @@ export async function POST(req: NextRequest) {
 
 // GET - list preset scenario sets
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   return NextResponse.json({
     presets: presets.map((p) => ({
       id: p.id,

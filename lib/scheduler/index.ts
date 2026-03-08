@@ -99,7 +99,7 @@ registerJob("monitor-sweep", 5 * 60_000, async () => {
   if (!res.ok) throw new Error(`Monitor sweep failed: ${res.status}`);
 });
 
-registerJob("intelligence-cycle", 5 * 60_000, async () => {
+registerJob("intelligence-cycle", 15 * 60_000, async () => {
   // Three-brain intelligence cycle: Sentinel -> Analyst -> Executor
   const res = await fetch(`${getBaseUrl()}/api/agents/cycle`, { method: "POST" });
   if (!res.ok) throw new Error(`Intelligence cycle failed: ${res.status}`);
@@ -147,6 +147,12 @@ registerJob("systemic-risk-check", 2 * 60 * 60_000, async () => {
   if (hour < 13 || hour > 21) return; // ~8am-4pm ET
   const res = await fetch(`${getBaseUrl()}/api/risk/systemic`, { method: "POST" });
   if (!res.ok) throw new Error(`Systemic risk check failed: ${res.status}`);
+});
+
+registerJob("actor-profile-update", 6 * 60 * 60_000, async () => {
+  // Update actor profiles from GDELT/news every 6 hours
+  const res = await fetch(`${getBaseUrl()}/api/actors/update`, { method: "POST" });
+  if (!res.ok) throw new Error(`Actor profile update failed: ${res.status}`);
 });
 
 function getBaseUrl() {

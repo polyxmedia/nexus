@@ -3,6 +3,7 @@ import { eq, desc, gte, isNull } from "drizzle-orm";
 import { sentinelScan } from "./sentinel";
 import { analystDeepDive } from "./analyst";
 import { executorEvaluate } from "./executor";
+import { isMetaSystemJunk } from "@/lib/predictions/engine";
 import type {
   SentinelContext,
   AnalystContext,
@@ -92,11 +93,14 @@ async function buildSentinelContext(): Promise<SentinelContext> {
     })),
     marketData,
     activeThesisSummary: thesis[0]?.executiveSummary || null,
-    pendingPredictions: predictions.slice(0, 15).map((p: PredictionRow) => ({
-      claim: p.claim,
-      deadline: p.deadline,
-      confidence: p.confidence,
-    })),
+    pendingPredictions: predictions
+      .filter((p: PredictionRow) => !isMetaSystemJunk(p.claim))
+      .slice(0, 15)
+      .map((p: PredictionRow) => ({
+        claim: p.claim,
+        deadline: p.deadline,
+        confidence: p.confidence,
+      })),
     undismissedAlerts: undismissed.length,
   };
 }
@@ -166,12 +170,15 @@ async function buildAnalystContext(
           riskScenarios: thesis[0].riskScenarios,
         }
       : null,
-    predictions: pending.slice(0, 10).map((p: PredictionRow) => ({
-      claim: p.claim,
-      confidence: p.confidence,
-      category: p.category,
-      deadline: p.deadline,
-    })),
+    predictions: pending
+      .filter((p: PredictionRow) => !isMetaSystemJunk(p.claim))
+      .slice(0, 10)
+      .map((p: PredictionRow) => ({
+        claim: p.claim,
+        confidence: p.confidence,
+        category: p.category,
+        deadline: p.deadline,
+      })),
     gameTheory: gameTheory.map((g: GameTheoryRow) => ({
       title: g.title,
       analysis: typeof g.analysis === "string" ? g.analysis : JSON.stringify(g.analysis),
@@ -294,7 +301,7 @@ export async function runIntelligenceCycle(): Promise<CycleResult> {
   // ── Phase 2.5: Auto-generate predictions from analyst action items ──
   if (result.analyst.briefing) {
     const predictionActions = result.analyst.briefing.actionItems.filter(
-      (a) => a.type === "alert" || a.urgency === "immediate"
+      (a) => (a.type === "alert" || a.urgency === "immediate") && !isMetaSystemJunk(a.description)
     );
     for (const action of predictionActions) {
       try {
@@ -312,7 +319,9 @@ export async function runIntelligenceCycle(): Promise<CycleResult> {
   }
 
   // ── Phase 2.6: Auto-create alerts for high-severity sentinel findings ──
-  const criticalAlerts = result.sentinel.alerts.filter((a) => a.severity >= 4);
+  const criticalAlerts = result.sentinel.alerts.filter(
+    (a) => a.severity >= 4 && !isMetaSystemJunk(a.title) && !isMetaSystemJunk(a.summary)
+  );
   if (criticalAlerts.length > 0) {
     // Get or create a system alert to anchor auto-generated history entries
     const systemAlerts = await db

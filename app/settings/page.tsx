@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { PageContainer } from "@/components/layout/page-container";
 import { StatusDot } from "@/components/ui/status-dot";
@@ -19,10 +19,6 @@ import {
   TrendingUp,
   Database,
   Trash2,
-  MessageSquare,
-  RotateCcw,
-  ChevronDown,
-  ChevronRight,
   Brain,
 } from "lucide-react";
 
@@ -32,20 +28,9 @@ interface SettingEntry {
   updatedAt: string;
 }
 
-interface PromptEntry {
-  key: string;
-  label: string;
-  description: string;
-  category: string;
-  value: string;
-  isOverridden: boolean;
-  defaultValue: string;
-}
-
 const TABS = [
   { id: "subscription", label: "Subscription", icon: CreditCard },
   { id: "ai-models", label: "AI Models", icon: Brain },
-  { id: "prompts", label: "Prompts", icon: MessageSquare },
   { id: "api-keys", label: "API Keys", icon: Key },
   { id: "trading", label: "Trading", icon: TrendingUp },
   { id: "data", label: "Data Sources", icon: Database },
@@ -70,177 +55,10 @@ const TIER_BADGE = {
   fast: "bg-navy-700 text-navy-400",
 };
 
-const PROMPT_CATEGORIES = [
-  { id: "chat", label: "Chat" },
-  { id: "operator", label: "Operator Context" },
-  { id: "analysis", label: "Analysis" },
-  { id: "predictions", label: "Predictions" },
-];
-
-function PromptEditor({
-  prompt,
-  onSave,
-  onReset,
-}: {
-  prompt: PromptEntry;
-  onSave: (key: string, value: string) => Promise<void>;
-  onReset: (key: string) => Promise<void>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [value, setValue] = useState(prompt.value);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [showDefault, setShowDefault] = useState(false);
-
-  const isDirty = value !== prompt.value;
-  const isModifiedFromDefault = prompt.isOverridden;
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onSave(prompt.key, value);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const handleReset = async () => {
-    setResetting(true);
-    await onReset(prompt.key);
-    setValue(prompt.defaultValue);
-    setResetting(false);
-  };
-
-  const charCount = value.length;
-  const lineCount = value.split("\n").length;
-
-  return (
-    <div className="border border-navy-700/50 rounded overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-navy-800/30 transition-colors text-left"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 text-navy-500 shrink-0" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-navy-500 shrink-0" />
-          )}
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-medium text-navy-200">
-                {prompt.label}
-              </span>
-              {isModifiedFromDefault && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-amber/15 text-accent-amber font-mono uppercase tracking-wider">
-                  Modified
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] text-navy-500 block truncate">
-              {prompt.description}
-            </span>
-          </div>
-        </div>
-        <span className="text-[10px] text-navy-600 font-mono shrink-0 ml-3">
-          {charCount.toLocaleString()} chars
-        </span>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-navy-700/50 p-4 space-y-3">
-          <textarea
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full h-80 bg-navy-900/50 border border-navy-700/50 rounded p-3 text-[12px] font-mono text-navy-200 resize-y focus:outline-none focus:border-navy-500 leading-relaxed"
-            spellCheck={false}
-          />
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] text-navy-600 font-mono">
-                {lineCount} lines
-              </span>
-              <span className="text-[10px] text-navy-600 font-mono">
-                {prompt.key}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowDefault(!showDefault)}
-                className="text-[10px] text-navy-500 hover:text-navy-300 transition-colors underline"
-              >
-                {showDefault ? "Hide default" : "View default"}
-              </button>
-
-              {isModifiedFromDefault && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleReset}
-                  disabled={resetting}
-                  className="text-[10px] text-navy-400 hover:text-accent-amber"
-                >
-                  {resetting ? (
-                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                  ) : (
-                    <RotateCcw className="h-3 w-3 mr-1" />
-                  )}
-                  Reset to default
-                </Button>
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSave}
-                disabled={saving || !isDirty}
-              >
-                {saving ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : saved ? (
-                  <CheckCircle2 className="h-3 w-3 text-accent-emerald mr-1" />
-                ) : (
-                  <Save className="h-3 w-3 mr-1" />
-                )}
-                {saved ? "Saved" : "Save"}
-              </Button>
-            </div>
-          </div>
-
-          {showDefault && (
-            <div className="border border-navy-700/30 rounded bg-navy-950 p-3 max-h-60 overflow-y-auto">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-navy-500 uppercase tracking-wider font-medium">
-                  Default prompt
-                </span>
-                <button
-                  onClick={() => {
-                    setValue(prompt.defaultValue);
-                    setShowDefault(false);
-                  }}
-                  className="text-[10px] text-navy-500 hover:text-navy-300 transition-colors underline"
-                >
-                  Restore this
-                </button>
-              </div>
-              <pre className="text-[11px] font-mono text-navy-500 whitespace-pre-wrap leading-relaxed">
-                {prompt.defaultValue}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingEntry[]>([]);
-  const [prompts, setPrompts] = useState<PromptEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [promptsLoading, setPromptsLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -255,6 +73,7 @@ export default function SettingsPage() {
   // AI Model
   const [aiModel, setAiModel] = useState("claude-opus-4-6");
   const [aiChatModel, setAiChatModel] = useState("");
+  const [jiangMode, setJiangMode] = useState(false);
 
   // API Keys
   const [voyageKey, setVoyageKey] = useState("");
@@ -304,6 +123,7 @@ export default function SettingsPage() {
             case "prediction_auto_resolve": setPredictionAutoResolve(setting.value); break;
             case "ai_model": setAiModel(setting.value); break;
             case "ai_chat_model": setAiChatModel(setting.value); break;
+            case "jiang_mode": setJiangMode(setting.value === "true"); break;
           }
         }
         setLoading(false);
@@ -322,16 +142,6 @@ export default function SettingsPage() {
         setSubLoading(false);
       })
       .catch(() => setSubLoading(false));
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/settings/prompts")
-      .then((r) => r.json())
-      .then((data) => {
-        setPrompts(Array.isArray(data) ? data : []);
-        setPromptsLoading(false);
-      })
-      .catch(() => setPromptsLoading(false));
   }, []);
 
   const saveSetting = async (key: string, value: string) => {
@@ -373,32 +183,6 @@ export default function SettingsPage() {
       setDeleting(null);
     }
   };
-
-  const savePrompt = useCallback(async (key: string, value: string) => {
-    await fetch("/api/settings/prompts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, value }),
-    });
-    setPrompts((prev) =>
-      prev.map((p) =>
-        p.key === key ? { ...p, value, isOverridden: true } : p
-      )
-    );
-  }, []);
-
-  const resetPrompt = useCallback(async (key: string) => {
-    await fetch("/api/settings/prompts", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key }),
-    });
-    setPrompts((prev) =>
-      prev.map((p) =>
-        p.key === key ? { ...p, value: p.defaultValue, isOverridden: false } : p
-      )
-    );
-  }, []);
 
   const SaveBtn = ({ settingKey, value }: { settingKey: string; value: string }) => (
     <Button
@@ -499,8 +283,6 @@ export default function SettingsPage() {
       </PageContainer>
     );
   }
-
-  const overriddenCount = prompts.filter((p) => p.isOverridden).length;
 
   return (
     <PageContainer title="Settings" subtitle="Configuration and preferences">
@@ -846,6 +628,39 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Jiang Mode */}
+            <div className="border border-navy-700 rounded p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-1">
+                    Narrative Synthesis Mode
+                  </h3>
+                  <p className="text-[10px] text-navy-600 max-w-md">
+                    Disables convergence scoring. Focuses the analyst on narrative synthesis, belief-driven scenario modeling, and actor-psychology analysis. Useful when you want to explore &ldquo;what actors believe will happen&rdquo; rather than quantitative convergence scores.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    const next = !jiangMode;
+                    setJiangMode(next);
+                    saveSetting("jiang_mode", next ? "true" : "false");
+                  }}
+                  className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ml-4 ${
+                    jiangMode ? "bg-accent-amber" : "bg-navy-700"
+                  }`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                      jiangMode ? "translate-x-5.5" : "translate-x-0.5"
+                    }`}
+                    style={{
+                      transform: jiangMode ? "translateX(22px)" : "translateX(2px)",
+                    }}
+                  />
+                </button>
+              </div>
+            </div>
+
             {/* Info box */}
             <div className="border border-navy-700/50 rounded p-4 bg-navy-900/30">
               <div className="flex items-start gap-2">
@@ -857,58 +672,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </Tabs.Content>
-
-        {/* Prompts Tab */}
-        <Tabs.Content value="prompts">
-          <div className="max-w-4xl">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-[11px] text-navy-400">
-                  Manage all system prompts used across the platform. Changes take effect immediately on next use.
-                </p>
-              </div>
-              {overriddenCount > 0 && (
-                <span className="text-[10px] font-mono text-accent-amber">
-                  {overriddenCount} modified
-                </span>
-              )}
-            </div>
-
-            {promptsLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {PROMPT_CATEGORIES.map((cat) => {
-                  const categoryPrompts = prompts.filter(
-                    (p) => p.category === cat.id
-                  );
-                  if (categoryPrompts.length === 0) return null;
-                  return (
-                    <div key={cat.id}>
-                      <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2">
-                        {cat.label}
-                      </h3>
-                      <div className="space-y-1">
-                        {categoryPrompts.map((p) => (
-                          <PromptEditor
-                            key={p.key}
-                            prompt={p}
-                            onSave={savePrompt}
-                            onReset={resetPrompt}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </Tabs.Content>
 
@@ -1205,43 +968,180 @@ export default function SettingsPage() {
 
         {/* System Tab */}
         <Tabs.Content value="system">
-          <div className="space-y-4 max-w-2xl">
-            <div className="border border-navy-700 rounded p-4">
-              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                All Settings ({settings.length})
-              </h3>
-              {settings.length === 0 ? (
-                <p className="text-[10px] text-navy-600">No settings configured yet.</p>
-              ) : (
-                <div className="space-y-1">
-                  {settings.map((s) => (
-                    <div
-                      key={s.key}
-                      className="flex items-center justify-between rounded px-3 py-1.5 text-xs hover:bg-navy-800 group"
-                    >
-                      <span className="text-navy-400 font-mono text-[11px]">{s.key}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-navy-300 text-[11px]">{s.value}</span>
-                        <span className="text-[9px] text-navy-600">
-                          {new Date(s.updatedAt).toLocaleDateString()}
-                        </span>
-                        <button
-                          onClick={() => deleteSetting(s.key)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-navy-600 hover:text-red-400"
-                          disabled={deleting === s.key}
-                        >
-                          {deleting === s.key ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
-                        </button>
-                      </div>
+          <div className="space-y-6 max-w-3xl">
+            {settings.length === 0 ? (
+              <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-8 text-center">
+                <Settings2 className="h-8 w-8 text-navy-600 mx-auto mb-3" />
+                <p className="text-sm text-navy-400">No settings configured yet.</p>
+              </div>
+            ) : (
+              (() => {
+                // Categorize settings
+                const categories: Record<string, { label: string; icon: React.ReactNode; color: string; borderColor: string; settings: SettingEntry[] }> = {};
+                const apiKeyPatterns = ["api_key", "api_secret", "secret"];
+                const tradingPatterns = ["trading", "max_order", "trade_limit", "position_concentration", "stop_loss", "take_profit"];
+                const aiPatterns = ["ai_", "model", "prompt"];
+                const subscriptionPatterns = ["subscription", "tier", "stripe"];
+
+                settings.forEach((s) => {
+                  const baseKey = s.key.includes(":") ? s.key.split(":").slice(1).join(":") : s.key;
+                  const lk = baseKey.toLowerCase();
+
+                  let cat: string;
+                  if (apiKeyPatterns.some(p => lk.includes(p))) {
+                    cat = "api-keys";
+                  } else if (tradingPatterns.some(p => lk.includes(p))) {
+                    cat = "trading";
+                  } else if (aiPatterns.some(p => lk.includes(p))) {
+                    cat = "ai";
+                  } else if (subscriptionPatterns.some(p => lk.includes(p))) {
+                    cat = "subscription";
+                  } else {
+                    cat = "general";
+                  }
+
+                  if (!categories[cat]) {
+                    const configs: Record<string, { label: string; icon: React.ReactNode; color: string; borderColor: string }> = {
+                      "api-keys": { label: "API Keys & Secrets", icon: <Key className="h-4 w-4" />, color: "text-accent-amber", borderColor: "border-accent-amber/20" },
+                      "trading": { label: "Trading Configuration", icon: <TrendingUp className="h-4 w-4" />, color: "text-accent-emerald", borderColor: "border-accent-emerald/20" },
+                      "ai": { label: "AI & Model Settings", icon: <Brain className="h-4 w-4" />, color: "text-accent-cyan", borderColor: "border-accent-cyan/20" },
+                      "subscription": { label: "Subscription & Billing", icon: <CreditCard className="h-4 w-4" />, color: "text-purple-400", borderColor: "border-purple-400/20" },
+                      "general": { label: "General Settings", icon: <Settings2 className="h-4 w-4" />, color: "text-navy-400", borderColor: "border-navy-600" },
+                    };
+                    const cfg = configs[cat] || configs.general;
+                    categories[cat] = { ...cfg, settings: [] };
+                  }
+                  categories[cat].settings.push(s);
+                });
+
+                const order = ["ai", "api-keys", "trading", "subscription", "general"];
+                const sorted = order.filter(k => categories[k]).map(k => ({ id: k, ...categories[k] }));
+
+                return sorted.map((cat) => (
+                  <div key={cat.id} className={`border ${cat.borderColor} rounded-lg bg-navy-900/30 overflow-hidden`}>
+                    {/* Category header */}
+                    <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-navy-800/60">
+                      <span className={cat.color}>{cat.icon}</span>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-widest text-navy-300">
+                        {cat.label}
+                      </h3>
+                      <span className="ml-auto text-[10px] font-mono text-navy-600">
+                        {cat.settings.length} {cat.settings.length === 1 ? "entry" : "entries"}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+
+                    {/* Settings cards */}
+                    <div className="divide-y divide-navy-800/40">
+                      {cat.settings.map((s) => {
+                        const baseKey = s.key.includes(":") ? s.key.split(":").slice(1).join(":") : s.key;
+                        const isMasked = s.value.startsWith("****");
+                        let parsedJson: Record<string, unknown> | null = null;
+                        if (!isMasked) {
+                          try {
+                            const parsed = JSON.parse(s.value);
+                            if (typeof parsed === "object" && parsed !== null) {
+                              parsedJson = parsed as Record<string, unknown>;
+                            }
+                          } catch {
+                            // not JSON
+                          }
+                        }
+                        const isLongValue = s.value.length > 120;
+
+                        return (
+                          <div key={s.key} className="px-5 py-3.5 hover:bg-navy-800/20 transition-colors group">
+                            <div className="flex items-start justify-between gap-4">
+                              {/* Key + value */}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-mono text-[11px] font-medium text-navy-300">
+                                    {baseKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                                  </span>
+                                  {isMasked && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-amber/10 text-accent-amber font-mono uppercase tracking-wider">
+                                      Encrypted
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Render based on value type */}
+                                {isMasked ? (
+                                  <span className="font-mono text-[11px] text-navy-500 tracking-wider">{s.value}</span>
+                                ) : parsedJson ? (
+                                  <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 bg-navy-950/40 rounded-md px-3.5 py-2.5 border border-navy-800/30">
+                                    {Object.entries(parsedJson).map(([jk, jv]) => (
+                                      <div key={jk} className="flex items-baseline gap-2 min-w-0">
+                                        <span className="text-[10px] font-mono text-navy-500 shrink-0">
+                                          {jk}
+                                        </span>
+                                        <span className="text-[11px] text-navy-300 truncate">
+                                          {jv === null ? (
+                                            <span className="text-navy-600 italic">null</span>
+                                          ) : jv === true ? (
+                                            <span className="text-accent-emerald">true</span>
+                                          ) : jv === false ? (
+                                            <span className="text-accent-rose">false</span>
+                                          ) : typeof jv === "number" ? (
+                                            <span className="text-accent-cyan font-mono">{jv}</span>
+                                          ) : typeof jv === "object" ? (
+                                            <span className="text-navy-400 font-mono text-[10px]">{JSON.stringify(jv)}</span>
+                                          ) : (
+                                            String(jv)
+                                          )}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : isLongValue ? (
+                                  <p className="text-[11px] text-navy-400 mt-1 line-clamp-2 leading-relaxed">
+                                    {s.value}
+                                  </p>
+                                ) : (
+                                  <span className="text-[11px] text-navy-400">
+                                    {s.value === "true" ? (
+                                      <span className="text-accent-emerald font-mono">true</span>
+                                    ) : s.value === "false" ? (
+                                      <span className="text-accent-rose font-mono">false</span>
+                                    ) : !isNaN(Number(s.value)) && s.value.trim() !== "" ? (
+                                      <span className="text-accent-cyan font-mono">{s.value}</span>
+                                    ) : (
+                                      s.value
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Meta + actions */}
+                              <div className="flex items-center gap-3 shrink-0 pt-0.5">
+                                <span className="text-[9px] text-navy-600 font-mono">
+                                  {new Date(s.updatedAt).toLocaleDateString()}
+                                </span>
+                                <button
+                                  onClick={() => deleteSetting(s.key)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-navy-600 hover:text-red-400 p-1 rounded hover:bg-navy-800/50"
+                                  disabled={deleting === s.key}
+                                >
+                                  {deleting === s.key ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Full key path */}
+                            <div className="mt-1.5">
+                              <span className="font-mono text-[9px] text-navy-700">{s.key}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ));
+              })()
+            )}
           </div>
         </Tabs.Content>
       </Tabs.Root>

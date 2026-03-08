@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { traverseFrom, findPaths, exploreEntity } from "@/lib/graph/traversal";
+import { requireTier } from "@/lib/auth/require-tier";
 
 // GET - traverse from entity or find paths
 export async function GET(req: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(req.url);
     const entity = searchParams.get("entity");
@@ -34,6 +37,8 @@ export async function GET(req: NextRequest) {
 
 // POST - build context graph from text
 export async function POST(req: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { text } = await req.json();
     if (!text) {

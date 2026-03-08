@@ -22,6 +22,7 @@ import { useVesselData } from "@/lib/warroom/use-vessel-data";
 import { useOsintData } from "@/lib/warroom/use-osint-data";
 import { useSatelliteData } from "@/lib/warroom/use-satellite-data";
 import type { WarRoomData, WarRoomLayerVisibility, OsintEvent, AircraftState, VesselState } from "@/lib/warroom/types";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
 const WarRoomMap = dynamic(
   () => import("@/components/warroom/war-room-map"),
@@ -160,6 +161,7 @@ export default function WarRoomPage() {
 
   return (
     <div className="ml-48 h-screen flex flex-col overflow-hidden bg-[#050505]">
+      <UpgradeGate minTier="operator" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
       {/* Top Bar - COP Status */}
       <div className="h-9 border-b border-[#1a1a1a] bg-[#080808]/95 backdrop-blur-sm flex items-center px-3 gap-0 shrink-0 z-20 font-mono">
         {/* Threat Level */}
@@ -364,6 +366,7 @@ export default function WarRoomPage() {
           onSelectVessel={handleVesselClick}
         />
       </div>
+      </UpgradeGate>
     </div>
   );
 }

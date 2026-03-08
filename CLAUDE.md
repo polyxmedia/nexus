@@ -1,7 +1,7 @@
 # NEXUS Intelligence Platform
 
 ## Project Overview
-Geopolitical-market convergence analysis platform. Signal detection across geopolitical, celestial, calendar, market, and OSINT layers, with AI-driven thesis generation and trading integration.
+Integrated geopolitical-market intelligence platform. Four primary signal layers (GEO, MKT, OSI, systemic risk) + narrative overlay (calendar/celestial as actor-belief context, max 0.5 bonus, no convergence weight). AI-driven thesis generation, regime-aware prediction tracking with Brier scoring, game theory scenarios, and trading integration.
 
 ## Tech Stack
 - **Framework**: Next.js 15.1 + Turbopack, React 19, TypeScript 5.7

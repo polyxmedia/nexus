@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { and, eq, gt, sql as drizzleSql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/chat/tools";
+import { TOOL_TIERS } from "@/lib/auth/tier-config";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
 import { getUserTier } from "@/lib/auth/require-tier";
@@ -18,6 +19,39 @@ const COMPRESS_THRESHOLD = 20; // total messages before compression kicks in
 const KEEP_RECENT = 8;          // messages to retain verbatim after compression
 
 type DbMessage = { id: number; role: string; content: string; toolUses: string | null; toolResults: string | null };
+
+const JIANG_MODE_ADDENDUM = `
+
+## NARRATIVE SYNTHESIS MODE (ACTIVE)
+
+Convergence scoring is DISABLED. Do not reference convergence scores, intensity ratings, or quantitative signal weights.
+
+Instead, focus entirely on:
+- **Actor psychology**: What do key actors believe? What narratives are they operating under?
+- **Belief-driven scenario modeling**: Model outcomes based on what actors think will happen, not what data says
+- **Calendar significance through actor lens**: Calendar events matter only insofar as specific actors behave differently around them
+- **Narrative synthesis**: Connect events through narrative threads, not numerical convergence
+- **Scripture/doctrinal analysis**: When relevant, analyze how religious or ideological texts inform actor decisions
+
+When using tools, still gather data, but interpret it through the narrative/belief lens rather than the quantitative convergence framework.`;
+
+async function getSystemPromptWithMode(): Promise<string> {
+  const basePrompt = await loadPrompt("chat_system");
+
+  try {
+    const jiangRow = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, "jiang_mode"));
+    if (jiangRow[0]?.value === "true") {
+      return basePrompt + JIANG_MODE_ADDENDUM;
+    }
+  } catch {
+    // Settings not available, use base prompt
+  }
+
+  return basePrompt;
+}
 
 async function maybeCompressSession(
   client: Anthropic,
@@ -64,8 +98,9 @@ async function maybeCompressSession(
     : transcript;
 
   try {
+    // Use a fast model for compression — this is background work, not user-facing
     const res = await client.messages.create({
-      model: await getChatModel(),
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       system: "You are a precise conversation summariser. Produce a dense, factual summary of the conversation below, preserving all key facts, decisions, data points, market tickers, and analytical conclusions. Write in third person present tense. Be thorough but concise — this summary replaces the original messages as context for future turns.",
       messages: [{ role: "user", content: priorContext }],
@@ -93,16 +128,15 @@ export async function GET(
   const username = authSession.user.name;
 
   const { sessionId } = await params;
-  const id = parseInt(sessionId, 10);
   try {
-    const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.id, id));
+    const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.uuid, sessionId));
     const chatSession = sessionRows[0];
     if (!chatSession) return NextResponse.json({ error: "Session not found" }, { status: 404 });
     // Allow access to own sessions or legacy sessions (before user scoping was added)
     if (chatSession.userId !== username && chatSession.userId !== "legacy") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const messages = await db.select().from(schema.chatMessages).where(eq(schema.chatMessages.sessionId, id)).orderBy(schema.chatMessages.createdAt);
+    const messages = await db.select().from(schema.chatMessages).where(eq(schema.chatMessages.sessionId, chatSession.id)).orderBy(schema.chatMessages.createdAt);
     return NextResponse.json({ session: chatSession, messages });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -137,25 +171,43 @@ export async function POST(
     }
   }
 
-  const { sessionId } = await params;
-  const id = parseInt(sessionId, 10);
-  const body = await req.json();
-  const userMessage = body.message as string;
-  if (!userMessage?.trim()) return NextResponse.json({ error: "Message required" }, { status: 400 });
+  // Filter chat tools by user's tier level
+  const TIER_LEVELS: Record<string, number> = { free: 0, analyst: 1, operator: 2, institution: 3 };
+  const userTierLevel = tierInfo.isAdmin ? 3 : tierInfo.tierLevel;
+  const filteredTools = TOOL_DEFINITIONS.filter((tool) => {
+    const requiredTier = TOOL_TIERS[tool.name] || "analyst";
+    const requiredLevel = TIER_LEVELS[requiredTier] ?? 1;
+    return userTierLevel >= requiredLevel;
+  });
 
-  const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.id, id));
+  const { sessionId } = await params;
+  const body = await req.json();
+  const userMessage = (body.message as string) || "";
+  const attachedFiles = body.files as Array<{ name: string; type: string; data: string }> | undefined;
+  if (!userMessage?.trim() && !attachedFiles?.length) return NextResponse.json({ error: "Message required" }, { status: 400 });
+
+  const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.uuid, sessionId));
   const session = sessionRows[0];
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
   if (session.userId !== username && session.userId !== "legacy") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const id = session.id;
 
   const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "anthropic_api_key"));
   const apiKeySetting = apiKeyRows[0];
   const apiKey = apiKeySetting?.value || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 500 });
 
-  await db.insert(schema.chatMessages).values({ sessionId: id, role: "user", content: userMessage });
+  // Build DB-stored content: text + file references (no binary data in DB)
+  const dbContent = [
+    userMessage,
+    ...(attachedFiles || []).map((f) =>
+      f.type.startsWith("image/") ? `[Image: ${f.name}]` : `[File: ${f.name}]`
+    ),
+  ].filter(Boolean).join("\n");
+
+  await db.insert(schema.chatMessages).values({ sessionId: id, role: "user", content: dbContent || "(files attached)" });
 
   if (session.title === "New Chat") {
     const title = userMessage.slice(0, 50) + (userMessage.length > 50 ? "..." : "");
@@ -179,7 +231,35 @@ export async function POST(
         .where(eq(schema.chatMessages.sessionId, id))
         .orderBy(schema.chatMessages.id);
 
+  // Replace the last stored user message content with the rich version (including file content)
+  // buildAnthropicMessages reads from DB, so we patch the last user message after building
   const anthropicMessages = buildAnthropicMessages(dbMessages, sessionSummary);
+
+  // Attach file content blocks to the last user message in the API payload
+  if (attachedFiles?.length) {
+    const last = anthropicMessages[anthropicMessages.length - 1];
+    if (last?.role === "user") {
+      const richContent: Anthropic.ContentBlockParam[] = [];
+
+      // Add file blocks first
+      for (const f of attachedFiles) {
+        if (f.type.startsWith("image/")) {
+          const mediaType = f.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+          richContent.push({ type: "image", source: { type: "base64", media_type: mediaType, data: f.data } });
+        } else {
+          // Text/code file — include inline
+          richContent.push({ type: "text", text: `[File: ${f.name}]\n\`\`\`\n${f.data}\n\`\`\`` });
+        }
+      }
+
+      // Add the text message (could be empty if user only attached files)
+      if (userMessage.trim()) {
+        richContent.push({ type: "text", text: userMessage });
+      }
+
+      last.content = richContent;
+    }
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -198,8 +278,8 @@ export async function POST(
           const response = await client.messages.create({
             model: await getChatModel(),
             max_tokens: 4096,
-            system: await loadPrompt("chat_system"),
-            tools: TOOL_DEFINITIONS,
+            system: await getSystemPromptWithMode(),
+            tools: filteredTools,
             messages,
             stream: true,
           });
@@ -235,6 +315,16 @@ export async function POST(
               try { parsedInput = tool.inputJson ? JSON.parse(tool.inputJson) : {}; } catch { parsedInput = {}; }
               assistantContent.push({ type: "tool_use" as const, id: tool.id, name: tool.name, input: parsedInput });
               allToolUses.push({ toolName: tool.name, toolUseId: tool.id, input: parsedInput });
+              // Server-side tool tier enforcement (belt + suspenders)
+              const toolRequiredTier = TOOL_TIERS[tool.name] || "analyst";
+              const toolRequiredLevel = TIER_LEVELS[toolRequiredTier] ?? 1;
+              if (userTierLevel < toolRequiredLevel) {
+                const blocked = { error: `${tool.name} requires ${toolRequiredTier} tier`, upgrade: true, requiredTier: toolRequiredTier };
+                allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: blocked });
+                sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: blocked });
+                toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(blocked) });
+                continue;
+              }
               const toolResult = await executeTool(tool.name, parsedInput);
               allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: toolResult });
               sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: toolResult });
@@ -253,7 +343,9 @@ export async function POST(
         });
 
         // Non-blocking compression check after response is stored
-        maybeCompressSession(client, id, sessionSummary, summarizedUntilId).catch(() => {});
+        maybeCompressSession(client, id, sessionSummary, summarizedUntilId).catch((err) => {
+          console.error("Compression background error:", err);
+        });
 
         // Generate follow-up suggestions
         try {

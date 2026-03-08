@@ -8,15 +8,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const predictionId = parseInt(id, 10);
-    if (isNaN(predictionId)) {
-      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
-    }
 
     const rows = await db
       .select()
       .from(schema.predictions)
-      .where(eq(schema.predictions.id, predictionId));
+      .where(eq(schema.predictions.uuid, id));
 
     if (!rows[0]) {
       return NextResponse.json({ error: "Prediction not found" }, { status: 404 });

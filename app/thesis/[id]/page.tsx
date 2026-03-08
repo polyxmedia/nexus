@@ -26,6 +26,7 @@ interface TradingAction {
 
 interface ThesisDetail {
   id: number;
+  uuid: string;
   title: string;
   status: string;
   generatedAt: string;
@@ -82,7 +83,7 @@ export default function ThesisDetailPage() {
   const closeThesis = async () => {
     if (!thesis) return;
     try {
-      await fetch(`/api/thesis/${thesis.id}`, {
+      await fetch(`/api/thesis/${thesis.uuid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "expired" }),
@@ -193,6 +194,7 @@ export default function ThesisDetailPage() {
         action={approvalAction}
         thesisContext={{
           id: thesis.id,
+          uuid: thesis.uuid,
           title: thesis.title,
           marketRegime: thesis.marketRegime,
           volatilityOutlook: thesis.volatilityOutlook,

@@ -13,6 +13,9 @@
   --color-navy-200: #c0c0c0;
   --color-navy-100: #e0e0e0;
 
+  --color-white: #ffffff;
+  --color-black: #000000;
+
   --color-signal-1: #3b82f6;
   --color-signal-2: #22c55e;
   --color-signal-3: #eab308;
@@ -33,6 +36,28 @@ body {
   font-family: var(--font-mono);
   background-color: var(--color-navy-950);
   color: var(--color-navy-100);
+}
+
+/* ── Light Mode ── */
+.light {
+  --color-navy-950: #f9f9f9;
+  --color-navy-900: #f0f0f0;
+  --color-navy-800: #e4e4e4;
+  --color-navy-700: #cccccc;
+  --color-navy-600: #a0a0a0;
+  --color-navy-500: #707070;
+  --color-navy-400: #505050;
+  --color-navy-300: #383838;
+  --color-navy-200: #1e1e1e;
+  --color-navy-100: #111111;
+
+  /* Flip white/black so text-white, bg-white, border-white all adapt */
+  --color-white: #0d0d0d;
+  --color-black: #f5f5f5;
+
+  /* Body surface */
+  background-color: #f9f9f9;
+  color: #111111;
 }
 
 /* Custom scrollbar */

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Radar } from "lucide-react";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export function PublicNav() {
   return (
@@ -18,7 +19,7 @@ export function PublicNav() {
           <Link href="/research/methodology" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             METHODOLOGY
           </Link>
-          <Link href="/research/whitepapers" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+          <Link href="/research/signal-theory" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             RESEARCH
           </Link>
           <Link href="/about" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
@@ -27,12 +28,16 @@ export function PublicNav() {
           <Link href="/investors" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             INVESTORS
           </Link>
+          <Link href="/media" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+            MEDIA
+          </Link>
           <Link
             href="/login"
             className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block"
           >
             SIGN IN
           </Link>
+          <ThemeToggle className="p-1.5 text-navy-400 hover:text-navy-200 transition-colors" />
           <Link
             href="/register"
             className="px-4 py-1.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"

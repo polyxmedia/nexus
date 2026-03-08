@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { requireTier } from "@/lib/auth/require-tier";
 
 const DEFAULT_WIDGETS = [
   { widgetType: "metric", title: "Threat Level", config: JSON.stringify({ metric: "threat_level" }), position: 0, width: 1 },
@@ -19,6 +20,8 @@ const DEFAULT_WIDGETS = [
 ];
 
 export async function GET() {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     let widgets = await db.select().from(schema.dashboardWidgets)
       .where(eq(schema.dashboardWidgets.userId, "default"));
@@ -45,6 +48,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const body = await req.json();
     const { action } = body;

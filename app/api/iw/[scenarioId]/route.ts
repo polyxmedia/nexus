@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { evaluateScenario } from "@/lib/iw/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ scenarioId: string }> }
 ) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { scenarioId } = await params;
     const status = await evaluateScenario(scenarioId);

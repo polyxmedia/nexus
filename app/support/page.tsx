@@ -18,6 +18,7 @@ import {
 
 interface Ticket {
   id: number;
+  uuid: string;
   title: string;
   description: string;
   status: string;
@@ -271,7 +272,7 @@ export default function SupportPage() {
             return (
               <Link
                 key={ticket.id}
-                href={`/support/${ticket.id}`}
+                href={`/support/${ticket.uuid}`}
                 className="flex items-center gap-4 px-4 py-3 rounded-lg border border-navy-700/30 bg-navy-900/20 hover:bg-navy-800/30 hover:border-navy-700/50 transition-colors group"
               >
                 <StatusIcon className={`h-4 w-4 shrink-0 ${statusCfg.color}`} />

@@ -18,6 +18,7 @@ import {
   FileText,
   FlaskConical,
   Globe,
+  History,
   Landmark,
   LayoutDashboard,
   Link2,
@@ -38,10 +39,12 @@ import {
   Swords,
   Target,
   TrendingUp,
+  Users,
   X,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 const mainNav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -60,6 +63,8 @@ const intelligenceNav = [
   { name: "AI Progression", href: "/ai-progression", icon: Bot },
   { name: "GPR Index", href: "/gpr", icon: Radar },
   { name: "Game Theory", href: "/game-theory", icon: Swords },
+  { name: "Parallels", href: "/parallels", icon: History },
+  { name: "Actors", href: "/actors", icon: Users },
   { name: "Knowledge", href: "/knowledge", icon: BookOpen },
 ];
 
@@ -98,10 +103,10 @@ function NavSection({ label, items, pathname }: { label: string; items: typeof m
         </span>
       </div>
       {items.map((item) => {
-        const isActive =
-          item.href === "/"
-            ? pathname === "/"
-            : pathname.startsWith(item.href);
+        // Find the longest matching href in this section to avoid parent routes lighting up
+        const bestMatch = items.reduce((best, it) =>
+          (pathname === it.href || pathname.startsWith(it.href + "/")) && it.href.length > best.length ? it.href : best, "");
+        const isActive = item.href === bestMatch;
 
         return (
           <Link
@@ -128,7 +133,7 @@ export function Sidebar() {
   const { data: session } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const publicPages = ["/", "/landing", "/register", "/login", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors"];
+  const publicPages = ["/", "/landing", "/register", "/login", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
   if (publicPages.includes(pathname) || pathname.startsWith("/research")) return null;
 
   const sidebarContent = (
@@ -208,11 +213,14 @@ export function Sidebar() {
             Sign Out
           </button>
         )}
-        <div className="flex items-center gap-1.5 px-2 pt-2 pb-1">
-          <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />
-          <span className="text-[10px] text-navy-500 truncate">
-            {session?.user?.name || "Online"}
-          </span>
+        <div className="flex items-center justify-between px-2 pt-2 pb-1">
+          <div className="flex items-center gap-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />
+            <span className="text-[10px] text-navy-500 truncate">
+              {session?.user?.name || "Online"}
+            </span>
+          </div>
+          <ThemeToggle className="p-1 text-navy-500 hover:text-navy-300 transition-colors" />
         </div>
       </div>
     </div>

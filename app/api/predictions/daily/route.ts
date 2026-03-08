@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
-import { generatePredictions, resolvePredictions } from "@/lib/predictions/engine";
+import { generatePredictions, resolvePredictions, autoExpirePastDeadline, invalidateOnRegimeChange } from "@/lib/predictions/engine";
+import { runWartimeCheck } from "@/lib/game-theory/wartime";
 import { db, schema } from "@/lib/db";
 import { desc, and, gte, lt } from "drizzle-orm";
 
 export async function POST() {
   try {
+    // Step 0: Housekeeping — expire stale, invalidate on regime change, check wartime thresholds
+    const autoExpired = await autoExpirePastDeadline();
+    const regimeInvalidated = await invalidateOnRegimeChange();
+    const wartimeCheck = await runWartimeCheck();
+
     // Step 1: Resolve any overdue predictions first
     const resolved = await resolvePredictions();
 
     // Step 2: Check if we already generated predictions today
-    const today = new Date().toISOString().split("T");
+    const today = new Date().toISOString().split("T")[0];
     const todayStart = `${today}T00:00:00`;
     const todayEnd = `${today}T23:59:59`;
 
@@ -27,6 +33,7 @@ export async function POST() {
     }
 
     return NextResponse.json({
+      housekeeping: { autoExpired, regimeInvalidated, wartimeCheck },
       resolved: { count: resolved.length, results: resolved },
       generated: { count: generated.length, predictions: generated },
       alreadyGenerated: todaysPredictions.length > 0,
@@ -39,7 +46,7 @@ export async function POST() {
 
 export async function GET() {
   try {
-    const today = new Date().toISOString().split("T");
+    const today = new Date().toISOString().split("T")[0];
     const todayStart = `${today}T00:00:00`;
     const allPredictions = await db.select().from(schema.predictions).orderBy(desc(schema.predictions.id));
 

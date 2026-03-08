@@ -3,8 +3,11 @@ import { getPutCallRatio, estimateOptionsMetrics } from "@/lib/market-data/optio
 import { getDailySeries, getQuote } from "@/lib/market-data/alpha-vantage";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(req: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const action = req.nextUrl.searchParams.get("action");
   const symbol = req.nextUrl.searchParams.get("symbol");
 

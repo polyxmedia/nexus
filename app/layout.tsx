@@ -8,7 +8,7 @@ import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { SubscriptionProvider } from "@/lib/hooks/useSubscription";
 import { OrganizationJsonLd, WebSiteJsonLd, SoftwareApplicationJsonLd } from "@/components/seo/json-ld";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexusintel.io";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     template: "%s | NEXUS Intelligence",
   },
   description:
-    "NEXUS detects convergence across geopolitical, calendar, celestial, market, and OSINT signal layers before consensus catches up. AI-driven intelligence briefs for analysts, traders, and institutions.",
+    "NEXUS integrates geopolitical, market, OSINT, and systemic risk signals into one platform. AI-driven convergence analysis, game theory scenarios, and prediction tracking for analysts, traders, and institutions.",
   keywords: [
     "geopolitical intelligence",
     "market intelligence",
@@ -45,14 +45,14 @@ export const metadata: Metadata = {
     siteName: "NEXUS Intelligence",
     title: "NEXUS Intelligence — Geopolitical-Market Signal Platform",
     description:
-      "Five independent signal layers. AI-driven convergence analysis. Intelligence briefs before consensus. Built for analysts, traders, and institutions.",
+      "Four primary signal layers + narrative overlay. AI-driven convergence analysis. Intelligence briefs before consensus. Built for analysts, traders, and institutions.",
     images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "NEXUS Intelligence Platform" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "NEXUS Intelligence — Geopolitical-Market Signal Platform",
     description:
-      "Five independent signal layers. AI-driven convergence analysis. Intelligence briefs before consensus.",
+      "Four primary signal layers + narrative overlay. AI-driven convergence analysis. Intelligence briefs before consensus.",
     images: ["/opengraph-image"],
     creator: "@polyxmedia",
   },
@@ -68,8 +68,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('nexus-theme');if(t==='light'){document.documentElement.classList.add('light');}else{document.documentElement.classList.remove('light');}}catch(e){}})();`,
+          }}
+        />
         <OrganizationJsonLd />
         <WebSiteJsonLd />
         <SoftwareApplicationJsonLd />

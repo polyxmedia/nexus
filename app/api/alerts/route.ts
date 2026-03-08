@@ -9,8 +9,11 @@ import {
   getUndismissedAlerts,
   evaluateAlerts,
 } from "@/lib/alerts/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   const { searchParams } = new URL(request.url);
   const view = searchParams.get("view");
 
@@ -30,6 +33,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action");
 
@@ -50,6 +55,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   const body = await request.json();
   const { id, ...updates } = body;
   const alert = await updateAlert(id, updates);
@@ -57,6 +64,8 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   const { searchParams } = new URL(request.url);
   const id = parseInt(searchParams.get("id") || "0", 10);
   if (id) await deleteAlert(id);

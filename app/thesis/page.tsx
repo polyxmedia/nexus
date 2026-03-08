@@ -38,6 +38,7 @@ interface RedTeamAssessment {
 
 interface ThesisSummary {
   id: number;
+  uuid: string;
   title: string;
   status: string;
   generatedAt: string;
@@ -157,8 +158,8 @@ export default function ThesisPage() {
         setError(data.error);
       } else {
         fetchTheses();
-        if (data.thesis?.id) {
-          router.push(`/thesis/${data.thesis.id}`);
+        if (data.thesis?.uuid) {
+          router.push(`/thesis/${data.thesis.uuid}`);
         }
       }
     } catch {
@@ -168,9 +169,9 @@ export default function ThesisPage() {
     }
   };
 
-  const closeThesis = async (id: number) => {
+  const closeThesis = async (uuid: string) => {
     try {
-      await fetch(`/api/thesis/${id}`, {
+      await fetch(`/api/thesis/${uuid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "expired" }),
@@ -195,7 +196,7 @@ export default function ThesisPage() {
       key: "title",
       header: "Title",
       accessor: (row) => (
-        <Link href={`/thesis/${row.id}`} className="text-navy-200 hover:text-navy-100">
+        <Link href={`/thesis/${row.uuid}`} className="text-navy-200 hover:text-navy-100">
           {row.title}
         </Link>
       ),
@@ -331,14 +332,14 @@ export default function ThesisPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => router.push(`/thesis/${activeThesis.id}`)}
+                    onClick={() => router.push(`/thesis/${activeThesis.uuid}`)}
                   >
                     View Full
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => closeThesis(activeThesis.id)}
+                    onClick={() => closeThesis(activeThesis.uuid)}
                   >
                     Close Thesis
                   </Button>
@@ -521,7 +522,7 @@ export default function ThesisPage() {
                 data={pastTheses}
                 columns={thesisColumns}
                 keyExtractor={(row) => row.id}
-                onRowClick={(row) => router.push(`/thesis/${row.id}`)}
+                onRowClick={(row) => router.push(`/thesis/${row.uuid}`)}
               />
             </div>
           )}

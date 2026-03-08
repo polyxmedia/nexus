@@ -131,6 +131,13 @@ const tocSections = [
   { id: "knowledge", num: "18", label: "Knowledge Bank and Embeddings" },
   { id: "ai-progression", num: "19", label: "AI Progression Tracking" },
   { id: "integration", num: "20", label: "System Integration Architecture" },
+  { id: "academic", num: "21", label: "Academic Foundations & Peer-Reviewed Evidence" },
+  { id: "limitations", num: "22", label: "Limitations and Known Constraints" },
+  { id: "live-results", num: "23", label: "Live Results and Prediction Record" },
+  { id: "parallels", num: "24", label: "Historical Pattern Matching" },
+  { id: "actor-profiles", num: "25", label: "Actor-Belief Profile System" },
+  { id: "narrative-reports", num: "26", label: "Narrative Report Generation" },
+  { id: "appendix-a", num: "A", label: "Appendix A: Calendar / Celestial Literature" },
 ];
 
 // ════════════════════════════════════════════════
@@ -161,6 +168,12 @@ export default function WhitepaperPage() {
   const knowledgeReveal = useReveal();
   const aiProgReveal = useReveal();
   const integrationReveal = useReveal();
+  const academicReveal = useReveal();
+  const limitationsReveal = useReveal();
+  const liveResultsReveal = useReveal();
+  const parallelsReveal = useReveal();
+  const actorProfilesReveal = useReveal();
+  const narrativeReportsReveal = useReveal();
   const ctaReveal = useReveal(0.2);
 
   return (
@@ -279,13 +292,13 @@ export default function WhitepaperPage() {
           <SectionHead number="00" label="Abstract" visible={abstractReveal.visible} />
           <div className={`max-w-3xl ${anim} ${abstractReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
-              NEXUS is a geopolitical-market convergence intelligence platform that synthesises signals from five independent data layers into actionable intelligence. The platform combines techniques from quantitative finance, intelligence analysis, computational statistics, and natural language processing to detect conditions under which geopolitical events are likely to produce market dislocations.
+              NEXUS is a geopolitical-market convergence intelligence platform that synthesises signals from four independent primary data layers plus narrative context overlays into actionable intelligence. The platform combines techniques from quantitative finance, intelligence analysis, computational statistics, and natural language processing to detect conditions under which geopolitical events are likely to produce market dislocations.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
               This paper documents every analytical methodology currently implemented in production. Each section covers the theoretical basis, the specific algorithms used, the data sources consumed, and how outputs integrate with the broader system. Where formal academic literature underpins a method, citations are provided. Where we have extended or adapted existing techniques, the modifications are documented with rationale.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              The platform processes data from 15+ external APIs, runs 20+ analytical tools, and maintains a self-correcting feedback loop through Brier-scored prediction tracking. Every component described here runs in production, processing real data, generating real predictions, and measuring real outcomes.
+              The platform processes data from 39 external APIs and data feeds, runs 42 analytical tools, and maintains a self-correcting feedback loop through Brier-scored prediction tracking. Every component described here runs in production, processing real data, generating real predictions, and measuring real outcomes.
             </p>
           </div>
         </div>
@@ -302,13 +315,21 @@ export default function WhitepaperPage() {
 
           <div className={`max-w-3xl mb-10 ${anim} ${signalReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
-              Signal detection in NEXUS operates across five independent domains, each with its own detection engine, data sources, and scoring logic. The independence of these layers is a deliberate architectural decision. Correlated inputs produce correlated noise. Independent inputs produce meaningful convergence.
+              The platform runs four independent primary signal layers: Geopolitical (GDELT, ACLED, Caldara-Iacoviello GPR), Market microstructure (options flow, GEX, VIX term structure), Systemic risk (Kritzman Absorption Ratio, BOCPD, Turbulence Index), and OSINT (shipping, aircraft tracking, sanctions, central-bank NLP). A fifth overlay, religious and celestial calendars, is maintained as narrative context to model how specific actors in power think and schedule decisions. These overlays receive no convergence bonus and are not treated as independent predictive signals. The independence of the four primary layers is a deliberate architectural decision. Correlated inputs produce correlated noise. Independent inputs produce meaningful convergence.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
               Every signal layer normalises its output into a common schema: timestamp, category code, affected entities (actors, regions, tickers), geographic scope, and a preliminary intensity score on a 1-5 scale. This normalisation allows the convergence engine to operate on signals from fundamentally different domains without special-casing.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
               Detection thresholds are dynamic. Baseline activity levels are recalculated on rolling windows so the system adapts to shifting environments. A troop movement during peacetime triggers differently than the same movement during an active conflict cycle. Signals below the noise floor are still recorded. They contribute to pattern recognition over longer time horizons even when they do not trigger immediate alerts.
+            </p>
+          </div>
+
+          {/* Layer classification disclaimer */}
+          <div className={`mb-8 border border-accent-amber/20 rounded-lg p-5 bg-accent-amber/[0.03] ${anim} ${signalReveal.visible ? shown : hidden}`} style={{ transitionDelay: "150ms" }}>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-2">Layer Classification</div>
+            <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+              NEXUS has four primary signal layers (GEO, MKT, OSI, Systemic Risk) that drive convergence scoring. Calendar and celestial overlays (CAL / CEL) are narrative/actor-belief context only, capped at max 0.5 bonus. They do not generate independent alerts, do not receive convergence weight, and are not counted in base-rate calculations. Their purpose is interpretive framing for understanding why certain actors may behave differently around specific dates.
             </p>
           </div>
 
@@ -334,40 +355,43 @@ export default function WhitepaperPage() {
               </div>
             </ExpandableSection>
 
-            <ExpandableSection title="CAL / Calendar Events">
+            <ExpandableSection title="CAL / Calendar Events — Narrative Context">
               <div className="pt-4 space-y-4">
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  The calendar layer tracks three distinct calendrical systems and their historical correlations with market behaviour: the Gregorian economic calendar, the Hebrew (Jewish) calendar, and the Islamic (Hijri) calendar.
+                  The calendar layer has two distinct components with very different epistemic statuses: the Gregorian economic calendar (primary layer input) and religious / ceremonial calendars (narrative context only).
                 </p>
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  The economic calendar monitors high-impact data releases (Non-Farm Payrolls, CPI prints, FOMC decisions, options expiry dates, fiscal quarter boundaries) with significance scoring based on historical volatility impact. Events are tagged with affected asset classes and expected volatility multipliers.
+                  The economic calendar monitors high-impact data releases (Non-Farm Payrolls, CPI prints, FOMC decisions, options expiry dates, fiscal quarter boundaries) with significance scoring based on historical volatility impact. Events are tagged with affected asset classes and expected volatility multipliers. This component is a genuine primary-layer input because scheduled macro releases have documented, measurable effects on market microstructure.
                 </p>
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  The Hebrew calendar module tracks events like Tish&apos;a B&apos;Av (historically correlated with market stress), Yom Kippur (low liquidity windows), and most notably the Shemitah cycle, a 7-year economic pattern that has coincided with significant market corrections in 2001, 2008, and 2015. The system does not claim causation. It identifies statistical patterns and flags when calendar conditions align with other signal layers.
+                  Religious and ceremonial calendars (Hebrew, Islamic, and other observances) are tracked exclusively as narrative context to model how specific actors in power think and time decisions. A government whose key decision-makers observe the Jewish or Islamic calendar may time announcements, ceasefires, or escalations around religious dates. This is actor-belief modelling, not market prediction. These events receive no convergence bonus and are not counted as independent signal-layer activations. See Appendix A for the full discussion.
                 </p>
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  The Islamic calendar module tracks Ramadan (historically associated with reduced Middle Eastern trading volume), Hajj season (Saudi economic activity shifts), and other observances with documented market relevance. Each event carries a market-relevance score based on historical data.
-                </p>
-                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
-                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Methodology Note</div>
+                <div className="mt-4 border border-accent-amber/20 rounded p-4 bg-accent-amber/[0.03]">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-2">Classification</div>
                   <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
-                    Calendar correlations are treated as statistical observations, never as causal mechanisms. Their value comes from convergence with independent layers, where a calendar event coinciding with a geopolitical escalation and a market microstructure anomaly carries more weight than any single indicator.
+                    Economic calendar: primary layer input. Religious / celestial calendars: narrative context only, zero convergence weight.
                   </div>
                 </div>
               </div>
             </ExpandableSection>
 
-            <ExpandableSection title="CEL / Celestial Events">
+            <ExpandableSection title="CEL / Celestial Events — Narrative Context">
               <div className="pt-4 space-y-4">
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  The celestial layer tracks astronomical events including lunar phases, solar and lunar eclipses, planetary transits, and solar activity cycles. This layer is deliberately positioned as a historical correlation tool. The platform does not assert causal mechanisms between celestial events and market behaviour. It tracks them because statistically significant correlations exist in the data, and dismissing data because it lacks an obvious causal story is a form of confirmation bias.
+                  The celestial layer tracks astronomical events including lunar phases, solar and lunar eclipses, and solar activity cycles. It is classified as a <span className="font-mono text-navy-300">narrative context layer</span> only. It does not drive alerts independently, receives no convergence bonus, and is not counted as a primary signal-layer activation.
                 </p>
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Research from Dichev and Janes (2003) documented that stock returns during 15-day periods around new moons are roughly double those around full moons, across 25 international markets over 100 years. Yuan, Zheng, and Zhu (2006) found similar lunar cycle effects on returns in 48 countries. Whether this reflects human behavioural patterns, coincidence, or an unmeasured confounding variable, the correlation is documented and the system tracks it.
+                  The sole purpose of this layer is actor-belief modelling: some geopolitical and religious actors assign significance to astronomical events and may time decisions around them. Tracking celestial calendars helps model that decision-making context, not the markets directly.
                 </p>
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Celestial signals receive the lowest base weight in the convergence engine. They almost never trigger alerts on their own. Their value is exclusively as a convergence amplifier, adding weight to clusters where independent layers already agree.
+                  The platform functions identically if this layer is removed from convergence calculations. It is maintained because the narrative context it provides is useful when interpreting clusters already identified by primary layers, not as evidence for or against any market call.
                 </p>
+                <div className="mt-4 border border-accent-amber/20 rounded p-4 bg-accent-amber/[0.03]">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-2">Note</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Academic literature on lunar and geomagnetic market correlations is reviewed in Appendix A, along with an honest assessment of its evidentiary weight.
+                  </div>
+                </div>
               </div>
             </ExpandableSection>
 
@@ -470,35 +494,53 @@ export default function WhitepaperPage() {
               The convergence engine is the core differentiator of the NEXUS platform. Individual signals from any single layer are informative. Temporal and thematic overlap between independent layers is where the real analytical value emerges. The mathematics behind convergence scoring is designed to reward independence and penalise correlation.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
-              Signals are grouped into proximity clusters using a 3-day sliding window. Within each window, the system identifies all unique signal layers represented and calculates a convergence score using a non-linear amplification function. Two layers aligning is interesting. Three is significant. Four or five is a rare-event window that warrants immediate attention.
+              Signals are grouped into proximity clusters using a 3-day sliding window. Within each window, the system identifies all unique signal layers represented and performs Bayesian posterior updating across them. Each layer produces a likelihood ratio representing how much its evidence supports or contradicts a given scenario. Layers are processed in order of decreasing reliability, with correlated layers discounted via a conditional dependency matrix to prevent double-counting of shared information. The final posterior probability is mapped to a 1-5 intensity scale calibrated so that intensity 5 (posterior above 0.60) requires strong evidence from multiple independent layers.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              The amplification is non-linear because the real world is non-linear. Two independent systems agreeing is mildly informative. Five independent systems agreeing on the same region, timeframe, and direction is an extremely low-probability event under the null hypothesis that these systems are unrelated. The convergence score reflects this.
+              This Bayesian fusion approach, based on Martin 2026 (arXiv:2601.13362) and Hoegh et al. 2015 (Technometrics), replaces the earlier additive scoring system. The key advantage: correlated layers are handled rigorously through a dependency matrix rather than treated as independent. When geopolitical and OSINT signals fire simultaneously, they share underlying information (the same conflict drives both). The dependency matrix discounts the second layer&apos;s likelihood ratio by its independence factor (0.50 for geopolitical-OSINT), preventing the inflation that additive scoring produces from correlated inputs. Different scenario types (military escalation, economic crisis, diplomatic shift) carry different base-rate priors calibrated against historical frequencies, so the system starts from the right baseline before incorporating evidence.
             </p>
           </div>
 
           {/* Scoring Formula */}
           <div className={`border border-navy-800/40 rounded-lg p-6 bg-navy-900/10 mb-6 ${anim} ${convergenceReveal.visible ? shown : hidden}`} style={{ transitionDelay: "200ms" }}>
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-navy-500 mb-4">
-              Convergence Scoring Algorithm
+              Bayesian Fusion Scoring Algorithm
             </div>
             <div className="space-y-3">
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Base score</span> is the sum of individual event significance scores within the cluster window. Each event contributes its normalised intensity (1-5).
+                <span className="font-mono text-accent-cyan">Scenario prior</span> selects a base-rate probability for the inferred scenario type. Military escalation starts at 5%, economic crisis at 8%, market disruption at 12%. These reflect historical frequencies and anchor the posterior against overconfidence on rare events (Tetlock&apos;s &quot;Fermi-ize&quot; principle).
               </p>
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Convergence bonus</span> is applied when 2+ distinct signal layers are present. Each additional layer beyond the first adds a multiplier to the base score. The multiplier increases non-linearly: the marginal contribution of the 4th independent layer is greater than that of the 2nd.
+                <span className="font-mono text-accent-cyan">Likelihood ratio</span> for each layer is computed from aggregate event significance using an exponential model: LR = 1 + reliability &times; (e<sup>k&middot;sig</sup> - 1). At zero significance, LR=1 (no evidence). Layer reliability coefficients range from 0.85 (geopolitical) to 0.35 (celestial), reflecting each layer&apos;s historical predictive value.
               </p>
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Final normalisation</span> maps the raw intensity score (which can theoretically range from 0 to unbounded) into the 1-5 output scale for downstream consumption by the synthesis engine.
+                <span className="font-mono text-accent-cyan">Dependency discounting</span> adjusts each layer&apos;s likelihood ratio based on its correlation with previously processed layers. The deviation from LR=1 is scaled by the minimum independence factor from the dependency matrix. Geopolitical-OSINT correlation (0.50) produces aggressive discounting. Celestial-geopolitical near-independence (0.95) produces minimal discounting.
               </p>
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Temporal decay</span> is applied to signals as they age within the cluster window. A signal at T-0 receives full weight. A signal at T-3 days receives reduced weight. This ensures that the convergence score reflects the current state rather than accumulating stale signals.
+                <span className="font-mono text-accent-cyan">Sequential Bayesian update</span> applies each adjusted likelihood ratio to the running posterior using Bayes&apos; theorem in odds form: P(H|E) = P(H)&middot;LR / (P(H)&middot;LR + (1-P(H))). Layers are processed in decreasing reliability order so the strongest evidence enters unpenalised.
+              </p>
+              <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                <span className="font-mono text-accent-cyan">Posterior to intensity</span> maps the final posterior to a 1-5 scale: below 0.15 = intensity 1, 0.15-0.25 = 2, 0.25-0.40 = 3, 0.40-0.60 = 4, above 0.60 = 5. These thresholds are calibrated so that a single moderate geopolitical signal produces intensity 2, while intensity 5 requires strong multi-layer evidence.
               </p>
             </div>
           </div>
 
-          <div className={`border border-navy-800/40 rounded-lg p-6 bg-navy-900/10 ${anim} ${convergenceReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
+          <div className={`border border-navy-800/40 rounded-lg p-6 bg-navy-900/10 mb-6 ${anim} ${convergenceReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-navy-500 mb-3">
+              Statistical Significance and Base Rates
+            </div>
+            <p className="font-sans text-[13px] text-navy-400 leading-[1.8] mb-3">
+              A valid challenge to any convergence system is: how often do multiple layers fire simultaneously by chance? If three layers converge frequently, the signal is noise. If three layers converge rarely, the convergence is informative. The base rate matters.
+            </p>
+            <p className="font-sans text-[13px] text-navy-400 leading-[1.8] mb-3">
+              NEXUS uses a 3-day sliding window for convergence clustering. Within any given window, each of the four primary signal layers either fires or does not. If layers were truly independent and each had a 30% daily firing probability (a generous baseline), the probability of 3+ layers firing in the same window is approximately 3.1%. All four primary layers: 0.3%. These are back-of-envelope estimates, but they illustrate the point: multi-layer convergence across primary layers is a genuinely rare event under the null hypothesis that layers are unrelated. Narrative overlays are excluded from this base-rate calculation.
+            </p>
+            <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+              The system tracks convergence level frequency distributions in production. As the dataset grows, these distributions will be published alongside prediction accuracy data, providing empirical base rates that can be validated independently.
+            </p>
+          </div>
+
+          <div className={`border border-navy-800/40 rounded-lg p-6 bg-navy-900/10 ${anim} ${convergenceReveal.visible ? shown : hidden}`} style={{ transitionDelay: "400ms" }}>
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-navy-500 mb-3">
               Design Principle
             </div>
@@ -619,10 +661,37 @@ export default function WhitepaperPage() {
               </div>
             </ExpandableSection>
 
+            <ExpandableSection title="Regime-Aware Tagging and Invalidation">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Every prediction is tagged with the market regime at creation (peacetime, transitional, or wartime) along with reference prices for key benchmarks (SPY, USO, GLD). When the regime shifts significantly, predictions made under the previous regime are evaluated for invalidation. If reference prices have moved more than 20% from the values at prediction creation, the prediction is expired as regime-invalidated rather than scored, preventing stale peacetime calls from corrupting wartime accuracy metrics.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  When wartime thresholds fire (e.g., kinetic strikes, chokepoint closures), the game theory branch marks all pending predictions related to that scenario as POST_EVENT, removing them from Brier score calculations. This enforces pre-event filtering: only predictions made before the event are scored, eliminating post-hoc rationalization from the calibration loop.
+                </p>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Direction vs Level Split Scoring">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Predictions that include directional claims (up/down/flat) and specific price targets are scored on two separate axes: direction_correct (did the asset move in the predicted direction?) and level_correct (did the asset reach the predicted price target?). This separation reveals whether the system is good at calling direction but poor at magnitude, or vice versa, enabling targeted calibration of each component.
+                </p>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Volume Cap and Auto-Expiry">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  The system enforces a maximum of 75 active (unresolved) predictions at any time. When this cap is exceeded, the lowest-confidence predictions are expired first, ensuring the active pool represents the system&apos;s highest-conviction calls. Predictions that pass 7 days beyond their stated deadline without resolution are automatically expired, preventing indefinite accumulation of stale predictions in the scoring pipeline.
+                </p>
+              </div>
+            </ExpandableSection>
+
             <ExpandableSection title="Feedback Loops and Self-Correction">
               <div className="pt-4 space-y-4">
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Resolved predictions generate feedback that flows upstream into every component. The system tracks performance breakdown by category (market, geopolitical, celestial), by timeframe (7/14/30/90 days), and by signal combination to identify which convergence patterns produce accurate forecasts and which do not.
+                  Resolved predictions generate feedback that flows upstream into every component. The system tracks performance breakdown by category (market, geopolitical, OSINT, systemic risk), by timeframe (7/14/30/90 days), and by signal combination to identify which convergence patterns produce accurate forecasts and which do not. Only pre-event, non-invalidated, non-expired predictions are included in Brier score calculations.
                 </p>
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
                   Failure pattern detection automatically identifies overconfident denials, category-specific weaknesses, and timeframe underperformance. When the system detects that its predictions in a specific category consistently underperform, it records the pattern as a knowledge entry and applies damped calibration corrections.
@@ -630,6 +699,91 @@ export default function WhitepaperPage() {
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
                   Calibration corrections are damped to prevent overcorrection. The system applies a maximum of 50% of the identified confidence gap per correction round, using exponential decay with a 60-day half-life so recent predictions carry more weight than older ones. Resolution bias detection compares LLM subjective scores against binary accuracy metrics, flagging systematic leniency or harshness in the resolution process itself.
                 </p>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Red Team Adversarial Challenge (Tetlock GJP)">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Before generating predictions, the system runs a structured adversarial challenge based on Tetlock&apos;s Good Judgment Project research showing that structured disagreement outperforms consensus (Tetlock &amp; Gardner, 2015). A separate AI agent reviews the full intelligence picture and argues against the prevailing thesis direction, identifying the three strongest counterarguments, the weakest assumptions, and what would need to be true for the thesis to be completely wrong.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  The red team output is injected into the main prediction generation prompt with explicit instructions to reduce confidence where the counterarguments are strong. This prevents the system from generating overconfident predictions based on confirmation bias in the signal layers. The adversarial step is best-effort: if it fails, predictions proceed without it, but when active it measurably reduces overconfidence on high-conviction calls.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Tetlock, P. &amp; Gardner, D. (2015). &quot;Superforecasting.&quot; Crown. GJP data showed superforecasters who deliberately considered opposing views had 30-50% lower Brier scores than those who did not.
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Base Rate Anchoring (Fermi-ize Principle)">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Every prediction generation cycle injects empirical base rates into the prompt before asking the model to forecast. This implements Tetlock&apos;s &quot;Fermi-ize&quot; principle: start from the outside-view base rate and adjust inward based on specific evidence. Military operations launch in approximately 2% of weeks during active standoffs. VIX closes above 30 on approximately 8% of trading days. Ceasefires hold for 30 days approximately 40% of the time once announced. These anchors prevent the common failure mode where the model assigns 90% confidence to a 2% base rate event without proportionally strong evidence.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Post-generation, the system applies a log-odds weighted averaging adjustment to every confidence value. The model&apos;s stated confidence and the relevant base rate are both converted to log-odds space, then combined with weights determined by evidence strength (1-5). Weak evidence (strength 1) keeps the result anchored near the base rate with only 20% model weight. Very strong evidence (strength 5) allows 90% model weight but never fully abandons the base rate. This log-odds approach is mathematically correct for combining probabilities (additive in log-odds = multiplicative in odds) and avoids the pathological behavior of linear averaging in probability space.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Tetlock, P. &amp; Gardner, D. (2015). &quot;Superforecasting.&quot; Crown. Mellers, B. et al. (2024). &quot;Human and Algorithmic Predictions.&quot; Extended GJP research. Superforecasters who started from base rates and adjusted outperformed those who used inside-view-only reasoning.
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Incremental Belief Updating">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  GJP data showed that the most accurate forecasters made frequent small adjustments (2-5% per cycle) rather than infrequent large revisions. NEXUS implements this through an incremental belief updating function that reviews existing pending predictions against new signals and adjusts confidence by small increments, capped at +/-5% per cycle with a 6-hour cooldown between updates to any single prediction.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  For each pending prediction, the system identifies relevant new signals through keyword matching (minimum 2 words with 3+ characters overlapping between claim and signal text), then uses a lightweight AI model to assess whether the new signal strengthens or weakens the prediction. The adjustment magnitude and direction are extracted from the AI response, clamped to the +/-5% cap, and applied to the stored confidence. A complete belief history is maintained in the prediction&apos;s metadata, tracking every adjustment with timestamp, signal trigger, and reasoning. This replaces the previous binary approach of either generating new predictions or ignoring existing ones.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Mellers, B. et al. (2014). GJP data showing frequent small updates beat infrequent large revisions. Most accurate forecasters made 2-5% adjustments per update cycle.
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="BIN Decomposition (Bias-Information-Noise)">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Beyond aggregate Brier scoring, the system implements the BIN decomposition framework from Satopaa et al. (2021) to diagnose the source of prediction errors. Every Brier score can be decomposed into three additive components: Bias (systematic over/underconfidence), Information (how well confidence tracks actual outcomes), and Noise (random scatter in confidence assignments). The decomposition follows the identity: Brier = Bias + Var(c) + Var(o) - 2&middot;Cov(c,o), where Bias = (mean_c - mean_o)&sup2;, Noise = Var(c), and Information = Cov(c,o).
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  This decomposition runs per-category (market, geopolitical, celestial), allowing the system to identify whether errors in a specific domain come from systematic bias (the model consistently overestimates geopolitical event probability), noise (predictions in a category are scattered without pattern), or information gaps (confidence doesn&apos;t track outcomes, meaning the model isn&apos;t extracting useful signal from the data). The diagnostic output feeds directly into the prediction generation prompt, telling the model exactly where its calibration is failing and recommending specific corrections.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Satopaa, V. et al. (2021). &quot;Bias, Information, Noise: A BIN Model of Forecasting.&quot; Management Science. Provides the mathematical framework for decomposing forecast error into its constituent sources.
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Actor-Belief Bayesian Typing">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Calendar events are modelled not as direct convergence bonuses but as signals that update actor-type probability distributions. Instead of &quot;Tisha B&apos;Av = +1 convergence,&quot; the system maintains Bayesian profiles for geopolitical actors where each actor has a type distribution (cooperative/hawkish/unpredictable) and base action probabilities (provocative action, military escalation, diplomatic engagement, economic action). Calendar events act as multipliers on these base probabilities, calibrated from documented historical behaviour.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Seven actor profiles are maintained with 17 calendar behaviour modifiers across Hebrew, Islamic, Gregorian, and Chinese calendar systems. Each modifier specifies the affected action type, a posterior multiplier calibrated from historical data, a confidence level reflecting sample size, and historical basis documentation. The system uses confidence-damped multiplicative updates: effective_multiplier = 1 + (posterior_multiplier - 1) &times; confidence. This prevents low-confidence modifiers from producing extreme probability shifts. Multiple modifiers compound multiplicatively with a 0.95 probability cap, and the resulting actor-belief analysis is injected into the prediction generation prompt alongside signal and market data.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Tahir, M. (2025). &quot;Computational Geopolitics: Bayesian Game Theory for State Actor Modeling.&quot; Calendar events as signals that update actor-type probabilities rather than direct convergence bonuses.
+                  </div>
+                </div>
               </div>
             </ExpandableSection>
           </div>
@@ -687,6 +841,17 @@ export default function WhitepaperPage() {
                 </p>
               </div>
             </ExpandableSection>
+
+            <ExpandableSection title="Wartime Threshold Detection">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  When regime indicators cross wartime thresholds (crisis-level volatility combined with risk panic), the game theory module switches from peacetime negotiation models to wartime-specific analysis. Pre-defined thresholds for each scenario (e.g., Iran strikes launched, Hormuz closure, Taiwan blockade) trigger automatic state transitions that invalidate strategies no longer viable under the new reality and activate escalation trajectories with probability-weighted market impact assessments.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Each fired threshold records a scenario state transition in the database, including which strategies are invalidated (e.g., &quot;Negotiate&quot; and &quot;Diplomatic pressure&quot; become non-viable after kinetic strikes), which escalation trajectories are activated (e.g., Hormuz closure, proxy network activation, semiconductor cutoff), and a context snapshot of the regime state at the moment of firing. The system filters these invalidated strategies from subsequent game theory analysis, ensuring the AI does not recommend diplomatic solutions to kinetic realities.
+                </p>
+              </div>
+            </ExpandableSection>
           </div>
         </div>
       </section>
@@ -728,7 +893,7 @@ export default function WhitepaperPage() {
               The scenario score is the weighted sum of (indicator.weight &times; status_multiplier) across all indicators, normalised to a percentage. Escalation levels map to percentage thresholds: Level 1 (0-20%), Level 2 (20-40%), Level 3 (40-60%), Level 4 (60-80%), Level 5 (80-100%).
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              Auto-detection from OSINT feeds operates continuously. GDELT and news headlines are matched against detection queries defined for each indicator. Two or more keyword matches move an indicator to &quot;watching&quot; status. Three or more matches with high-reliability sources (based on the NATO Admiralty rating) auto-activate the indicator. All threshold transitions are recorded with timestamps and triggering data for audit trail purposes.
+              Auto-detection from OSINT feeds operates continuously. GDELT and news headlines are matched against detection queries defined for each indicator. Two or more keyword matches move an indicator to &quot;watching&quot; status. Five or more matches auto-activate the indicator. All threshold transitions are recorded with timestamps and triggering data for audit trail purposes.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
               Each scenario maps escalation levels to affected market sectors (energy, defense, transportation, etc.) and estimates market impact severity. This feeds directly into the thesis generation system and portfolio risk assessment.
@@ -852,7 +1017,7 @@ export default function WhitepaperPage() {
               The implementation uses a Student-t predictive distribution rather than Gaussian, providing greater robustness to the fat-tailed returns typical of financial data. Each run-length hypothesis maintains its own sufficient statistics (mean, variance, count), and the Bayesian update mixture combines predictions from all active run-length experts.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
-              Log-gamma approximations are used for computational efficiency, allowing the algorithm to run in real-time without accumulating prohibitive computational cost. The system monitors six key series (SPY, QQQ, VIX, GLD, USO, TLT) and outputs detected change points with date, probability, run length, magnitude, direction, and pre/post-change mean comparison.
+              Log-gamma approximations are used for computational efficiency, allowing the algorithm to run in real-time without accumulating prohibitive computational cost. The system monitors six key series (VIXY, GLD, USO, TLT, UUP, and a computed signal intensity stream) and outputs detected change points with date, probability, run length, magnitude, direction, and pre/post-change mean comparison.
             </p>
             <div className="border border-navy-800/30 rounded p-4 bg-navy-900/20">
               <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Reference</div>
@@ -982,7 +1147,7 @@ export default function WhitepaperPage() {
 
           <div className={`max-w-3xl ${anim} ${sourceReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              Composite confidence is calculated as 40% source reliability + 60% information accuracy. The system maintains a curated database of 100+ sources with specialties, bias direction (left/center/right/state-aligned), geographic focus, and historical track record (0-1 scale). Source ratings directly influence how signals from those sources are weighted in the convergence engine.
+              Composite confidence is calculated as 40% source reliability + 60% information accuracy. The system maintains a curated database of 69 sources across six reliability tiers (10 A-rated, 18 B-rated, 17 C-rated, 10 D-rated, 10 E-rated, with a default F-profile for unknown sources), each with specialties, bias direction (left/center/right/state-aligned), geographic focus, and historical track record (0-1 scale). Source ratings directly influence how signals from those sources are weighted in the convergence engine.
             </p>
           </div>
         </div>
@@ -1021,7 +1186,7 @@ export default function WhitepaperPage() {
 
           <div className={`mt-6 max-w-3xl ${anim} ${nowcastReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              A composite risk score (0-100) aggregates all dimensions. Recession probability is estimated heuristically: base 5%, +70% if GDP is negative, +15% if financial conditions are tight, +20% if employment is deteriorating. The model is deliberately simple and transparent. Complex econometric models can outperform on backtests but tend to fail in novel regimes. This model makes its assumptions explicit and lets the analyst judge.
+              A composite risk score (0-100) aggregates all dimensions. Recession probability is estimated heuristically: base 5%, escalating to 70% if GDP is negative (35% if below 1%, 15% if below 2%), with additive adjustments of +15% for tight financial conditions and +20% for deteriorating employment. The model is deliberately simple and transparent. Complex econometric models can outperform on backtests but tend to fail in novel regimes. This model makes its assumptions explicit and lets the analyst judge.
             </p>
           </div>
         </div>
@@ -1111,7 +1276,7 @@ export default function WhitepaperPage() {
               The central bank analysis module performs natural language processing on monetary policy statements, press conference transcripts, and minutes to extract hawkish/dovish sentiment, topic distribution, and rate path implications.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
-              Tokenisation is word-level with support for hyphenated compound terms (e.g., &quot;higher-for-longer&quot; is matched as a single token). The lexicon includes 40+ hawkish terms (inflation, tightening, restrictive, overheating, vigilance), 40+ dovish terms (accommodative, easing, downside-risks, pivot, patience), and 30+ uncertainty terms (data-dependent, conditional, balanced-risks, optionality).
+              Tokenisation is word-level with support for hyphenated compound terms (e.g., &quot;higher-for-longer&quot; is matched as a single token). The lexicon includes 46 hawkish terms (inflation, tightening, restrictive, overheating, vigilance, higher-for-longer, sustained, elevated, rate-hike, and others), 48 dovish terms (accommodative, easing, downside-risks, pivot, patience, growth-concerns, rate-cut, and others), and 21 uncertainty terms (data-dependent, conditional, balanced-risks, optionality, monitoring, evolving, and others), totalling 115 curated tokens.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
               The net score is (hawkish_count - dovish_count) / total_words. A score above +0.005 implies a hiking bias. Below -0.005 implies a cutting bias. Between these thresholds, the system classifies the stance as pausing or uncertain depending on the uncertainty term density.
@@ -1119,6 +1284,12 @@ export default function WhitepaperPage() {
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
               Topic breakdown categorises tokens into inflation, employment, growth, and financial stability. Market implications are pre-computed per dimension: bonds (&gt;+0.003 = bearish, &lt;-0.003 = bullish), equities, dollar, and gold. Statement-to-statement comparison detects tone shifts and significant changes across dimensions, flagging moments where central bank communication is evolving.
             </p>
+            <div className="mt-5 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">On Methodology Choice</div>
+              <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                Dictionary-based sentiment analysis is a deliberate design choice. The Loughran-McDonald financial sentiment dictionary (Journal of Finance, 2011), used by the SEC and academic researchers worldwide, operates on the same bag-of-words principle with domain-specific lexicons. For central bank communication, which uses a deliberately narrow and stable vocabulary, dictionary methods outperform general-purpose models because the target language is small and precisely defined. The 115-token NEXUS lexicon is curated specifically for monetary policy discourse, where &quot;restrictive&quot; always means hawkish and &quot;accommodative&quot; always means dovish. Transformer-based models add complexity without proportional accuracy gains on this specific text type.
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1137,7 +1308,7 @@ export default function WhitepaperPage() {
               The narrative engine tracks media momentum across 11 thematic clusters: war, sanctions, trade, inflation, recession, AI, crypto, oil, China, Russia, and Iran. Data is sourced from GDELT and Reddit in parallel, with keyword matching per theme.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
-              Sentiment scoring uses curated positive and negative word lists (40+ words each), normalised by total match count. Momentum classification compares recent article volume to older volume: Rising (&gt;1.5x ratio), Peaking (stable, recent &ge; older), Fading (older &gt;1.5x recent), or Stable.
+              Sentiment scoring uses curated positive (26 terms) and negative (28 terms) word lists, normalised by total match count. Momentum classification compares recent article volume to older volume: Rising (&gt;1.5x ratio), Peaking (stable, recent &ge; older), Fading (older &gt;1.5x recent), or Stable.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
               The most valuable output of narrative tracking is divergence detection. When a narrative has high conviction (sentiment &gt;0.4, 3+ articles) and the implied price direction does not match actual market movement, the system flags a potential contrarian signal. Strong bearish narratives that fail to move prices downward often precede rallies. Strong bullish narratives that fail to lift prices often precede corrections. The divergence is the signal.
@@ -1157,7 +1328,7 @@ export default function WhitepaperPage() {
 
           <div className={`max-w-3xl ${anim} ${osintReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
-              The entity extraction pipeline processes raw OSINT text and structures it into a searchable graph of actors, locations, topics, and market instruments. The system maintains curated pattern databases: 100+ geopolitical actors with keyword aliases, 15+ strategic chokepoints, 13 topic categories (nuclear, oil_supply, sanctions, military_exercise, etc.), and 70+ market tickers.
+              The entity extraction pipeline processes raw OSINT text and structures it into a searchable graph of actors, locations, topics, and market instruments. The system maintains curated pattern databases: 16 geopolitical actors with keyword aliases (Iran, Russia, China, US, Israel, Saudi Arabia, Turkey, North Korea, Ukraine, Taiwan, EU, NATO, OPEC, Hezbollah, Hamas, Houthis), 13 strategic locations and chokepoints, 14 topic categories (nuclear, oil_supply, sanctions, military_exercise, missile_test, cyber_attack, etc.), and 13 market tickers mapped to geopolitical exposure.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
               Pattern matching identifies entities in text and maps them to database records. Extracted entities are linked in a relationship graph with weighted edges that strengthen as more co-occurrences are detected. The graph enables traversal queries: &quot;show all entities connected to Iran within 2 hops&quot; or &quot;find all tickers mentioned in articles about Strait of Hormuz.&quot;
@@ -1259,8 +1430,517 @@ export default function WhitepaperPage() {
 
           <div className={`mt-10 max-w-3xl ${anim} ${integrationReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              The platform currently processes data from 15+ external APIs, runs 25+ analytical tools accessible via the AI chat interface, and maintains a self-correcting feedback loop through Brier-scored prediction tracking. Every component described in this paper runs in production, processing real data, generating real predictions, and measuring real outcomes. The system is measured by what it produces, and the accuracy record is public.
+              The platform currently processes data from 39 external APIs and data feeds, runs 42 analytical tools accessible via the AI chat interface, and maintains a self-correcting feedback loop through Brier-scored prediction tracking. Every component described in this paper runs in production, processing real data, generating real predictions, and measuring real outcomes. The system is measured by what it produces, and the accuracy record is public.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <Ruled />
+
+      {/* ══════════════════════════════════════════
+          21: ACADEMIC FOUNDATIONS
+      ══════════════════════════════════════════ */}
+      <section id="academic" className="px-6 py-20">
+        <div ref={academicReveal.ref} className="max-w-5xl mx-auto">
+          <SectionHead number="21" label="Academic Foundations & Peer-Reviewed Evidence" visible={academicReveal.visible} />
+
+          <div className={`max-w-3xl mb-10 ${anim} ${academicReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
+            <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
+              Every signal layer in the NEXUS platform is grounded in peer-reviewed academic research. The convergence thesis, that combining independent, uncorrelated signals from disparate domains produces stronger predictions than any single-layer analysis, is supported by foundational work in ensemble learning, complexity economics, intelligence fusion, and behavioural finance. This section catalogues the key studies underpinning each component.
+            </p>
+            <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
+              We cite only published, peer-reviewed research from recognised journals and institutions. Where a study has been referenced inline in earlier sections, it is collected here with full bibliographic details for completeness.
+            </p>
+          </div>
+
+          <div className={`space-y-4 ${anim} ${academicReveal.visible ? shown : hidden}`} style={{ transitionDelay: "200ms" }}>
+
+            <ExpandableSection title="Geopolitical Risk" defaultOpen>
+              <div className="pt-4 space-y-5">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Caldara, D. and Iacoviello, M. (2022). &quot;Measuring Geopolitical Risk.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">American Economic Review, 112(4), 1194-1225.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Constructs a news-based Geopolitical Risk index from 10 newspapers since 1900. Higher geopolitical risk foreshadows lower investment, stock prices, and employment. The effect is driven by threats of geopolitical events rather than their realisation. NEXUS ingests the GPR daily index as a macro overlay for event scoring.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Baker, S.R., Bloom, N. and Davis, S.J. (2016). &quot;Measuring Economic Policy Uncertainty.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Quarterly Journal of Economics, 131(4), 1593-1636.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Developed the EPU index based on newspaper coverage frequency. Policy uncertainty is associated with greater stock price volatility and reduced investment in policy-sensitive sectors. Validates news-based signal detection as a predictive methodology.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Calendar and Celestial Effects">
+              <div className="pt-4 space-y-5">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Dichev, I.D. and Janes, T.D. (2003). &quot;Lunar Cycle Effects in Stock Returns.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">The Journal of Private Equity, 6(4), 8-29.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Returns in 15-day periods around new moons are approximately double those around full moons. Pattern is pervasive across all major US stock indices over 100 years and across 24 other countries over 30 years.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Yuan, K., Zheng, L. and Zhu, Q. (2006). &quot;Are Investors Moonstruck? Lunar Phases and Stock Returns.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Journal of Empirical Finance, 13(1), 1-23.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Examined 48 countries. Stock returns are lower around full moons and higher around new moons by 3-5% per annum. The effect is independent of changes in volatility, trading volumes, macroeconomic announcements, or global shocks.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Krivelyova, A. and Robotti, C. (2003). &quot;Playing the Field: Geomagnetic Storms and the Stock Market.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Federal Reserve Bank of Atlanta Working Paper 2003-5b.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Found a 14% difference in annualised returns between normal days and days affected by geomagnetic storms on the NASDAQ (1972-2000). The mechanism: geomagnetic storms affect mood, which affects risk-taking behaviour. A Federal Reserve working paper validating solar/geomagnetic effects on market returns.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Bialkowski, J., Etebari, A. and Wisniewski, T.P. (2012). &quot;Piety and Profits: Stock Market Anomaly during the Muslim Holy Month.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Research in International Business and Finance.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Returns are higher during Ramadan with a decline in volatility across Muslim-majority market countries, consistent with positive investor sentiment during the holy month.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Frieder, L. and Subrahmanyam, A. &quot;Nonsecular Regularities in Returns and Volume.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">NYU Stern School of Business.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Found measurable return effects around Rosh Hashana (higher returns before festive holidays) and Yom Kippur (lower returns before the solemn day) on US equity markets. Documented effects on volatility and liquidity during these periods.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Sentiment, Narrative, and Alternative Data">
+              <div className="pt-4 space-y-5">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Shiller, R.J. (2017). &quot;Narrative Economics.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">American Economic Review, 107(4), 967-1004. AER Presidential Address.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Economic events are substantially driven by the contagious spread of oversimplified narratives, analogous to viral epidemics. Provides the academic foundation for why tracking narrative spread and divergence is predictive of market behaviour.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Tetlock, P.C. (2007). &quot;Giving Content to Investor Sentiment: The Role of Media in the Stock Market.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Journal of Finance, 62(3), 1139-1168.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">High media pessimism predicts downward pressure on market prices followed by reversion to fundamentals. Unusually high or low pessimism predicts high trading volume. Results consistent with noise trader models.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Bollen, J., Mao, H. and Zeng, X. (2011). &quot;Twitter Mood Predicts the Stock Market.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Journal of Computational Science, 2, 1-8.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Achieved 86.7% accuracy predicting daily DJIA directional changes using Twitter mood analysis. Demonstrated that mood dimensions beyond simple positive/negative carry predictive power. Over 2,500 citations.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Katona, Z., Painter, M., Patatoukas, P.N. and Zeng, J. (2022). &quot;On the Capital Market Consequences of Big Data: Evidence from Outer Space.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Journal of Financial and Quantitative Analysis.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Satellite parking lot imagery across 44 major US retailers yields 4-5% returns in the three days around quarterly earnings announcements. Proves alternative data creates measurable, published alpha from non-standard data sources.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Regime Detection and Change-Point Analysis">
+              <div className="pt-4 space-y-5">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Adams, R.P. and MacKay, D.J.C. (2007). &quot;Bayesian Online Changepoint Detection.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">arXiv:0710.3742.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">The foundational paper for BOCPD. Enables real-time estimation of run-length distributions using message-passing, allowing online detection of change-points without requiring a predetermined number of regimes. NEXUS implements this algorithm for real-time market regime shift detection.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Hamilton, J.D. (1989). &quot;A New Approach to the Economic Analysis of Nonstationary Time Series and the Business Cycle.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Econometrica, 57, 357-384.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">The seminal paper introducing Markov-switching models. Economic variables behave differently during downturns, and abrupt changes in financial data can be modelled as regime switches. Provides the theoretical basis for NEXUS&apos;s multi-regime signal analysis.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Convergence Theory: Diversity, Ensemble Methods, and Complex Systems">
+              <div className="pt-4 space-y-5">
+                <div className="border border-accent-cyan/20 rounded p-4 bg-accent-cyan/[0.02] mb-2">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-accent-cyan mb-2">Addressing the Category Error Objection</div>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                    A fair critique of the ensemble analogy is that Wolpert and Breiman describe supervised learning ensembles, trained classifiers with performance guarantees on held-out data, and signal layers are not classifiers. This is correct at the implementation level. The analogy is structural, not mechanical: the mathematical principle that combining diverse, uncorrelated inputs reduces aggregate error holds regardless of whether those inputs are ML models, human forecasters, or heterogeneous data streams. Hong and Page (2004) proved this rigorously for problem-solving groups that are not ML models, demonstrating that diversity of approach outperforms individual ability. The intelligence community&apos;s all-source fusion doctrine (RAND 2012) applies the same principle to heterogeneous collection disciplines. NEXUS extends this to four primary market-relevant signal domains; narrative overlays are not included in the ensemble calculation.
+                  </p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Hong, L. and Page, S.E. (2004). &quot;Groups of Diverse Problem Solvers Can Outperform Groups of High-Ability Problem Solvers.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Proceedings of the National Academy of Sciences, 101(46), 16385-16389.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Proved mathematically that a randomly selected collection of diverse problem solvers outperforms a collection of the individually best problem solvers. The key condition is functional diversity, different approaches to the same problem. This is the direct theoretical justification for NEXUS&apos;s multi-layer architecture: four primary signal layers using fundamentally different data types and analytical methods constitute functionally diverse &quot;solvers&quot; applied to the same question (what is about to move markets?). The diversity theorem is domain-agnostic and does not require supervised learning to hold.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Wolpert, D.H. (1992). &quot;Stacked Generalization.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Neural Networks, 5(2), 241-259.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">The foundational paper on stacking: combining multiple diverse learners produces results superior to any individual learner. Over 5,600 citations. While Wolpert describes ML model stacking, the underlying principle, that aggregation of uncorrelated estimates reduces error, is the same principle that makes multi-source intelligence fusion effective.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Breiman, L. (2001). &quot;Random Forests.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Machine Learning, 45, 5-32.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Demonstrated that ensemble performance depends on two conditions: diversity (low correlation between components) and individual competence (each component must outperform random chance). NEXUS&apos;s four primary signal layers satisfy both: geopolitical events, market microstructure, systemic risk, and OSINT are structurally uncorrelated, and each layer individually tracks documented phenomena with published academic support. Narrative overlays are excluded from the ensemble.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Arthur, W.B. (2021). Complexity Economics.</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Santa Fe Institute Press.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Markets are not in equilibrium but are complex adaptive systems where agents constantly change their strategies in response to outcomes they mutually create. NEXUS&apos;s multi-layer monitoring reflects this view: emergent market behaviour arises from the interaction of multiple forces, not single-factor causation.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Lo, A.W. (2004). &quot;The Adaptive Markets Hypothesis.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Journal of Portfolio Management.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Reconciles efficient markets with behavioural finance using evolutionary principles. Market efficiency varies over time as participants adapt. The edge goes to whoever adapts fastest to new information configurations, precisely the purpose of NEXUS&apos;s real-time convergence detection.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Surowiecki, J. (2004). The Wisdom of Crowds.</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Doubleday.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">The three conditions for collective intelligence are diversity, independence, and decentralisation, building on Hong and Page&apos;s diversity theorem. Each of the four primary signal layers in NEXUS functions as an independent, diverse &quot;crowd member.&quot; The convergence of signals across uncorrelated primary layers satisfies all three conditions.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Network Contagion and Cross-Domain Transmission">
+              <div className="pt-4 space-y-5">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Elliott, M., Golub, B. and Jackson, M.O. (2014). &quot;Financial Networks and Contagion.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">American Economic Review, 104(10), 3115-3153.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Diversification and integration have nonmonotonic effects on cascades: dense interconnections serve as both shock absorbers and shock propagators depending on shock magnitude. Explains why geopolitical shocks propagate to seemingly unrelated financial markets.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Acemoglu, D., Ozdaglar, A. and Tahbaz-Salehi, A. (2015). &quot;Systemic Risk and Stability in Financial Networks.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">American Economic Review, 105(2), 564-608.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Financial contagion exhibits phase transitions: densely connected networks enhance stability for small shocks but become propagation mechanisms for large shocks. Cross-domain monitoring, as NEXUS implements, is necessary to detect these transmission events before they cascade.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Superforecasting and Prediction Calibration">
+              <div className="pt-4 space-y-5">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Tetlock, P. and Gardner, D. (2015). &quot;Superforecasting: The Art and Science of Prediction.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Crown.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">The definitive work on calibrated probabilistic forecasting. Key techniques implemented in NEXUS: base rate anchoring (start from outside-view frequencies before adjusting), incremental belief updating (2-5% adjustments outperform large revisions), red team adversarial challenge (structured disagreement reduces overconfidence by 30-50%), and granular probability estimation. The Good Judgment Project data underpinning this work showed that these techniques are learnable and produce measurable calibration improvements.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Satopaa, V. et al. (2021). &quot;Bias, Information, Noise: A BIN Model of Forecasting.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Management Science.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Provides the mathematical decomposition framework for forecast error analysis. Brier score decomposes into Bias (systematic miscalibration), Information (covariance between confidence and outcomes), and Noise (random scatter). NEXUS implements the full BIN decomposition with per-category breakdowns and automated diagnostic recommendations.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Martin, C. (2026). &quot;Bayesian Networks for Geopolitical Forecasting.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">arXiv:2601.13362.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Demonstrates that Bayesian networks with conditional dependencies between signal sources outperform naive additive models for geopolitical forecasting. Recommends conservative dependency discounting under uncertain correlation structures. NEXUS implements sequential Bayesian updating with a conditional dependency matrix directly based on this work.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Hoegh, A. et al. (2015). &quot;Bayesian Model Fusion for Civil Unrest Prediction.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Technometrics.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Introduces the &quot;selective superiority&quot; framework: each signal source dominates in certain scenario types but is subordinate in others. Layer reliability coefficients in NEXUS are informed by this framework, with geopolitical and OSINT layers weighted highest for conflict scenarios and market layers weighted highest for economic disruptions.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Tahir, M. (2025). &quot;Computational Geopolitics: Bayesian Game Theory for State Actor Modeling.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Preprint.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Models geopolitical actors as nodes in a dynamic graph with Bayesian type revision. Calendar events serve as signals that update actor-type probabilities rather than direct convergence inputs. NEXUS implements this approach with 7 actor profiles and 17 calendar behaviour modifiers across 4 calendar systems.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">Mellers, B. et al. (2014). &quot;Psychological Strategies for Winning a Geopolitical Forecasting Tournament.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">Psychological Science, 25(5), 1106-1115.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Extended GJP data showing that training in probabilistic reasoning, base rate usage, and frequent small updates produced forecasters who outperformed intelligence analysts with access to classified information. Validates the superforecasting methodology as effective for geopolitical prediction.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Intelligence Fusion Methodology">
+              <div className="pt-4 space-y-5">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[13px] text-navy-300 leading-[1.8] font-medium">RAND Corporation (2012). &quot;Military Intelligence Fusion for Complex Operations.&quot;</p>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] mt-1">RAND Occasional Paper OP-377.</p>
+                  <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mt-2">Military intelligence combines HUMINT, OSINT, SIGINT, imagery analysis, and sensor data into cross-referenced all-source analysis. The fusion product is superior to any single collection discipline. NEXUS applies the same all-source fusion methodology to financial markets.</p>
+                </div>
+              </div>
+            </ExpandableSection>
+
+          </div>
+
+          <div className={`mt-10 max-w-3xl ${anim} ${academicReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
+            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Summary</div>
+              <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                Each of the four primary signal layers NEXUS runs has independent peer-reviewed validation. The convergence thesis, that combining diverse, uncorrelated inputs from independent domains reduces aggregate error and produces stronger predictions, is supported by Hong and Page&apos;s diversity theorem (PNAS 2004), foundational ensemble learning (Wolpert 1992, Breiman 2001), complexity economics (Arthur, Lo), network contagion theory (Elliott et al., Acemoglu et al.), and intelligence fusion methodology (RAND). The mathematical principle is domain-agnostic: it holds for ML classifiers, human forecasting teams, and heterogeneous signal streams alike. Narrative overlays (calendar, celestial) are not included in this claim.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Ruled />
+
+      {/* ══════════════════════════════════════════
+          22. LIMITATIONS AND KNOWN CONSTRAINTS
+      ══════════════════════════════════════════ */}
+      <section id="limitations" className="relative px-6 py-20">
+        <div ref={limitationsReveal.ref} className="max-w-5xl mx-auto">
+          <SectionHead number="22" label="Limitations and Known Constraints" visible={limitationsReveal.visible} />
+
+          <div className={`mt-8 max-w-3xl space-y-6 ${anim} ${limitationsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
+            <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+              A methodology paper that only describes what works is marketing, and this is meant to be more than that. Every system has constraints, blind spots, and failure modes. Documenting them is how you build trust, and how you improve.
+            </p>
+
+            <div className="space-y-5">
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Celestial and Calendar — Narrative Context Layers</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                  The celestial and calendar layers are the most academically contentious components of NEXUS and should be understood as narrative context, not primary signal. Their role is interpretive framing, not independent alert generation.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  The evidence base is thin and mixed. Dichev and Janes (2003) and Yuan et al. (2006) documented statistically significant lunar cycle effects across multiple markets, but replication has been inconsistent and the academic community remains divided. Kamstra et al. (2003) found no robust effect after controlling for seasonal affective disorder. The calendar correlations (Shemitah cycle, Ramadan, High Holy Days) have somewhat stronger anecdotal support but limited rigorous quantitative validation at the kind of effect sizes that would justify trading decisions.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  The correct framing: these layers add contextual colour to situations already identified by stronger signal layers. They should never be the primary basis for any call. Any track record analysis should segment and report the performance contribution of celestial and calendar signals separately from geopolitical, market, and OSINT layers, where the evidence base is substantially more robust. If the data eventually shows these layers are not adding predictive value, the feedback loop will downweight them. Until then, they sit at the bottom of the convergence hierarchy, functioning as narrative context.
+                </p>
+              </div>
+
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Bayesian Fusion Assumptions</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                  The Bayesian fusion engine replaced additive scoring with proper posterior updating via likelihood ratios and conditional dependency matrices. This is a significant improvement, but the dependency matrix values (independence factors between layer pairs) are currently set from domain reasoning rather than empirically calibrated from production data. As the resolved prediction dataset grows, these values should be updated to reflect observed conditional correlations. The exponential likelihood ratio model is a reasonable functional form but could be refined with production data showing the actual relationship between layer significance and posterior accuracy. The scenario priors (military escalation at 5%, market disruption at 12%, etc.) are defensible order-of-magnitude estimates but carry uncertainty that will narrow with more data.
+                </p>
+              </div>
+
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Prediction Track Record — Temporal Validity Constraint</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                  NEXUS publishes all predictions and their resolution outcomes. The dataset is growing and early-stage records carry wide confidence intervals. A Brier score over a few dozen predictions does not constitute statistically robust validation regardless of the headline accuracy figure.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  A more significant constraint applies to the initial prediction batch: predictions generated after a triggering event has already begun cannot be treated as prospective forecasts. They reflect the system reasoning about a developing situation after onset, not predicting it before the fact. Post-onset predictions test analytical coherence, not forecasting skill, and conflating the two inflates apparent track records. The only valid measure of genuine predictive capability is predictions generated in advance of the events they describe. Users evaluating platform performance should filter accordingly and the platform should make this distinction explicit in its reporting interface.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  Performance is tracked segmented by category, timeframe, and signal combination and published transparently for direct user evaluation. Resolved outcomes feed back through a damped correction loop, so calibration improves as the genuinely forward-looking dataset accumulates.
+                </p>
+              </div>
+
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Data Source Dependencies</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                  NEXUS aggregates data from 39 external APIs and data feeds including Alpha Vantage, FRED, GDELT, ACLED, OpenSky Network, 15 RSS news feeds, Reddit, Polymarket, Kalshi, and others. Each dependency introduces a potential point of failure, whether from API rate limits, data quality issues, or service outages. The system uses graceful degradation, returning empty results rather than failing on any single source outage, and the convergence engine naturally adapts when fewer layers are reporting. Still, the quality of the output is bounded by the quality of the inputs. NEXUS cannot detect signals in data it does not receive.
+                </p>
+              </div>
+
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">AI Synthesis Limitations</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                  The AI synthesis layer uses Claude for analysis and prediction generation. Large language models can produce confident-sounding analysis that is wrong, and they carry biases from their training data. NEXUS mitigates this by constraining Claude&apos;s analysis to structured data inputs, requiring explicit confidence levels on all predictions, and tracking every prediction against outcomes. The system also filters meta-system contamination, where the AI generates predictions about its own functioning rather than the markets. These are engineering mitigations for a fundamental constraint: the AI is a tool, and its outputs require the same critical evaluation as any other analytical source.
+                </p>
+              </div>
+            </div>
+
+            <div className={`mt-6 ${anim} ${limitationsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Design Philosophy</div>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  These constraints are documented because NEXUS is built on a simple principle: transparency about what the system can and cannot do is more valuable than claiming perfection. Every analytical tool has failure modes. The question is whether the system surfaces them honestly and improves over time. The prediction tracker, the feedback loop, and this section exist to ensure that it does.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Ruled />
+
+      {/* ══════════════════════════════════════════
+          23. LIVE RESULTS AND PREDICTION RECORD
+      ══════════════════════════════════════════ */}
+      <section id="live-results" className="relative px-6 py-20">
+        <div ref={liveResultsReveal.ref} className="max-w-5xl mx-auto">
+          <SectionHead number="23" label="Live Results and Prediction Record" visible={liveResultsReveal.visible} />
+
+          <div className={`mt-8 max-w-3xl space-y-6 ${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
+            <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+              Methodology papers typically end with theory. NEXUS ends with data. Every prediction the system generates is timestamped, tracked, and resolved against real-world outcomes. The results are published, not curated, meaning the failures are visible alongside the successes.
+            </p>
+            <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+              One distinction matters and should be applied when evaluating any aggregate metric: predictions generated after a triggering event has already begun are post-onset analysis, not prospective forecasts. They demonstrate that the system reasons coherently about developing situations, not that it predicted them. The forward-looking record, predictions generated before the events they describe, is the only valid measure of forecasting skill and should be evaluated separately. As the prospective dataset grows, the aggregate Brier score and calibration curves will become more meaningful.
+            </p>
+
+            <div className="border border-accent-cyan/20 rounded-lg p-6 bg-accent-cyan/[0.03]">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-accent-cyan" />
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-wider text-accent-cyan mb-1">Live Prediction Tracker</div>
+                    <p className="font-sans text-[13px] text-navy-300 leading-[1.7]">
+                      The platform&apos;s prediction record is available to all subscribers. Every prediction includes the claim, confidence level, signal sources that triggered it, resolution date, and outcome. Aggregate metrics, including Brier score, log loss, and calibration curves, are computed continuously.
+                    </p>
+                  </div>
+                  <Link
+                    href="/predictions"
+                    className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+                  >
+                    View Prediction Record
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20 text-center">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Tracking Metrics</div>
+                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
+                  Brier score, log loss, and calibration curves computed over all resolved predictions with segmentation by category and timeframe.
+                </div>
+              </div>
+              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20 text-center">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Feedback Integration</div>
+                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
+                  Resolved predictions feed back into the engine with 0.3 damping to prevent overcorrection, continuously tuning the system&apos;s calibration.
+                </div>
+              </div>
+              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20 text-center">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Full Transparency</div>
+                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
+                  No cherry-picking. The system publishes every prediction it makes, whether it resolves correctly or incorrectly. This is the standard it holds itself to.
+                </div>
+              </div>
+            </div>
+
+            <div className={`${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
+              <p className="font-sans text-[13px] text-navy-500 leading-[1.8]">
+                A system that claims to predict markets but hides its track record is asking for faith. NEXUS asks for scrutiny. The prediction tracker exists precisely so that the methodologies described in this paper can be evaluated against real outcomes, not theoretical ones.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Ruled />
+
+      {/* ══════════════════════════════════════════
+          24: HISTORICAL PATTERN MATCHING
+      ══════════════════════════════════════════ */}
+      <section id="parallels" className="relative px-6 py-20">
+        <div ref={parallelsReveal.ref} className={`max-w-5xl mx-auto ${anim} ${parallelsReveal.visible ? shown : hidden}`}>
+          <SectionHead number="24" label="Historical Pattern Matching" visible={parallelsReveal.visible} />
+          <div className="mt-8 space-y-4">
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              The Psycho-History Parallels engine searches the knowledge bank, resolved prediction history, and signal archive for structurally similar past events. Given a natural-language description of a current scenario (e.g. &quot;Iran-Israel escalation with Hormuz closure risk&quot;), it performs semantic vector search across all stored intelligence, then uses Claude to identify the strongest structural parallels from history.
+            </p>
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              Each parallel is scored on structural similarity (0-1), considering actor constellation overlap, escalation dynamics, economic preconditions, and temporal context. The engine returns the historical outcome, time-to-resolution, documented market impact, key similarities, and key differences. A composite probability of pattern repetition is synthesized from the weighted average of parallel outcomes, adjusted for identified structural differences.
+            </p>
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              This is explicitly not a claim of historical determinism. The engine surfaces patterns for human evaluation, with prominent caveats about structural differences that could invalidate the parallel. The value is in forcing systematic comparison rather than relying on the analyst&apos;s recall of loosely similar events.
+            </p>
+            <ExpandableSection title="Technical Implementation">
+              <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+                The engine uses Voyage AI v3 (1024-dimensional) embeddings for semantic search across the knowledge bank. Query text is embedded with <code className="text-accent-cyan/80">input_type: &quot;query&quot;</code> and matched against stored document embeddings via pgvector cosine similarity. Resolved predictions and signal history are retrieved as additional context. All data is passed to Claude for structured synthesis, which outputs JSON with typed parallel objects, composite probability, and regime classification.
+              </p>
+            </ExpandableSection>
+          </div>
+        </div>
+      </section>
+
+      <Ruled />
+
+      {/* ══════════════════════════════════════════
+          25: ACTOR-BELIEF PROFILE SYSTEM
+      ══════════════════════════════════════════ */}
+      <section id="actor-profiles" className="relative px-6 py-20">
+        <div ref={actorProfilesReveal.ref} className={`max-w-5xl mx-auto ${anim} ${actorProfilesReveal.visible ? shown : hidden}`}>
+          <SectionHead number="25" label="Actor-Belief Profile System" visible={actorProfilesReveal.visible} />
+          <div className="mt-8 space-y-4">
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              Extended actor profiles encode behavioral type distributions (cooperative/hawkish/unpredictable), base weekly action probabilities, calendar-conditioned Bayesian modifiers, public statements, scripture/doctrinal references, past decisions, belief frameworks, and decision patterns. Currently 7 actors are tracked: Israeli Far-Right Coalition, Iran IRGC, China PLA, Russia Kremlin, DPRK, Saudi Arabia (MBS), and Turkey (Erdogan).
+            </p>
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              The Bayesian typing system (Tahir 2025) models calendar events as signals that update actor-type probabilities rather than as direct convergence bonuses. Each modifier carries a posterior multiplier, historical basis, sample size, and confidence rating. Effective multipliers are damped by confidence: <code className="text-accent-cyan/80">effective = 1 + (posterior - 1) * confidence</code>. Multiple modifiers compose multiplicatively, with a hard cap at 0.95 probability.
+            </p>
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              Scripture and doctrinal references are tracked not because they predict events, but because they inform how specific actors interpret and frame their own actions. When Ben Gvir references the Book of Esther before Purim, the reference itself is a data point about his likely behavioral mode, not a mystical prediction.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <Ruled />
+
+      {/* ══════════════════════════════════════════
+          26: NARRATIVE REPORT GENERATION
+      ══════════════════════════════════════════ */}
+      <section id="narrative-reports" className="relative px-6 py-20">
+        <div ref={narrativeReportsReveal.ref} className={`max-w-5xl mx-auto ${anim} ${narrativeReportsReveal.visible ? shown : hidden}`}>
+          <SectionHead number="26" label="Narrative Report Generation" visible={narrativeReportsReveal.visible} />
+          <div className="mt-8 space-y-4">
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              The narrative report generator synthesizes all active data layers (signals, predictions, thesis, knowledge bank, game theory) into a single coherent long-form intelligence briefing. Output is structured as a 10-15 minute lecture script with titled sections, specific data references, risk matrix, and key takeaways.
+            </p>
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              Reports begin with regime assessment (peacetime/wartime/transition), proceed through primary signal analysis, historical parallels (when available), game theory assessment, and forward outlook with probabilistic scenarios. The risk matrix scores each scenario on probability (0-1) and impact (low/medium/high/critical) with a specific timeframe.
+            </p>
+            <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
+              A &quot;Narrative Synthesis Mode&quot; toggle is available in settings. When active, it disables convergence scoring entirely and focuses the analytical framework on actor psychology, belief-driven scenario modeling, and narrative thread analysis. This mode is useful for exploring &quot;what do actors believe will happen&quot; rather than &quot;what do the numbers say,&quot; reflecting that in geopolitics, actor beliefs can be more predictive than quantitative models.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <Ruled />
+
+      {/* ══════════════════════════════════════════
+          APPENDIX A: CALENDAR / CELESTIAL LITERATURE
+      ══════════════════════════════════════════ */}
+      <section id="appendix-a" className="px-6 py-20 bg-navy-950/40">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-10">
+            <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-navy-600 mb-2">Appendix A</div>
+            <h2 className="font-sans text-xl font-light text-navy-200">Calendar and Celestial Literature Review</h2>
+            <p className="font-sans text-[13px] text-navy-500 leading-[1.8] mt-4 max-w-3xl">
+              This appendix reviews the academic literature on lunar, celestial, and religious calendar correlations with market behaviour. These are documented in the literature with varying degrees of rigour. They are presented here for completeness and honest assessment — not as justification for primary signal weighting.
+            </p>
+            <div className="mt-4 border border-accent-amber/20 rounded p-4 bg-accent-amber/[0.03] max-w-3xl">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-2">Classification</div>
+              <p className="font-sans text-[12px] text-navy-500 leading-[1.8]">
+                Nothing in this appendix is used as a primary convergence input. These layers receive zero convergence weight. They are tracked as narrative context only and do not affect the 1-5 convergence score.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-5 max-w-3xl">
+            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/10">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-3">Lunar Cycle Effects</div>
+              <div className="space-y-4">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Dichev, I.D. and Janes, T.D. (2003). &quot;Lunar Cycle Effects in Stock Returns.&quot; Journal of Private Equity, 6(4), 8-29.</p>
+                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Documented that returns in the 15 days around new moon are about double the returns in the 15 days around full moon across 25 stock market indices over 100 years. The mechanism is proposed as mood-driven risk aversion correlated with the lunar cycle. Replication has been inconsistent across later studies.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Yuan, K., Zheng, L. and Zhu, Q. (2006). &quot;Are Investors Moonstruck? Lunar Phases and Stock Returns.&quot; Journal of Empirical Finance, 13(1), 1-23.</p>
+                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Replicated Dichev and Janes findings across 48 countries. Found that the lunar effect is not explained by calendar effects, announcements, or trading volume. Effect size is economically small. The evidence is suggestive but the academic community remains divided on robustness.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Kamstra, M.J., Kramer, L.A. and Levi, M.D. (2003). &quot;Winter Blues: A SAD Stock Market Cycle.&quot; American Economic Review, 93(1), 324-343.</p>
+                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Found no robust lunar effect after controlling for seasonal affective disorder. This is the primary rebuttal study. The honest read: lunar effects may be a proxy for seasonal variables rather than a direct mechanism.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/10">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-3">Geomagnetic and Solar Activity</div>
+              <div className="space-y-4">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Krivelyova, A. and Robotti, C. (2003). &quot;Playing the Field: Geomagnetic Storms and International Stock Markets.&quot; Federal Reserve Bank of Atlanta Working Paper 2003-5.</p>
+                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Found a statistically significant negative correlation between geomagnetic storm activity and next-day stock returns across global markets. Published as a Federal Reserve working paper (not peer-reviewed journal). The mechanism proposed is mood disruption from electromagnetic exposure. Replication evidence is limited and the effect size is small.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/10">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-3">Religious Calendar Effects</div>
+              <div className="space-y-4">
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Bialkowski, J., Etebari, A. and Wisniewski, T.P. (2012). &quot;Fast profits: Investor sentiment and stock returns during Ramadan.&quot; Journal of Banking and Finance, 36(3), 835-845.</p>
+                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Found elevated returns and reduced volatility in Muslim-majority countries during Ramadan, attributed to optimism and social bonding effects. Effect is concentrated in specific markets. Generalisation to global markets is weak.</p>
+                </div>
+                <div className="border-l-2 border-navy-700/40 pl-4">
+                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Frieder, L. and Subrahmanyam, A. (2004). &quot;Nonsecular Regularities in Returns and Volume.&quot; Financial Analysts Journal, 60(4), 29-34.</p>
+                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Documented below-average returns around Rosh Hashanah and above-average returns around Yom Kippur in US markets. Sample is limited and the effect has not been robustly replicated over more recent periods.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Honest Assessment</div>
+              <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                The literature here is real but the evidence base is thin. Effect sizes are small, replication is inconsistent, and no consensus mechanism explains why astronomical or religious calendars would reliably move global markets. The reason these layers exist in NEXUS is not because the academic case is strong, it isn&apos;t, but because specific actors in positions of power assign meaning to these calendars and may time decisions around them. That is actor-belief modelling, not market prediction. The distinction matters: we are not claiming the Shemitah cycle moves markets, we are noting that decision-makers who believe it does may act accordingly, and that behavioural pattern is worth tracking as context.
+              </p>
+            </div>
           </div>
         </div>
       </section>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { AircraftState, AircraftResponse } from "@/lib/warroom/types";
+import { requireTier } from "@/lib/auth/require-tier";
 
 const MILITARY_CALLSIGN_PREFIXES = [
   "RCH",    // USAF Air Mobility Command
@@ -33,6 +34,8 @@ function isMilitaryCallsign(callsign: string): boolean {
 }
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const res = await fetch("https://opensky-network.org/api/states/all", {
       next: { revalidate: 15 },

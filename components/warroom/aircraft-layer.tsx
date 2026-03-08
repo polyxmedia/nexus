@@ -62,23 +62,24 @@ function getIcon(heading: number, isMilitary: boolean, altMeters: number): L.Div
   let icon = iconCache.get(key);
   if (icon) return icon;
 
-  const color = isMilitary ? "#f43f5e" : "#a8a8a8";
+  const color = isMilitary ? "#f43f5e" : "#94a3b8";
   const glow = isMilitary
-    ? "filter:drop-shadow(0 0 5px rgba(244,63,94,0.6));"
+    ? "filter:drop-shadow(0 0 4px rgba(244,63,94,0.5));"
     : "";
-  const size = isMilitary ? 16 : 11;
+  const size = isMilitary ? 22 : 16;
   const half = size / 2;
   const op = oBucket / 10;
 
-  const path = isMilitary
-    ? "M12 1 L14 9 L22 12 L14 13 L14 20 L17 22 L7 22 L10 20 L10 13 L2 12 L10 9 Z"
-    : "M12 2 L13.5 8 L23 11.5 L13.5 13 L13 19 L16 22 L8 22 L11 19 L10.5 13 L1 11.5 L10.5 8 Z";
+  // Clean minimal aircraft chevron
+  const svg = isMilitary
+    ? `<polygon points="12,2 20,14 12,11 4,14" fill="${color}" opacity="${op}"/>`
+    : `<polygon points="12,3 18,14 12,12 6,14" fill="${color}" opacity="${op}"/>`;
 
   icon = L.divIcon({
-    html: `<svg viewBox="0 0 24 24" width="${size}" height="${size}" style="transform:rotate(${hBucket}deg);opacity:${op};${glow}"><path d="${path}" fill="${color}" stroke="rgba(255,255,255,${isMilitary ? 0.2 : 0.1})" stroke-width="0.5"/></svg>`,
+    html: `<svg viewBox="0 0 24 16" width="${size}" height="${Math.round(size * 0.67)}" style="transform:rotate(${hBucket}deg);${glow}">${svg}</svg>`,
     className: "",
-    iconSize: [size, size],
-    iconAnchor: [half, half],
+    iconSize: [size, Math.round(size * 0.67)],
+    iconAnchor: [half, Math.round(size * 0.67 / 2)],
   });
 
   iconCache.set(key, icon);
@@ -271,8 +272,9 @@ export function AircraftLayer({ aircraft, onAircraftClick }: AircraftLayerProps)
         }
       });
 
-      // Click to open detail modal
+      // Click to zoom and open detail modal
       marker.on("click", () => {
+        map.flyTo([ac.lat, ac.lng], Math.max(map.getZoom(), 6), { duration: 0.6 });
         onAircraftClick?.(ac);
       });
 

@@ -35,6 +35,8 @@ export async function GET() {
         role: data.role || "user",
         tier: data.tier || "free",
         createdAt: s.updatedAt,
+        compedGrant: data.compedGrant || null,
+        email: data.email || null,
       };
     });
 
@@ -42,7 +44,7 @@ export async function GET() {
     const subs = await db.select().from(schema.subscriptions);
     const subMap = new Map(subs.map((s: { userId: string; [key: string]: unknown }) => [s.userId, s]));
 
-    const enriched = users.map((u: { username: string; role: string; tier: string; createdAt: string | null }) => ({
+    const enriched = users.map((u: { username: string; role: string; tier: string; createdAt: string | null; compedGrant: { tier: string; grantedAt: string; expiresAt: string | null; note: string | null } | null; email: string | null }) => ({
       ...u,
       subscription: subMap.get(u.username) || null,
     }));
@@ -75,10 +77,19 @@ export async function POST(request: Request) {
 
     const userData = JSON.parse(userSettings[0].value);
 
-    // Grant permanent access (beta/comped)
+    // Grant access (comped) with optional expiry and notes
     if (action === "grant_access") {
       const tierName = grantTier || "operator";
+      const { expiresAt, note } = body;
       userData.tier = tierName;
+
+      // Store grant metadata on the user record
+      userData.compedGrant = {
+        tier: tierName,
+        grantedAt: new Date().toISOString(),
+        expiresAt: expiresAt || null,
+        note: note || null,
+      };
 
       // Update user settings with new tier
       await db
@@ -93,8 +104,8 @@ export async function POST(request: Request) {
       );
 
       const now = new Date().toISOString();
-      // Far future expiry for permanent access
-      const farFuture = "2099-12-31T23:59:59.000Z";
+      // Use provided expiry or far future for permanent
+      const periodEnd = expiresAt || "2099-12-31T23:59:59.000Z";
 
       // Check for existing subscription
       const existing = await db
@@ -109,7 +120,7 @@ export async function POST(request: Request) {
             tierId: matchingTier?.id || existing[0].tierId,
             status: "active",
             currentPeriodStart: now,
-            currentPeriodEnd: farFuture,
+            currentPeriodEnd: periodEnd,
             cancelAtPeriodEnd: 0,
             updatedAt: now,
           })
@@ -122,19 +133,20 @@ export async function POST(request: Request) {
           stripeSubscriptionId: `comped_${Date.now()}`,
           status: "active",
           currentPeriodStart: now,
-          currentPeriodEnd: farFuture,
+          currentPeriodEnd: periodEnd,
           cancelAtPeriodEnd: 0,
           createdAt: now,
           updatedAt: now,
         });
       }
 
-      return NextResponse.json({ success: true, granted: tierName });
+      return NextResponse.json({ success: true, granted: tierName, expiresAt: periodEnd });
     }
 
     // Revoke comped access
     if (action === "revoke_access") {
       userData.tier = "free";
+      delete userData.compedGrant;
 
       await db
         .update(schema.settings)

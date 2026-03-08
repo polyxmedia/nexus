@@ -12,13 +12,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   try {
     const { id } = await params;
-    const ticketId = parseInt(id);
     const [ticket] = await db
       .select()
       .from(supportTickets)
       .where(
         and(
-          eq(supportTickets.id, ticketId),
+          eq(supportTickets.uuid, id),
           eq(supportTickets.userId, `user:${session.user.name}`)
         )
       );
@@ -40,7 +39,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   try {
     const { id } = await params;
-    const ticketId = parseInt(id);
     const body = await req.json();
 
     // Users can only close their own tickets
@@ -49,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from(supportTickets)
       .where(
         and(
-          eq(supportTickets.id, ticketId),
+          eq(supportTickets.uuid, id),
           eq(supportTickets.userId, `user:${session.user.name}`)
         )
       );
@@ -66,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await db
       .update(supportTickets)
       .set(updates)
-      .where(eq(supportTickets.id, ticketId));
+      .where(eq(supportTickets.uuid, id));
 
     return NextResponse.json({ success: true });
   } catch (error) {

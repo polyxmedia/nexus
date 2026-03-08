@@ -14,6 +14,7 @@ export interface ScenarioWithAnalysis {
 
 export interface WarRoomSignal {
   id: number;
+  uuid: string;
   title: string;
   date: string;
   intensity: number;
@@ -24,6 +25,7 @@ export interface WarRoomSignal {
 
 export interface WarRoomThesis {
   id: number;
+  uuid: string;
   title: string;
   marketRegime: string;
   volatilityOutlook: string;

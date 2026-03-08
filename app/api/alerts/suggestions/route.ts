@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { desc, eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
-import { getModel } from "@/lib/ai/model";
+import { HAIKU_MODEL } from "@/lib/ai/model";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     // Gather current signals (active + upcoming, intensity >= 2)
     const allSignals = await db
@@ -56,8 +59,8 @@ export async function GET() {
     }));
 
     const response = await client.messages.create({
-      model: await getModel(),
-      max_tokens: 2000,
+      model: HAIKU_MODEL,
+      max_tokens: 1000,
       messages: [
         {
           role: "user",

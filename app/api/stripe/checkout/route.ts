@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tierId } = await request.json();
+    const { tierId, embedded } = await request.json();
     if (!tierId) {
       return NextResponse.json({ error: "Tier ID required" }, { status: 400 });
     }
@@ -48,14 +48,24 @@ export async function POST(request: Request) {
       customer: customerId,
       customer_email: customerId ? undefined : `${userId}@nexus`,
       line_items: [{ price: tier.stripePriceId, quantity: 1 }],
-      success_url: `${origin}/settings?tab=subscription&status=success`,
-      cancel_url: `${origin}/settings?tab=subscription&status=canceled`,
+      ...(embedded
+        ? {
+            ui_mode: "embedded",
+            return_url: `${origin}/settings?tab=subscription&status=success`,
+          }
+        : {
+            success_url: `${origin}/settings?tab=subscription&status=success`,
+            cancel_url: `${origin}/settings?tab=subscription&status=canceled`,
+          }),
       metadata: {
         userId,
         tierId: String(tierId),
       },
     });
 
+    if (embedded) {
+      return NextResponse.json({ clientSecret: checkoutSession.client_secret });
+    }
     return NextResponse.json({ url: checkoutSession.url });
   } catch (error) {
     console.error("Checkout error:", error);

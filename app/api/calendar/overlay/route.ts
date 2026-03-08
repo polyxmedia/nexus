@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const allSignals = await db.select().from(schema.signals);
     const allPredictions = await db.select().from(schema.predictions);

@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexusintel.io";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
@@ -61,12 +61,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${SITE_URL}/research/game-theory`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${SITE_URL}/research/whitepapers`,
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.7,

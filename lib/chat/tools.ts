@@ -5,6 +5,7 @@ type Signal = InferSelectModel<typeof schema.signals>;
 type Prediction = InferSelectModel<typeof schema.predictions>;
 import { SCENARIOS } from "@/lib/game-theory/actors";
 import { analyzeScenario } from "@/lib/game-theory/analysis";
+import { getWartimeAnalysis } from "@/lib/game-theory/wartime";
 import { Trading212Client } from "@/lib/trading212/client";
 import { getQuoteData, getHistoricalData } from "@/lib/market-data/yahoo";
 import { getEsotericReading } from "@/lib/signals/numerology";
@@ -32,6 +33,9 @@ import { getBOCPDSnapshot } from "@/lib/bocpd";
 import { getShortInterestSnapshot } from "@/lib/short-interest";
 import { getGPRSnapshot } from "@/lib/gpr";
 import { getGEXSnapshot } from "@/lib/gex";
+import { findHistoricalParallels } from "@/lib/parallels/engine";
+import { getExtendedActorProfile, getAllExtendedProfiles } from "@/lib/actors/profiles";
+import { generateNarrativeReport } from "@/lib/reports/narrative";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Tool Definitions (Anthropic format) ──
@@ -89,7 +93,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_game_theory",
     description:
-      "Run deterministic game theory analysis on geopolitical scenarios. Returns Nash equilibria, Schelling points, escalation ladders, dominant strategies, and market assessment. Available scenarios: taiwan-strait, iran-nuclear, opec-production.",
+      "Run deterministic game theory analysis on geopolitical scenarios. Returns Nash equilibria, Schelling points, escalation ladders, dominant strategies, and market assessment. Available scenarios: taiwan-strait, iran-nuclear, opec-production, russia-ukraine-endgame, us-china-trade-war, hormuz-closure, india-pakistan-kashmir, red-sea-shipping, eu-energy-crisis, dprk-provocation.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -506,6 +510,48 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   { name: "get_short_interest", description: "Aggregate short interest across sector ETFs (SPY, QQQ, IWM, XLF, XLE, XLK, etc). 52-week z-score, contrarian signals, per-sector breakdown.", input_schema: { type: "object" as const, properties: { sector: { type: "string", description: "Filter by sector name" } }, required: [] } },
   { name: "get_gpr_index", description: "Geopolitical Risk Index (Caldara-Iacoviello). Threats vs acts decomposition, regional GPR proxies (Middle East, East Asia, Europe, South Asia, Africa), threshold crossings, asset exposure mapping.", input_schema: { type: "object" as const, properties: { region: { type: "string", description: "Filter to specific region" } }, required: [] } },
   { name: "get_gamma_exposure", description: "Gamma Exposure (GEX) for SPY, QQQ, IWM. Net dealer gamma, zero-gamma level, put/call walls, regime (dampening vs amplifying). Determines if options market amplifies or dampens moves.", input_schema: { type: "object" as const, properties: { ticker: { type: "string", enum: ["SPY", "QQQ", "IWM"], description: "Filter to specific ticker" } }, required: [] } },
+  {
+    name: "search_historical_parallels",
+    description: "Search for historical parallels to a current event. Searches knowledge bank, resolved predictions, and signal history for structurally similar past situations. Returns probability of repetition, parallels with similarity scores, and actionable insights.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "Description of the current situation to find parallels for (e.g. 'Iran war + red heifer timing', 'Taiwan strait military exercises')",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "get_actor_profile",
+    description: "Get extended actor-belief profile including public statements, scripture references, past decisions, calendar sensitivities, and Bayesian behavioral typing. Available actors: israel_far_right, iran_irgc, china_pla, russia_kremlin, dprk, saudi_mbs, turkey_erdogan.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        actor_id: {
+          type: "string",
+          description: "Actor ID (e.g. 'israel_far_right', 'iran_irgc'). Omit to get all profiles.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "generate_narrative_report",
+    description: "Generate a long-form intelligence briefing / lecture script pulling all signals, parallels, game theory, predictions, and thesis into a single coherent narrative. 10-15 minute reading time. Includes risk matrix and key takeaways.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        topic: {
+          type: "string",
+          description: "Optional focus topic. If omitted, generates a full-spectrum briefing.",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -599,6 +645,12 @@ export async function executeTool(
       return executeGetGPR(input);
     case "get_gamma_exposure":
       return executeGetGEX(input);
+    case "search_historical_parallels":
+      return executeSearchParallels(input);
+    case "get_actor_profile":
+      return executeGetActorProfile(input);
+    case "generate_narrative_report":
+      return executeGenerateReport(input);
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -698,17 +750,25 @@ async function executeGetGameTheory(input: Record<string, unknown>) {
         error: `Unknown scenario: ${scenarioId}. Available: ${SCENARIOS.map((s) => s.id).join(", ")}`,
       };
     }
-    const analysis = analyzeScenario(scenario);
+    // Use wartime-aware analysis (checks for active thresholds/invalidated strategies)
+    const { analysis, scenarioState, isWartime } = await getWartimeAnalysis(scenarioId);
     return {
       scenario: { id: scenario.id, title: scenario.title, description: scenario.description },
       analysis,
+      scenarioState,
+      isWartime,
     };
   }
 
-  // Analyze all scenarios
-  const results = SCENARIOS.map((scenario) => ({
-    scenario: { id: scenario.id, title: scenario.title, description: scenario.description },
-    analysis: analyzeScenario(scenario),
+  // Analyze all scenarios with wartime awareness
+  const results = await Promise.all(SCENARIOS.map(async (scenario) => {
+    const { analysis, scenarioState, isWartime } = await getWartimeAnalysis(scenario.id);
+    return {
+      scenario: { id: scenario.id, title: scenario.title, description: scenario.description },
+      analysis,
+      scenarioState,
+      isWartime,
+    };
   }));
 
   return { scenarios: results };
@@ -1757,5 +1817,61 @@ async function executeGetGEX(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Gamma exposure failed: ${message}` };
+  }
+}
+
+async function executeSearchParallels(input: Record<string, unknown>) {
+  try {
+    const query = input.query as string;
+    if (!query) return { error: "Query is required" };
+
+    const apiKeyRow = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, "anthropic_api_key"));
+    const apiKey = apiKeyRow[0]?.value || process.env.ANTHROPIC_API_KEY || "";
+
+    if (!apiKey) return { error: "Anthropic API key not configured" };
+
+    return await findHistoricalParallels(query, apiKey);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Historical parallels search failed: ${message}` };
+  }
+}
+
+async function executeGetActorProfile(input: Record<string, unknown>) {
+  try {
+    const actorId = input.actor_id as string | undefined;
+
+    if (actorId) {
+      const profile = await getExtendedActorProfile(actorId);
+      if (!profile) return { error: `Actor '${actorId}' not found` };
+      return profile;
+    }
+
+    return { actors: await getAllExtendedProfiles() };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Actor profile fetch failed: ${message}` };
+  }
+}
+
+async function executeGenerateReport(input: Record<string, unknown>) {
+  try {
+    const topic = input.topic as string | undefined;
+
+    const apiKeyRow = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, "anthropic_api_key"));
+    const apiKey = apiKeyRow[0]?.value || process.env.ANTHROPIC_API_KEY || "";
+
+    if (!apiKey) return { error: "Anthropic API key not configured" };
+
+    return await generateNarrativeReport(topic || null, apiKey);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Report generation failed: ${message}` };
   }
 }

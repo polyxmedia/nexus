@@ -2,7 +2,8 @@ import { getAllCelestialEvents } from "./celestial";
 import { getHebrewCalendarEvents, getShmitaInfo } from "./hebrew-calendar";
 import { getIslamicCalendarEvents } from "./islamic-calendar";
 import { getGeopoliticalEvents } from "./geopolitical";
-import { scoreConvergences, type ConvergenceResult } from "./intensity";
+import { type ConvergenceResult } from "./intensity";
+import { scoreBayesianConvergences } from "./bayesian-fusion";
 import type { NewSignal } from "../db/schema";
 
 export interface SignalGenerationResult {
@@ -43,8 +44,8 @@ export function generateSignals(year: number): SignalGenerationResult {
   // Merge Hebrew and Islamic events for convergence scoring
   const allCalendarEvents = [...hebrewEvents, ...islamicAsHebrew];
 
-  // Score convergences
-  const convergences = scoreConvergences(celestialEvents, allCalendarEvents, geopoliticalEvents);
+  // Score convergences via Bayesian fusion (replaces additive scoring)
+  const convergences = scoreBayesianConvergences(celestialEvents, allCalendarEvents, geopoliticalEvents);
 
   // Convert convergences to database signals
   const signals: NewSignal[] = convergences.map((c) => ({

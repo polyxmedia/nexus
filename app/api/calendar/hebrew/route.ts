@@ -4,8 +4,11 @@ import { getIslamicCalendarEvents, getHijriDateInfo } from "@/lib/signals/islami
 import { getEconomicCalendarEvents } from "@/lib/signals/economic-calendar";
 import { getEsotericReading } from "@/lib/signals/numerology";
 import { HDate } from "@hebcal/core";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const now = new Date();
     const year = now.getFullYear();

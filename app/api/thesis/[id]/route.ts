@@ -8,13 +8,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const thesisId = parseInt(id, 10);
 
-    if (isNaN(thesisId)) {
-      return NextResponse.json({ error: "Invalid thesis ID" }, { status: 400 });
-    }
-
-    const resultRows = await db.select().from(schema.theses).where(eq(schema.theses.id, thesisId));
+    const resultRows = await db.select().from(schema.theses).where(eq(schema.theses.uuid, id));
     const result = resultRows[0];
 
     if (!result) {
@@ -41,14 +36,9 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const thesisId = parseInt(id, 10);
     const body = await request.json();
 
-    if (isNaN(thesisId)) {
-      return NextResponse.json({ error: "Invalid thesis ID" }, { status: 400 });
-    }
-
-    const existingRows = await db.select().from(schema.theses).where(eq(schema.theses.id, thesisId));
+    const existingRows = await db.select().from(schema.theses).where(eq(schema.theses.uuid, id));
 
     if (existingRows.length === 0) {
       return NextResponse.json({ error: "Thesis not found" }, { status: 404 });
@@ -60,7 +50,7 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length > 0) {
-      await db.update(schema.theses).set(updates).where(eq(schema.theses.id, thesisId));
+      await db.update(schema.theses).set(updates).where(eq(schema.theses.uuid, id));
     }
 
     return NextResponse.json({ success: true });

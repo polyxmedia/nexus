@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncEntityGraph, getEntityGraph, searchEntities } from "@/lib/graph/engine";
 import { db, schema } from "@/lib/db";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action");
 
@@ -31,6 +34,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const result = await syncEntityGraph();
   return NextResponse.json({ success: true, ...result });
 }

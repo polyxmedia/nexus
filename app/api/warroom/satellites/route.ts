@@ -6,6 +6,7 @@ import {
   classifySatellite,
 } from "@/lib/warroom/satellite-utils";
 import type { SatellitePosition, SatelliteResponse } from "@/lib/warroom/types";
+import { requireTier } from "@/lib/auth/require-tier";
 
 // ── In-memory TLE cache (TLEs update ~daily, cache for 2h) ──
 
@@ -118,6 +119,8 @@ async function getAllTles(): Promise<
 }
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const tles = await getAllTles();
     const now = new Date();

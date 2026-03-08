@@ -105,7 +105,7 @@ export default function OGImage() {
               marginBottom: 48,
             }}
           >
-            Geopolitical-market convergence analysis. Five independent signal layers.
+            Geopolitical-market convergence analysis. Four primary signal layers.
             AI-driven intelligence before consensus.
           </div>
 
@@ -148,7 +148,7 @@ export default function OGImage() {
           }}
         >
           <span style={{ color: "#2a2a2a", fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase" }}>
-            nexusintel.io
+            nexushq.xyz
           </span>
           <span style={{ color: "#2a2a2a", fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase" }}>
             A Polyxmedia Product

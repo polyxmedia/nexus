@@ -50,9 +50,15 @@ const convergenceEvents = [
 export default function CalendarCorrelationsPage() {
   return (
     <main className="min-h-screen p-6 max-w-4xl mx-auto pt-24">
-      <div className="mb-10">
-        <h1 className="text-lg font-bold uppercase tracking-widest text-navy-100">Calendar Correlations</h1>
-        <p className="mt-1 text-xs text-navy-400">Cross-system calendar analysis and market cycle convergence</p>
+      <div className="mb-6">
+        <div className="font-mono text-[9px] uppercase tracking-widest text-navy-600 mb-2">Appendix A</div>
+        <h1 className="text-lg font-bold uppercase tracking-widest text-navy-100">Narrative Context Layers</h1>
+        <p className="mt-1 text-xs text-navy-400">Calendar and celestial data as actor-belief overlay</p>
+      </div>
+      <div className="border border-accent-amber/20 rounded px-4 py-3 bg-accent-amber/[0.03] mb-6">
+        <p className="font-sans text-[11px] text-accent-amber/80 leading-relaxed">
+          Calendar and celestial overlays are narrative/actor-belief context only, not independent predictive signals. They carry no convergence weight and are capped at a maximum 0.5 bonus. This data is tracked because some market participants and geopolitical actors incorporate calendar systems into their decision-making, making it relevant for understanding actor behavior, not for generating trade signals directly.
+        </p>
       </div>
       <div className="max-w-5xl space-y-8">
         {/* Introduction */}
@@ -315,6 +321,33 @@ export default function CalendarCorrelationsPage() {
             </p>
           </div>
         </section>
+      </div>
+
+      {/* Academic references */}
+      <div className="mt-12 rounded border border-navy-700/40 bg-navy-900/30 p-6">
+        <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-4">Peer-Reviewed References</div>
+        <div className="space-y-3">
+          <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+            <span className="text-navy-300">Dichev, I.D. and Janes, T.D. (2003).</span> &quot;Lunar Cycle Effects in Stock Returns.&quot; <span className="italic">The Journal of Private Equity</span>, 6(4), 8-29. Returns around new moons approximately double those around full moons, across 25 countries over 100 years.
+          </p>
+          <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+            <span className="text-navy-300">Yuan, K., Zheng, L. and Zhu, Q. (2006).</span> &quot;Are Investors Moonstruck?&quot; <span className="italic">Journal of Empirical Finance</span>, 13(1), 1-23. 3-5% annualised return differential across 48 countries, independent of volatility, volume, or macro announcements.
+          </p>
+          <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+            <span className="text-navy-300">Bialkowski, J. et al. (2012).</span> &quot;Piety and Profits: Stock Market Anomaly during the Muslim Holy Month.&quot; <span className="italic">Research in International Business and Finance</span>. Higher returns and lower volatility during Ramadan.
+          </p>
+          <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+            <span className="text-navy-300">Frieder, L. and Subrahmanyam, A.</span> &quot;Nonsecular Regularities in Returns and Volume.&quot; NYU Stern. Measurable return effects around Rosh Hashana and Yom Kippur on US equities.
+          </p>
+          <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+            <span className="text-navy-300">Krivelyova, A. and Robotti, C. (2003).</span> &quot;Playing the Field: Geomagnetic Storms and the Stock Market.&quot; <span className="italic">Federal Reserve Bank of Atlanta Working Paper</span>. 14% annualised return difference on geomagnetic storm days.
+          </p>
+        </div>
+        <div className="mt-4 pt-3 border-t border-navy-800/30">
+          <a href="/research/methodology" className="font-mono text-[10px] uppercase tracking-wider text-accent-cyan hover:text-accent-cyan/80 transition-colors">
+            Read about our methodology →
+          </a>
+        </div>
       </div>
 
       {/* CTA */}

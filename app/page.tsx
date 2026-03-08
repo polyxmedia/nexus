@@ -33,6 +33,7 @@ import {
 import dynamic from "next/dynamic";
 import { HeroTerminal } from "@/components/landing/hero-terminal";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 const ThreatMapPreview = dynamic(
   () => import("@/components/landing/threat-map-preview"),
@@ -116,7 +117,7 @@ function GridBackground() {
       <div
         className="absolute inset-0"
         style={{
-          background: "radial-gradient(ellipse at 50% 0%, transparent 0%, #000000 70%)",
+          background: "radial-gradient(ellipse at 50% 0%, transparent 0%, var(--color-navy-950) 70%)",
         }}
       />
     </div>
@@ -652,7 +653,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-navy-950 flex flex-col">
+    <div className="min-h-screen bg-navy-950 flex flex-col overflow-x-hidden">
       {/* ── Sticky Header ── */}
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
@@ -678,6 +679,8 @@ export default function LandingPage() {
             <a href="#pricing" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
               PRICING
             </a>
+
+            <ThemeToggle className="p-1.5 text-navy-400 hover:text-navy-200 transition-colors" />
 
             {/* Live status */}
             {status && (
@@ -721,7 +724,7 @@ export default function LandingPage() {
                 Alpha before<br />it&apos;s priced in
               </h1>
               <p className="text-[14px] text-navy-400 mt-4 font-sans max-w-md leading-relaxed">
-                NEXUS synthesises geopolitical signals, market structure, and calendar convergence into actionable theses — with a backtested prediction track record and integrated execution. Six intelligence layers. One coherent picture.
+                NEXUS synthesises geopolitical signals, market structure, OSINT, and game theory into actionable theses, with a backtested prediction track record and integrated execution. All the tools in one place. One coherent picture.
               </p>
 
               <div className="mt-8 flex items-center gap-4">
@@ -750,7 +753,7 @@ export default function LandingPage() {
               {/* Differentiators */}
               <div className="mt-12 space-y-3">
                 {[
-                  { label: "Convergence detection", detail: "across 6 independent signal layers, scored 1–5" },
+                  { label: "Convergence detection", detail: "across 4 primary signal layers + narrative overlay, scored 1–5" },
                   { label: "Backtested predictions", detail: "Brier-scored with temporal isolation, p-value validated" },
                   { label: "Real-time war room", detail: "military aircraft, OSINT, conflict zones live" },
                   { label: "AI thesis generation", detail: "from signal to position in a single pipeline" },
@@ -781,7 +784,7 @@ export default function LandingPage() {
           {[
             { value: 2847, suffix: "+", label: "Signals Tracked" },
             { value: 73, suffix: "%", label: "Prediction Accuracy" },
-            { value: 12, suffix: "", label: "Intelligence Layers" },
+            { value: 4, suffix: "+", label: "Primary Signal Layers" },
             { value: 50, suffix: "ms", label: "Signal Latency" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">

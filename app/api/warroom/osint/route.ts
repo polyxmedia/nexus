@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { OsintEvent, OsintEventType, OsintResponse } from "@/lib/warroom/types";
+import { requireTier } from "@/lib/auth/require-tier";
 
 function classifyEventType(title: string): OsintEventType {
   const t = title.toLowerCase();
@@ -98,6 +99,8 @@ async function fetchGdeltEvents(): Promise<OsintEvent[]> {
 }
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     // Try live GDELT first, fall back to seed data
     const liveEvents = await fetchGdeltEvents();

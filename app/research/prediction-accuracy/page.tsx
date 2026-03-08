@@ -44,7 +44,7 @@ const SCORECARD = [
   { prediction: "Escalation on Korean peninsula within 30 days", category: "Geopolitical", confidence: "35%", outcome: "hit" as const, brierContribution: 0.122 },
   { prediction: "BTC correlation spike with equities", category: "Market", confidence: "76%", outcome: "miss" as const, brierContribution: 0.578 },
   { prediction: "EU sanctions package triggers RUB volatility", category: "Geopolitical", confidence: "64%", outcome: "hit" as const, brierContribution: 0.130 },
-  { prediction: "Mercury retrograde period correlates with VIX spike", category: "Celestial", confidence: "41%", outcome: "miss" as const, brierContribution: 0.348 },
+  { prediction: "Mercury retrograde period correlates with VIX spike", category: "Narrative", confidence: "41%", outcome: "miss" as const, brierContribution: 0.348 },
   { prediction: "Gold tests $2,400 resistance on CPI print", category: "Market", confidence: "79%", outcome: "hit" as const, brierContribution: 0.044 },
   { prediction: "Taiwan Strait naval activity increase", category: "Geopolitical", confidence: "58%", outcome: "miss" as const, brierContribution: 0.336 },
 ];
@@ -52,7 +52,7 @@ const SCORECARD = [
 const CATEGORIES = [
   { name: "Market Signals", accuracy: "74.1%", brier: "0.152", count: 612, status: "Operational" as const },
   { name: "Geopolitical Events", accuracy: "63.8%", brier: "0.214", count: 489, status: "Operational" as const },
-  { name: "Celestial Correlations", accuracy: "47.2%", brier: "0.309", count: 146, status: "Validating" as const },
+  { name: "Narrative Overlay (Celestial/Calendar)", accuracy: "47.2%", brier: "0.309", count: 146, status: "Context Only" as const },
 ];
 
 export default function PredictionAccuracyPage() {
@@ -269,9 +269,9 @@ export default function PredictionAccuracyPage() {
             Prediction accuracy varies by domain. Market signals benefit from
             higher data density and faster feedback loops. Geopolitical
             predictions operate on longer timelines with more confounding
-            variables. Celestial correlations remain in an experimental
-            validation phase with insufficient sample size for definitive
-            conclusions.
+            variables. Calendar and celestial data are treated as narrative
+            overlay only, providing actor-belief context rather than independent
+            predictive signal. They carry no convergence weight.
           </p>
 
           <div className={`mt-8 transition-all duration-700 delay-200 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
@@ -293,7 +293,7 @@ export default function PredictionAccuracyPage() {
                 <div className="col-span-2 font-mono text-[11px] text-navy-100">{cat.brier}</div>
                 <div className="col-span-2 font-mono text-[11px] text-navy-400">{cat.count}</div>
                 <div className="col-span-3">
-                  <span className={`font-mono text-[9px] uppercase tracking-wider ${cat.status === "Operational" ? "text-accent-emerald" : "text-amber-400"}`}>
+                  <span className={`font-mono text-[9px] uppercase tracking-wider ${cat.status === "Operational" ? "text-accent-emerald" : cat.status === "Context Only" ? "text-navy-500" : "text-amber-400"}`}>
                     {cat.status}
                   </span>
                 </div>
@@ -499,9 +499,9 @@ export default function PredictionAccuracyPage() {
 
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 delay-100 ${relatedReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             {[
-              { href: "/research/methodology", title: "Methodology", desc: "How NEXUS detects, scores, and synthesises intelligence from five independent signal layers." },
+              { href: "/research/methodology", title: "Methodology", desc: "How NEXUS detects, scores, and synthesises intelligence from four primary signal layers plus narrative overlay." },
               { href: "/research/signal-theory", title: "Signal Theory", desc: "Deep dive into signal detection, intensity scoring, decay functions, and cross-layer amplification." },
-              { href: "/research/calendar-correlations", title: "Calendar Correlations", desc: "Historical analysis of calendar-market correlations across Hebrew, Islamic, and fiscal calendars." },
+              { href: "/research/calendar-correlations", title: "Calendar Context", desc: "Historical analysis of calendar-market patterns. Narrative/actor-belief context, not independent predictive signals." },
             ].map((link) => (
               <Link key={link.href} href={link.href} className="group">
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-200 group-hover:text-navy-100 transition-colors mb-2">{link.title}</h3>

@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, asc } from "drizzle-orm";
 import { generateSignals } from "@/lib/signals/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);
     const intensity = searchParams.get("intensity");

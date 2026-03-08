@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getTradingSnapshot } from "@/lib/congressional-trading";
-import { getModel } from "@/lib/ai/model";
+import { HAIKU_MODEL } from "@/lib/ai/model";
 import { db, schema } from "@/lib/db";
 import { eq, desc, and, like } from "drizzle-orm";
 
@@ -153,11 +153,9 @@ Produce a JSON response with this exact structure:
 Be direct, analytical, and flag anything that looks unusual. Focus on patterns, not individual trades.`;
 
     const client = new Anthropic({ apiKey });
-    const model = await getModel();
-
     const response = await client.messages.create({
-      model,
-      max_tokens: 1024,
+      model: HAIKU_MODEL,
+      max_tokens: 800,
       messages: [{ role: "user", content: prompt }],
     });
 

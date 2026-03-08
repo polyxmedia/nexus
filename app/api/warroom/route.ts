@@ -15,7 +15,7 @@ import type { WarRoomData, ActorWithGeo, ScenarioWithAnalysis, WarRoomSignal, Wa
 import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     // Actors with geo data
@@ -41,6 +41,7 @@ export async function GET() {
 
     const warRoomSignals: WarRoomSignal[] = dbSignals.map((s) => ({
       id: s.id,
+      uuid: s.uuid,
       title: s.title,
       date: s.date,
       intensity: s.intensity,
@@ -62,6 +63,7 @@ export async function GET() {
       const t = activeTheses[0];
       thesis = {
         id: t.id,
+        uuid: t.uuid,
         title: t.title,
         marketRegime: t.marketRegime,
         volatilityOutlook: t.volatilityOutlook,

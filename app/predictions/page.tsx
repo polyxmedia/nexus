@@ -26,6 +26,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import {
   PieChart,
   Pie,
@@ -43,6 +44,7 @@ import {
 
 interface Prediction {
   id: number;
+  uuid: string;
   claim: string;
   timeframe: string;
   deadline: string;
@@ -395,6 +397,7 @@ export default function PredictionsPage() {
         </div>
       }
     >
+      <UpgradeGate minTier="analyst" feature="Prediction tracking and accuracy scoring">
       {statusMessage && (
         <div className={`mb-4 rounded-md border px-3 py-2 text-xs ${
           statusMessage.type === "error" ? "border-accent-rose/30 bg-accent-rose/5 text-accent-rose"
@@ -943,7 +946,7 @@ export default function PredictionsPage() {
                   return (
                     <div
                       key={p.id}
-                      onClick={() => router.push(`/predictions/${p.id}`)}
+                      onClick={() => router.push(`/predictions/${p.uuid}`)}
                       className={`border rounded-md p-4 transition-colors cursor-pointer hover:border-navy-600/60 ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -996,7 +999,7 @@ export default function PredictionsPage() {
                   return (
                     <div
                       key={p.id}
-                      onClick={() => router.push(`/predictions/${p.id}`)}
+                      onClick={() => router.push(`/predictions/${p.uuid}`)}
                       className={`border rounded-md overflow-hidden cursor-pointer hover:border-navy-600/60 transition-colors ${config.border} ${config.bg}`}
                     >
                       <div className="flex">
@@ -1058,6 +1061,7 @@ export default function PredictionsPage() {
         <span className="inline-block w-1 h-1 rounded-full bg-accent-emerald/50 animate-pulse" />
         live
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

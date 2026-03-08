@@ -15,14 +15,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Methodology — How NEXUS Detects What Others Miss",
     description:
-      "Five independent signal layers. Non-linear convergence scoring. AI synthesis grounded in observable data. Full outcome tracking with Brier scoring.",
+      "Four primary signal layers + narrative overlay. Non-linear convergence scoring. AI synthesis grounded in observable data. Full outcome tracking with Brier scoring.",
     type: "article",
   },
   twitter: {
     card: "summary_large_image",
     title: "Methodology — NEXUS Intelligence",
     description:
-      "Five independent signal layers. Non-linear convergence scoring. AI synthesis grounded in observable data.",
+      "Four primary signal layers + narrative overlay. Non-linear convergence scoring. AI synthesis grounded in observable data.",
   },
   alternates: {
     canonical: "/research/methodology",

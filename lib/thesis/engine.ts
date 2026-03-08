@@ -255,6 +255,7 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
 
   const record = records[0];
   thesis.id = record.id;
+  thesis.uuid = record.uuid;
 
   // Supersede previous active theses
   const previousTheses = await db
@@ -571,7 +572,7 @@ ${await buildPredictionTrackRecord()}
 
 Write the briefing with three sections:
 1. EXECUTIVE SUMMARY (2-3 sentences)
-2. SITUATION ASSESSMENT (integrate all five layers into coherent narrative)
+2. SITUATION ASSESSMENT (integrate all primary layers into coherent narrative, calendar/celestial as actor-belief context only)
 3. RISK SCENARIOS (2-3 specific scenarios that could invalidate this thesis)`;
 }
 

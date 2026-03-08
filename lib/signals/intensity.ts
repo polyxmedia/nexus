@@ -72,25 +72,33 @@ export function scoreConvergences(
       cluster.some((d) => daysBetween(e.date, d) <= PROXIMITY_DAYS)
     );
 
-    // Count active layers
-    const layers: string[] = [];
-    if (ce.length > 0) layers.push("celestial");
-    if (he.length > 0) layers.push("hebrew");
-    if (ge.length > 0) layers.push("geopolitical");
+    // Count active layers — separate primary vs narrative overlay
+    const primaryLayers: string[] = [];
+    const narrativeLayers: string[] = [];
+    if (ge.length > 0) primaryLayers.push("geopolitical");
+    // CAL/CEL are narrative/actor-belief overlay only, not independent signal layers
+    if (he.length > 0) narrativeLayers.push("hebrew");
+    if (ce.length > 0) narrativeLayers.push("celestial");
 
+    const layers = [...primaryLayers, ...narrativeLayers];
     if (layers.length === 0) continue;
 
     // Esoteric reading for this date
     const esoteric = getEsotericReading(new Date(clusterStart + "T12:00:00Z"));
 
     // Base score from individual event significance
-    const baseScore =
+    // Primary layers contribute full significance, narrative layers are capped
+    const primaryScore = ge.reduce((s, e) => s + e.significance, 0);
+    const narrativeScore = Math.min(
+      0.5,
       ce.reduce((s, e) => s + e.significance, 0) +
-      he.reduce((s, e) => s + e.significance, 0) +
-      ge.reduce((s, e) => s + e.significance, 0);
+      he.reduce((s, e) => s + e.significance, 0)
+    );
+    const baseScore = primaryScore + narrativeScore;
 
-    // Convergence bonus: +1 for each additional layer beyond the first
-    const convergenceBonus = Math.max(0, layers.length - 1);
+    // Convergence bonus: only primary layers count for convergence weight
+    // Narrative layers (CAL/CEL) do NOT contribute to convergence amplification
+    const convergenceBonus = Math.max(0, primaryLayers.length - 1);
 
     // Esoteric reading kept for cultural context only — does NOT feed trading intensity.
     // Stripped from composite per analysis: lunar phase, Chinese zodiac, numerology,

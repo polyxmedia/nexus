@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Radar, Home, ArrowLeft } from "lucide-react";
+import { Home, ArrowLeft } from "lucide-react";
 
 export default function NotFound() {
   const [scramble, setScramble] = useState("SIGNAL LOST");
+  const [mounted, setMounted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Text scramble effect
   useEffect(() => {
+    setMounted(true);
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
     const target = "SIGNAL LOST";
     let frame = 0;
@@ -106,75 +108,108 @@ export default function NotFound() {
     return () => clearInterval(id);
   }, []);
 
+  const base = "transition-all duration-700 ease-out";
+  const hidden = "opacity-0 translate-y-4";
+  const visible = "opacity-100 translate-y-0";
+
   return (
-    <div className="ml-48 min-h-screen bg-navy-950 flex items-center justify-center relative overflow-hidden">
-      {/* Scan lines */}
-      <div
-        className="fixed inset-0 pointer-events-none z-10"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(6, 182, 212, 0.012) 2px, rgba(6, 182, 212, 0.012) 4px)",
-        }}
-      />
+    <div className="min-h-screen bg-navy-950 flex items-center justify-center relative overflow-hidden">
+      {/* Grid background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(6,182,212,0.5) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(6,182,212,0.5) 1px, transparent 1px)
+            `,
+            backgroundSize: "60px 60px",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.015]"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(6,182,212,0.4) 2px, rgba(6,182,212,0.4) 4px)",
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at 50% 0%, transparent 0%, var(--color-navy-950) 70%)",
+          }}
+        />
+      </div>
 
-      {/* Grid */}
-      <div
-        className="fixed inset-0 pointer-events-none z-[1]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-        }}
-      />
-
-      <div className="relative z-5 text-center max-w-[560px] px-6">
+      <div className="relative z-10 text-center max-w-md px-6">
         {/* Radar canvas */}
-        <div className="flex justify-center mb-8 opacity-60">
+        <div
+          className={`flex justify-center mb-8 ${base} ${mounted ? "opacity-50" : "opacity-0"}`}
+        >
           <canvas ref={canvasRef} className="w-[200px] h-[200px]" />
         </div>
 
-        {/* Error code */}
-        <div className="text-[10px] tracking-[4px] uppercase text-accent-cyan font-mono mb-6">
-          ERR::404 // NOT FOUND
+        {/* Error code label */}
+        <div
+          className={`mb-6 ${base} ${mounted ? visible : hidden}`}
+          style={{ transitionDelay: "100ms" }}
+        >
+          <span className="text-[10px] text-accent-cyan/60 tracking-[0.3em] uppercase font-mono">
+            ERR::404 // Not Found
+          </span>
         </div>
 
         {/* Main heading */}
-        <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight leading-none text-navy-100 font-sans mb-4">
+        <h1
+          className={`text-[36px] sm:text-[44px] font-light tracking-tight leading-none text-navy-100 font-sans mb-4 ${base} ${mounted ? visible : hidden}`}
+          style={{ transitionDelay: "150ms" }}
+        >
           {scramble}
         </h1>
 
         {/* Divider */}
         <div
-          className="w-12 h-px mx-auto my-6"
+          className={`w-10 h-px mx-auto my-6 ${base} ${mounted ? "opacity-100" : "opacity-0"}`}
           style={{
-            background: "linear-gradient(90deg, transparent, #06b6d4, transparent)",
+            background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.3), transparent)",
+            transitionDelay: "200ms",
           }}
         />
 
         {/* Description */}
-        <p className="text-sm leading-relaxed text-navy-400 mb-3 font-sans">
+        <p
+          className={`text-[13px] leading-relaxed text-navy-500 mb-3 font-sans ${base} ${mounted ? visible : hidden}`}
+          style={{ transitionDelay: "250ms" }}
+        >
           The requested intelligence asset could not be located.
           It may have been archived, relocated, or never existed.
         </p>
 
-        <p className="text-[11px] text-navy-600 font-mono mb-10">
+        <p
+          className={`text-[10px] text-navy-700 font-mono mb-10 ${base} ${mounted ? visible : hidden}`}
+          style={{ transitionDelay: "300ms" }}
+        >
           Scan complete. Zero matches across all sectors.
         </p>
 
         {/* Actions */}
-        <div className="flex gap-3 justify-center">
+        <div
+          className={`flex gap-3 justify-center ${base} ${mounted ? visible : hidden}`}
+          style={{ transitionDelay: "400ms" }}
+        >
           <a
             href="/"
-            className="group flex items-center gap-2 px-6 py-2.5 text-[12px] tracking-[1.5px] uppercase font-mono font-medium text-navy-950 bg-accent-cyan hover:bg-cyan-400 transition-all duration-200 hover:-translate-y-px"
+            className="group flex items-center gap-2 px-5 py-2.5 text-[11px] tracking-widest uppercase font-mono text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
           >
-            <Home className="w-3.5 h-3.5" />
+            <Home className="w-3 h-3 text-navy-500 group-hover:text-navy-300 transition-colors" />
             Return to base
           </a>
           <button
             onClick={() => window.history.back()}
-            className="group flex items-center gap-2 px-6 py-2.5 text-[12px] tracking-[1.5px] uppercase font-mono font-medium text-navy-300 bg-transparent border border-navy-800 hover:border-navy-600 hover:text-navy-100 transition-all duration-200"
+            className="group flex items-center gap-2 px-5 py-2.5 text-[11px] tracking-widest uppercase font-mono text-navy-400 bg-transparent border border-navy-800/40 rounded-lg hover:border-navy-700/60 hover:text-navy-200 transition-all"
           >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+            <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
             Go back
           </button>
         </div>

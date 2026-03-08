@@ -25,6 +25,7 @@ import {
 
 interface Prediction {
   id: number;
+  uuid: string;
   claim: string;
   timeframe: string;
   deadline: string;
@@ -42,6 +43,7 @@ interface Prediction {
 
 interface Signal {
   id: number;
+  uuid: string;
   title: string;
   description: string;
   date: string;
@@ -119,7 +121,7 @@ export default function PredictionDetailPage() {
       const res = await fetch("/api/predictions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: Number(id), outcome }),
+        body: JSON.stringify({ uuid: id, outcome }),
       });
       if (res.ok) {
         fetchData();
@@ -371,7 +373,7 @@ export default function PredictionDetailPage() {
           <div className="p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <Link href={`/signals/${signal.id}`} className="text-sm text-navy-200 hover:text-accent-cyan transition-colors font-sans">
+                <Link href={`/signals/${signal.uuid}`} className="text-sm text-navy-200 hover:text-accent-cyan transition-colors font-sans">
                   {signal.title}
                   <ExternalLink className="h-3 w-3 inline ml-1.5 opacity-50" />
                 </Link>
@@ -483,7 +485,7 @@ export default function PredictionDetailPage() {
               return (
                 <Link
                   key={r.id}
-                  href={`/predictions/${r.id}`}
+                  href={`/predictions/${r.uuid}`}
                   className="flex items-center gap-3 px-5 py-3 hover:bg-navy-800/30 transition-colors group"
                 >
                   {rOutcome ? (

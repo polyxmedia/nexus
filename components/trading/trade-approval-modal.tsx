@@ -49,6 +49,7 @@ interface Instrument {
 
 interface ThesisContext {
   id: number;
+  uuid: string;
   title: string;
   marketRegime: string;
   volatilityOutlook: string;
@@ -448,7 +449,7 @@ export function TradeApprovalModal({ action, thesisContext, onClose, onExecuted 
                   {/* Link to full thesis */}
                   {thesisContext && (
                     <Link
-                      href={`/thesis/${thesisContext.id}`}
+                      href={`/thesis/${thesisContext.uuid}`}
                       className="flex items-center gap-1.5 text-[10px] text-navy-400 hover:text-accent-cyan transition-colors"
                     >
                       View full thesis briefing

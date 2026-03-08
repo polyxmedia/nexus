@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireTier } from "@/lib/auth/require-tier";
 
 interface AircraftMeta {
   icao24: string;
@@ -27,6 +28,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ icao24: string }> }
 ) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const { icao24 } = await params;
 
   const [meta, track] = await Promise.all([

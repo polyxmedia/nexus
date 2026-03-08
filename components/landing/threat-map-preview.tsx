@@ -11,6 +11,7 @@ interface ThreatPoint {
   intensity: number;
   briefing: string;
   detail: string;
+  intelSnippets: string[];
 }
 
 const THREATS: ThreatPoint[] = [
@@ -18,31 +19,37 @@ const THREATS: ThreatPoint[] = [
     lat: 26.5, lng: 56.3, label: "HORMUZ", intensity: 5,
     briefing: "STRAIT OF HORMUZ // CRITICAL CHOKEPOINT",
     detail: "20% of global seaborne crude transits daily. Closure probability elevated. Iranian IRGC naval activity detected.",
+    intelSnippets: ["IRGC FAST BOAT SURGE +340%", "CRUDE TRANSIT 21M BPD", "CLOSURE PROB 0.73"],
   },
   {
     lat: 20, lng: 40, label: "RED SEA", intensity: 4,
     briefing: "RED SEA CORRIDOR // SHIPPING DISRUPTION",
     detail: "Houthi anti-ship operations ongoing. Commercial rerouting via Cape of Good Hope. Insurance premiums +340%.",
+    intelSnippets: ["HOUTHI AShM LAUNCH DET", "REROUTE VIA CAPE +14D", "WAR RISK PREM +340%"],
   },
   {
     lat: 24, lng: 121, label: "TAIWAN STRAIT", intensity: 4,
     briefing: "TAIWAN STRAIT // GREY ZONE ESCALATION",
     detail: "PLA air incursions at 3-year high. Semiconductor supply chain at risk. TSMC fab concentration critical.",
+    intelSnippets: ["PLA ADIZ INCURSION x47", "TSMC FAB CONC 92%", "USN CVN-78 WESTPAC"],
   },
   {
     lat: 43, lng: 35, label: "BLACK SEA", intensity: 4,
     briefing: "BLACK SEA // CONTESTED WATERS",
     detail: "Grain corridor suspended. Naval mine threat persistent. Russian Black Sea Fleet repositioning south.",
+    intelSnippets: ["GRAIN CORRIDOR SUSPEND", "MINE THREAT PERS", "BSF REPOS SOUTH"],
   },
   {
     lat: 58, lng: 20, label: "BALTIC", intensity: 2,
     briefing: "BALTIC SEA // NATO FRONTIER",
     detail: "Swedish NATO integration active. Undersea cable monitoring intensified. Russian exclave Kaliningrad watch.",
+    intelSnippets: ["SWE NATO INTEG ACTIVE", "SUBSEA CABLE MON", "KALININGRAD WATCH"],
   },
   {
     lat: 34, lng: 33, label: "E. MED", intensity: 3,
     briefing: "EASTERN MEDITERRANEAN // ENERGY DISPUTES",
     detail: "Offshore gas field tensions. Israeli naval operations expanded. Turkish EEZ claims unresolved.",
+    intelSnippets: ["OFFSHORE GAS DISPUTE", "IDF NAVAL OPS EXPAND", "TUR EEZ UNRESOLVED"],
   },
 ];
 
@@ -59,6 +66,7 @@ export default function ThreatMapPreview() {
   const [activeBriefing, setActiveBriefing] = useState<ThreatPoint | null>(null);
   const [briefingVisible, setBriefingVisible] = useState(false);
   const [typedText, setTypedText] = useState("");
+  const intelMarkersRef = useRef<L.Marker[]>([]);
 
   // Typewriter effect for briefing detail
   useEffect(() => {
@@ -104,34 +112,34 @@ export default function ThreatMapPreview() {
 
     THREATS.forEach((t) => {
       const color = t.intensity >= 4 ? "#f43f5e" : "#f59e0b";
-      const opacity = t.intensity >= 4 ? 0.8 : 0.6;
+      const opacity = t.intensity >= 4 ? 0.9 : 0.7;
 
       const pulseIcon = L.divIcon({
         className: "",
         html: `
-          <div style="position:relative;width:32px;height:32px;">
+          <div style="position:relative;width:24px;height:24px;">
             <div style="
-              position:absolute;inset:0;border-radius:50%;
-              border:1px solid ${color}66;
+              position:absolute;inset:2px;border-radius:50%;
+              border:1px solid ${color}40;
               animation:threat-map-pulse 3s ease-out infinite;
             "></div>
             <div style="
               position:absolute;top:50%;left:50%;
-              width:10px;height:10px;border-radius:50%;
+              width:6px;height:6px;border-radius:50%;
               transform:translate(-50%,-50%);
               background:${color};opacity:${opacity};
-              box-shadow:0 0 8px ${color}66, 0 0 16px ${color}26;
+              box-shadow:0 0 3px ${color}80;
             "></div>
             <span style="
-              position:absolute;left:34px;top:50%;transform:translateY(-50%);
+              position:absolute;left:26px;top:50%;transform:translateY(-50%);
               font-size:8px;font-family:'IBM Plex Mono',monospace;
               letter-spacing:0.1em;white-space:nowrap;
               color:${color}99;
             ">${t.label}</span>
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
       });
 
       L.marker([t.lat, t.lng], { icon: pulseIcon, interactive: false }).addTo(map);
@@ -143,6 +151,70 @@ export default function ThreatMapPreview() {
         { color: "#f43f5e", weight: 0.5, opacity: 0.12, dashArray: "4,4" }
       ).addTo(map);
     });
+
+    // Intel popup markers that cycle through snippets
+    const intelMarkers: L.Marker[] = [];
+    THREATS.forEach((t) => {
+      const color = t.intensity >= 4 ? "#f43f5e" : "#f59e0b";
+      const intelIcon = L.divIcon({
+        className: "intel-popup-marker",
+        html: `
+          <div class="intel-popup" style="
+            position:relative;white-space:nowrap;
+            font-size:7px;font-family:'IBM Plex Mono',monospace;
+            letter-spacing:0.12em;color:${color}90;
+            background:rgba(0,0,0,0.7);
+            border:1px solid ${color}25;
+            padding:2px 6px;border-radius:2px;
+            opacity:0;
+            animation:intel-popup-cycle 9s ease-in-out infinite;
+          ">
+            <span class="intel-text">${t.intelSnippets[0]}</span>
+          </div>
+        `,
+        iconSize: [0, 0],
+        iconAnchor: [0, 20],
+      });
+
+      const marker = L.marker(
+        [t.lat + 1.5, t.lng + 2],
+        { icon: intelIcon, interactive: false }
+      ).addTo(map);
+      intelMarkers.push(marker);
+    });
+    intelMarkersRef.current = intelMarkers;
+
+    // Cycle intel snippets
+    let snippetIndex = 0;
+    const snippetInterval = setInterval(() => {
+      snippetIndex++;
+      intelMarkers.forEach((marker, i) => {
+        const threat = THREATS[i];
+        const snippet = threat.intelSnippets[snippetIndex % threat.intelSnippets.length];
+        const color = threat.intensity >= 4 ? "#f43f5e" : "#f59e0b";
+        const newIcon = L.divIcon({
+          className: "intel-popup-marker",
+          html: `
+            <div class="intel-popup" style="
+              position:relative;white-space:nowrap;
+              font-size:7px;font-family:'IBM Plex Mono',monospace;
+              letter-spacing:0.12em;color:${color}90;
+              background:rgba(0,0,0,0.7);
+              border:1px solid ${color}25;
+              padding:2px 6px;border-radius:2px;
+              opacity:0;
+              animation:intel-popup-cycle 9s ease-in-out infinite;
+              animation-delay:${i * 1.5}s;
+            ">
+              <span class="intel-text">${snippet}</span>
+            </div>
+          `,
+          iconSize: [0, 0],
+          iconAnchor: [0, 20],
+        });
+        marker.setIcon(newIcon);
+      });
+    }, 9000);
 
     mapRef.current = map;
 
@@ -181,6 +253,7 @@ export default function ThreatMapPreview() {
     return () => {
       clearTimeout(startDelay);
       clearTimeout(timeout);
+      clearInterval(snippetInterval);
       map.remove();
       mapRef.current = null;
     };
@@ -266,8 +339,12 @@ export default function ThreatMapPreview() {
 
       <style>{`
         @keyframes threat-map-pulse {
-          0% { transform: scale(1); opacity: 0.6; }
-          100% { transform: scale(3); opacity: 0; }
+          0% { transform: scale(1); opacity: 0.4; }
+          100% { transform: scale(2); opacity: 0; }
+        }
+        @keyframes intel-popup-cycle {
+          0%, 100% { opacity: 0; transform: translateY(2px); }
+          15%, 85% { opacity: 1; transform: translateY(0); }
         }
         .leaflet-tile-pane img {
           outline: none !important;
@@ -283,6 +360,9 @@ export default function ThreatMapPreview() {
         }
         .leaflet-fade-anim .leaflet-tile {
           transition: opacity 0.3s linear !important;
+        }
+        .intel-popup-marker {
+          overflow: visible !important;
         }
       `}</style>
     </div>

@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
 // ── Types ──
 
@@ -326,6 +327,7 @@ export default function DashboardPage() {
         </div>
       }
     >
+      <UpgradeGate minTier="analyst" feature="Intelligence dashboard" blur>
       {/* Widget Grid */}
       <div className="grid grid-cols-3 gap-4">
         {widgets.map((widget, idx) => {
@@ -422,6 +424,7 @@ export default function DashboardPage() {
           onChartCancel={() => setChartPickerFor(null)}
         />
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

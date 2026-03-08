@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractEntities, processOsintArticles, linkEntitiesToGraph } from "@/lib/osint/entity-extractor";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(req: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const query = req.nextUrl.searchParams.get("q") || "";
 
   try {

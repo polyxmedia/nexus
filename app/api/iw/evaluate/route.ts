@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { autoDetectIndicators, getAllScenarioStatuses } from "@/lib/iw/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function POST() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const detection = await autoDetectIndicators();
     const statuses = await getAllScenarioStatuses();

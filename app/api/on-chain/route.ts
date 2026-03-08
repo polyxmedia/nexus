@@ -6,8 +6,11 @@ import {
   getDeFiTVL,
   getStablecoinFlows,
 } from "@/lib/on-chain";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(req: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const section = req.nextUrl.searchParams.get("section");
 

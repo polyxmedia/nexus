@@ -3,6 +3,10 @@ import { eq } from "drizzle-orm";
 
 const DEFAULT_MODEL = "claude-opus-4-6";
 
+// Cost-optimised models for automated/scheduled tasks (not user-facing)
+export const SONNET_MODEL = "claude-sonnet-4-20250514";
+export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+
 const MODEL_OPTIONS = [
   { id: "claude-opus-4-6", label: "Claude Opus 4.6", tier: "flagship", description: "Most capable model. Best for critical analysis, predictions, and complex reasoning." },
   { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", tier: "balanced", description: "Fast and capable. Good for routine tasks and chat." },

@@ -81,7 +81,7 @@ export function IntelPanel({ signals, thesis, osintData, onOsintEventClick }: In
             {sortedSignals.slice(0, 15).map((signal) => (
               <Link
                 key={signal.id}
-                href={`/signals/${signal.id}`}
+                href={`/signals/${signal.uuid}`}
                 className={cn(
                   "block rounded-md border border-navy-700/30 bg-navy-800/40 px-3 py-2 border-l-2 transition-all duration-200 wr-card",
                   SIGNAL_BORDER_COLORS[signal.intensity] || "border-l-navy-600"
@@ -172,7 +172,7 @@ export function IntelPanel({ signals, thesis, osintData, onOsintEventClick }: In
                 )}
 
                 <Link
-                  href={`/thesis/${thesis.id}`}
+                  href={`/thesis/${thesis.uuid}`}
                   className="block text-[10px] text-accent-cyan hover:text-accent-cyan/80 text-center pt-1"
                 >
                   View Full Thesis

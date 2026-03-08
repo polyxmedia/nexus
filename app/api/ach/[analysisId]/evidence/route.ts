@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addEvidence } from "@/lib/ach/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ analysisId: string }> }
 ) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { analysisId } = await params;
     const { description, source, credibility, relevance, sourceReliability, informationAccuracy } = await request.json();

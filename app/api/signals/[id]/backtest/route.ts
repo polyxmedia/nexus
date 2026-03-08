@@ -40,13 +40,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const signalId = Number(id);
 
     // Get signal
     const signal = await db
       .select()
       .from(signals)
-      .where(eq(signals.id, signalId))
+      .where(eq(signals.uuid, id))
       .limit(1);
 
     if (signal.length === 0) {

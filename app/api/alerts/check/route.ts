@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function POST() {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const enabledAlerts = await db
       .select()

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getTradingSnapshot } from "@/lib/congressional-trading";
-import { getModel } from "@/lib/ai/model";
+import { HAIKU_MODEL } from "@/lib/ai/model";
 import { db, schema } from "@/lib/db";
 import { eq, desc, and, like } from "drizzle-orm";
 
@@ -114,11 +114,9 @@ Return JSON:
 Be thorough but fair. Flag genuine patterns, not speculative connections.`;
 
     const client = new Anthropic({ apiKey });
-    const model = await getModel();
-
     const response = await client.messages.create({
-      model,
-      max_tokens: 1500,
+      model: HAIKU_MODEL,
+      max_tokens: 1000,
       messages: [{ role: "user", content: prompt }],
     });
 

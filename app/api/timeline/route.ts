@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncTimeline, getTimeline } from "@/lib/timeline/engine";
 import { db, schema } from "@/lib/db";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);
 
@@ -31,6 +34,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST() {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const count = await syncTimeline();
     return NextResponse.json({ success: true, synced: count });

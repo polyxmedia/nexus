@@ -6,8 +6,11 @@ import { eq } from "drizzle-orm";
 import { getEsotericReading } from "@/lib/signals/numerology";
 import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getModel } from "@/lib/ai/model";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function POST(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { date } = await request.json();
     if (!date) {

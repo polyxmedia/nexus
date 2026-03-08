@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, FileText } from "lucide-react";
 import type { ChatTurn } from "@/lib/chat/useChat";
 import { ToolCallIndicator } from "./ToolCallIndicator";
 import { ToolResultRenderer } from "./ToolResultRenderer";
@@ -43,10 +43,37 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBl
     return (
       <div className="group flex justify-end items-start gap-1.5 mb-4">
         <CopyButton text={turn.content} />
-        <div className="max-w-[70%] border border-navy-600 rounded bg-navy-800/60 px-4 py-3">
-          <div className="text-xs font-mono text-navy-200 whitespace-pre-wrap">
-            {turn.content}
-          </div>
+        <div className="max-w-[70%] flex flex-col gap-2">
+          {/* File attachments */}
+          {turn.files && turn.files.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 justify-end">
+              {turn.files.map((f, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-1.5 rounded-lg border border-navy-600/40 bg-navy-800/60 pl-2 pr-2.5 py-1.5 text-[11px] font-mono text-navy-400 max-w-[180px]"
+                >
+                  {f.previewUrl ? (
+                    <img
+                      src={f.previewUrl}
+                      alt={f.name}
+                      className="h-5 w-5 rounded object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <FileText className="h-3 w-3 text-accent-amber flex-shrink-0" />
+                  )}
+                  <span className="truncate">{f.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Message text */}
+          {turn.content && (
+            <div className="border border-navy-600 rounded bg-navy-800/60 px-4 py-3">
+              <div className="text-xs font-mono text-navy-200 whitespace-pre-wrap">
+                {turn.content}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

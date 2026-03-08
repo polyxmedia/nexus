@@ -30,6 +30,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const username = session.user.name;
@@ -138,6 +140,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

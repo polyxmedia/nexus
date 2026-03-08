@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import type { FileAttachment } from "@/components/chat/ChatInput";
+
+export type { FileAttachment };
 
 export interface ToolCall {
   toolName: string;
@@ -15,6 +18,8 @@ export interface ChatTurn {
   content: string;
   toolCalls: ToolCall[];
   suggestions?: string[];
+  /** File attachments (user turns only, client-side display) */
+  files?: Array<{ name: string; type: string; size: number; previewUrl?: string }>;
 }
 
 export interface ChatMessage {
@@ -27,7 +32,7 @@ export interface ChatMessage {
   createdAt: string;
 }
 
-export function useChat(sessionId: number) {
+export function useChat(sessionId: string) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -47,8 +52,8 @@ export function useChat(sessionId: number) {
   }, [sessionId]);
 
   const sendMessage = useCallback(
-    async (message: string) => {
-      if (isStreaming || !message.trim()) return;
+    async (message: string, files?: FileAttachment[]) => {
+      if (isStreaming || (!message.trim() && !files?.length)) return;
 
       // Add user turn
       const userTurn: ChatTurn = {
@@ -56,6 +61,7 @@ export function useChat(sessionId: number) {
         role: "user",
         content: message,
         toolCalls: [],
+        files: files?.map((f) => ({ name: f.name, type: f.type, size: f.size, previewUrl: f.previewUrl })),
       };
 
       const assistantTurn: ChatTurn = {
@@ -72,10 +78,12 @@ export function useChat(sessionId: number) {
       abortRef.current = controller;
 
       try {
+        // Strip previewUrl before sending (client-only field)
+        const apiFiles = files?.map(({ previewUrl: _p, ...rest }) => rest);
         const res = await fetch(`/api/chat/${sessionId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({ message, files: apiFiles?.length ? apiFiles : undefined }),
           signal: controller.signal,
         });
 

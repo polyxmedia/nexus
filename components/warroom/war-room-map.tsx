@@ -65,14 +65,16 @@ const ESCALATION_FILL: Record<number, string> = {
 
 function strategicIcon(type: string) {
   const isChokepoint = type === "chokepoint";
-  const size = 10;
+  const size = 18;
   const color = isChokepoint ? "#f59e0b" : "#94a3b8";
-  const glow = isChokepoint ? `filter:drop-shadow(0 0 3px ${color}80);` : "";
+  const glow = isChokepoint
+    ? `filter:drop-shadow(0 0 5px ${color}99);`
+    : `filter:drop-shadow(0 0 3px rgba(0,0,0,0.4));`;
 
-  // Chokepoints get a crosshair, bases get a square
+  // Chokepoints get a crosshair target, bases get a diamond
   const svg = isChokepoint
-    ? `<svg viewBox="0 0 16 16" width="${size}" height="${size}" style="${glow}"><circle cx="8" cy="8" r="3" fill="none" stroke="${color}" stroke-width="1.2"/><line x1="8" y1="1" x2="8" y2="5" stroke="${color}" stroke-width="0.8"/><line x1="8" y1="11" x2="8" y2="15" stroke="${color}" stroke-width="0.8"/><line x1="1" y1="8" x2="5" y2="8" stroke="${color}" stroke-width="0.8"/><line x1="11" y1="8" x2="15" y2="8" stroke="${color}" stroke-width="0.8"/></svg>`
-    : `<svg viewBox="0 0 12 12" width="${size}" height="${size}" style="${glow}"><rect x="2" y="2" width="8" height="8" fill="${color}30" stroke="${color}" stroke-width="1" rx="1"/><rect x="4" y="4" width="4" height="4" fill="${color}60" rx="0.5"/></svg>`;
+    ? `<svg viewBox="0 0 20 20" width="${size}" height="${size}" style="${glow}"><circle cx="10" cy="10" r="5" fill="${color}20" stroke="${color}" stroke-width="1.5"/><circle cx="10" cy="10" r="2" fill="${color}"/><line x1="10" y1="1" x2="10" y2="6" stroke="${color}" stroke-width="1.2"/><line x1="10" y1="14" x2="10" y2="19" stroke="${color}" stroke-width="1.2"/><line x1="1" y1="10" x2="6" y2="10" stroke="${color}" stroke-width="1.2"/><line x1="14" y1="10" x2="19" y2="10" stroke="${color}" stroke-width="1.2"/></svg>`
+    : `<svg viewBox="0 0 20 20" width="${size}" height="${size}" style="${glow}"><path d="M10 2L18 10L10 18L2 10Z" fill="${color}25" stroke="${color}" stroke-width="1.2"/><path d="M10 6L14 10L10 14L6 10Z" fill="${color}60"/></svg>`;
 
   return L.divIcon({
     html: svg,

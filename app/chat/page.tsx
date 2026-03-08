@@ -28,6 +28,7 @@ interface ChatProject {
 
 interface ChatSession {
   id: number;
+  uuid: string;
   title: string;
   projectId: number | null;
   tags: string | null;
@@ -98,7 +99,7 @@ export default function ChatPage() {
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (data.session) router.push(`/chat/${data.session.id}`);
+    if (data.session) router.push(`/chat/${data.session.uuid}`);
   }
 
   async function createProject() {
@@ -366,7 +367,7 @@ export default function ChatPage() {
                     className="group relative flex items-center gap-3 rounded border border-navy-700/50 bg-navy-900/40 px-4 py-3 hover:bg-navy-800/60 hover:border-navy-600/50 transition-colors"
                   >
                     <button
-                      onClick={() => router.push(`/chat/${session.id}`)}
+                      onClick={() => router.push(`/chat/${session.uuid}`)}
                       className="flex-1 flex items-center gap-3 text-left min-w-0"
                     >
                       <MessageSquare className="h-4 w-4 text-navy-500 shrink-0" />

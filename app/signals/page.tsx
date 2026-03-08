@@ -15,6 +15,8 @@ import {
   Search,
   TrendingUp,
   Zap,
+  AlertTriangle,
+  Radio,
 } from "lucide-react";
 import {
   BarChart,
@@ -31,6 +33,7 @@ import {
 
 interface Signal {
   id: number;
+  uuid: string;
   title: string;
   description: string;
   date: string;
@@ -234,16 +237,16 @@ export default function SignalsPage() {
         <>
           <div className="grid grid-cols-5 gap-3 mb-6">
             {[
-              { label: "Total Signals", value: analytics.total, sub: "detected" },
-              { label: "Avg Intensity", value: analytics.avgIntensity.toFixed(1), sub: "out of 5" },
-              { label: "Convergences", value: analytics.convergences, sub: "L3+ events" },
-              { label: "Active", value: analytics.statusCounts.active, sub: "in progress" },
-              { label: "Upcoming", value: analytics.statusCounts.upcoming, sub: "pending" },
+              { label: "Total Signals", value: analytics.total, sub: "detected", accent: "accent-cyan" },
+              { label: "Avg Intensity", value: analytics.avgIntensity.toFixed(1), sub: "out of 5", accent: "accent-amber" },
+              { label: "Convergences", value: analytics.convergences, sub: "L3+ events", accent: "accent-rose" },
+              { label: "Active", value: analytics.statusCounts.active, sub: "in progress", accent: "accent-emerald" },
+              { label: "Upcoming", value: analytics.statusCounts.upcoming, sub: "pending", accent: "accent-cyan" },
             ].map((m) => (
-              <div key={m.label} className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
-                <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500">{m.label}</div>
-                <div className="text-lg font-mono font-bold text-navy-100 tabular-nums">{m.value}</div>
+              <div key={m.label} className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden group hover:border-navy-700/50 transition-colors">
+                <div className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-${m.accent}/20 to-transparent`} />
+                <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-0.5">{m.label}</div>
+                <div className="text-xl font-mono font-bold text-navy-100 tabular-nums leading-tight">{m.value}</div>
                 <div className="text-[9px] font-mono text-navy-600">{m.sub}</div>
               </div>
             ))}
@@ -422,7 +425,7 @@ export default function SignalsPage() {
       {/* Signal List */}
       {filtered.length === 0 ? (
         <div className="border border-navy-700/30 border-dashed rounded-lg p-12 text-center">
-          <Activity className="h-6 w-6 text-navy-600 mx-auto mb-3" />
+          <Radio className="h-6 w-6 text-navy-600 mx-auto mb-3 opacity-40" />
           <p className="text-sm text-navy-400 mb-1">No signals match your filters</p>
           <p className="text-[10px] text-navy-500">Try adjusting your search or filter criteria.</p>
         </div>
@@ -434,33 +437,59 @@ export default function SignalsPage() {
             let sectors: string[] = [];
             try { if (signal.marketSectors) sectors = JSON.parse(signal.marketSectors); } catch {}
             const statusCfg = STATUS_CONFIG[signal.status] || STATUS_CONFIG.passed;
+            const isConvergence = signal.category === "convergence";
+            const isHighIntensity = signal.intensity >= 4;
+            const intensityColor = INTENSITY_COLORS[signal.intensity - 1] || "#6b7280";
+            const descriptionPreview = signal.description?.split(" | ")[0] || "";
 
             return (
               <Link
                 key={signal.id}
-                href={`/signals/${signal.id}`}
-                className="block border border-navy-700/30 rounded-lg bg-navy-900/20 hover:bg-navy-800/30 hover:border-navy-700/50 transition-all group"
+                href={`/signals/${signal.uuid}`}
+                className={`block rounded-lg transition-all group relative overflow-hidden ${
+                  isConvergence
+                    ? "border border-accent-cyan/20 bg-accent-cyan/[0.02] hover:bg-accent-cyan/[0.05] hover:border-accent-cyan/30"
+                    : "border border-navy-700/30 bg-navy-900/20 hover:bg-navy-800/30 hover:border-navy-700/50"
+                }`}
               >
-                <div className="flex items-stretch">
-                  {/* Intensity bar */}
+                {/* Top accent line for high-intensity signals */}
+                {isHighIntensity && (
                   <div
-                    className="w-1 rounded-l-lg shrink-0"
-                    style={{ backgroundColor: INTENSITY_COLORS[signal.intensity - 1] || "#6b7280" }}
+                    className="absolute top-0 left-0 right-0 h-px"
+                    style={{ background: `linear-gradient(to right, transparent, ${intensityColor}40, transparent)` }}
+                  />
+                )}
+
+                <div className="flex items-stretch">
+                  {/* Intensity bar - thicker for convergences */}
+                  <div
+                    className={`${isConvergence ? "w-1.5" : "w-1"} rounded-l-lg shrink-0`}
+                    style={{ backgroundColor: intensityColor }}
                   />
 
                   <div className="flex-1 px-4 py-3">
                     <div className="flex items-start justify-between mb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[10px] font-mono text-navy-600">#{signal.id}</span>
+                        {isConvergence && (
+                          <Layers className="h-3 w-3 text-accent-cyan/60 shrink-0" />
+                        )}
                         <span className="text-sm text-navy-200 font-medium truncate">{signal.title}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-3">
                         <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${statusCfg.bg} ${statusCfg.color}`}>
                           {signal.status}
                         </span>
-                        <ChevronRight className="h-3.5 w-3.5 text-navy-700 group-hover:text-navy-500 transition-colors" />
+                        <ChevronRight className="h-3.5 w-3.5 text-navy-700 group-hover:text-navy-400 transition-colors" />
                       </div>
                     </div>
+
+                    {/* Description preview */}
+                    {descriptionPreview && (
+                      <p className="text-[11px] text-navy-500 mb-2 line-clamp-1 font-sans leading-relaxed">
+                        {descriptionPreview}
+                      </p>
+                    )}
 
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-[10px] font-mono text-navy-500">{formatDate(signal.date)}</span>
@@ -470,15 +499,21 @@ export default function SignalsPage() {
                           {[1, 2, 3, 4, 5].map((n) => (
                             <div
                               key={n}
-                              className="h-1.5 w-3 rounded-sm"
+                              className="h-1.5 w-3 rounded-sm transition-colors"
                               style={{
                                 backgroundColor: n <= signal.intensity
-                                  ? INTENSITY_COLORS[signal.intensity - 1]
+                                  ? intensityColor
                                   : "#1a1a1a",
                               }}
                             />
                           ))}
                         </div>
+                        <span
+                          className="text-[9px] font-mono ml-0.5 tabular-nums"
+                          style={{ color: intensityColor }}
+                        >
+                          {signal.intensity}
+                        </span>
                       </div>
                       <span
                         className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
@@ -489,6 +524,12 @@ export default function SignalsPage() {
                       >
                         {signal.category}
                       </span>
+                      {isHighIntensity && (
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-accent-rose/70 flex items-center gap-1">
+                          <AlertTriangle className="h-2.5 w-2.5" />
+                          {INTENSITY_LABELS[signal.intensity - 1]}
+                        </span>
+                      )}
                     </div>
 
                     {/* Layers + Sectors */}
@@ -503,9 +544,9 @@ export default function SignalsPage() {
                       ))}
                       {sectors.length > 0 && (
                         <>
-                          <span className="text-navy-700">|</span>
+                          <span className="text-navy-700/50">|</span>
                           {sectors.slice(0, 3).map((s) => (
-                            <span key={s} className="text-[9px] font-mono text-navy-600">
+                            <span key={s} className="text-[9px] font-mono text-navy-600 italic">
                               {s}
                             </span>
                           ))}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { VesselState, VesselType, VesselResponse } from "@/lib/warroom/types";
+import { requireTier } from "@/lib/auth/require-tier";
 
 // --- Seed vessel data for major shipping lanes and naval hotspots ---
 
@@ -125,6 +126,8 @@ function generateVessels(): VesselState[] {
 }
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const vessels = generateVessels();
     const militaryCount = vessels.filter((v) => v.vesselType === "military").length;

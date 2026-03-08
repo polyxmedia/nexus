@@ -16,6 +16,7 @@ interface SubscriptionState {
   tierName: string | null;
   limits: TierLimits | null;
   loading: boolean;
+  isAdmin: boolean;
   canAccess: (feature: keyof TierLimits) => boolean;
   meetsMinTier: (minTier: "analyst" | "operator" | "institution") => boolean;
 }
@@ -32,6 +33,7 @@ const SubscriptionContext = createContext<SubscriptionState>({
   tierName: null,
   limits: null,
   loading: true,
+  isAdmin: false,
   canAccess: () => false,
   meetsMinTier: () => false,
 });
@@ -41,11 +43,21 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [tierName, setTierName] = useState<string | null>(null);
   const [limits, setLimits] = useState<TierLimits | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     fetch("/api/subscription")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
+        if (data.isAdmin) {
+          setIsAdmin(true);
+          // Admin gets full access regardless of subscription state
+          setTier("institution");
+          setTierName("Institution");
+        }
         if (data.tier) {
           setTierName(data.tier.name);
           setTier(data.tier.name?.toLowerCase() || "free");
@@ -54,7 +66,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           } catch {
             // no limits
           }
-        } else {
+        } else if (!data.isAdmin) {
           setTier("free");
         }
         setLoading(false);
@@ -67,6 +79,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   const canAccess = useCallback(
     (feature: keyof TierLimits): boolean => {
+      if (isAdmin) return true;
       if (!limits) return false;
       const val = limits[feature];
       if (typeof val === "boolean") return val;
@@ -74,21 +87,22 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       if (typeof val === "string") return val !== "none";
       return false;
     },
-    [limits]
+    [limits, isAdmin]
   );
 
   const meetsMinTier = useCallback(
     (minTier: "analyst" | "operator" | "institution"): boolean => {
+      if (isAdmin) return true;
       const userLevel = TIER_LEVELS[tier || "free"] ?? 0;
       const requiredLevel = TIER_LEVELS[minTier] ?? 1;
       return userLevel >= requiredLevel;
     },
-    [tier]
+    [tier, isAdmin]
   );
 
   return React.createElement(
     SubscriptionContext.Provider,
-    { value: { tier, tierName, limits, loading, canAccess, meetsMinTier } },
+    { value: { tier, tierName, limits, loading, isAdmin, canAccess, meetsMinTier } },
     children
   );
 }

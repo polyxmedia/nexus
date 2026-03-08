@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { computeCorrelationMatrix, getLatestCorrelations } from "@/lib/regime/correlations";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const latest = await getLatestCorrelations();
     return NextResponse.json(latest || { pairs: [], breaks: [], overallStress: 0, timestamp: null });
@@ -12,6 +15,8 @@ export async function GET() {
 }
 
 export async function POST() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const matrix = await computeCorrelationMatrix();
     return NextResponse.json(matrix);

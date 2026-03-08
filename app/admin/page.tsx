@@ -10,12 +10,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   BarChart3,
+  Calendar,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
   CreditCard,
+  FileText,
   FlaskConical,
+  Gift,
   Loader2,
+  Mail,
   MessageSquare,
   Plus,
+  RotateCcw,
   Save,
   Send,
   Shield,
@@ -25,6 +33,9 @@ import {
   Users,
   X,
   ArrowRight,
+  XCircle,
+  Eye,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -47,6 +58,13 @@ interface UserRecord {
   role: string;
   tier: string;
   createdAt: string;
+  email: string | null;
+  compedGrant: {
+    tier: string;
+    grantedAt: string;
+    expiresAt: string | null;
+    note: string | null;
+  } | null;
   subscription: {
     status: string;
     stripeCustomerId: string | null;
@@ -122,9 +140,187 @@ const ADMIN_TABS = [
   { id: "growth", label: "Growth", icon: TrendingUp },
   { id: "tiers", label: "Subscription Tiers", icon: CreditCard },
   { id: "users", label: "Users", icon: Users },
+  { id: "prompts", label: "Soul Documents", icon: FileText },
+  { id: "emails", label: "Emails", icon: Mail },
   { id: "support", label: "Support", icon: MessageSquare },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
 ];
+
+const PROMPT_CATEGORIES = [
+  { id: "chat", label: "Chat" },
+  { id: "operator", label: "Operator Context" },
+  { id: "analysis", label: "Analysis" },
+  { id: "predictions", label: "Predictions" },
+];
+
+interface PromptEntry {
+  key: string;
+  label: string;
+  description: string;
+  category: string;
+  value: string;
+  isOverridden: boolean;
+  defaultValue: string;
+}
+
+function PromptEditor({
+  prompt,
+  onSave,
+  onReset,
+}: {
+  prompt: PromptEntry;
+  onSave: (key: string, value: string) => Promise<void>;
+  onReset: (key: string) => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [value, setValue] = useState(prompt.value);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [showDefault, setShowDefault] = useState(false);
+
+  const isDirty = value !== prompt.value;
+  const isModifiedFromDefault = prompt.isOverridden;
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(prompt.key, value);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleReset = async () => {
+    setResetting(true);
+    await onReset(prompt.key);
+    setValue(prompt.defaultValue);
+    setResetting(false);
+  };
+
+  const charCount = value.length;
+  const lineCount = value.split("\n").length;
+
+  return (
+    <div className="border border-navy-700/50 rounded overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-navy-800/30 transition-colors text-left"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5 text-navy-500 shrink-0" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-navy-500 shrink-0" />
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-medium text-navy-200">
+                {prompt.label}
+              </span>
+              {isModifiedFromDefault && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-amber/15 text-accent-amber font-mono uppercase tracking-wider">
+                  Modified
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] text-navy-500 block truncate">
+              {prompt.description}
+            </span>
+          </div>
+        </div>
+        <span className="text-[10px] text-navy-600 font-mono shrink-0 ml-3">
+          {charCount.toLocaleString()} chars
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-navy-700/50 p-4 space-y-3">
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="w-full h-80 bg-navy-900/50 border border-navy-700/50 rounded p-3 text-[12px] font-mono text-navy-200 resize-y focus:outline-none focus:border-navy-500 leading-relaxed"
+            spellCheck={false}
+          />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-navy-600 font-mono">
+                {lineCount} lines
+              </span>
+              <span className="text-[10px] text-navy-600 font-mono">
+                {prompt.key}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDefault(!showDefault)}
+                className="text-[10px] text-navy-500 hover:text-navy-300 transition-colors underline"
+              >
+                {showDefault ? "Hide default" : "View default"}
+              </button>
+
+              {isModifiedFromDefault && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleReset}
+                  disabled={resetting}
+                  className="text-[10px] text-navy-400 hover:text-accent-amber"
+                >
+                  {resetting ? (
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  ) : (
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                  )}
+                  Reset to default
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || !isDirty}
+              >
+                {saving ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : saved ? (
+                  <CheckCircle2 className="h-3 w-3 text-accent-emerald mr-1" />
+                ) : (
+                  <Save className="h-3 w-3 mr-1" />
+                )}
+                {saved ? "Saved" : "Save"}
+              </Button>
+            </div>
+          </div>
+
+          {showDefault && (
+            <div className="border border-navy-700/30 rounded bg-navy-950 p-3 max-h-60 overflow-y-auto">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-navy-500 uppercase tracking-wider font-medium">
+                  Default prompt
+                </span>
+                <button
+                  onClick={() => {
+                    setValue(prompt.defaultValue);
+                    setShowDefault(false);
+                  }}
+                  className="text-[10px] text-navy-500 hover:text-navy-300 transition-colors underline"
+                >
+                  Restore this
+                </button>
+              </div>
+              <pre className="text-[11px] font-mono text-navy-500 whitespace-pre-wrap leading-relaxed">
+                {prompt.defaultValue}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TierEditor({
   tier,
@@ -372,6 +568,340 @@ const TICKET_PRIORITY: Record<string, { label: string; color: string }> = {
   high: { label: "High", color: "text-accent-amber" },
   urgent: { label: "Urgent", color: "text-accent-rose" },
 };
+
+// ── Email Panel ──
+
+interface EmailLog {
+  id: string;
+  to: string;
+  subject: string;
+  type: string;
+  status: "sent" | "failed";
+  resendId?: string;
+  error?: string;
+  sentAt: string;
+}
+
+const EMAIL_TEMPLATES = [
+  { id: "welcome", label: "Welcome", description: "Sent on registration" },
+  { id: "subscription_active", label: "Subscription Active", description: "Sent after checkout" },
+  { id: "subscription_canceled", label: "Subscription Canceled", description: "Sent on cancel" },
+  { id: "payment_failed", label: "Payment Failed", description: "Sent on failed invoice" },
+  { id: "signal_alert", label: "Signal Alert", description: "High-intensity signal notification" },
+];
+
+const EMAIL_TYPE_COLORS: Record<string, string> = {
+  welcome: "#06b6d4",
+  subscription_active: "#10b981",
+  subscription_canceled: "#f59e0b",
+  payment_failed: "#ef4444",
+  signal_alert: "#8b5cf6",
+  other: "#6b7280",
+};
+
+function EmailPanel() {
+  const [emails, setEmails] = useState<EmailLog[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [filterType, setFilterType] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [testTo, setTestTo] = useState("");
+  const [testTemplate, setTestTemplate] = useState("welcome");
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+
+  const fetchEmails = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/emails");
+      const data = await res.json();
+      setEmails(data.emails || []);
+      setLoaded(true);
+    } catch { /* empty */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) fetchEmails();
+  }, [loaded, fetchEmails]);
+
+  const sendTest = async () => {
+    if (!testTo) return;
+    setSending(true);
+    setSendResult(null);
+    try {
+      const res = await fetch("/api/admin/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test", templateId: testTemplate, to: testTo }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSendResult({ ok: true, msg: "Test email sent" });
+        fetchEmails();
+      } else {
+        setSendResult({ ok: false, msg: data.error || "Failed" });
+      }
+    } catch {
+      setSendResult({ ok: false, msg: "Request failed" });
+    }
+    setSending(false);
+  };
+
+  const filtered = emails.filter((e) => {
+    if (filterType && !e.type.includes(filterType)) return false;
+    if (filterStatus && e.status !== filterStatus) return false;
+    return true;
+  });
+
+  // Stats
+  const totalSent = emails.filter((e) => e.status === "sent").length;
+  const totalFailed = emails.filter((e) => e.status === "failed").length;
+  const typeCounts: Record<string, number> = {};
+  emails.forEach((e) => {
+    const t = e.type.startsWith("test:") ? e.type.replace("test:", "") : e.type;
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+  });
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Row */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
+          <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Total Sent</div>
+          <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">{totalSent}</div>
+        </div>
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-rose/20 to-transparent" />
+          <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Failed</div>
+          <div className="text-xl font-mono font-bold text-accent-rose tabular-nums">{totalFailed}</div>
+        </div>
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-emerald/20 to-transparent" />
+          <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Success Rate</div>
+          <div className="text-xl font-mono font-bold text-accent-emerald tabular-nums">
+            {emails.length > 0 ? `${((totalSent / emails.length) * 100).toFixed(0)}%` : "N/A"}
+          </div>
+        </div>
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/20 to-transparent" />
+          <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Templates</div>
+          <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">{EMAIL_TEMPLATES.length}</div>
+        </div>
+      </div>
+
+      {/* Send Test Email */}
+      <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
+        <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Send Test Email</h3>
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Recipient</label>
+            <input
+              type="email"
+              value={testTo}
+              onChange={(e) => setTestTo(e.target.value)}
+              placeholder="email@example.com"
+              className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+            />
+          </div>
+          <div className="w-56">
+            <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Template</label>
+            <select
+              value={testTemplate}
+              onChange={(e) => setTestTemplate(e.target.value)}
+              className="w-full h-8 px-2 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 focus:outline-none"
+            >
+              {EMAIL_TEMPLATES.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <Button size="sm" onClick={sendTest} disabled={sending || !testTo}>
+            {sending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+            Send Test
+          </Button>
+        </div>
+        {sendResult && (
+          <div className={`mt-2 text-[11px] font-mono ${sendResult.ok ? "text-accent-emerald" : "text-accent-rose"}`}>
+            {sendResult.msg}
+          </div>
+        )}
+      </div>
+
+      {/* Template Registry */}
+      <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/20 to-transparent" />
+        <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Email Templates</h3>
+        <div className="grid grid-cols-5 gap-2">
+          {EMAIL_TEMPLATES.map((t) => {
+            const color = EMAIL_TYPE_COLORS[t.id] || EMAIL_TYPE_COLORS.other;
+            const count = typeCounts[t.id] || 0;
+            return (
+              <div
+                key={t.id}
+                className="border border-navy-700/30 rounded-lg bg-navy-900/30 p-3 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${color}30, transparent)` }} />
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] font-mono text-navy-200 uppercase tracking-wider">{t.label}</span>
+                </div>
+                <p className="text-[9px] text-navy-500 mb-2">{t.description}</p>
+                <div className="text-[10px] font-mono text-navy-400 tabular-nums">{count} sent</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Email Log */}
+      <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-navy-500/20 to-transparent" />
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Email Log</h3>
+          <div className="flex items-center gap-2">
+            {/* Type filter */}
+            <div className="flex items-center gap-0 rounded border border-navy-700/40 overflow-hidden">
+              <button
+                onClick={() => setFilterType(null)}
+                className={`px-2 py-1 text-[9px] font-mono uppercase tracking-wider transition-colors ${
+                  !filterType ? "bg-navy-800/60 text-navy-100" : "text-navy-500 hover:text-navy-300"
+                }`}
+              >
+                All
+              </button>
+              {["welcome", "subscription_active", "payment_failed", "signal_alert"].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setFilterType(filterType === t ? null : t)}
+                  className={`px-2 py-1 text-[9px] font-mono uppercase tracking-wider border-l border-navy-700/40 transition-colors ${
+                    filterType === t ? "bg-navy-800/60 text-navy-100" : "text-navy-500 hover:text-navy-300"
+                  }`}
+                >
+                  {t.replace(/_/g, " ").replace("subscription ", "sub ")}
+                </button>
+              ))}
+            </div>
+            {/* Status filter */}
+            <div className="flex items-center gap-0 rounded border border-navy-700/40 overflow-hidden">
+              {[null, "sent", "failed"].map((s) => (
+                <button
+                  key={s ?? "all"}
+                  onClick={() => setFilterStatus(s)}
+                  className={`px-2 py-1 text-[9px] font-mono uppercase tracking-wider transition-colors ${
+                    s !== null ? "border-l border-navy-700/40" : ""
+                  } ${filterStatus === s ? "bg-navy-800/60 text-navy-100" : "text-navy-500 hover:text-navy-300"}`}
+                >
+                  {s ?? "All"}
+                </button>
+              ))}
+            </div>
+            <button onClick={fetchEmails} className="text-navy-500 hover:text-navy-300 transition-colors">
+              <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="text-[9px] font-mono text-navy-600 mb-2">
+          {filtered.length} email{filtered.length !== 1 ? "s" : ""}
+          {filterType || filterStatus ? ` (filtered from ${emails.length})` : ""}
+        </div>
+
+        {loading && !loaded ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="border border-navy-700/30 border-dashed rounded-lg p-8 text-center">
+            <Mail className="h-6 w-6 text-navy-600 mx-auto mb-2 opacity-40" />
+            <p className="text-[11px] text-navy-500">No emails sent yet</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {filtered.map((email) => {
+              const typeBase = email.type.startsWith("test:") ? email.type.replace("test:", "") : email.type;
+              const color = EMAIL_TYPE_COLORS[typeBase] || EMAIL_TYPE_COLORS.other;
+              const isTest = email.type.startsWith("test:");
+              return (
+                <div
+                  key={email.id}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-navy-700/20 bg-navy-900/30 hover:bg-navy-800/30 transition-colors group"
+                >
+                  {/* Status indicator */}
+                  <div className="shrink-0">
+                    {email.status === "sent" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-accent-emerald/60" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5 text-accent-rose/60" />
+                    )}
+                  </div>
+
+                  {/* Type badge */}
+                  <div className="shrink-0">
+                    <span
+                      className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+                      style={{ color, backgroundColor: `${color}15` }}
+                    >
+                      {isTest ? `test: ${typeBase}` : typeBase.replace(/_/g, " ")}
+                    </span>
+                  </div>
+
+                  {/* Subject + recipient */}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[11px] text-navy-200 truncate block">{email.subject}</span>
+                    <span className="text-[9px] font-mono text-navy-500">{email.to}</span>
+                  </div>
+
+                  {/* Error */}
+                  {email.error && (
+                    <span className="text-[9px] text-accent-rose/70 max-w-[200px] truncate shrink-0">
+                      {email.error}
+                    </span>
+                  )}
+
+                  {/* Resend ID */}
+                  {email.resendId && (
+                    <span className="text-[9px] font-mono text-navy-600 shrink-0 hidden group-hover:block">
+                      {email.resendId.slice(0, 12)}...
+                    </span>
+                  )}
+
+                  {/* Timestamp */}
+                  <span className="text-[9px] font-mono text-navy-500 tabular-nums shrink-0">
+                    {formatDate(email.sentAt)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Preview Modal */}
+      {previewHtml && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-8" onClick={() => setPreviewHtml(null)}>
+          <div className="bg-navy-900 border border-navy-700 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-3 border-b border-navy-700">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Email Preview</span>
+              <button onClick={() => setPreviewHtml(null)} className="text-navy-500 hover:text-navy-300">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SupportPanel() {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -1214,6 +1744,8 @@ export default function AdminPage() {
   const [analyticsDays, setAnalyticsDays] = useState(30);
   const [growth, setGrowth] = useState<GrowthData | null>(null);
   const [growthLoading, setGrowthLoading] = useState(false);
+  const [prompts, setPrompts] = useState<PromptEntry[]>([]);
+  const [promptsLoading, setPromptsLoading] = useState(true);
 
   const fetchTiers = useCallback(async () => {
     const res = await fetch("/api/admin/tiers");
@@ -1287,7 +1819,42 @@ export default function AdminPage() {
       });
 
     fetchTiers();
+
+    // Fetch prompts
+    fetch("/api/settings/prompts")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => {
+        setPrompts(Array.isArray(data) ? data : []);
+        setPromptsLoading(false);
+      })
+      .catch(() => setPromptsLoading(false));
   }, [status, router, fetchTiers]);
+
+  const savePrompt = useCallback(async (key: string, value: string) => {
+    await fetch("/api/settings/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value }),
+    });
+    setPrompts((prev) =>
+      prev.map((p) =>
+        p.key === key ? { ...p, value, isOverridden: true } : p
+      )
+    );
+  }, []);
+
+  const resetPrompt = useCallback(async (key: string) => {
+    await fetch("/api/settings/prompts", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    setPrompts((prev) =>
+      prev.map((p) =>
+        p.key === key ? { ...p, value: p.defaultValue, isOverridden: false } : p
+      )
+    );
+  }, []);
 
   const saveTier = async (tierData: Partial<Tier>) => {
     await fetch("/api/admin/tiers", {
@@ -1327,16 +1894,33 @@ export default function AdminPage() {
   };
 
   const [granting, setGranting] = useState<string | null>(null);
+  const [grantModal, setGrantModal] = useState<string | null>(null);
+  const [grantForm, setGrantForm] = useState({
+    tier: "analyst",
+    duration: "30", // days, "" = permanent
+    note: "",
+  });
 
-  const grantAccess = async (username: string, tier: string) => {
+  const grantAccess = async (username: string) => {
     setGranting(username);
+    const expiresAt = grantForm.duration
+      ? new Date(Date.now() + parseInt(grantForm.duration) * 86400000).toISOString()
+      : null;
     await fetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, action: "grant_access", tier }),
+      body: JSON.stringify({
+        username,
+        action: "grant_access",
+        tier: grantForm.tier,
+        expiresAt,
+        note: grantForm.note || null,
+      }),
     });
     await fetchUsers();
     setGranting(null);
+    setGrantModal(null);
+    setGrantForm({ tier: "analyst", duration: "30", note: "" });
   };
 
   const revokeAccess = async (username: string) => {
@@ -1581,28 +2165,53 @@ export default function AdminPage() {
                               <Loader2 className="h-3 w-3 animate-spin text-navy-500" />
                             ) : user.subscription?.status === "active" &&
                               user.subscription?.stripeSubscriptionId?.startsWith("comped_") ? (
-                              <button
-                                onClick={() => revokeAccess(user.username)}
-                                className="text-[10px] font-mono text-accent-rose hover:text-accent-rose/80 transition-colors"
-                              >
-                                Revoke
-                              </button>
+                              <div className="flex items-center gap-2">
+                                {user.compedGrant?.expiresAt && user.compedGrant.expiresAt !== "2099-12-31T23:59:59.000Z" && (
+                                  <span className={`text-[9px] font-mono tabular-nums ${
+                                    new Date(user.compedGrant.expiresAt) < new Date() ? "text-accent-rose" : "text-accent-amber"
+                                  }`}>
+                                    {new Date(user.compedGrant.expiresAt) < new Date()
+                                      ? "expired"
+                                      : `expires ${new Date(user.compedGrant.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                                    }
+                                  </span>
+                                )}
+                                {user.compedGrant?.note && (
+                                  <span className="text-[9px] text-navy-500 max-w-[100px] truncate" title={user.compedGrant.note}>
+                                    {user.compedGrant.note}
+                                  </span>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setGrantModal(user.username);
+                                    setGrantForm({
+                                      tier: user.compedGrant?.tier || user.tier || "analyst",
+                                      duration: "",
+                                      note: user.compedGrant?.note || "",
+                                    });
+                                  }}
+                                  className="text-[10px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => revokeAccess(user.username)}
+                                  className="text-[10px] font-mono text-accent-rose hover:text-accent-rose/80 transition-colors"
+                                >
+                                  Revoke
+                                </button>
+                              </div>
                             ) : !user.subscription || user.subscription.status !== "active" ? (
-                              <select
-                                onChange={(e) => {
-                                  if (e.target.value) {
-                                    grantAccess(user.username, e.target.value);
-                                    e.target.value = "";
-                                  }
+                              <button
+                                onClick={() => {
+                                  setGrantModal(user.username);
+                                  setGrantForm({ tier: "analyst", duration: "30", note: "" });
                                 }}
-                                defaultValue=""
-                                className="h-6 px-1.5 rounded bg-navy-800/60 border border-navy-700/40 text-[10px] font-mono text-navy-400 focus:outline-none cursor-pointer"
+                                className="flex items-center gap-1 text-[10px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors"
                               >
-                                <option value="" disabled>Grant...</option>
-                                <option value="analyst">Analyst</option>
-                                <option value="operator">Operator</option>
-                                <option value="institution">Institution</option>
-                              </select>
+                                <Gift className="h-3 w-3" />
+                                Grant Access
+                              </button>
                             ) : null}
                           </div>
                         </td>
@@ -1613,6 +2222,131 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+
+          {/* Grant Access Modal */}
+          {grantModal && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setGrantModal(null)}>
+              <div
+                className="bg-navy-900 border border-navy-700 rounded-lg w-full max-w-md overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700">
+                  <div className="flex items-center gap-2">
+                    <Gift className="h-3.5 w-3.5 text-accent-cyan" />
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-navy-200">Grant Access</span>
+                  </div>
+                  <button onClick={() => setGrantModal(null)} className="text-navy-500 hover:text-navy-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-4">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded bg-navy-800/40 border border-navy-700/30">
+                    <User className="h-3 w-3 text-navy-500" />
+                    <span className="text-sm font-mono text-navy-200">{grantModal}</span>
+                  </div>
+
+                  {/* Tier Selection */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Tier</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["analyst", "operator", "institution"].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setGrantForm({ ...grantForm, tier: t })}
+                          className={`px-3 py-2 rounded border text-[11px] font-mono uppercase tracking-wider transition-all ${
+                            grantForm.tier === t
+                              ? "border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan"
+                              : "border-navy-700/40 text-navy-500 hover:text-navy-300 hover:border-navy-700"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Duration */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">
+                      <Clock className="h-2.5 w-2.5 inline mr-1" />
+                      Duration
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[
+                        { label: "7 days", value: "7" },
+                        { label: "14 days", value: "14" },
+                        { label: "30 days", value: "30" },
+                        { label: "90 days", value: "90" },
+                        { label: "Permanent", value: "" },
+                      ].map((d) => (
+                        <button
+                          key={d.value}
+                          onClick={() => setGrantForm({ ...grantForm, duration: d.value })}
+                          className={`px-2 py-1.5 rounded border text-[10px] font-mono transition-all ${
+                            grantForm.duration === d.value
+                              ? "border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan"
+                              : "border-navy-700/40 text-navy-500 hover:text-navy-300 hover:border-navy-700"
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                    {grantForm.duration && (
+                      <p className="text-[9px] font-mono text-navy-500 mt-1.5">
+                        Expires {new Date(Date.now() + parseInt(grantForm.duration) * 86400000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Note */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Note (optional)</label>
+                    <input
+                      value={grantForm.note}
+                      onChange={(e) => setGrantForm({ ...grantForm, note: e.target.value })}
+                      placeholder="e.g. Beta tester, advisor, press review..."
+                      className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                    />
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-navy-800/30 rounded p-3 border border-navy-700/20 space-y-1">
+                    <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Summary</div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-navy-400">Tier</span>
+                      <span className="text-[10px] font-mono text-navy-200 capitalize">{grantForm.tier}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-navy-400">Duration</span>
+                      <span className="text-[10px] font-mono text-navy-200">
+                        {grantForm.duration ? `${grantForm.duration} days` : "Permanent"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-navy-400">Cost</span>
+                      <span className="text-[10px] font-mono text-accent-emerald">Free (comped)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-navy-700">
+                  <Button variant="ghost" size="sm" onClick={() => setGrantModal(null)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={() => grantAccess(grantModal)} disabled={granting === grantModal}>
+                    {granting === grantModal ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Gift className="h-3 w-3 mr-1" />
+                    )}
+                    Grant {grantForm.tier}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </Tabs.Content>
         {/* Growth Tab */}
         <Tabs.Content value="growth">
@@ -1623,6 +2357,72 @@ export default function AdminPage() {
               if (!growth && !growthLoading) fetchGrowth();
             }}
           />
+        </Tabs.Content>
+        {/* Soul Documents (Prompts) Tab */}
+        <Tabs.Content value="prompts">
+          <div className="max-w-4xl">
+            <div className="border border-accent-rose/20 rounded-lg bg-accent-rose/[0.03] p-4 mb-6">
+              <div className="flex items-start gap-2.5">
+                <Shield className="h-4 w-4 text-accent-rose mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-[11px] font-semibold text-accent-rose uppercase tracking-wider">Proprietary</span>
+                  <p className="text-[11px] text-navy-400 mt-1 leading-relaxed">
+                    These are the core soul documents that define how NEXUS thinks, analyzes, and generates intelligence.
+                    Changes take effect immediately on next use. Admin access only.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] font-mono text-navy-500 uppercase tracking-widest">
+                {prompts.length} registered prompts
+              </span>
+              {prompts.filter((p) => p.isOverridden).length > 0 && (
+                <span className="text-[10px] font-mono text-accent-amber">
+                  {prompts.filter((p) => p.isOverridden).length} modified from defaults
+                </span>
+              )}
+            </div>
+
+            {promptsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {PROMPT_CATEGORIES.map((cat) => {
+                  const categoryPrompts = prompts.filter(
+                    (p) => p.category === cat.id
+                  );
+                  if (categoryPrompts.length === 0) return null;
+                  return (
+                    <div key={cat.id}>
+                      <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2">
+                        {cat.label}
+                      </h3>
+                      <div className="space-y-1">
+                        {categoryPrompts.map((p) => (
+                          <PromptEditor
+                            key={p.key}
+                            prompt={p}
+                            onSave={savePrompt}
+                            onReset={resetPrompt}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Tabs.Content>
+        {/* Emails Tab */}
+        <Tabs.Content value="emails">
+          <EmailPanel />
         </Tabs.Content>
         {/* Support Tab */}
         <Tabs.Content value="support">

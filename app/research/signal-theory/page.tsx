@@ -85,7 +85,7 @@ function ScanLines() {
 
 // ── Data ──
 
-const signalLayers = [
+const primaryLayers = [
   {
     tag: "GEO",
     name: "Geopolitical",
@@ -94,24 +94,7 @@ const signalLayers = [
     examples: ["Troop mobilisation along contested borders", "Sanctions packages targeting energy exports", "Treaty withdrawals or renegotiations"],
     decayRate: "Days to years",
     decayLabel: "Variable",
-  },
-  {
-    tag: "CAL",
-    name: "Calendar",
-    color: "#f59e0b",
-    description: "Hebrew holidays, Islamic calendar events, FOMC meetings, options expiry dates, fiscal year boundaries, and seasonal economic patterns. Many significant historical events cluster around specific calendar dates.",
-    examples: ["FOMC rate decisions and dot-plot releases", "Quadruple witching / options expiry", "Hebrew calendar holidays and sabbatical cycles"],
-    decayRate: "Weeks to months",
-    decayLabel: "Slow",
-  },
-  {
-    tag: "CEL",
-    name: "Celestial",
-    color: "#8b5cf6",
-    description: "Eclipses, planetary alignments, lunar cycles, and solar activity. Studied not for causation but for historical correlation with volatility clusters and sentiment shifts in markets.",
-    examples: ["Solar and lunar eclipses", "Mercury retrograde periods", "Sunspot cycle peaks and troughs"],
-    decayRate: "Weeks to months",
-    decayLabel: "Slow",
+    isNarrative: false,
   },
   {
     tag: "MKT",
@@ -121,6 +104,7 @@ const signalLayers = [
     examples: ["Unusual put/call ratio spikes", "Credit default swap widening", "Cross-asset correlation breakdowns"],
     decayRate: "Hours to days",
     decayLabel: "Fast",
+    isNarrative: false,
   },
   {
     tag: "OSI",
@@ -130,8 +114,34 @@ const signalLayers = [
     examples: ["Military aircraft transponder anomalies", "Shipping route diversions near conflict zones", "GDELT event spike detection"],
     decayRate: "Days to weeks",
     decayLabel: "Medium",
+    isNarrative: false,
   },
 ];
+
+const narrativeLayers = [
+  {
+    tag: "CAL",
+    name: "Calendar (Narrative Overlay)",
+    color: "#f59e0b",
+    description: "Hebrew holidays, Islamic calendar events, FOMC meetings, options expiry dates. Actor-belief context only, max 0.5 bonus, no convergence weight. Useful for understanding why certain actors may behave differently around specific dates.",
+    examples: ["FOMC rate decisions and dot-plot releases", "Quadruple witching / options expiry", "Hebrew calendar holidays and sabbatical cycles"],
+    decayRate: "Weeks to months",
+    decayLabel: "Slow",
+    isNarrative: true,
+  },
+  {
+    tag: "CEL",
+    name: "Celestial (Narrative Overlay)",
+    color: "#8b5cf6",
+    description: "Eclipses, planetary alignments, lunar cycles, and solar activity. Actor-belief context only, max 0.5 bonus, no convergence weight. Tracked because some market participants and political actors incorporate these into their decision-making.",
+    examples: ["Solar and lunar eclipses", "Mercury retrograde periods", "Sunspot cycle peaks and troughs"],
+    decayRate: "Weeks to months",
+    decayLabel: "Slow",
+    isNarrative: true,
+  },
+];
+
+const signalLayers = [...primaryLayers, ...narrativeLayers];
 
 const intensityLevels = [
   { level: 1, label: "Background Noise", color: "#3b82f6", description: "Routine events with minimal predictive value. Standard diplomatic communications, scheduled policy announcements." },
@@ -142,16 +152,18 @@ const intensityLevels = [
 ];
 
 const amplification = [
-  { layers: 2, multiplier: "1.4x", width: 28 },
-  { layers: 3, multiplier: "2.1x", width: 42 },
-  { layers: 4, multiplier: "3.2x", width: 64 },
-  { layers: 5, multiplier: "5.0x", width: 100 },
+  { layers: 2, multiplier: "1.4x", width: 35 },
+  { layers: 3, multiplier: "2.1x", width: 53 },
+  { layers: 4, multiplier: "3.2x", width: 100 },
 ];
 
 // ── Active layer selector for convergence diagram ──
 function ConvergenceDiagram() {
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
-  const convergenceCount = activeLayers.size;
+  // Only primary layers count for convergence
+  const primaryActive = Array.from(activeLayers).filter(tag => !narrativeLayers.some(l => l.tag === tag));
+  const narrativeActive = Array.from(activeLayers).filter(tag => narrativeLayers.some(l => l.tag === tag));
+  const convergenceCount = primaryActive.length;
   const multiplier = convergenceCount <= 1 ? "1.0x" : amplification.find(a => a.layers === convergenceCount)?.multiplier || "1.0x";
 
   const toggle = (tag: string) => {
@@ -199,8 +211,13 @@ function ConvergenceDiagram() {
               {multiplier}
             </span>
             <span className="font-mono text-[9px] uppercase tracking-widest text-navy-400">
-              {convergenceCount <= 1 ? "baseline" : `${convergenceCount}-layer`}
+              {convergenceCount <= 1 ? "baseline" : `${convergenceCount} primary`}
             </span>
+            {narrativeActive.length > 0 && (
+              <span className="font-mono text-[8px] uppercase tracking-widest text-navy-600 mt-0.5">
+                +{narrativeActive.length} overlay
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -234,7 +251,7 @@ function ConvergenceDiagram() {
       </div>
 
       <p className="text-center text-[11px] font-mono text-navy-500 mt-4">
-        Toggle layers to see convergence amplification
+        Toggle layers to see convergence amplification. Only primary layers (GEO, MKT, OSI) drive the multiplier.
       </p>
     </div>
   );
@@ -392,8 +409,11 @@ export default function SignalTheoryPage() {
                 <span className="font-mono text-[10px] uppercase tracking-widest text-navy-400">Signal Layers</span>
                 <div className="h-px flex-1 bg-navy-800" />
               </div>
-              <p className="font-sans text-sm text-navy-400 mb-8 text-center max-w-xl mx-auto">
-                NEXUS operates across five distinct signal layers. Each captures a different dimension of the information landscape.
+              <p className="font-sans text-sm text-navy-400 mb-4 text-center max-w-xl mx-auto">
+                NEXUS operates across four primary signal layers plus a narrative overlay. Primary layers drive convergence scoring. Narrative layers provide actor-belief context only.
+              </p>
+              <p className="font-sans text-[11px] text-accent-amber/80 text-center max-w-xl mx-auto border border-accent-amber/20 rounded px-3 py-2 bg-accent-amber/[0.03] mb-8">
+                Calendar and celestial overlays are narrative/actor-belief context only, not independent predictive signals.
               </p>
             </div>
 
@@ -401,10 +421,21 @@ export default function SignalTheoryPage() {
               {signalLayers.map((layer, i) => (
                 <div
                   key={layer.tag}
-                  className={`reveal-up stagger-${i + 1} ${intensitySection.visible ? "visible" : ""}`}
+                  className={`reveal-up stagger-${Math.min(i + 1, 5)} ${intensitySection.visible ? "visible" : ""}`}
                 >
+                  {layer.isNarrative && i === primaryLayers.length && (
+                    <div className="flex items-center gap-3 mb-3 mt-4">
+                      <div className="h-px flex-1 bg-navy-800/60" />
+                      <span className="font-mono text-[9px] uppercase tracking-widest text-navy-600">Narrative / Actor-Belief Overlay</span>
+                      <div className="h-px flex-1 bg-navy-800/60" />
+                    </div>
+                  )}
                   <div
-                    className="group relative rounded-lg border border-navy-700/20 bg-navy-900/30 backdrop-blur-sm p-5 hover:border-navy-600/40 transition-all duration-500 overflow-hidden"
+                    className={`group relative rounded-lg border bg-navy-900/30 backdrop-blur-sm p-5 transition-all duration-500 overflow-hidden ${
+                      layer.isNarrative
+                        ? "border-navy-800/20 opacity-70 hover:opacity-90 hover:border-navy-700/40"
+                        : "border-navy-700/20 hover:border-navy-600/40"
+                    }`}
                   >
                     {/* Left color accent */}
                     <div
@@ -573,12 +604,13 @@ export default function SignalTheoryPage() {
             <div className={`reveal-up stagger-1 ${formulaSection.visible ? "visible" : ""}`}>
               <div className="relative rounded-lg border border-navy-700/20 bg-navy-900/30 backdrop-blur-sm p-6 overflow-hidden">
                 <p className="font-sans text-sm text-navy-300 leading-relaxed mb-2">
-                  The core insight of NEXUS signal theory: when signals from independent layers converge temporally,
-                  their combined intensity is greater than the sum of parts. Signals from highly independent layers
-                  (celestial + market) receive stronger amplification than correlated layers (geopolitical + OSINT).
+                  The core insight of NEXUS signal theory: when signals from independent primary layers converge temporally,
+                  their combined intensity is greater than the sum of parts. Only primary layers (GEO, MKT, OSI, and additional
+                  data layers) contribute to convergence amplification. Narrative overlays (CAL/CEL) provide actor-belief
+                  context but do not count toward convergence weight.
                 </p>
                 <p className="font-sans text-sm text-navy-400 leading-relaxed mb-8">
-                  Full five-layer convergence is exceptionally rare. When it occurs, the system flags a Level 5 critical
+                  Full four-layer primary convergence is exceptionally rare. When it occurs, the system flags a Level 5 critical
                   convergence event regardless of individual signal intensities. Historical back-testing shows these
                   events precede major market dislocations within a 72-hour window.
                 </p>
@@ -633,7 +665,7 @@ export default function SignalTheoryPage() {
                 Explore Live Signals
               </h3>
               <p className="font-sans text-sm text-navy-400 mb-6 max-w-md mx-auto leading-relaxed">
-                Monitor real-time signal detection across all five layers with intensity scoring and convergence alerts.
+                Monitor real-time signal detection across all primary layers with intensity scoring and convergence alerts.
               </p>
               <a
                 href="/register"

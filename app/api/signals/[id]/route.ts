@@ -8,16 +8,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const signalId = parseInt(id, 10);
-
-    if (isNaN(signalId)) {
-      return NextResponse.json({ error: "Invalid signal ID" }, { status: 400 });
-    }
 
     const signal = await db
       .select()
       .from(schema.signals)
-      .where(eq(schema.signals.id, signalId));
+      .where(eq(schema.signals.uuid, id));
 
     if (signal.length === 0) {
       return NextResponse.json({ error: "Signal not found" }, { status: 404 });

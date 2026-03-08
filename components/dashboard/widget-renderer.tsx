@@ -183,6 +183,7 @@ function MetricWidget({ config }: { config: { metric: string } }) {
 
 interface ThesisSummary {
   id: number;
+  uuid: string;
   marketRegime: string;
   convergenceDensity: number;
   overallConfidence: number;
@@ -232,7 +233,7 @@ function ThesisWidget() {
         <Markdown>{thesis.executiveSummary}</Markdown>
       </div>
       <Link
-        href={`/thesis/${thesis.id}`}
+        href={`/thesis/${thesis.uuid}`}
         className="flex items-center gap-1 text-[10px] text-navy-500 hover:text-navy-300 transition-colors"
       >
         Full Briefing <ArrowRight className="h-3 w-3" />
@@ -312,6 +313,7 @@ function PredictionsWidget() {
 
 interface Signal {
   id: number;
+  uuid: string;
   title: string;
   date: string;
   intensity: number;
@@ -342,7 +344,7 @@ function SignalsWidget({ config }: { config: { minIntensity?: number } }) {
       {signals.map((s) => (
         <Link
           key={s.id}
-          href={`/signals/${s.id}`}
+          href={`/signals/${s.uuid}`}
           className="flex items-center gap-2 py-1 px-1 rounded hover:bg-navy-800/40 transition-colors group"
         >
           <IntensityIndicator intensity={s.intensity} />

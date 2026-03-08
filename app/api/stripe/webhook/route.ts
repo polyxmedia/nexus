@@ -3,6 +3,26 @@ import { getStripe, STRIPE_WEBHOOK_SECRET } from "@/lib/stripe";
 import { db, schema } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import type Stripe from "stripe";
+import { sendEmail } from "@/lib/email";
+import {
+  subscriptionActiveEmail,
+  subscriptionCanceledEmail,
+  paymentFailedEmail,
+} from "@/lib/email/templates";
+
+// ── Helpers ──
+
+async function getUserEmail(userId: string): Promise<string | null> {
+  const key = userId.startsWith("user:") ? userId : `user:${userId}`;
+  const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
+  if (rows.length === 0) return null;
+  try {
+    const data = JSON.parse(rows[0].value);
+    return data.email || null;
+  } catch {
+    return null;
+  }
+}
 
 // ── Referral Commission Logic ──
 
@@ -180,6 +200,17 @@ export async function POST(request: Request) {
 
         // Track referral commission on new subscription
         await handleReferralOnSubscription(userId, parseInt(tierId));
+
+        // Send subscription confirmation email
+        const email = await getUserEmail(userId);
+        if (email && tiers.length > 0) {
+          const baseUrl = process.env.NEXTAUTH_URL || "https://nexusintel.io";
+          const template = subscriptionActiveEmail(userId, tiers[0].name, `${baseUrl}/dashboard`);
+          sendEmail({ to: email, ...template }).catch((err) =>
+            console.error("Subscription email failed:", err)
+          );
+        }
+
         break;
       }
 
@@ -223,6 +254,22 @@ export async function POST(request: Request) {
 
         // Mark referral as churned
         await handleReferralChurn(customerId);
+
+        // Send cancellation email
+        const cancelSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+        if (cancelSubs.length > 0) {
+          const cancelEmail = await getUserEmail(cancelSubs[0].userId);
+          if (cancelEmail) {
+            const template = subscriptionCanceledEmail(cancelSubs[0].userId.replace("user:", ""));
+            sendEmail({ to: cancelEmail, ...template }).catch((err) =>
+              console.error("Cancellation email failed:", err)
+            );
+          }
+        }
+
         break;
       }
 
@@ -256,6 +303,26 @@ export async function POST(request: Request) {
             updatedAt: new Date().toISOString(),
           })
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        // Send payment failed email
+        const failedSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+        if (failedSubs.length > 0) {
+          const failedEmail = await getUserEmail(failedSubs[0].userId);
+          if (failedEmail) {
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexusintel.io";
+            const template = paymentFailedEmail(
+              failedSubs[0].userId.replace("user:", ""),
+              `${baseUrl}/settings`
+            );
+            sendEmail({ to: failedEmail, ...template }).catch((err) =>
+              console.error("Payment failed email failed:", err)
+            );
+          }
+        }
+
         break;
       }
     }

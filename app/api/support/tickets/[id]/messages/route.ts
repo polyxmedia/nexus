@@ -12,7 +12,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   try {
     const { id } = await params;
-    const ticketId = parseInt(id);
 
     // Verify ticket ownership
     const [ticket] = await db
@@ -20,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .from(supportTickets)
       .where(
         and(
-          eq(supportTickets.id, ticketId),
+          eq(supportTickets.uuid, id),
           eq(supportTickets.userId, `user:${session.user.name}`)
         )
       );
@@ -32,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const messages = await db
       .select()
       .from(supportMessages)
-      .where(eq(supportMessages.ticketId, ticketId))
+      .where(eq(supportMessages.ticketId, ticket.id))
       .orderBy(asc(supportMessages.createdAt));
 
     return NextResponse.json({ messages });
@@ -49,7 +48,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   try {
     const { id } = await params;
-    const ticketId = parseInt(id);
     const { content } = await req.json();
 
     if (!content?.trim()) {
@@ -62,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .from(supportTickets)
       .where(
         and(
-          eq(supportTickets.id, ticketId),
+          eq(supportTickets.uuid, id),
           eq(supportTickets.userId, `user:${session.user.name}`)
         )
       );
@@ -75,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const [message] = await db
       .insert(supportMessages)
       .values({
-        ticketId,
+        ticketId: ticket.id,
         userId: `user:${session.user.name}`,
         content: content.trim(),
         isStaff: 0,
@@ -87,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await db
       .update(supportTickets)
       .set({ updatedAt: now })
-      .where(eq(supportTickets.id, ticketId));
+      .where(eq(supportTickets.id, ticket.id));
 
     return NextResponse.json({ message });
   } catch (error) {

@@ -1,4 +1,4 @@
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexusintel.io";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
 /** Organization schema — injected in root layout */
 export function OrganizationJsonLd() {
@@ -10,7 +10,7 @@ export function OrganizationJsonLd() {
     logo: `${SITE_URL}/nexuslogo.png`,
     description:
       "Geopolitical-market convergence intelligence platform. Multi-layer signal detection, AI-driven synthesis, and outcome-tracked predictions for analysts, traders, and institutions.",
-    foundingDate: "2024",
+    foundingDate: "2025",
     founder: {
       "@type": "Person",
       name: "Andre Figueira",
@@ -98,7 +98,7 @@ export function WebSiteJsonLd() {
     name: "NEXUS Intelligence",
     url: SITE_URL,
     description:
-      "Geopolitical-market convergence analysis platform. Five independent signal layers, AI-driven synthesis, and outcome-tracked intelligence for analysts and traders.",
+      "Integrated geopolitical-market intelligence platform. Four primary signal layers plus narrative overlay, AI-driven synthesis, and outcome-tracked intelligence for analysts and traders.",
     publisher: {
       "@type": "Organization",
       name: "NEXUS Intelligence",

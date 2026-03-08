@@ -22,6 +22,7 @@ import {
   Zap,
   ChevronRight,
 } from "lucide-react";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
 interface Alert {
   id: number;
@@ -331,6 +332,7 @@ export default function AlertsPage() {
 
   return (
     <div className="ml-48 min-h-screen bg-navy-950">
+      <UpgradeGate minTier="analyst" feature="Alert configuration">
       {/* Header */}
       <div className="border-b border-navy-700 px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -737,6 +739,7 @@ export default function AlertsPage() {
           </div>
         </div>
       )}
+      </UpgradeGate>
     </div>
   );
 }

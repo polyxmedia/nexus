@@ -52,18 +52,18 @@ const phases = [
     color: "#06b6d4",
     icon: Radar,
     summary:
-      "Continuous monitoring across five independent signal domains, each with specialised detection logic tuned to surface anomalies before they reach consensus.",
+      "Continuous monitoring across four primary signal layers plus a narrative overlay, each with specialised detection logic tuned to surface anomalies before they reach consensus.",
     details: [
       "Every signal layer operates its own detection engine. The engines run independently so that a failure or latency spike in one layer never compromises the others. Raw inputs are normalised into a common signal schema: timestamp, category, affected entities, geographic scope, and a preliminary intensity score from 1 to 5.",
       "Detection thresholds are dynamic. Baseline activity levels are recalculated on a rolling window, so the system adapts to shifting environments. A troop movement during peacetime triggers differently than the same movement during an active conflict cycle.",
       "Signals below the noise floor are still recorded. They contribute to pattern recognition over longer time horizons even if they don't trigger immediate alerts.",
     ],
     layers: [
-      { icon: Globe, tag: "GEO", label: "Geopolitical", desc: "Conflict escalation, sanctions regimes, diplomatic shifts, military posture changes, and regime instability indicators." },
-      { icon: Calendar, tag: "CAL", label: "Calendar", desc: "Hebrew and Islamic calendar events, FOMC cycles, options expiry dates, fiscal boundaries, and seasonal economic patterns." },
-      { icon: Moon, tag: "CEL", label: "Celestial", desc: "Eclipses, planetary transits, lunar cycles, and solar activity. Studied for historical correlation, not causation." },
-      { icon: BarChart3, tag: "MKT", label: "Market", desc: "Options flow anomalies, volatility regime shifts, cross-asset divergences, credit spreads, and macro indicator surprises." },
-      { icon: Eye, tag: "OSI", label: "OSINT", desc: "Open-source intelligence from flight tracking, shipping data, satellite imagery, social media, and event wire services." },
+      { icon: Globe, tag: "GEO", label: "Geopolitical", desc: "Conflict escalation, sanctions regimes, diplomatic shifts, military posture changes, and regime instability indicators.", primary: true },
+      { icon: BarChart3, tag: "MKT", label: "Market", desc: "Options flow anomalies, volatility regime shifts, cross-asset divergences, credit spreads, and macro indicator surprises.", primary: true },
+      { icon: Eye, tag: "OSI", label: "OSINT", desc: "Open-source intelligence from flight tracking, shipping data, satellite imagery, social media, and event wire services.", primary: true },
+      { icon: Calendar, tag: "CAL", label: "Calendar (Narrative Overlay)", desc: "Hebrew and Islamic calendar events, FOMC cycles, options expiry dates. Actor-belief context only, max 0.5 bonus, no convergence weight.", primary: false },
+      { icon: Moon, tag: "CEL", label: "Celestial (Narrative Overlay)", desc: "Eclipses, planetary transits, lunar cycles, and solar activity. Actor-belief context only, max 0.5 bonus, no convergence weight.", primary: false },
     ],
   },
   {
@@ -114,18 +114,18 @@ const phases = [
 ];
 
 const principles = [
-  { icon: Layers, title: "Independence of Layers", body: "Each signal layer operates on fundamentally different data sources with different dynamics. This independence is what makes convergence meaningful. If the layers were correlated, overlap would be expected and uninformative." },
+  { icon: Layers, title: "Independence of Layers", body: "Each primary signal layer operates on fundamentally different data sources with different dynamics. This independence is what makes convergence meaningful. Calendar and celestial data serve as narrative context for understanding actor beliefs, not as independent predictive signals." },
   { icon: Target, title: "Convergence Over Prediction", body: "NEXUS does not predict events. It identifies conditions under which events become more probable. The distinction matters: prediction implies certainty, while convergence analysis surfaces elevated probability windows." },
   { icon: RotateCcw, title: "Continuous Calibration", body: "Every output feeds back into the system. Weights, thresholds, and scoring parameters are living values that evolve with each completed prediction cycle. The system never assumes its current calibration is final." },
   { icon: Shield, title: "Grounded Analysis", body: "Every assessment traces back to specific, observable data points. The system does not hallucinate connections or project patterns that aren't supported by the underlying signals." },
 ];
 
 const dataCategories = [
-  { category: "Geopolitical Intelligence", sources: "Government publications, defence intelligence feeds, verified reporting networks, treaty databases, sanctions registries", refresh: "Continuous" },
-  { category: "Calendar Systems", sources: "Hebrew and Islamic calendar databases, central bank schedules, derivatives expiry calendars, fiscal year boundaries", refresh: "Daily" },
-  { category: "Celestial Ephemeris", sources: "Astronomical ephemeris data, eclipse databases, planetary transit calculations, solar activity indices", refresh: "Daily" },
-  { category: "Market Data", sources: "Real-time price feeds, options flow aggregators, economic indicator APIs, central bank data repositories", refresh: "Real-time" },
-  { category: "Open-Source Intelligence", sources: "Flight tracking networks, maritime AIS data, event wire services, satellite imagery providers, social media analysis", refresh: "Continuous" },
+  { category: "Geopolitical Intelligence", sources: "Government publications, defence intelligence feeds, verified reporting networks, treaty databases, sanctions registries", refresh: "Continuous", type: "primary" },
+  { category: "Market Data", sources: "Real-time price feeds, options flow aggregators, economic indicator APIs, central bank data repositories", refresh: "Real-time", type: "primary" },
+  { category: "Open-Source Intelligence", sources: "Flight tracking networks, maritime AIS data, event wire services, satellite imagery providers, social media analysis", refresh: "Continuous", type: "primary" },
+  { category: "Calendar Systems (Narrative Overlay)", sources: "Hebrew and Islamic calendar databases, central bank schedules, derivatives expiry calendars, fiscal year boundaries. Actor-belief context only.", refresh: "Daily", type: "narrative" },
+  { category: "Celestial Ephemeris (Narrative Overlay)", sources: "Astronomical ephemeris data, eclipse databases, planetary transit calculations, solar activity indices. Actor-belief context only.", refresh: "Daily", type: "narrative" },
 ];
 
 // ── Expandable phase ──
@@ -178,7 +178,7 @@ function ExpandablePhase({ phase }: { phase: (typeof phases)[0] }) {
                 <div className="mt-6">
                   <div className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-3">Signal Layers</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {phase.layers.map((layer) => {
+                    {phase.layers.filter((l: { primary?: boolean }) => l.primary !== false).map((layer) => {
                       const LayerIcon = layer.icon;
                       return (
                         <div key={layer.tag} className="px-4 py-3 border-l border-navy-700/40 hover:border-navy-500/40 transition-colors">
@@ -192,6 +192,33 @@ function ExpandablePhase({ phase }: { phase: (typeof phases)[0] }) {
                       );
                     })}
                   </div>
+                  {/* Narrative overlay layers */}
+                  {phase.layers.some((l: { primary?: boolean }) => l.primary === false) && (
+                    <div className="mt-4">
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2 flex items-center gap-2">
+                        <div className="h-px flex-1 max-w-8 bg-navy-700/40" />
+                        Narrative / Actor-Belief Overlay
+                      </div>
+                      <p className="font-sans text-[10px] text-navy-600 mb-3 italic">
+                        Calendar and celestial overlays are narrative/actor-belief context only, not independent predictive signals. Max 0.5 bonus, no convergence weight.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {phase.layers.filter((l: { primary?: boolean }) => l.primary === false).map((layer) => {
+                          const LayerIcon = layer.icon;
+                          return (
+                            <div key={layer.tag} className="px-4 py-3 border-l border-navy-800/40 opacity-60 hover:opacity-80 transition-opacity">
+                              <div className="flex items-center gap-2 mb-2">
+                                <LayerIcon className="w-3.5 h-3.5 text-navy-600" />
+                                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.15em] text-navy-500">{layer.tag}</span>
+                                <span className="font-mono text-[11px] font-medium text-navy-300">{layer.label}</span>
+                              </div>
+                              <p className="font-sans text-[11px] text-navy-600 leading-relaxed">{layer.desc}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-3">
                     <Link href="/research/signal-theory" className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-accent-cyan hover:text-accent-cyan/80 transition-colors">
                       Deep dive into signal theory <ArrowRight className="w-3 h-3" />
@@ -236,8 +263,12 @@ export default function MethodologyPage() {
               How NEXUS Detects What Others Miss
             </h1>
 
+            <p className="mt-1 font-sans text-[11px] text-accent-amber/80 leading-relaxed max-w-2xl border border-accent-amber/20 rounded px-3 py-2 bg-accent-amber/[0.03]">
+              Calendar and celestial overlays are narrative/actor-belief context only, not independent predictive signals.
+            </p>
+
             <p className="mt-5 font-sans text-base text-navy-400 leading-relaxed max-w-2xl">
-              A multi-layer intelligence system that monitors five independent signal domains, scores their convergence, and synthesises high-conviction intelligence briefs. Every assessment traces back to observable data. Every prediction is tracked and scored.
+              A multi-layer intelligence system that monitors four primary signal layers plus a narrative overlay, scores their convergence, and synthesises high-conviction intelligence briefs. Every assessment traces back to observable data. Every prediction is tracked and scored.
             </p>
           </div>
 
@@ -320,7 +351,7 @@ export default function MethodologyPage() {
 
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-8 mb-10 transition-all duration-700 delay-100 ${convergenceReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             {[
-              { icon: Layers, title: "Layer Count", body: "More independent layers converging means a stronger signal. Two-layer convergences are common. Three or more are significant. Full five-layer convergence is exceptionally rare and always flagged as critical." },
+              { icon: Layers, title: "Layer Count", body: "More primary layers converging means a stronger signal. Two-layer convergences are common. Three or more are significant. Full four-layer convergence is exceptionally rare and always flagged as critical. Narrative overlays (CAL/CEL) add context but do not contribute convergence weight." },
               { icon: Clock, title: "Temporal Proximity", body: "Signals that cluster tightly in time score higher than the same signals spread over weeks. The scoring function applies a time-decay weighting that favours narrow convergence windows." },
               { icon: TrendingUp, title: "Historical Precedent", body: "Every convergence event is matched against a library of past convergences. Patterns with strong historical precedent and clear outcome data receive higher confidence scores." },
             ].map((item) => {
@@ -344,18 +375,17 @@ export default function MethodologyPage() {
               <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-400">Cross-Layer Amplification</h3>
             </div>
             <p className="font-sans text-sm text-navy-400 leading-relaxed mb-6 max-w-3xl">
-              Convergence scoring is non-linear. Independent layers amplify each other more than correlated layers. The amplification curve steepens as more layers align, reflecting the decreasing probability of coincidental overlap.
+              Convergence scoring is non-linear and only counts primary signal layers (GEO, MKT, OSI, and additional data layers). Narrative overlays (CAL/CEL) provide actor-belief context but do not contribute convergence weight. The amplification curve steepens as more primary layers align, reflecting the decreasing probability of coincidental overlap.
             </p>
-            <div className="grid grid-cols-4 gap-px">
+            <div className="grid grid-cols-3 gap-px">
               {[
-                { layers: "2 Layers", mult: "1.4x", level: "Noteworthy", color: "#8a8a8a" },
-                { layers: "3 Layers", mult: "2.1x", level: "Significant", color: "#10b981" },
-                { layers: "4 Layers", mult: "3.2x", level: "High Alert", color: "#f59e0b" },
-                { layers: "5 Layers", mult: "5.0x", level: "Critical", color: "#ef4444" },
+                { layers: "2 Primary", level: "Noteworthy", color: "#8a8a8a" },
+                { layers: "3 Primary", level: "Significant", color: "#10b981" },
+                { layers: "4 Primary", level: "Critical", color: "#ef4444" },
               ].map((item) => (
                 <div key={item.layers} className="text-center py-4">
                   <div className="font-mono text-[10px] text-navy-500 uppercase tracking-wider mb-2">{item.layers}</div>
-                  <div className="font-mono text-xl font-bold" style={{ color: item.color }}>{item.mult}</div>
+                  <div className="w-6 h-6 rounded-full mx-auto mb-1" style={{ background: `${item.color}20`, border: `1px solid ${item.color}40` }} />
                   <div className="font-mono text-[9px] uppercase tracking-wider mt-1" style={{ color: item.color, opacity: 0.6 }}>{item.level}</div>
                 </div>
               ))}
@@ -492,8 +522,9 @@ export default function MethodologyPage() {
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 delay-100 ${relatedReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             {[
               { href: "/research/signal-theory", title: "Signal Theory", desc: "Deep dive into signal detection, intensity scoring, decay functions, and cross-layer amplification." },
-              { href: "/research/calendar-correlations", title: "Calendar Correlations", desc: "Historical analysis of calendar-market correlations across Hebrew, Islamic, and fiscal calendars." },
+              { href: "/research/calendar-correlations", title: "Calendar Context (Appendix A)", desc: "Narrative context layers: historical calendar-market patterns as actor-belief overlay, not independent signals." },
               { href: "/research/prediction-accuracy", title: "Prediction Accuracy", desc: "Live accuracy tracking, Brier scores, and performance breakdowns by signal layer and time horizon." },
+              { href: "/research/game-theory", title: "Game Theory Models", desc: "Nash equilibria, Schelling focal points, and escalation ladders applied to geopolitical scenario modelling." },
             ].map((link) => (
               <Link key={link.href} href={link.href} className="group">
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-200 group-hover:text-navy-100 transition-colors mb-2">{link.title}</h3>

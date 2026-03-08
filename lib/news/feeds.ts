@@ -135,11 +135,20 @@ const SOURCE_BIAS: Record<string, PoliticalBias> = {
   "south china morning post": "center",
   "scmp": "center",
   "france24": "center",
+  "france 24": "center",
   "dw.com": "center",
   "deutsche welle": "center",
   "haaretz": "center-left",
   "times of israel": "center",
   "sky news": "center-right",
+  // Business / Specialist
+  "cnbc": "center",
+  "marketwatch": "center",
+  "oilprice": "center",
+  "defense one": "center",
+  "defenseone": "center",
+  "foreign policy": "center-left",
+  "foreignpolicy": "center-left",
 };
 
 function detectBias(source: string, domain?: string): PoliticalBias {
