@@ -5,8 +5,11 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getT212Client, checkDuplicate } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -29,6 +32,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const username = session.user.name;
 
   try {
     const body = await request.json();
@@ -110,6 +114,7 @@ export async function POST(request: NextRequest) {
     const trade = await db
       .insert(schema.trades)
       .values({
+        userId: username,
         signalId: signalId || null,
         predictionId: predictionId || null,
         ticker,

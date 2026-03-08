@@ -8,13 +8,18 @@ interface RateLimitEntry {
 
 const store = new Map<string, RateLimitEntry>();
 
-// Clean up expired entries every 5 minutes to prevent memory growth
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of store.entries()) {
-    if (entry.resetAt < now) store.delete(key);
-  }
-}, 5 * 60 * 1000);
+// Lazy cleanup — runs after first rateLimit() call
+let cleanupScheduled = false;
+function scheduleCleanup() {
+  if (cleanupScheduled || typeof setInterval === "undefined") return;
+  cleanupScheduled = true;
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of store.entries()) {
+      if (entry.resetAt < now) store.delete(key);
+    }
+  }, 5 * 60 * 1000);
+}
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -29,6 +34,7 @@ export interface RateLimitResult {
  * @param windowMs Window duration in milliseconds
  */
 export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
+  scheduleCleanup();
   const now = Date.now();
   const entry = store.get(key);
 

@@ -484,11 +484,12 @@
 - [ ] Stretch: email delivery via Resend or SendGrid
 
 #### Subscription Gating
-Tier system is seeded and Stripe processes payments, but no gating is enforced in the UI or API routes.
-- [ ] Add `requireTier(minTier)` middleware helper for API routes
-- [ ] Gate premium dashboard widgets behind tier check
-- [ ] Show upgrade prompt when a gated feature is accessed on a lower tier
-- [ ] Surface current tier visibly in the settings page
+- [x] Add `requireTier(minTier)` middleware helper for API routes
+- [x] Gate trading routes behind operator+ tier check
+- [x] Show upgrade prompt when a gated feature is accessed on a lower tier (`UpgradeGate` component)
+- [x] Client-side `useSubscription` hook + `SubscriptionProvider` context
+- [x] Chat rate limiting by tier (daily message limits)
+- [x] Chat gated to analyst+ tier
 
 ### P1 — High Priority
 

@@ -56,6 +56,7 @@ export const predictions = pgTable("predictions", {
 
 export const trades = pgTable("trades", {
   id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("legacy"),
   signalId: integer("signal_id").references(() => signals.id),
   predictionId: integer("prediction_id").references(() => predictions.id),
   ticker: text("ticker").notNull(),

@@ -5,6 +5,7 @@ import { NotificationProvider } from "@/components/notifications/notification-pr
 import { NotificationToast } from "@/components/notifications/notification-toast";
 import { AuthProvider } from "@/components/providers/session-provider";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
+import { SubscriptionProvider } from "@/lib/hooks/useSubscription";
 
 export const metadata: Metadata = {
   title: "NEXUS - Signal Intelligence",
@@ -21,10 +22,12 @@ export default function RootLayout({
       <body className="min-h-screen bg-navy-950 text-navy-100 antialiased">
         <AuthProvider>
           <NotificationProvider>
-            <Sidebar />
-            {children}
-            <NotificationToast />
-            <AnalyticsTracker />
+            <SubscriptionProvider>
+              <Sidebar />
+              {children}
+              <NotificationToast />
+              <AnalyticsTracker />
+            </SubscriptionProvider>
           </NotificationProvider>
         </AuthProvider>
       </body>

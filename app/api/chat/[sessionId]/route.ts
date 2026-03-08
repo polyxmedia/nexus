@@ -7,6 +7,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS, executeTool } from "@/lib/chat/tools";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
+import { getUserTier } from "@/lib/auth/require-tier";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function GET(
   req: NextRequest,
@@ -41,6 +43,25 @@ export async function POST(
   const authSession = await getServerSession(authOptions);
   if (!authSession?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const username = authSession.user.name;
+
+  // Tier-based message rate limiting
+  const tierInfo = await getUserTier();
+  if (!tierInfo.isAdmin && tierInfo.tierLevel === 0) {
+    return NextResponse.json(
+      { error: "Chat requires an active subscription", upgrade: true, requiredTier: "analyst" },
+      { status: 403 }
+    );
+  }
+  if (!tierInfo.isAdmin && tierInfo.limits?.chatMessages && tierInfo.limits.chatMessages > 0) {
+    const limit = tierInfo.limits.chatMessages;
+    const rl = rateLimit(`chat:${username}`, limit, 24 * 60 * 60 * 1000); // daily window
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Daily message limit reached (${limit}/day). Upgrade for unlimited.`, upgrade: true, requiredTier: "operator", remaining: 0 },
+        { status: 429 }
+      );
+    }
+  }
 
   const { sessionId } = await params;
   const id = parseInt(sessionId, 10);

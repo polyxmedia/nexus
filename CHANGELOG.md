@@ -31,6 +31,15 @@ All notable changes to Nexus are documented here.
 - EXECUTOR (Haiku): position sizing (1-2% fixed fractional), risk enforcement (max 25% position, 15% drawdown, 1.5:1 R:R)
 - Coordinator: Sentinel -> Analyst -> Executor pipeline, 5-min cycle
 
+#### Subscription Gating (P0)
+- `requireTier(minTier)` server-side middleware: checks user subscription, admin bypass, returns 403 with upgrade prompt
+- `getUserTier()` non-enforcing check for soft-gating and rate limiting
+- `SubscriptionProvider` + `useSubscription()` client-side hook for tier-aware UI
+- `UpgradeGate` component: wraps content behind tier check with lock icon + upgrade CTA
+- Trading routes (Trading 212 + Coinbase) gated to operator+ tier
+- Chat gated to analyst+ tier with daily message rate limiting by tier
+- `rateLimit()` utility with windowed counters
+
 #### Signal Convergence Backtester
 - Admin backtesting engine with time-gated AI predictions and strict temporal isolation
 - 5-phase pipeline: collect data, generate signals, simulate, validate, analyze

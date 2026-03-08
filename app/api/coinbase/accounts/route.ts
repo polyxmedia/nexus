@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { CoinbaseClient } from "@/lib/coinbase/client";
+import { requireTier } from "@/lib/auth/require-tier";
 
 async function getCoinbaseClient() {
   const apiKeySetting = await db
@@ -27,6 +28,9 @@ async function getCoinbaseClient() {
 }
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
+
   try {
     const client = await getCoinbaseClient();
     const summary = await client.getPortfolioSummary();
