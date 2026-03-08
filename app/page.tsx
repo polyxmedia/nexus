@@ -221,7 +221,8 @@ const features = [
 const tiers = [
   {
     name: "Analyst",
-    price: "$49",
+    price: "$299",
+    priceAnnual: "$249",
     period: "/mo",
     description: "Individual intelligence capability",
     features: [
@@ -229,6 +230,7 @@ const tiers = [
       "AI chat analyst (100 msgs/day)",
       "Daily thesis generation",
       "Prediction tracking",
+      "Narrative & sentiment tracking",
       "War Room (view only)",
       "Email alerts",
     ],
@@ -237,7 +239,8 @@ const tiers = [
   },
   {
     name: "Operator",
-    price: "$149",
+    price: "$999",
+    priceAnnual: "$849",
     period: "/mo",
     description: "Full operational capability",
     features: [
@@ -245,9 +248,11 @@ const tiers = [
       "Unlimited AI analyst access",
       "Trading broker integration",
       "Real-time War Room + OSINT",
+      "On-chain analytics & GEX",
+      "GPR decomposition & BOCPD",
+      "Short interest & shipping intel",
       "Custom signal layers",
       "Portfolio risk analytics",
-      "Priority intelligence feeds",
       "API access",
     ],
     cta: "Go Operational",
@@ -256,6 +261,7 @@ const tiers = [
   {
     name: "Institution",
     price: "Custom",
+    priceAnnual: "Custom",
     period: "",
     description: "Multi-seat deployment",
     features: [
@@ -630,6 +636,7 @@ function Indicator({ label, value, color }: { label: string; value: string; colo
 export default function LandingPage() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [billingAnnual, setBillingAnnual] = useState(false);
 
   useEffect(() => {
     fetch("/api/warroom")
@@ -844,9 +851,20 @@ export default function LandingPage() {
             <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4">
               Pick what fits
             </h2>
-            <p className="text-sm text-navy-400 max-w-md mx-auto">
+            <p className="text-sm text-navy-400 max-w-md mx-auto mb-8">
               14-day free trial on everything. No credit card, no commitment. Just try it.
             </p>
+            <div className="flex items-center justify-center gap-3">
+              <span className={`text-xs font-medium transition-colors ${!billingAnnual ? "text-navy-100" : "text-navy-500"}`}>Monthly</span>
+              <button
+                onClick={() => setBillingAnnual(!billingAnnual)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${billingAnnual ? "bg-navy-400" : "bg-navy-700"}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-navy-950 transition-transform ${billingAnnual ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+              <span className={`text-xs font-medium transition-colors ${billingAnnual ? "text-navy-100" : "text-navy-500"}`}>Annual</span>
+              {billingAnnual && <span className="text-[9px] font-mono text-accent-emerald border border-accent-emerald/30 rounded-full px-2 py-0.5">Save 15%</span>}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -873,12 +891,15 @@ export default function LandingPage() {
                   </h3>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-bold text-white font-sans">
-                      {tier.price}
+                      {billingAnnual ? tier.priceAnnual : tier.price}
                     </span>
                     {tier.period && (
                       <span className="text-sm text-navy-500">{tier.period}</span>
                     )}
                   </div>
+                  {billingAnnual && tier.price !== "Custom" && (
+                    <span className="text-[10px] text-navy-500 font-mono">billed annually</span>
+                  )}
                   <p className="text-[11px] text-navy-500 mt-2">{tier.description}</p>
                 </div>
 

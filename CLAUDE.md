@@ -103,7 +103,7 @@ lib/
 - **ACLED**: Conflict data
 
 ## Subscription System
-- 3 tiers: Analyst ($49/mo), Operator ($149/mo), Institution (custom)
+- 3 tiers: Analyst ($299/mo), Operator ($999/mo), Institution (custom). Annual: $249/mo, $849/mo.
 - Stripe Checkout for payment, Stripe Portal for billing management
 - Webhook handles: checkout.session.completed, subscription.updated/deleted, invoice.payment_failed
 - Admin role required for `/admin` and tier management APIs

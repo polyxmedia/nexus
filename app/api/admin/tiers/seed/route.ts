@@ -18,13 +18,14 @@ async function isAdmin(username: string): Promise<boolean> {
 const DEFAULT_TIERS = [
   {
     name: "Analyst",
-    price: 4900,
+    price: 29900,
     interval: "month",
     features: [
       "Signal detection engine",
       "AI chat analyst (100 msgs/day)",
       "Daily thesis generation",
       "Prediction tracking",
+      "Narrative & sentiment tracking",
       "War Room (view only)",
       "Email alerts",
     ],
@@ -40,13 +41,17 @@ const DEFAULT_TIERS = [
   },
   {
     name: "Operator",
-    price: 14900,
+    price: 99900,
     interval: "month",
     features: [
       "Everything in Analyst",
       "Unlimited AI analyst access",
       "Trading broker integration",
       "Real-time War Room + OSINT",
+      "On-chain analytics & GEX",
+      "GPR decomposition & BOCPD",
+      "Short interest signals",
+      "Shipping & dark fleet intel",
       "Custom signal layers",
       "Portfolio risk analytics",
       "Priority intelligence feeds",
