@@ -29,7 +29,7 @@ export function OrganizationJsonLd() {
       email: "hello@polyxmedia.com",
       contactType: "customer support",
     },
-    sameAs: ["https://polyxmedia.com"],
+    sameAs: ["https://polyxmedia.com", "https://nexushq.xyz"],
   };
 
   return (
@@ -55,7 +55,7 @@ export function SoftwareApplicationJsonLd() {
       {
         "@type": "Offer",
         name: "Analyst",
-        price: "49",
+        price: "299",
         priceCurrency: "USD",
         priceSpecification: {
           "@type": "UnitPriceSpecification",
@@ -66,13 +66,24 @@ export function SoftwareApplicationJsonLd() {
       {
         "@type": "Offer",
         name: "Operator",
-        price: "149",
+        price: "999",
         priceCurrency: "USD",
         priceSpecification: {
           "@type": "UnitPriceSpecification",
           billingIncrement: 1,
           unitCode: "MON",
         },
+      },
+      {
+        "@type": "Offer",
+        name: "Institution",
+        priceCurrency: "USD",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          billingIncrement: 1,
+          unitCode: "MON",
+        },
+        description: "Custom pricing",
       },
     ],
     creator: {
@@ -102,6 +113,64 @@ export function WebSiteJsonLd() {
     publisher: {
       "@type": "Organization",
       name: "NEXUS Intelligence",
+    },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${SITE_URL}/research/{search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
+
+/** Article schema — use on research pages */
+export function ArticleJsonLd({
+  title,
+  description,
+  url,
+  datePublished,
+  dateModified,
+}: {
+  title: string;
+  description: string;
+  url: string;
+  datePublished?: string;
+  dateModified?: string;
+}) {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: title,
+    description,
+    url: url.startsWith("http") ? url : `${SITE_URL}${url}`,
+    image: `${SITE_URL}/opengraph-image`,
+    datePublished: datePublished || "2025-01-01",
+    dateModified: dateModified || new Date().toISOString().split("T")[0],
+    author: {
+      "@type": "Organization",
+      name: "NEXUS Intelligence",
+      url: SITE_URL,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "NEXUS Intelligence",
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/nexuslogo.png`,
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": url.startsWith("http") ? url : `${SITE_URL}${url}`,
     },
   };
 

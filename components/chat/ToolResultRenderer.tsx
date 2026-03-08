@@ -40,6 +40,9 @@ import { CollectionGapsWidget } from "./widgets/CollectionGapsWidget";
 import { NarrativesWidget } from "./widgets/NarrativesWidget";
 import { ShortInterestWidget } from "./widgets/ShortInterestWidget";
 import { GammaExposureWidget } from "./widgets/GammaExposureWidget";
+import { BayesianWidget } from "./widgets/BayesianWidget";
+import { ParallelsWidget } from "./widgets/ParallelsWidget";
+import { ActorProfileWidget } from "./widgets/ActorProfileWidget";
 
 interface ToolResultRendererProps {
   toolName: string;
@@ -133,6 +136,12 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       return <ShortInterestWidget data={data} />;
     case "get_gamma_exposure":
       return <GammaExposureWidget data={data} />;
+    case "run_bayesian_analysis":
+      return <BayesianWidget data={data} />;
+    case "search_historical_parallels":
+      return <ParallelsWidget data={data} />;
+    case "get_actor_profile":
+      return <ActorProfileWidget data={data} />;
     case "get_operator_context":
       return (
         <div className="my-2 border border-accent-cyan/30 rounded bg-accent-cyan/5 px-3 py-2 text-xs text-accent-cyan flex items-center gap-2">

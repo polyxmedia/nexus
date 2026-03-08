@@ -1,6 +1,5 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import type { OsintEvent, OsintEventType } from "@/lib/warroom/types";
 
@@ -31,87 +30,97 @@ export function OsintEventModal({ event, onClose }: OsintEventModalProps) {
   if (!event) return null;
 
   return (
-    <Dialog.Root open={!!event} onOpenChange={(open) => !open && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 wr-fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border border-navy-700/60 bg-navy-900/95 backdrop-blur-md p-6 wr-shadow-lg wr-modal-enter">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${EVENT_BADGE_STYLES[event.eventType]}`}
-              >
-                {EVENT_LABELS[event.eventType]}
-              </span>
-              {event.fatalities > 0 && (
-                <span className="text-[10px] text-signal-5 font-medium">
-                  {event.fatalities} fatalities
-                </span>
-              )}
+    <div className="absolute bottom-0 left-0 right-0 z-40 animate-[slideUp_200ms_ease-out]">
+      <div className="mx-auto max-w-3xl border-t border-x border-navy-700/60 rounded-t-lg bg-navy-950/95 backdrop-blur-md wr-shadow-lg">
+        {/* Terminal header */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-navy-800/60">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-accent-amber/60" />
+              <div className="w-2 h-2 rounded-full bg-navy-700/60" />
+              <div className="w-2 h-2 rounded-full bg-navy-700/60" />
             </div>
-            <Dialog.Close asChild>
-              <button className="text-navy-500 hover:text-navy-300 hover:bg-navy-800/60 rounded p-1 transition-colors wr-focus-ring">
-                <X className="h-4 w-4" />
-              </button>
-            </Dialog.Close>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-navy-500">
+              osint event
+            </span>
+            <span className="font-mono text-[10px] text-navy-600">
+              //
+            </span>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider ${EVENT_BADGE_STYLES[event.eventType]}`}
+            >
+              {EVENT_LABELS[event.eventType]}
+            </span>
+            {event.fatalities > 0 && (
+              <span className="text-[10px] text-signal-5 font-mono font-medium">
+                {event.fatalities} fatalities
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-navy-500 hover:text-navy-300 hover:bg-navy-800/60 rounded p-1 transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 max-h-[30vh] overflow-y-auto">
+          {/* Location header */}
+          <div className="mb-3">
+            <div className="text-sm font-semibold text-navy-100">
+              {event.location}
+            </div>
+            <div className="text-[10px] text-navy-500 font-mono mt-0.5">
+              {event.country} | {new Date(event.date).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })} | {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
+            </div>
           </div>
 
-          <Dialog.Title className="text-sm font-semibold text-navy-100 mb-1">
-            {event.location}
-          </Dialog.Title>
-          <Dialog.Description className="text-[10px] text-navy-500 mb-4">
-            {event.country} | {new Date(event.date).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </Dialog.Description>
-
-          <div className="space-y-4 max-h-[50vh] overflow-y-auto">
+          <div className="grid grid-cols-3 gap-4">
+            {/* Actors */}
             {event.actors && (
               <section>
-                <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2 pb-1 border-b border-navy-700/20">
+                <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
                   Actors
                 </h4>
-                <p className="text-xs text-navy-200">{event.actors}</p>
+                <p className="text-[11px] text-navy-300 leading-snug">{event.actors}</p>
               </section>
             )}
 
+            {/* Details */}
             {event.notes && (
-              <section>
-                <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2 pb-1 border-b border-navy-700/20">
+              <section className={event.actors ? "" : "col-span-2"}>
+                <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
                   Details
                 </h4>
-                <p className="text-xs text-navy-200 leading-relaxed">{event.notes}</p>
+                <p className="text-[11px] text-navy-300 leading-relaxed">{event.notes}</p>
               </section>
             )}
 
-            <section>
-              <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2 pb-1 border-b border-navy-700/20">
-                Coordinates
-              </h4>
-              <p className="text-xs text-navy-300 font-mono">
-                {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
-              </p>
-            </section>
-
+            {/* Source */}
             {event.sourceUrl && (
               <section>
-                <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2 pb-1 border-b border-navy-700/20">
+                <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
                   Source
                 </h4>
                 <a
                   href={event.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors break-all"
+                  className="text-[11px] text-accent-cyan hover:text-accent-cyan/80 transition-colors break-all font-mono"
                 >
                   {event.source || event.sourceUrl}
                 </a>
               </section>
             )}
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </div>
+      </div>
+    </div>
   );
 }

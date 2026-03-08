@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Globe,
   Zap,
+  Wand2,
 } from "lucide-react";
 import { COUNTRIES, computeTeamPower, computePowerBalance, type PowerProfile } from "@/lib/game-theory/countries";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
@@ -67,6 +68,15 @@ interface AnalysisResult {
     contested: string[];
     overallBalance: number;
   };
+  intelligence?: {
+    signals: { title: string; intensity: number; category: string; date: string; sectors: string[] }[];
+    predictions: { claim: string; confidence: number; category: string; deadline: string; direction: string | null }[];
+    systemicRisk: { regime: string; compositeStress: number; absorptionRatio: number; turbulencePercentile: number; interpretation: string } | null;
+    calendarContext: unknown;
+    signalCount: number;
+    predictionCount: number;
+    highIntensitySignals: number;
+  };
 }
 
 // ── Helpers ──
@@ -101,13 +111,48 @@ const STABILITY_COLOR = {
   mixed: "text-accent-amber border-accent-amber/30",
 };
 
+// ── Auto-Assign Presets ──
+
+const PRESETS = {
+  "nato-vs-csto": {
+    label: "NATO vs CSTO",
+    desc: "Western alliance vs Russia-led bloc",
+    blue: ["US", "CA", "GB", "FR", "DE", "IT", "ES", "PL", "NL", "SE", "NO", "FI", "RO", "GR", "TR"],
+    red: ["RU", "BY", "KZ", "UZ", "SY", "IR"],
+  },
+  "us-china": {
+    label: "US-China Rivalry",
+    desc: "Pacific theatre + economic blocs",
+    blue: ["US", "JP", "KR", "TW", "AU", "NZ", "PH", "GB", "CA"],
+    red: ["CN", "RU", "KP", "MM", "PK", "IR"],
+  },
+  "middle-east": {
+    label: "Middle East Axis",
+    desc: "Israel-Gulf coalition vs Iran axis",
+    blue: ["IL", "SA", "AE", "JO", "EG", "US", "GB"],
+    red: ["IR", "SY", "YE", "IQ", "LB", "RU"],
+  },
+  "global-south": {
+    label: "Global Realignment",
+    desc: "G7 vs BRICS+",
+    blue: ["US", "GB", "FR", "DE", "IT", "JP", "CA", "AU", "KR", "NL", "ES", "PL"],
+    red: ["CN", "RU", "IN", "BR", "ZA", "IR", "SA", "EG", "ET", "AE"],
+  },
+  "taiwan-strait": {
+    label: "Taiwan Strait Crisis",
+    desc: "US-led defense vs PRC reunification",
+    blue: ["US", "TW", "JP", "AU", "KR", "PH", "GB"],
+    red: ["CN", "RU", "KP"],
+  },
+} as const;
+
 // ── Component ──
 
 export default function GlobalScenarioPage() {
   const [teams, setTeams] = useState<Record<string, "blue" | "red">>({});
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<"balance" | "matrix" | "nash" | "escalation">("balance");
+  const [tab, setTab] = useState<"balance" | "matrix" | "nash" | "escalation" | "intel">("balance");
 
   const blueTeam = useMemo(() => Object.entries(teams).filter(([, t]) => t === "blue").map(([c]) => c), [teams]);
   const redTeam = useMemo(() => Object.entries(teams).filter(([, t]) => t === "red").map(([c]) => c), [teams]);
@@ -162,6 +207,15 @@ export default function GlobalScenarioPage() {
     }
   }, [blueTeam, redTeam]);
 
+  const handlePreset = useCallback((preset: keyof typeof PRESETS) => {
+    const p = PRESETS[preset];
+    const next: Record<string, "blue" | "red"> = {};
+    for (const code of p.blue) next[code] = "blue";
+    for (const code of p.red) next[code] = "red";
+    setTeams(next);
+    setAnalysis(null);
+  }, []);
+
   const getCountryName = (code: string) => COUNTRIES.find(c => c.code === code)?.name || code;
 
   return (
@@ -214,6 +268,36 @@ export default function GlobalScenarioPage() {
               {/* Click instruction */}
               <div className="text-[10px] text-navy-600 font-mono text-center py-1">
                 Click country: neutral &rarr; blue &rarr; red &rarr; neutral
+              </div>
+
+              {/* Auto-Assign Presets */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Wand2 className="h-3.5 w-3.5 text-accent-amber" />
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-navy-400 font-semibold">
+                    Quick Assign
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map(key => {
+                    const p = PRESETS[key];
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handlePreset(key)}
+                        className="w-full text-left px-2.5 py-2 rounded border border-navy-700/20 hover:border-navy-600/40 hover:bg-navy-800/30 transition-colors group"
+                      >
+                        <div className="text-[11px] text-navy-200 group-hover:text-navy-100 font-medium">{p.label}</div>
+                        <div className="text-[9px] text-navy-600 mt-0.5">{p.desc}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[8px] font-mono text-accent-cyan/60">{p.blue.length} BLUE</span>
+                          <span className="text-[8px] font-mono text-navy-700">vs</span>
+                          <span className="text-[8px] font-mono text-accent-rose/60">{p.red.length} RED</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Blue Force */}
@@ -352,16 +436,16 @@ export default function GlobalScenarioPage() {
               <div className="absolute bottom-3 left-3 z-[400] bg-navy-900/90 backdrop-blur-sm border border-navy-700/30 rounded px-3 py-2 pointer-events-none">
                 <div className="flex items-center gap-4 text-[9px] font-mono">
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-accent-cyan/80" />
-                    <span className="text-navy-400">Blue</span>
+                    <span className="w-3 h-2 rounded-[2px] bg-accent-cyan/50 border border-accent-cyan/60" />
+                    <span className="text-navy-400">Blue Force</span>
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-accent-rose/80" />
-                    <span className="text-navy-400">Red</span>
+                    <span className="w-3 h-2 rounded-[2px] bg-accent-rose/50 border border-accent-rose/60" />
+                    <span className="text-navy-400">Red Force</span>
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-navy-600/60" />
-                    <span className="text-navy-500">Neutral</span>
+                    <span className="w-3 h-2 rounded-[2px] bg-navy-700/40 border border-navy-600/40" />
+                    <span className="text-navy-500">Unaligned</span>
                   </span>
                 </div>
               </div>
@@ -393,7 +477,7 @@ export default function GlobalScenarioPage() {
 
                   {/* Tabs */}
                   <div className="flex items-center gap-1">
-                    {(["balance", "matrix", "nash", "escalation"] as const).map(t => (
+                    {(["balance", "matrix", "nash", "escalation", "intel"] as const).map(t => (
                       <button
                         key={t}
                         onClick={() => setTab(t)}
@@ -429,6 +513,7 @@ export default function GlobalScenarioPage() {
                   {tab === "matrix" && <MatrixTab analysis={analysis} />}
                   {tab === "nash" && <NashTab equilibria={analysis.analysis.nashEquilibria} />}
                   {tab === "escalation" && <EscalationTab ladder={analysis.analysis.escalationLadder} />}
+                  {tab === "intel" && analysis.intelligence && <IntelTab intelligence={analysis.intelligence} />}
                 </div>
               </div>
             )}
@@ -664,6 +749,142 @@ function EscalationTab({ ladder }: { ladder: AnalysisResult["analysis"]["escalat
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Intel Tab ──
+
+const INTENSITY_COLORS = ["", "text-signal-1", "text-signal-2", "text-signal-3", "text-signal-4", "text-signal-5"];
+const REGIME_COLORS: Record<string, string> = {
+  stable: "text-accent-emerald",
+  elevated: "text-accent-amber",
+  fragile: "text-signal-4",
+  critical: "text-signal-5",
+};
+
+function IntelTab({ intelligence }: { intelligence: NonNullable<AnalysisResult["intelligence"]> }) {
+  const hasSignals = intelligence.signals.length > 0;
+  const hasPredictions = intelligence.predictions.length > 0;
+  const hasRisk = !!intelligence.systemicRisk;
+
+  if (!hasSignals && !hasPredictions && !hasRisk) {
+    return (
+      <p className="text-[11px] text-navy-500">
+        No live intelligence data available for the selected countries. Signals and predictions will appear here as the system processes data relevant to this scenario.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Systemic Risk State */}
+      {hasRisk && intelligence.systemicRisk && (
+        <div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-2">Market Regime</div>
+          <div className="grid grid-cols-4 gap-3">
+            <div className="border border-navy-700/30 rounded p-2.5">
+              <div className="text-[9px] font-mono text-navy-600 mb-1">REGIME</div>
+              <div className={`text-[13px] font-mono font-bold uppercase ${REGIME_COLORS[intelligence.systemicRisk.regime] || "text-navy-300"}`}>
+                {intelligence.systemicRisk.regime}
+              </div>
+            </div>
+            <div className="border border-navy-700/30 rounded p-2.5">
+              <div className="text-[9px] font-mono text-navy-600 mb-1">STRESS</div>
+              <div className={`text-[13px] font-mono font-bold tabular-nums ${intelligence.systemicRisk.compositeStress > 50 ? "text-signal-5" : intelligence.systemicRisk.compositeStress > 30 ? "text-accent-amber" : "text-accent-emerald"}`}>
+                {intelligence.systemicRisk.compositeStress.toFixed(0)}/100
+              </div>
+            </div>
+            <div className="border border-navy-700/30 rounded p-2.5">
+              <div className="text-[9px] font-mono text-navy-600 mb-1">ABSORPTION</div>
+              <div className="text-[13px] font-mono font-bold tabular-nums text-navy-200">
+                {intelligence.systemicRisk.absorptionRatio.toFixed(2)}
+              </div>
+            </div>
+            <div className="border border-navy-700/30 rounded p-2.5">
+              <div className="text-[9px] font-mono text-navy-600 mb-1">TURBULENCE</div>
+              <div className="text-[13px] font-mono font-bold tabular-nums text-navy-200">
+                P{intelligence.systemicRisk.turbulencePercentile.toFixed(0)}
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-navy-500 mt-2 leading-relaxed">
+            {intelligence.systemicRisk.interpretation}
+          </p>
+        </div>
+      )}
+
+      {/* Active Signals */}
+      {hasSignals && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-400">
+              Relevant Signals
+            </div>
+            <div className="text-[9px] font-mono text-navy-600">
+              {intelligence.highIntensitySignals} high-intensity / {intelligence.signalCount} total
+            </div>
+          </div>
+          <div className="space-y-1">
+            {intelligence.signals.map((sig, i) => (
+              <div key={i} className="flex items-start gap-2 py-1.5 border-b border-navy-800/30 last:border-0">
+                <span className={`text-[10px] font-mono font-bold w-4 text-center shrink-0 mt-px ${INTENSITY_COLORS[sig.intensity]}`}>
+                  {sig.intensity}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-navy-200 leading-snug truncate">{sig.title}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[9px] font-mono text-navy-600">{sig.date}</span>
+                    <span className="text-[9px] font-mono text-navy-600">{sig.category}</span>
+                    {sig.sectors.length > 0 && (
+                      <span className="text-[9px] font-mono text-navy-700">{sig.sectors.slice(0, 2).join(", ")}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Active Predictions */}
+      {hasPredictions && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-400">
+              Active Predictions
+            </div>
+            <div className="text-[9px] font-mono text-navy-600">
+              {intelligence.predictionCount} relevant
+            </div>
+          </div>
+          <div className="space-y-1">
+            {intelligence.predictions.map((pred, i) => (
+              <div key={i} className="flex items-start gap-2 py-1.5 border-b border-navy-800/30 last:border-0">
+                <span className={`text-[10px] font-mono font-bold w-8 text-right shrink-0 mt-px tabular-nums ${
+                  pred.confidence >= 0.7 ? "text-accent-emerald" : pred.confidence >= 0.5 ? "text-accent-cyan" : "text-navy-400"
+                }`}>
+                  {Math.round(pred.confidence * 100)}%
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-navy-200 leading-snug">{pred.claim}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {pred.direction && (
+                      <span className={`text-[9px] font-mono font-medium ${
+                        pred.direction === "up" ? "text-accent-emerald" : pred.direction === "down" ? "text-accent-rose" : "text-accent-amber"
+                      }`}>
+                        {pred.direction.toUpperCase()}
+                      </span>
+                    )}
+                    <span className="text-[9px] font-mono text-navy-600">by {pred.deadline}</span>
+                    <span className="text-[9px] font-mono text-navy-600">{pred.category}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

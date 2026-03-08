@@ -1,0 +1,129 @@
+# NEXUS Intelligence — Full Reference
+
+> Geopolitical-market convergence intelligence platform for analysts, traders, and institutions
+
+## Overview
+
+NEXUS is an AI-driven intelligence platform that fuses four primary signal layers (geopolitical, market, OSINT, systemic risk) with a narrative overlay (calendar/celestial as actor-belief context). The system identifies conditions under which events become more probable by running convergence analysis across independent data domains.
+
+NEXUS does not predict events. It surfaces elevated probability windows when multiple independent layers align within a narrow temporal and thematic window.
+
+## Intelligence Pipeline
+
+### Phase 1: Detect
+Continuous monitoring across four primary signal layers plus a narrative overlay. Each layer operates its own detection engine independently. Raw inputs are normalised into a common signal schema: timestamp, category, affected entities, geographic scope, and preliminary intensity score (1-5). Detection thresholds are dynamic, recalculated on a rolling window to adapt to shifting environments. Signals below the noise floor are still recorded for longer-horizon pattern recognition.
+
+### Phase 2: Converge
+The convergence engine identifies temporal and thematic overlaps between signals from independent layers. Convergence scoring is non-linear. Highly independent layers receive stronger multipliers than correlated layers. Temporal proximity matters: three-layer convergence within 48 hours scores significantly higher than the same signals spread over two weeks. Thematic overlap (same region, sector, or asset class) adds additional weighting. Every convergence event is compared against a library of past convergences and their outcomes.
+
+Convergence levels:
+- 2 primary layers: Noteworthy
+- 3 primary layers: Significant
+- 4 primary layers: Critical (exceptionally rare)
+
+Narrative overlays (CAL/CEL) add actor-belief context but do not contribute convergence weight. Maximum narrative bonus: 0.5.
+
+### Phase 3: Synthesise
+Converged signal clusters are passed through an AI analysis pipeline. Outputs include: directional market impact assessment, escalation probability ranges, affected sectors and instruments, risk factor enumeration, historical parallels with outcome data, and scenario trees with probability weightings. The system favours a single high-confidence assessment over multiple hedged opinions. Intelligence briefs are tagged with confidence levels, time horizons, and the specific signals that informed each conclusion.
+
+### Phase 4: Validate
+After each signal window closes, the system measures prediction accuracy using the Brier scoring method. Prediction performance is decomposed into directional accuracy, magnitude accuracy, and timing accuracy. Feedback flows upstream into detection thresholds, convergence scoring weights, and AI synthesis prompts. The system tracks regime-aware tagging, direction vs level split scoring, pre-event filtering, and automatic expiry (7 days past deadline).
+
+## Signal Layers (Detail)
+
+### GEO — Geopolitical Intelligence
+Sources: Government publications, defence intelligence feeds, verified reporting networks, treaty databases, sanctions registries.
+Refresh: Continuous.
+
+### MKT — Market Data
+Sources: Real-time price feeds, options flow aggregators, economic indicator APIs (Alpha Vantage, FRED), central bank data repositories.
+Refresh: Real-time.
+
+### OSI — Open-Source Intelligence
+Sources: Flight tracking networks (OpenSky), maritime AIS data, event wire services (GDELT), satellite imagery providers, social media analysis, ACLED conflict data.
+Refresh: Continuous.
+
+### CAL — Calendar Systems (Narrative Overlay)
+Sources: Hebrew and Islamic calendar databases, central bank schedules (FOMC), derivatives expiry calendars, fiscal year boundaries.
+Refresh: Daily.
+Role: Actor-belief context only. No convergence weight.
+
+### CEL — Celestial Ephemeris (Narrative Overlay)
+Sources: Astronomical ephemeris data, eclipse databases, planetary transit calculations, solar activity indices.
+Refresh: Daily.
+Role: Actor-belief context only. No convergence weight.
+
+## Prediction Tracking
+
+All predictions are immutably logged with: timestamp, stated confidence (0-1), reasoning chain, contributing signal IDs, category, timeframe, deadline, and regime at creation. No prediction can be retroactively modified or deleted.
+
+Outcomes: confirmed, denied, partial, expired, post_event.
+
+Scoring metrics:
+- Brier Score: Mean squared difference between forecast probability and outcome. 0.0 = perfect, 1.0 = worst.
+- BIN Decomposition: Bias, Information, Noise components.
+- Calibration: Predicted probability vs observed frequency across probability bins.
+- Direction vs Level: Separate accuracy for directional calls and price targets.
+
+Predictions are regime-aware. If the market regime changes after a prediction is created, it can be automatically invalidated and excluded from scoring. Post-event predictions (made after the event has begun) are filtered from accuracy calculations.
+
+## Game Theory
+
+The platform applies game theory frameworks to geopolitical-market analysis:
+- Nash equilibria in conflict scenarios
+- Signalling games and credible commitment analysis
+- Deterrence models and escalation ladders
+- Wartime threshold detection with strategy invalidation
+- Schelling focal points for coordination analysis
+
+## War Room
+
+Real-time operational map with:
+- Military aircraft tracking (OpenSky Network, 20-second polling)
+- OSINT event feeds (GDELT, 5-minute polling)
+- Conflict zone overlays
+- Actor profiles and detail modals
+- Scenario modelling overlays
+
+## Trading Integration
+
+- Trading 212: Stock trading (demo and live modes)
+- Coinbase: Crypto trading
+- Watchlists with live quotes
+- AI-generated thesis-driven position sizing
+
+## Subscription Tiers
+
+- **Analyst**: $299/month ($249/month annual)
+- **Operator**: $999/month ($849/month annual)
+- **Institution**: Custom pricing
+
+## Foundational Principles
+
+1. **Independence of Layers**: Each primary signal layer operates on fundamentally different data sources. This independence is what makes convergence meaningful.
+2. **Convergence Over Prediction**: NEXUS identifies conditions under which events become more probable. Prediction implies certainty; convergence analysis surfaces elevated probability windows.
+3. **Continuous Calibration**: Every output feeds back into the system. Weights, thresholds, and scoring parameters evolve with each completed prediction cycle.
+4. **Grounded Analysis**: Every assessment traces back to specific, observable data points. No hallucinated connections or unsupported pattern projection.
+
+## Known Limitations
+
+- **Black Swan Blindness**: Truly unprecedented events have no historical pattern to match against.
+- **Data Latency**: Some signal layers operate on delayed data (minutes to hours).
+- **Calibration Drift**: Market regimes change. Correlations that held during one period may break down in the next.
+
+## Research Pages
+
+- Methodology: https://nexushq.xyz/research/methodology
+- Signal Theory: https://nexushq.xyz/research/signal-theory
+- Prediction Accuracy (Live Data): https://nexushq.xyz/research/prediction-accuracy
+- Calendar Correlations: https://nexushq.xyz/research/calendar-correlations
+- Game Theory Models: https://nexushq.xyz/research/game-theory
+
+## Company
+
+- Name: NEXUS Intelligence (product of Polyxmedia)
+- Founder: Andre Figueira
+- Location: 86-90 Paul Street, London, EC2A 4NE, UK
+- Website: https://nexushq.xyz
+- Parent: https://polyxmedia.com
+- Contact: hello@polyxmedia.com

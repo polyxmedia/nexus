@@ -21,7 +21,7 @@ export interface HistoricalParallel {
   timeToResolution: string;
   marketImpact: string;
   keyDifferences: string[];
-  keySimlarities: string[];
+  keySimilarities: string[];
 }
 
 export interface ParallelAnalysis {

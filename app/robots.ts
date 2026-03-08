@@ -19,6 +19,8 @@ export default function robots(): MetadataRoute.Robots {
           "/cookies",
           "/security",
           "/status",
+          "/llms.txt",
+          "/llms-full.txt",
         ],
         disallow: [
           "/api/",
@@ -41,6 +43,39 @@ export default function robots(): MetadataRoute.Robots {
           "/register",
           "/research/whitepapers",
         ],
+      },
+      // AI crawlers — allow full access to public content
+      {
+        userAgent: "GPTBot",
+        allow: [
+          "/",
+          "/about",
+          "/research/",
+          "/docs",
+          "/llms.txt",
+          "/llms-full.txt",
+        ],
+        disallow: ["/api/", "/dashboard", "/chat", "/admin", "/login", "/register"],
+      },
+      {
+        userAgent: "ChatGPT-User",
+        allow: ["/", "/about", "/research/", "/docs", "/llms.txt", "/llms-full.txt"],
+        disallow: ["/api/", "/dashboard", "/chat", "/admin", "/login", "/register"],
+      },
+      {
+        userAgent: "Google-Extended",
+        allow: ["/", "/about", "/research/", "/docs", "/llms.txt", "/llms-full.txt"],
+        disallow: ["/api/", "/dashboard", "/chat", "/admin", "/login", "/register"],
+      },
+      {
+        userAgent: "PerplexityBot",
+        allow: ["/", "/about", "/research/", "/docs", "/llms.txt", "/llms-full.txt"],
+        disallow: ["/api/", "/dashboard", "/chat", "/admin", "/login", "/register"],
+      },
+      {
+        userAgent: "ClaudeBot",
+        allow: ["/", "/about", "/research/", "/docs", "/llms.txt", "/llms-full.txt"],
+        disallow: ["/api/", "/dashboard", "/chat", "/admin", "/login", "/register"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

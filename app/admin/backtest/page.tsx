@@ -1505,12 +1505,20 @@ export default function BacktestPage() {
 
   const loadRun = async (id: string) => {
     setActiveRunId(id);
+    setActiveRun(null);
     try {
       const res = await fetch(`/api/admin/backtest/${id}`);
       if (res.ok) {
-        setActiveRun(await res.json());
+        const data = await res.json();
+        setActiveRun(data);
+      } else {
+        console.error(`Failed to load backtest ${id}: HTTP ${res.status}`);
+        setActiveRunId(null);
       }
-    } catch {}
+    } catch (err) {
+      console.error("Failed to load backtest run:", err);
+      setActiveRunId(null);
+    }
   };
 
   return (
@@ -1596,6 +1604,14 @@ export default function BacktestPage() {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {activeRunId && !activeRun && (
+          <div className="flex items-center gap-3 py-12 justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-navy-500" />
+            <span className="font-mono text-xs text-navy-400">Loading backtest run...</span>
           </div>
         )}
 

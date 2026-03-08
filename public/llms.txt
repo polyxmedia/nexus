@@ -1,0 +1,51 @@
+# NEXUS Intelligence
+
+> Geopolitical-market convergence intelligence platform
+
+NEXUS integrates four primary signal layers (geopolitical, market, OSINT, systemic risk) plus a narrative overlay into one operational intelligence platform. The system runs convergence analysis across independent data domains, generates AI-synthesized intelligence briefs, and tracks every prediction against real-world outcomes using Brier scoring.
+
+## Core Capabilities
+
+- Multi-layer signal detection across geopolitical, market, OSINT, and systemic risk domains
+- Non-linear convergence scoring when independent layers align within narrow time windows
+- AI-driven intelligence synthesis producing structured briefs with directional assessments
+- Outcome tracking with Brier scoring, calibration analysis, and BIN decomposition
+- Game theory scenario modelling (Nash equilibria, Schelling focal points, escalation ladders)
+- Live war room with military flight tracking and OSINT event feeds
+- Integrated trading execution across stocks and crypto
+- Regime-aware prediction tagging with automatic invalidation on regime change
+
+## Signal Layers
+
+- GEO: Geopolitical intelligence (conflict escalation, sanctions, diplomatic shifts, military posture)
+- MKT: Market data (options flow, volatility regimes, cross-asset divergences, macro indicators)
+- OSI: Open-source intelligence (flight tracking, maritime AIS, satellite imagery, event wires)
+- CAL: Calendar overlay (Hebrew/Islamic calendars, FOMC cycles, options expiry) — narrative context only
+- CEL: Celestial overlay (eclipses, planetary transits, lunar cycles) — narrative context only
+
+Calendar and celestial layers are actor-belief context with a maximum 0.5 bonus. They carry no convergence weight.
+
+## Methodology
+
+The intelligence pipeline operates in four phases: Detect, Converge, Synthesise, Validate. Each phase builds on the previous. Every assessment traces back to observable data points. Every prediction is timestamped, immutably logged, and scored against outcomes. The full prediction record is published, failures alongside successes.
+
+## Research
+
+- Methodology: https://nexushq.xyz/research/methodology
+- Signal Theory: https://nexushq.xyz/research/signal-theory
+- Prediction Accuracy (Live): https://nexushq.xyz/research/prediction-accuracy
+- Calendar Correlations: https://nexushq.xyz/research/calendar-correlations
+- Game Theory Models: https://nexushq.xyz/research/game-theory
+
+## Pricing
+
+- Analyst: $299/month ($249/month annual)
+- Operator: $999/month ($849/month annual)
+- Institution: Custom pricing
+
+## Company
+
+Built by Andre Figueira / Polyxmedia. Based in London, UK.
+
+- Website: https://nexushq.xyz
+- Contact: hello@polyxmedia.com

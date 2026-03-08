@@ -58,6 +58,49 @@ body {
   /* Body surface */
   background-color: #f9f9f9;
   color: #111111;
+
+  /* Accent colors slightly deepened for light bg contrast */
+  --color-accent-cyan: #0891b2;
+  --color-accent-emerald: #059669;
+  --color-accent-amber: #d97706;
+  --color-accent-rose: #e11d48;
+}
+
+/* ── Light Mode: Auth Pages ── */
+.light .auth-card {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.light .auth-input {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.light .auth-input:focus {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.light .auth-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.light .auth-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.light .auth-grid-bg {
+  opacity: 0.06;
+}
+
+
+.light .light-globe-container {
+  filter: invert(1) hue-rotate(180deg);
+  opacity: 0.15;
 }
 
 /* Custom scrollbar */
@@ -141,6 +184,11 @@ body {
 
 .wr-fade-in {
   animation: wr-fade-in 200ms ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Tab Animated Underline ── */

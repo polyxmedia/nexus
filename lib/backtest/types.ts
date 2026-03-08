@@ -46,7 +46,9 @@ export interface BacktestPrediction {
   actualReturn?: Record<string, number>;
   directionCorrect?: boolean;
   brierScore?: number;
-  outcome?: "confirmed" | "denied" | "partial";
+  outcome?: "confirmed" | "denied";
+  /** Walk-forward fold this prediction belongs to */
+  walkForwardFold?: number;
 }
 
 export interface BacktestRun {
@@ -81,10 +83,28 @@ export interface BacktestResults {
     directionalAccuracy: number;
     brierScore: number;
   };
-  /** p-value: probability that observed accuracy is due to chance */
+  /** Climatological baseline: naive "always bullish" accuracy */
+  climatologicalBaseline: {
+    directionalAccuracy: number;
+    brierScore: number;
+  };
+  /** p-value: probability that observed accuracy is due to chance (vs random) */
   pValue: number;
-  /** Is the result statistically significant at 95% confidence? */
+  /** p-value corrected for multiple comparisons (Holm-Bonferroni) */
+  pValueCorrected: number;
+  /** Number of hypothesis tests run (for multiple testing correction) */
+  hypothesisCount: number;
+  /** Is the result statistically significant at 95% confidence after correction? */
   significant: boolean;
+
+  // ── Walk-forward validation ──
+  walkForward?: WalkForwardResults;
+
+  // ── Regime-conditioned analysis ──
+  byRegime?: Record<string, RegimeStats>;
+
+  // ── Transaction cost sensitivity ──
+  costSensitivity?: CostSensitivityResult[];
 
   // ── Breakdowns ──
   byTimeframe: Record<number, TimeframeStats>;
@@ -103,6 +123,53 @@ export interface BacktestResults {
 
   // ── AI Analysis ──
   aiAnalysis?: string;
+}
+
+export interface WalkForwardResults {
+  /** Number of folds (expanding window) */
+  foldCount: number;
+  folds: WalkForwardFold[];
+  /** Out-of-sample aggregate accuracy */
+  oosAccuracy: number;
+  /** Out-of-sample aggregate Brier score */
+  oosBrierScore: number;
+  /** Ratio: OOS accuracy / in-sample accuracy (< 1 = overfit) */
+  overfitRatio: number;
+  /** Is OOS accuracy significantly above random? */
+  oosSignificant: boolean;
+  oosPValue: number;
+}
+
+export interface WalkForwardFold {
+  foldIndex: number;
+  trainStart: string;
+  trainEnd: string;
+  testStart: string;
+  testEnd: string;
+  trainCount: number;
+  testCount: number;
+  trainAccuracy: number;
+  testAccuracy: number;
+  trainBrier: number;
+  testBrier: number;
+}
+
+export interface RegimeStats {
+  regime: string;
+  count: number;
+  directionalAccuracy: number;
+  brierScore: number;
+  avgConfidence: number;
+  avgReturn: number;
+}
+
+export interface CostSensitivityResult {
+  costBps: number;
+  totalReturn: number;
+  totalReturnPct: number;
+  sharpeRatio: number;
+  maxDrawdownPct: number;
+  profitFactor: number;
 }
 
 export interface PortfolioResults {

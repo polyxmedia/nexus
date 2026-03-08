@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -79,7 +79,7 @@ function ExpandableSection({
   defaultOpen = false,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -107,6 +107,407 @@ function ExpandableSection({
   );
 }
 
+// ════════════════════════════════════════════════
+// ── LIVE RESULTS TYPES & HELPERS ──
+// ════════════════════════════════════════════════
+
+interface CalibrationBucket {
+  range: string;
+  midpoint: number;
+  count: number;
+  confirmedRate: number;
+  reliable: boolean;
+}
+
+interface CategoryRow {
+  category: string;
+  total: number;
+  confirmed: number;
+  denied: number;
+  brierScore: number;
+  avgConfidence: number;
+  calibrationGap: number;
+  reliable: boolean;
+}
+
+interface FeedbackReport {
+  brierScore: number;
+  logLoss: number;
+  binaryAccuracy: number;
+  avgConfidence: number;
+  calibrationGap: number;
+  totalResolved: number;
+  sampleSufficient: boolean;
+  calibration: CalibrationBucket[];
+  byCategory: CategoryRow[];
+  timeframeAccuracy: Record<string, { count: number; brierScore: number; binaryAccuracy: number; reliable: boolean }>;
+  recentTrend: { recentBrier: number; priorBrier: number; improving: boolean; windowSize: number } | null;
+  failurePatterns: { pattern: string; frequency: number }[];
+  bin: { bias: number; noise: number; information: number; biasDirection: string; interpretation: string };
+  directionLevel: { totalWithDirection: number; directionCorrectRate: number; totalWithLevel: number; levelCorrectRate: number } | null;
+  regimeInvalidatedCount: number;
+  postEventCount: number;
+}
+
+function brierColor(score: number): string {
+  if (score < 0.15) return "text-accent-emerald";
+  if (score <= 0.25) return "text-accent-cyan";
+  return "text-accent-amber";
+}
+
+function fmt3(n: number): string {
+  return n.toFixed(3);
+}
+
+function fmtPct(n: number): string {
+  return (n * 100).toFixed(1) + "%";
+}
+
+// ════════════════════════════════════════════════
+// ── LIVE RESULTS SECTION COMPONENT ──
+// ════════════════════════════════════════════════
+
+function LiveResultsSection({
+  liveResultsReveal,
+}: {
+  liveResultsReveal: { ref: RefObject<HTMLDivElement | null>; visible: boolean };
+}) {
+  const [report, setReport] = useState<FeedbackReport | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/predictions/feedback")
+      .then((r) => r.json())
+      .then((data) => {
+        setReport(data.report ?? null);
+      })
+      .catch(() => {
+        setReport(null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const insufficient = !loading && (!report || report.totalResolved < 5);
+
+  return (
+    <div ref={liveResultsReveal.ref} className="max-w-5xl mx-auto">
+      <SectionHead number="22" label="Live Results and Prediction Record" visible={liveResultsReveal.visible} />
+
+      {/* Intro text */}
+      <div className={`mt-8 max-w-3xl space-y-6 ${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
+        <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+          Methodology papers typically end with theory. NEXUS ends with data. Every prediction the system generates is timestamped, tracked, and resolved against real-world outcomes. The results are published, not curated, meaning the failures are visible alongside the successes.
+        </p>
+        <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+          One distinction matters and should be applied when evaluating any aggregate metric: predictions generated after a triggering event has already begun are post-onset analysis, not prospective forecasts. They demonstrate that the system reasons coherently about developing situations, not that it predicted them. The forward-looking record, predictions generated before the events they describe, is the only valid measure of forecasting skill and should be evaluated separately. As the prospective dataset grows, the aggregate Brier score and calibration curves will become more meaningful.
+        </p>
+
+        {/* Link card */}
+        <div className="border border-accent-cyan/20 rounded-lg p-6 bg-accent-cyan/[0.03]">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-lg bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0">
+              <FileText className="w-4 h-4 text-accent-cyan" />
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-accent-cyan mb-1">Live Prediction Tracker</div>
+                <p className="font-sans text-[13px] text-navy-300 leading-[1.7]">
+                  The platform&apos;s prediction record is available to all subscribers. Every prediction includes the claim, confidence level, signal sources that triggered it, resolution date, and outcome. Aggregate metrics, including Brier score, log loss, and calibration curves, are computed continuously.
+                </p>
+              </div>
+              <Link
+                href="/predictions"
+                className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+              >
+                View Prediction Record
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Dynamic data block */}
+      <div className={`mt-8 space-y-6 ${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "200ms" }}>
+
+        {loading && (
+          <div className="border border-navy-800/30 rounded-lg p-8 bg-navy-900/20 text-center">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-navy-600">Loading prediction data</div>
+          </div>
+        )}
+
+        {insufficient && (
+          <div className="border border-navy-800/30 rounded-lg p-8 bg-navy-900/20">
+            <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Dataset Status</div>
+            <p className="font-sans text-[13px] text-navy-500 leading-[1.8]">
+              The live prediction dataset is still building. Aggregate metrics, calibration curves, and category breakdowns will appear here once a minimum of five predictions have been resolved. This threshold exists to prevent spurious statistics from a small sample from being presented as meaningful signal.
+            </p>
+          </div>
+        )}
+
+        {!loading && report && report.totalResolved >= 5 && (
+          <>
+            {/* Top-line KPIs */}
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Top-Line Performance</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Brier Score</div>
+                  <div className={`font-mono text-[18px] font-medium tabular-nums ${brierColor(report.brierScore)}`}>{fmt3(report.brierScore)}</div>
+                  <div className="font-mono text-[9px] text-navy-700 mt-1">0 = perfect, 0.25 = coin flip</div>
+                </div>
+                <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Binary Accuracy</div>
+                  <div className="font-mono text-[18px] font-medium tabular-nums text-navy-200">{fmtPct(report.binaryAccuracy)}</div>
+                  <div className="font-mono text-[9px] text-navy-700 mt-1">directional correct rate</div>
+                </div>
+                <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Calibration Gap</div>
+                  <div className={`font-mono text-[18px] font-medium tabular-nums ${Math.abs(report.calibrationGap) < 0.05 ? "text-accent-emerald" : Math.abs(report.calibrationGap) < 0.12 ? "text-accent-cyan" : "text-accent-amber"}`}>
+                    {report.calibrationGap >= 0 ? "+" : ""}{fmtPct(report.calibrationGap)}
+                  </div>
+                  <div className="font-mono text-[9px] text-navy-700 mt-1">+ = overconfident</div>
+                </div>
+                <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Avg Confidence</div>
+                  <div className="font-mono text-[18px] font-medium tabular-nums text-navy-200">{fmtPct(report.avgConfidence)}</div>
+                  <div className="font-mono text-[9px] text-navy-700 mt-1">mean stated confidence</div>
+                </div>
+                <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Total Resolved</div>
+                  <div className="font-mono text-[18px] font-medium tabular-nums text-navy-200">{report.totalResolved}</div>
+                  <div className="font-mono text-[9px] text-navy-700 mt-1">predictions scored</div>
+                </div>
+                <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Pre-Event Filter</div>
+                  <div className="font-mono text-[18px] font-medium tabular-nums text-navy-500">
+                    {report.regimeInvalidatedCount + report.postEventCount}
+                  </div>
+                  <div className="font-mono text-[9px] text-navy-700 mt-1">{report.regimeInvalidatedCount} regime + {report.postEventCount} post-event</div>
+                </div>
+              </div>
+            </div>
+
+            {/* BIN Decomposition */}
+            {report.bin && (
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">BIN Decomposition (Bias / Noise / Information)</div>
+                <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20 space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-1">Bias</div>
+                      <div className={`font-mono text-[15px] font-medium tabular-nums ${report.bin.bias < 0.02 ? "text-accent-emerald" : report.bin.bias < 0.05 ? "text-accent-cyan" : "text-accent-amber"}`}>
+                        {fmt3(report.bin.bias)}
+                      </div>
+                      <div className="font-mono text-[9px] text-navy-700 mt-0.5">{report.bin.biasDirection}</div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-1">Noise</div>
+                      <div className={`font-mono text-[15px] font-medium tabular-nums ${report.bin.noise < 0.05 ? "text-accent-emerald" : report.bin.noise < 0.12 ? "text-accent-cyan" : "text-accent-amber"}`}>
+                        {fmt3(report.bin.noise)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-1">Information</div>
+                      <div className={`font-mono text-[15px] font-medium tabular-nums ${report.bin.information > 0.05 ? "text-accent-emerald" : "text-navy-400"}`}>
+                        {fmt3(report.bin.information)}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="font-sans text-[12px] text-navy-500 leading-[1.7] border-t border-navy-800/30 pt-3">
+                    {report.bin.interpretation}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Calibration Buckets */}
+            {report.calibration && report.calibration.length > 0 && (
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Calibration Buckets (Stated Confidence vs Actual Confirmed Rate)</div>
+                <div className="border border-navy-800/30 rounded-lg overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-navy-800/30 bg-navy-900/30">
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Range</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Midpoint</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Confirmed Rate</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Count</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Gap</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.calibration.map((bucket) => {
+                        const gap = bucket.confirmedRate - bucket.midpoint;
+                        return (
+                          <tr key={bucket.range} className="border-b border-navy-800/20 last:border-0 hover:bg-navy-900/10 transition-colors">
+                            <td className="px-4 py-2.5 font-mono text-[10px] text-navy-400">{bucket.range}</td>
+                            <td className="px-4 py-2.5 font-mono text-[10px] text-navy-400 tabular-nums">{fmtPct(bucket.midpoint)}</td>
+                            <td className="px-4 py-2.5 font-mono text-[10px] tabular-nums">
+                              {bucket.reliable ? (
+                                <span className={Math.abs(gap) < 0.08 ? "text-accent-emerald" : Math.abs(gap) < 0.15 ? "text-accent-cyan" : "text-accent-amber"}>
+                                  {fmtPct(bucket.confirmedRate)}
+                                </span>
+                              ) : (
+                                <span className="text-navy-700">--</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-[10px] text-navy-500 tabular-nums">{bucket.count}</td>
+                            <td className="px-4 py-2.5 font-mono text-[10px] tabular-nums">
+                              {bucket.reliable ? (
+                                <span className={Math.abs(gap) < 0.08 ? "text-accent-emerald" : "text-accent-amber"}>
+                                  {gap >= 0 ? "+" : ""}{fmtPct(gap)}
+                                </span>
+                              ) : (
+                                <span className="text-navy-700">N/A</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-2 font-mono text-[9px] text-navy-700">
+                  Rows marked -- have insufficient sample count for reliable statistics. Gap = confirmed rate minus stated confidence midpoint.
+                </div>
+              </div>
+            )}
+
+            {/* Category Performance */}
+            {report.byCategory && report.byCategory.length > 0 && (
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Performance by Category</div>
+                <div className="border border-navy-800/30 rounded-lg overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-navy-800/30 bg-navy-900/30">
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Category</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Total</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Confirmed</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Brier</th>
+                        <th className="px-4 py-2.5 font-mono text-[9px] uppercase tracking-wider text-navy-600">Cal Gap</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.byCategory.map((cat) => (
+                        <tr key={cat.category} className="border-b border-navy-800/20 last:border-0 hover:bg-navy-900/10 transition-colors">
+                          <td className="px-4 py-2.5 font-mono text-[10px] text-navy-300">{cat.category}</td>
+                          <td className="px-4 py-2.5 font-mono text-[10px] text-navy-500 tabular-nums">{cat.total}</td>
+                          <td className="px-4 py-2.5 font-mono text-[10px] text-navy-400 tabular-nums">
+                            {cat.total > 0 ? fmtPct(cat.confirmed / cat.total) : "--"}
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-[10px] tabular-nums">
+                            {cat.reliable ? (
+                              <span className={brierColor(cat.brierScore)}>{fmt3(cat.brierScore)}</span>
+                            ) : (
+                              <span className="text-navy-700">--</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-[10px] tabular-nums">
+                            {cat.reliable ? (
+                              <span className={Math.abs(cat.calibrationGap) < 0.08 ? "text-accent-emerald" : "text-accent-amber"}>
+                                {cat.calibrationGap >= 0 ? "+" : ""}{fmtPct(cat.calibrationGap)}
+                              </span>
+                            ) : (
+                              <span className="text-navy-700">N/A</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Direction vs Level */}
+            {report.directionLevel && report.directionLevel.totalWithDirection > 0 && (
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Direction vs Level Accuracy</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Direction Correct Rate</div>
+                    <div className="font-mono text-[20px] font-medium tabular-nums text-navy-200">
+                      {fmtPct(report.directionLevel.directionCorrectRate)}
+                    </div>
+                    <div className="font-mono text-[9px] text-navy-700 mt-1">over {report.directionLevel.totalWithDirection} predictions</div>
+                  </div>
+                  {report.directionLevel.totalWithLevel > 0 && (
+                    <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Level Correct Rate</div>
+                      <div className="font-mono text-[20px] font-medium tabular-nums text-navy-200">
+                        {fmtPct(report.directionLevel.levelCorrectRate)}
+                      </div>
+                      <div className="font-mono text-[9px] text-navy-700 mt-1">over {report.directionLevel.totalWithLevel} predictions</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Trend */}
+            {report.recentTrend && (
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Recent Trend</div>
+                <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20 flex items-center gap-6">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-1">Recent Brier</div>
+                    <div className={`font-mono text-[15px] font-medium tabular-nums ${brierColor(report.recentTrend.recentBrier)}`}>
+                      {fmt3(report.recentTrend.recentBrier)}
+                    </div>
+                  </div>
+                  <div className="text-navy-700 font-mono text-[11px]">vs</div>
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-1">Prior Brier</div>
+                    <div className={`font-mono text-[15px] font-medium tabular-nums ${brierColor(report.recentTrend.priorBrier)}`}>
+                      {fmt3(report.recentTrend.priorBrier)}
+                    </div>
+                  </div>
+                  <div className={`ml-auto font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 rounded border ${report.recentTrend.improving ? "border-accent-emerald/30 text-accent-emerald bg-accent-emerald/[0.05]" : "border-accent-amber/30 text-accent-amber bg-accent-amber/[0.05]"}`}>
+                    {report.recentTrend.improving ? "Improving" : "Declining"}
+                  </div>
+                </div>
+                <div className="mt-1.5 font-mono text-[9px] text-navy-700">
+                  Window: last {report.recentTrend.windowSize} resolved predictions versus prior set.
+                </div>
+              </div>
+            )}
+
+            {/* Static methodology cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Tracking Metrics</div>
+                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
+                  Brier score, log loss, and calibration curves computed over all resolved predictions with segmentation by category and timeframe.
+                </div>
+              </div>
+              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Feedback Integration</div>
+                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
+                  Resolved predictions feed back into the engine with 0.3 damping to prevent overcorrection, continuously tuning the system&apos;s calibration.
+                </div>
+              </div>
+              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Full Transparency</div>
+                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
+                  No cherry-picking. The system publishes every prediction it makes, whether it resolves correctly or incorrectly. This is the standard it holds itself to.
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className={`mt-6 ${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
+        <p className="font-sans text-[13px] text-navy-500 leading-[1.8]">
+          A system that claims to predict markets but hides its track record is asking for faith. NEXUS asks for scrutiny. The prediction tracker exists precisely so that the methodologies described in this paper can be evaluated against real outcomes, not theoretical ones.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Table of Contents ──
 
 const tocSections = [
@@ -115,28 +516,27 @@ const tocSections = [
   { id: "convergence", num: "02", label: "Convergence Analysis" },
   { id: "synthesis", num: "03", label: "AI-Driven Intelligence Synthesis" },
   { id: "prediction", num: "04", label: "Prediction Engine and Calibration" },
-  { id: "game-theory", num: "05", label: "Game Theory Framework" },
-  { id: "iw-framework", num: "06", label: "Indications and Warnings" },
-  { id: "regime-detection", num: "07", label: "Market Regime Detection" },
-  { id: "systemic-risk", num: "08", label: "Systemic Risk Monitoring" },
-  { id: "bocpd", num: "09", label: "Bayesian Change Point Detection" },
-  { id: "ach", num: "10", label: "Analysis of Competing Hypotheses" },
-  { id: "source-reliability", num: "11", label: "NATO Admiralty Rating System" },
-  { id: "nowcasting", num: "12", label: "Economic Nowcasting" },
-  { id: "monte-carlo", num: "13", label: "Monte Carlo Simulation" },
-  { id: "shipping", num: "14", label: "Maritime and Shipping Intelligence" },
-  { id: "central-bank", num: "15", label: "Central Bank NLP Analysis" },
-  { id: "narrative", num: "16", label: "Narrative Tracking and Divergence" },
-  { id: "osint", num: "17", label: "OSINT Entity Extraction" },
-  { id: "knowledge", num: "18", label: "Knowledge Bank and Embeddings" },
-  { id: "ai-progression", num: "19", label: "AI Progression Tracking" },
-  { id: "integration", num: "20", label: "System Integration Architecture" },
-  { id: "academic", num: "21", label: "Academic Foundations & Peer-Reviewed Evidence" },
-  { id: "limitations", num: "22", label: "Limitations and Known Constraints" },
-  { id: "live-results", num: "23", label: "Live Results and Prediction Record" },
-  { id: "parallels", num: "24", label: "Historical Pattern Matching" },
-  { id: "actor-profiles", num: "25", label: "Actor-Belief Profile System" },
-  { id: "narrative-reports", num: "26", label: "Narrative Report Generation" },
+  { id: "iw-framework", num: "05", label: "Indications and Warnings" },
+  { id: "regime-detection", num: "06", label: "Market Regime Detection" },
+  { id: "systemic-risk", num: "07", label: "Systemic Risk Monitoring" },
+  { id: "bocpd", num: "08", label: "Bayesian Change Point Detection" },
+  { id: "ach", num: "09", label: "Analysis of Competing Hypotheses" },
+  { id: "source-reliability", num: "10", label: "NATO Admiralty Rating System" },
+  { id: "nowcasting", num: "11", label: "Economic Nowcasting" },
+  { id: "monte-carlo", num: "12", label: "Monte Carlo Simulation" },
+  { id: "shipping", num: "13", label: "Maritime and Shipping Intelligence" },
+  { id: "central-bank", num: "14", label: "Central Bank NLP Analysis" },
+  { id: "narrative", num: "15", label: "Narrative Tracking and Divergence" },
+  { id: "osint", num: "16", label: "OSINT Entity Extraction" },
+  { id: "knowledge", num: "17", label: "Knowledge Bank and Embeddings" },
+  { id: "ai-progression", num: "18", label: "AI Progression Tracking" },
+  { id: "integration", num: "19", label: "System Integration Architecture" },
+  { id: "academic", num: "20", label: "Academic Foundations & Peer-Reviewed Evidence" },
+  { id: "limitations", num: "21", label: "Limitations and Known Constraints" },
+  { id: "live-results", num: "22", label: "Live Results and Prediction Record" },
+  { id: "parallels", num: "23", label: "Historical Pattern Matching" },
+  { id: "actor-profiles", num: "24", label: "Actor-Belief Profile System" },
+  { id: "narrative-reports", num: "25", label: "Narrative Report Generation" },
   { id: "appendix-a", num: "A", label: "Appendix A: Calendar / Celestial Literature" },
 ];
 
@@ -152,7 +552,7 @@ export default function WhitepaperPage() {
   const convergenceReveal = useReveal();
   const synthesisReveal = useReveal();
   const predictionReveal = useReveal();
-  const gameReveal = useReveal();
+
   const iwReveal = useReveal();
   const regimeReveal = useReveal();
   const systemicReveal = useReveal();
@@ -793,77 +1193,11 @@ export default function WhitepaperPage() {
       <Ruled />
 
       {/* ══════════════════════════════════════════
-          05: GAME THEORY
-      ══════════════════════════════════════════ */}
-      <section id="game-theory" className="px-6 py-20">
-        <div ref={gameReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="05" label="Game Theory Framework" visible={gameReveal.visible} />
-
-          <div className={`max-w-3xl mb-8 ${anim} ${gameReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
-            <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
-              The game theory module models geopolitical interactions as strategic games between defined actors. Each scenario defines two or more actors with strategy sets, and constructs a payoff matrix representing the outcomes of all strategy combinations. The system then applies classical game-theoretic analysis to identify equilibria, focal points, and escalation dynamics.
-            </p>
-          </div>
-
-          <div className={`space-y-4 ${anim} ${gameReveal.visible ? shown : hidden}`} style={{ transitionDelay: "200ms" }}>
-            <ExpandableSection title="Nash Equilibrium Detection" defaultOpen>
-              <div className="pt-4 space-y-4">
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  The system implements brute-force Nash equilibrium detection for 2-player normal-form games. For each strategy profile (combination of strategies, one per player), the algorithm checks whether either player can improve their payoff by unilaterally deviating. A profile where neither player benefits from deviation is a Nash equilibrium.
-                </p>
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Multiple equilibria are common in geopolitical scenarios, reflecting the genuine strategic ambiguity that characterises international relations. When multiple equilibria exist, the system identifies which is Pareto-dominant (no player can be made better off without making another worse off) and which is risk-dominant (the equilibrium that players are most likely to converge on given uncertainty about the opponent&apos;s strategy).
-                </p>
-              </div>
-            </ExpandableSection>
-
-            <ExpandableSection title="Schelling Focal Points">
-              <div className="pt-4 space-y-4">
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Drawing on Schelling&apos;s theory of focal points (1960), the system identifies outcomes that are likely to emerge as coordination targets even without explicit communication between actors. Focal points are identified through three heuristics: Pareto-optimal outcomes (mutual gain), least-escalatory strategies (status quo preservation), and probability weighting based on payoff alignment.
-                </p>
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  In geopolitical contexts, Schelling points often correspond to de-escalation pathways or status quo outcomes where neither party gains but neither party suffers catastrophic loss. The system flags when current actor behaviour is diverging from the expected focal point, which often precedes escalation.
-                </p>
-              </div>
-            </ExpandableSection>
-
-            <ExpandableSection title="Escalation Ladder and Dominant Strategy Detection">
-              <div className="pt-4 space-y-4">
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  The escalation ladder orders all strategy profiles from least to most escalatory based on aggregate payoff magnitude. Each profile is assigned an escalation level (1-5) reflecting its position on the ladder. The system tracks real-world events against the ladder to estimate where a scenario currently sits.
-                </p>
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Dominant strategy detection identifies when an actor has a strategy that outperforms all alternatives regardless of the opponent&apos;s choice. When a dominant strategy exists and that strategy is escalatory, the system flags elevated risk regardless of other indicators.
-                </p>
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Market impact is derived from the scenario analysis: direction (bullish/bearish/mixed), magnitude (low/medium/high), affected sectors, and stability classification (stable if total payoff is positive, unstable if negative). 10+ geopolitical actors are pre-configured with strategic profiles, objectives, and historical behaviour patterns.
-                </p>
-              </div>
-            </ExpandableSection>
-
-            <ExpandableSection title="Wartime Threshold Detection">
-              <div className="pt-4 space-y-4">
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  When regime indicators cross wartime thresholds (crisis-level volatility combined with risk panic), the game theory module switches from peacetime negotiation models to wartime-specific analysis. Pre-defined thresholds for each scenario (e.g., Iran strikes launched, Hormuz closure, Taiwan blockade) trigger automatic state transitions that invalidate strategies no longer viable under the new reality and activate escalation trajectories with probability-weighted market impact assessments.
-                </p>
-                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                  Each fired threshold records a scenario state transition in the database, including which strategies are invalidated (e.g., &quot;Negotiate&quot; and &quot;Diplomatic pressure&quot; become non-viable after kinetic strikes), which escalation trajectories are activated (e.g., Hormuz closure, proxy network activation, semiconductor cutoff), and a context snapshot of the regime state at the moment of firing. The system filters these invalidated strategies from subsequent game theory analysis, ensuring the AI does not recommend diplomatic solutions to kinetic realities.
-                </p>
-              </div>
-            </ExpandableSection>
-          </div>
-        </div>
-      </section>
-
-      <Ruled />
-
-      {/* ══════════════════════════════════════════
-          06: INDICATIONS AND WARNINGS
+          05: INDICATIONS AND WARNINGS
       ══════════════════════════════════════════ */}
       <section id="iw-framework" className="px-6 py-20">
         <div ref={iwReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="06" label="Indications and Warnings Framework" visible={iwReveal.visible} />
+          <SectionHead number="05" label="Indications and Warnings Framework" visible={iwReveal.visible} />
 
           <div className={`max-w-3xl mb-8 ${anim} ${iwReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -909,7 +1243,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="regime-detection" className="px-6 py-20">
         <div ref={regimeReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="07" label="Market Regime Detection" visible={regimeReveal.visible} />
+          <SectionHead number="06" label="Market Regime Detection" visible={regimeReveal.visible} />
 
           <div className={`max-w-3xl mb-8 ${anim} ${regimeReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -952,7 +1286,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="systemic-risk" className="px-6 py-20">
         <div ref={systemicReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="08" label="Systemic Risk Monitoring" visible={systemicReveal.visible} />
+          <SectionHead number="07" label="Systemic Risk Monitoring" visible={systemicReveal.visible} />
 
           <div className={`max-w-3xl mb-8 ${anim} ${systemicReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1007,7 +1341,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="bocpd" className="px-6 py-20">
         <div ref={bocpdReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="09" label="Bayesian Online Change Point Detection" visible={bocpdReveal.visible} />
+          <SectionHead number="08" label="Bayesian Online Change Point Detection" visible={bocpdReveal.visible} />
 
           <div className={`max-w-3xl ${anim} ${bocpdReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1036,7 +1370,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="ach" className="px-6 py-20">
         <div ref={achReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="10" label="Analysis of Competing Hypotheses" visible={achReveal.visible} />
+          <SectionHead number="09" label="Analysis of Competing Hypotheses" visible={achReveal.visible} />
 
           <div className={`max-w-3xl mb-8 ${anim} ${achReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1087,7 +1421,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="source-reliability" className="px-6 py-20">
         <div ref={sourceReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="11" label="NATO Admiralty Rating System" visible={sourceReveal.visible} />
+          <SectionHead number="10" label="NATO Admiralty Rating System" visible={sourceReveal.visible} />
 
           <div className={`max-w-3xl mb-8 ${anim} ${sourceReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1160,7 +1494,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="nowcasting" className="px-6 py-20">
         <div ref={nowcastReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="12" label="Economic Nowcasting" visible={nowcastReveal.visible} />
+          <SectionHead number="11" label="Economic Nowcasting" visible={nowcastReveal.visible} />
 
           <div className={`max-w-3xl mb-8 ${anim} ${nowcastReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1199,7 +1533,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="monte-carlo" className="px-6 py-20">
         <div ref={monteReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="13" label="Monte Carlo Simulation" visible={monteReveal.visible} />
+          <SectionHead number="12" label="Monte Carlo Simulation" visible={monteReveal.visible} />
 
           <div className={`max-w-3xl ${anim} ${monteReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1225,7 +1559,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="shipping" className="px-6 py-20">
         <div ref={shippingReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="14" label="Maritime and Shipping Intelligence" visible={shippingReveal.visible} />
+          <SectionHead number="13" label="Maritime and Shipping Intelligence" visible={shippingReveal.visible} />
 
           <div className={`max-w-3xl mb-8 ${anim} ${shippingReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1269,7 +1603,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="central-bank" className="px-6 py-20">
         <div ref={centralReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="15" label="Central Bank NLP Analysis" visible={centralReveal.visible} />
+          <SectionHead number="14" label="Central Bank NLP Analysis" visible={centralReveal.visible} />
 
           <div className={`max-w-3xl ${anim} ${centralReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1301,7 +1635,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="narrative" className="px-6 py-20">
         <div ref={narrativeReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="16" label="Narrative Tracking and Divergence Detection" visible={narrativeReveal.visible} />
+          <SectionHead number="15" label="Narrative Tracking and Divergence Detection" visible={narrativeReveal.visible} />
 
           <div className={`max-w-3xl ${anim} ${narrativeReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1324,7 +1658,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="osint" className="px-6 py-20">
         <div ref={osintReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="17" label="OSINT Entity Extraction and Graph" visible={osintReveal.visible} />
+          <SectionHead number="16" label="OSINT Entity Extraction and Graph" visible={osintReveal.visible} />
 
           <div className={`max-w-3xl ${anim} ${osintReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1347,7 +1681,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="knowledge" className="px-6 py-20">
         <div ref={knowledgeReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="18" label="Knowledge Bank and Vector Embeddings" visible={knowledgeReveal.visible} />
+          <SectionHead number="17" label="Knowledge Bank and Vector Embeddings" visible={knowledgeReveal.visible} />
 
           <div className={`max-w-3xl ${anim} ${knowledgeReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1370,7 +1704,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="ai-progression" className="px-6 py-20">
         <div ref={aiProgReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="19" label="AI Progression Tracking" visible={aiProgReveal.visible} />
+          <SectionHead number="18" label="AI Progression Tracking" visible={aiProgReveal.visible} />
 
           <div className={`max-w-3xl ${anim} ${aiProgReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1396,7 +1730,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="integration" className="px-6 py-20">
         <div ref={integrationReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="20" label="System Integration Architecture" visible={integrationReveal.visible} />
+          <SectionHead number="19" label="System Integration Architecture" visible={integrationReveal.visible} />
 
           <div className={`max-w-3xl mb-10 ${anim} ${integrationReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1443,7 +1777,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="academic" className="px-6 py-20">
         <div ref={academicReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="21" label="Academic Foundations & Peer-Reviewed Evidence" visible={academicReveal.visible} />
+          <SectionHead number="20" label="Academic Foundations & Peer-Reviewed Evidence" visible={academicReveal.visible} />
 
           <div className={`max-w-3xl mb-10 ${anim} ${academicReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
@@ -1662,7 +1996,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="limitations" className="relative px-6 py-20">
         <div ref={limitationsReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="22" label="Limitations and Known Constraints" visible={limitationsReveal.visible} />
+          <SectionHead number="21" label="Limitations and Known Constraints" visible={limitationsReveal.visible} />
 
           <div className={`mt-8 max-w-3xl space-y-6 ${anim} ${limitationsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
@@ -1716,6 +2050,32 @@ export default function WhitepaperPage() {
                   The AI synthesis layer uses Claude for analysis and prediction generation. Large language models can produce confident-sounding analysis that is wrong, and they carry biases from their training data. NEXUS mitigates this by constraining Claude&apos;s analysis to structured data inputs, requiring explicit confidence levels on all predictions, and tracking every prediction against outcomes. The system also filters meta-system contamination, where the AI generates predictions about its own functioning rather than the markets. These are engineering mitigations for a fundamental constraint: the AI is a tool, and its outputs require the same critical evaluation as any other analytical source.
                 </p>
               </div>
+
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Multiple Comparisons in Actor-Belief Modifiers</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                  The actor-belief system tracks 7 actors across 17 calendar behaviour modifiers spanning 4 calendar systems. When testing this many actor-calendar combinations (effectively 119 possible pairings), some will appear predictive by chance alone. At a conventional 5% significance level, roughly 6 of these pairings would show spurious correlations even with no genuine underlying effect.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  NEXUS addresses this through two mechanisms. First, confidence-damped multipliers mean that low-sample-size modifiers (confidence below 0.5) produce near-trivial probability shifts, so chance correlations have minimal operational impact even if they persist in the data. Second, the feedback loop tracks per-modifier prediction accuracy over time. Modifiers that do not demonstrate sustained predictive contribution across multiple cycles will see their confidence ratings decay toward zero, effectively auto-pruning false positives.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  What is not yet implemented is formal Bonferroni or false discovery rate correction across the modifier set. As the resolved prediction dataset grows, applying Benjamini-Hochberg FDR control to modifier-level performance would provide a rigorous statistical filter. This is a planned improvement. Until then, the confidence-damping mechanism provides practical protection against the most extreme cases of chance correlation, and no single calendar modifier can shift a prediction by more than a few percentage points regardless of its apparent track record.
+                </p>
+              </div>
+
+              <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+                <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Parameter Tuning and Look-Ahead Bias</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                  Several system parameters were set from domain reasoning and calibration against known historical episodes: convergence window duration (3 days), intensity-to-posterior thresholds, likelihood ratio exponential constants, scenario base-rate priors, and calibration bucket boundaries. These values were chosen to produce sensible outputs on historical data that was already known at design time.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  This introduces a degree of look-ahead bias: parameters tuned on known history will perform better on that history than on genuinely unseen future data. NEXUS does not claim that its current parameter set is optimal for all future market regimes. The parameters represent informed starting points, not empirically validated optima.
+                </p>
+                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                  The primary safeguard is the Brier-scored prediction loop. Every prediction is scored against real outcomes in real time, and the feedback system detects when specific parameter configurations produce systematic errors. Convergence thresholds, base-rate priors, and layer reliability coefficients are all candidates for data-driven recalibration as the forward-looking prediction dataset matures. The system is designed to converge toward better parameters through lived experience rather than claiming its initial configuration is final.
+                </p>
+              </div>
             </div>
 
             <div className={`mt-6 ${anim} ${limitationsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
@@ -1736,68 +2096,7 @@ export default function WhitepaperPage() {
           23. LIVE RESULTS AND PREDICTION RECORD
       ══════════════════════════════════════════ */}
       <section id="live-results" className="relative px-6 py-20">
-        <div ref={liveResultsReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="23" label="Live Results and Prediction Record" visible={liveResultsReveal.visible} />
-
-          <div className={`mt-8 max-w-3xl space-y-6 ${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
-            <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-              Methodology papers typically end with theory. NEXUS ends with data. Every prediction the system generates is timestamped, tracked, and resolved against real-world outcomes. The results are published, not curated, meaning the failures are visible alongside the successes.
-            </p>
-            <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-              One distinction matters and should be applied when evaluating any aggregate metric: predictions generated after a triggering event has already begun are post-onset analysis, not prospective forecasts. They demonstrate that the system reasons coherently about developing situations, not that it predicted them. The forward-looking record, predictions generated before the events they describe, is the only valid measure of forecasting skill and should be evaluated separately. As the prospective dataset grows, the aggregate Brier score and calibration curves will become more meaningful.
-            </p>
-
-            <div className="border border-accent-cyan/20 rounded-lg p-6 bg-accent-cyan/[0.03]">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-accent-cyan" />
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <div className="font-mono text-[10px] uppercase tracking-wider text-accent-cyan mb-1">Live Prediction Tracker</div>
-                    <p className="font-sans text-[13px] text-navy-300 leading-[1.7]">
-                      The platform&apos;s prediction record is available to all subscribers. Every prediction includes the claim, confidence level, signal sources that triggered it, resolution date, and outcome. Aggregate metrics, including Brier score, log loss, and calibration curves, are computed continuously.
-                    </p>
-                  </div>
-                  <Link
-                    href="/predictions"
-                    className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-accent-cyan hover:text-accent-cyan/80 transition-colors"
-                  >
-                    View Prediction Record
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20 text-center">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Tracking Metrics</div>
-                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
-                  Brier score, log loss, and calibration curves computed over all resolved predictions with segmentation by category and timeframe.
-                </div>
-              </div>
-              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20 text-center">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Feedback Integration</div>
-                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
-                  Resolved predictions feed back into the engine with 0.3 damping to prevent overcorrection, continuously tuning the system&apos;s calibration.
-                </div>
-              </div>
-              <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20 text-center">
-                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Full Transparency</div>
-                <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
-                  No cherry-picking. The system publishes every prediction it makes, whether it resolves correctly or incorrectly. This is the standard it holds itself to.
-                </div>
-              </div>
-            </div>
-
-            <div className={`${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
-              <p className="font-sans text-[13px] text-navy-500 leading-[1.8]">
-                A system that claims to predict markets but hides its track record is asking for faith. NEXUS asks for scrutiny. The prediction tracker exists precisely so that the methodologies described in this paper can be evaluated against real outcomes, not theoretical ones.
-              </p>
-            </div>
-          </div>
-        </div>
+        <LiveResultsSection liveResultsReveal={liveResultsReveal} />
       </section>
 
       <Ruled />
@@ -1807,7 +2106,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="parallels" className="relative px-6 py-20">
         <div ref={parallelsReveal.ref} className={`max-w-5xl mx-auto ${anim} ${parallelsReveal.visible ? shown : hidden}`}>
-          <SectionHead number="24" label="Historical Pattern Matching" visible={parallelsReveal.visible} />
+          <SectionHead number="23" label="Historical Pattern Matching" visible={parallelsReveal.visible} />
           <div className="mt-8 space-y-4">
             <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
               The Psycho-History Parallels engine searches the knowledge bank, resolved prediction history, and signal archive for structurally similar past events. Given a natural-language description of a current scenario (e.g. &quot;Iran-Israel escalation with Hormuz closure risk&quot;), it performs semantic vector search across all stored intelligence, then uses Claude to identify the strongest structural parallels from history.
@@ -1834,7 +2133,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="actor-profiles" className="relative px-6 py-20">
         <div ref={actorProfilesReveal.ref} className={`max-w-5xl mx-auto ${anim} ${actorProfilesReveal.visible ? shown : hidden}`}>
-          <SectionHead number="25" label="Actor-Belief Profile System" visible={actorProfilesReveal.visible} />
+          <SectionHead number="24" label="Actor-Belief Profile System" visible={actorProfilesReveal.visible} />
           <div className="mt-8 space-y-4">
             <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
               Extended actor profiles encode behavioral type distributions (cooperative/hawkish/unpredictable), base weekly action probabilities, calendar-conditioned Bayesian modifiers, public statements, scripture/doctrinal references, past decisions, belief frameworks, and decision patterns. Currently 7 actors are tracked: Israeli Far-Right Coalition, Iran IRGC, China PLA, Russia Kremlin, DPRK, Saudi Arabia (MBS), and Turkey (Erdogan).
@@ -1856,7 +2155,7 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="narrative-reports" className="relative px-6 py-20">
         <div ref={narrativeReportsReveal.ref} className={`max-w-5xl mx-auto ${anim} ${narrativeReportsReveal.visible ? shown : hidden}`}>
-          <SectionHead number="26" label="Narrative Report Generation" visible={narrativeReportsReveal.visible} />
+          <SectionHead number="25" label="Narrative Report Generation" visible={narrativeReportsReveal.visible} />
           <div className="mt-8 space-y-4">
             <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
               The narrative report generator synthesizes all active data layers (signals, predictions, thesis, knowledge bank, game theory) into a single coherent long-form intelligence briefing. Output is structured as a 10-15 minute lecture script with titled sections, specific data references, risk matrix, and key takeaways.
@@ -1939,6 +2238,16 @@ export default function WhitepaperPage() {
               <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Honest Assessment</div>
               <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
                 The literature here is real but the evidence base is thin. Effect sizes are small, replication is inconsistent, and no consensus mechanism explains why astronomical or religious calendars would reliably move global markets. The reason these layers exist in NEXUS is not because the academic case is strong, it isn&apos;t, but because specific actors in positions of power assign meaning to these calendars and may time decisions around them. That is actor-belief modelling, not market prediction. The distinction matters: we are not claiming the Shemitah cycle moves markets, we are noting that decision-makers who believe it does may act accordingly, and that behavioural pattern is worth tracking as context.
+              </p>
+            </div>
+
+            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Statistical Safeguards</div>
+              <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                A known risk in tracking multiple calendar-market correlations across different traditions is the multiple comparisons problem: test enough combinations and some will appear significant by chance. With 7 actor profiles and 17 calendar modifiers spanning 4 calendar systems, the combinatorial space is large enough that false positives are expected without correction.
+              </p>
+              <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
+                NEXUS currently relies on confidence-damped Bayesian updates to limit the operational impact of any single modifier: low-confidence modifiers produce near-trivial probability shifts. The feedback loop additionally tracks per-modifier accuracy over time, allowing persistently non-predictive modifiers to decay toward irrelevance. Formal false discovery rate control (Benjamini-Hochberg) across the modifier set is planned as the sample size grows. Users should treat modifier-level performance claims with appropriate scepticism until the dataset supports rigorous statistical testing.
               </p>
             </div>
           </div>

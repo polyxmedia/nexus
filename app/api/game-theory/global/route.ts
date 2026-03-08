@@ -8,6 +8,10 @@ import {
   type PowerProfile,
 } from "@/lib/game-theory/countries";
 import type { StrategicScenario, PayoffEntry } from "@/lib/thesis/types";
+import { db, schema } from "@/lib/db";
+import { desc, isNull, sql } from "drizzle-orm";
+import { getLatestSystemicRisk } from "@/lib/risk/systemic";
+import { getCalendarActorInsights } from "@/lib/signals/actor-beliefs";
 
 // ── Strategy templates ──
 
@@ -222,6 +226,90 @@ export async function POST(request: NextRequest) {
     // Run game theory analysis
     const analysis = analyzeScenario(scenario);
 
+    // ── Intelligence enrichment: pull real data in parallel ──
+    const allCountryNames = [...blueTeam, ...redTeam]
+      .map(c => COUNTRIES.find(cc => cc.code === c)?.name)
+      .filter(Boolean) as string[];
+
+    const [signalRows, predictionRows, riskState, calendarInsights] = await Promise.all([
+      // Recent high-intensity signals mentioning any involved country
+      db.select({
+        title: schema.signals.title,
+        intensity: schema.signals.intensity,
+        category: schema.signals.category,
+        date: schema.signals.date,
+        geopoliticalContext: schema.signals.geopoliticalContext,
+        marketSectors: schema.signals.marketSectors,
+      })
+        .from(schema.signals)
+        .orderBy(desc(schema.signals.intensity), desc(schema.signals.id))
+        .limit(100),
+
+      // Active predictions (geopolitical category, unresolved)
+      db.select({
+        claim: schema.predictions.claim,
+        confidence: schema.predictions.confidence,
+        category: schema.predictions.category,
+        deadline: schema.predictions.deadline,
+        direction: schema.predictions.direction,
+      })
+        .from(schema.predictions)
+        .where(isNull(schema.predictions.outcome))
+        .orderBy(desc(schema.predictions.confidence))
+        .limit(50),
+
+      // Current systemic risk state
+      getLatestSystemicRisk().catch(() => null),
+
+      // Calendar-conditioned actor insights for today
+      Promise.resolve().then(() => {
+        try { return getCalendarActorInsights([], [], new Date()); }
+        catch { return null; }
+      }),
+    ]);
+
+    // Filter signals relevant to this scenario's countries
+    const relevantSignals = signalRows.filter(s => {
+      const text = `${s.title} ${s.geopoliticalContext || ""}`.toLowerCase();
+      return allCountryNames.some(name => text.includes(name.toLowerCase()));
+    }).slice(0, 10).map(s => ({
+      title: s.title,
+      intensity: s.intensity,
+      category: s.category,
+      date: s.date,
+      sectors: s.marketSectors ? JSON.parse(s.marketSectors) : [],
+    }));
+
+    // Filter predictions relevant to scenario countries or sectors
+    const relevantPredictions = predictionRows.filter(p => {
+      const text = p.claim.toLowerCase();
+      return allCountryNames.some(name => text.includes(name.toLowerCase()))
+        || sectors.some(sec => text.includes(sec.toLowerCase()));
+    }).slice(0, 8).map(p => ({
+      claim: p.claim,
+      confidence: p.confidence,
+      category: p.category,
+      deadline: p.deadline,
+      direction: p.direction,
+    }));
+
+    // Build intelligence context
+    const intelligence = {
+      signals: relevantSignals,
+      predictions: relevantPredictions,
+      systemicRisk: riskState ? {
+        regime: riskState.regime,
+        compositeStress: riskState.compositeStress,
+        absorptionRatio: riskState.absorptionRatio,
+        turbulencePercentile: riskState.turbulencePercentile,
+        interpretation: riskState.interpretation,
+      } : null,
+      calendarContext: calendarInsights,
+      signalCount: relevantSignals.length,
+      predictionCount: relevantPredictions.length,
+      highIntensitySignals: relevantSignals.filter(s => s.intensity >= 4).length,
+    };
+
     return NextResponse.json({
       scenario: {
         id: scenario.id,
@@ -244,6 +332,7 @@ export async function POST(request: NextRequest) {
         contested: balance.contested,
         overallBalance: balance.overallBalance,
       },
+      intelligence,
     });
   } catch (error) {
     console.error("Global game theory error:", error);

@@ -1969,6 +1969,25 @@ export default function AdminPage() {
         <ArrowRight className="w-4 h-4 text-accent-cyan group-hover:translate-x-0.5 transition-transform" />
       </Link>
 
+      {/* Whitepaper link */}
+      <Link
+        href="/research/whitepapers"
+        className="group flex items-center justify-between mb-6 border border-navy-700/40 rounded-lg bg-navy-900/20 px-5 py-4 hover:bg-navy-900/40 hover:border-navy-600/40 transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <FileText className="w-4 h-4 text-navy-300" />
+          <div>
+            <span className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
+              Technical White Paper
+            </span>
+            <p className="font-sans text-[11px] text-navy-400 mt-0.5">
+              Full methodology documentation (not publicly linked)
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-navy-400 group-hover:translate-x-0.5 transition-transform" />
+      </Link>
+
       <Tabs.Root defaultValue="growth">
         <Tabs.List className="flex gap-0 border-b border-navy-700 mb-6">
           {ADMIN_TABS.map((tab) => (

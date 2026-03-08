@@ -56,7 +56,7 @@ export function PublicFooter() {
               <Link href="/research/methodology" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Methodology</Link>
               <Link href="/research/signal-theory" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Signal Theory</Link>
               <Link href="/research/calendar-correlations" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Calendar Correlations</Link>
-              <Link href="/research/game-theory" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Game Theory Models</Link>
+
               <Link href="/research/prediction-accuracy" className="block text-[11px] text-navy-400 hover:text-navy-200 transition-colors font-sans">Prediction Accuracy</Link>
             </div>
           </div>

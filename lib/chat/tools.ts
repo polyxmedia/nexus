@@ -34,6 +34,8 @@ import { getShortInterestSnapshot } from "@/lib/short-interest";
 import { getGPRSnapshot } from "@/lib/gpr";
 import { getGEXSnapshot } from "@/lib/gex";
 import { findHistoricalParallels } from "@/lib/parallels/engine";
+import { initializeBeliefs, runBayesianAnalysis, createSignalFromOSINT } from "@/lib/game-theory/bayesian";
+import { N_PLAYER_SCENARIOS } from "@/lib/game-theory/scenarios-nplayer";
 import { getExtendedActorProfile, getAllExtendedProfiles } from "@/lib/actors/profiles";
 import { generateNarrativeReport } from "@/lib/reports/narrative";
 import type Anthropic from "@anthropic-ai/sdk";
@@ -552,6 +554,33 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "run_bayesian_analysis",
+    description: "Run Bayesian N-player sequential game theory analysis on geopolitical scenarios. Models real actor complexity with incomplete information, Fearon audience costs, coalition stability, and sequential move structures. Available scenarios: iran-nplayer (US/Israel/Iran/Saudi/China/Russia), taiwan-nplayer (China/US/Taiwan/Japan), ukraine-nplayer (Russia/US/China). Can incorporate OSINT signals to update actor type beliefs in real-time.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        scenario_id: {
+          type: "string",
+          description: "Scenario ID: 'iran-nplayer', 'taiwan-nplayer', or 'ukraine-nplayer'. Omit to run all scenarios.",
+        },
+        signals: {
+          type: "array",
+          description: "Optional OSINT signals to update Bayesian beliefs. Each signal shifts actor type probabilities.",
+          items: {
+            type: "object",
+            properties: {
+              description: { type: "string", description: "Signal description (e.g. 'Iran enriches uranium to 90%')" },
+              actor_id: { type: "string", description: "Actor this signal relates to (e.g. 'iran', 'us', 'china')" },
+              source: { type: "string", description: "Signal source type: 'osint', 'satellite', 'sigint', 'humint'" },
+            },
+            required: ["description", "actor_id"],
+          },
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -651,6 +680,8 @@ export async function executeTool(
       return executeGetActorProfile(input);
     case "generate_narrative_report":
       return executeGenerateReport(input);
+    case "run_bayesian_analysis":
+      return executeRunBayesianAnalysis(input);
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -1873,5 +1904,156 @@ async function executeGenerateReport(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Report generation failed: ${message}` };
+  }
+}
+
+async function executeRunBayesianAnalysis(input: Record<string, unknown>) {
+  try {
+    const scenarioId = input.scenario_id as string | undefined;
+    const rawSignals = input.signals as Array<{ description: string; actor_id: string; source?: string }> | undefined;
+
+    // Convert user-provided signals to typed updates
+    const manualSignals = rawSignals?.map(s =>
+      createSignalFromOSINT(s.description, s.actor_id, (s.source as "osint" | "market" | "action" | "statement" | "calendar") || "osint")
+    ) || [];
+
+    // ── Auto-ingest live data from DB signals ──
+    const liveSignalUpdates = [...manualSignals];
+
+    // Pull recent active/upcoming signals from the platform's signal engine
+    const recentDbSignals: Signal[] = await db
+      .select()
+      .from(schema.signals)
+      .where(eq(schema.signals.status, "active"))
+      .orderBy(desc(schema.signals.date))
+      .limit(30);
+
+    // Also pull upcoming high-intensity signals
+    const upcomingSignals: Signal[] = await db
+      .select()
+      .from(schema.signals)
+      .where(eq(schema.signals.status, "upcoming"))
+      .orderBy(schema.signals.date)
+      .limit(20);
+
+    const allDbSignals = [...recentDbSignals, ...upcomingSignals];
+
+    // Actor keyword mapping for auto-matching signals to scenario actors
+    const actorKeywords: Record<string, string[]> = {
+      us: ["united states", "us ", "usa", "american", "pentagon", "white house", "biden", "trump", "washington"],
+      iran: ["iran", "tehran", "irgc", "khamenei", "persian", "hezbollah", "houthi"],
+      israel: ["israel", "idf", "netanyahu", "tel aviv", "gaza", "west bank", "ben gvir"],
+      saudi: ["saudi", "riyadh", "mbs", "aramco", "opec"],
+      china: ["china", "beijing", "xi jinping", "pla", "taiwan strait", "south china sea"],
+      russia: ["russia", "moscow", "putin", "kremlin", "ukraine"],
+      taiwan: ["taiwan", "taipei", "tsmc"],
+      japan: ["japan", "tokyo", "kishida"],
+    };
+
+    // Convert DB signals to Bayesian signal updates
+    for (const sig of allDbSignals) {
+      const text = `${sig.title} ${sig.description || ""}`.toLowerCase();
+      for (const [actorId, keywords] of Object.entries(actorKeywords)) {
+        if (keywords.some(kw => text.includes(kw))) {
+          liveSignalUpdates.push(
+            createSignalFromOSINT(
+              sig.title,
+              actorId,
+              sig.category === "MKT" ? "market" : sig.category === "CAL" ? "calendar" : "osint"
+            )
+          );
+        }
+      }
+    }
+
+    // ── Auto-ingest recent GDELT OSINT for scenario actors ──
+    const scenariosToRun = scenarioId
+      ? N_PLAYER_SCENARIOS.filter(s => s.id === scenarioId)
+      : N_PLAYER_SCENARIOS;
+
+    const uniqueActors = [...new Set(scenariosToRun.flatMap(s => s.actors))];
+    const gdeltQueries: Record<string, string> = {
+      us: "United States military OR sanctions",
+      iran: "Iran nuclear OR IRGC OR Hormuz",
+      israel: "Israel military OR IDF",
+      saudi: "Saudi Arabia OPEC OR oil",
+      china: "China military OR Taiwan OR trade war",
+      russia: "Russia Ukraine OR NATO",
+      taiwan: "Taiwan strait OR TSMC",
+      japan: "Japan defense OR military",
+    };
+
+    // Fetch GDELT for relevant actors (parallel, with timeout)
+    const gdeltPromises = uniqueActors
+      .filter(a => gdeltQueries[a])
+      .map(async (actorId) => {
+        try {
+          const q = gdeltQueries[actorId];
+          const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=ArtList&maxrecords=5&format=json&sort=DateDesc&timespan=3d`;
+          const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+          if (!resp.ok) return [];
+          const data = await resp.json();
+          const articles = (data.articles as Array<{ title?: string }>) || [];
+          return articles.map(a => ({
+            description: String(a.title || ""),
+            actorId,
+          }));
+        } catch {
+          return []; // GDELT timeout or error, continue without
+        }
+      });
+
+    const gdeltResults = await Promise.all(gdeltPromises);
+    for (const articles of gdeltResults) {
+      for (const art of articles) {
+        if (art.description) {
+          liveSignalUpdates.push(createSignalFromOSINT(art.description, art.actorId, "osint"));
+        }
+      }
+    }
+
+    // ── Run analysis with live-enriched signals ──
+    const runForScenario = (scenario: typeof N_PLAYER_SCENARIOS[0]) => {
+      const beliefs = initializeBeliefs(scenario.actors);
+      // Filter signals to only those relevant to this scenario's actors
+      const relevantSignals = liveSignalUpdates.filter(s => {
+        return !s.actorId || scenario.actors.includes(s.actorId);
+      });
+      const analysis = runBayesianAnalysis(scenario, beliefs, relevantSignals.length > 0 ? relevantSignals : undefined);
+      return {
+        scenario: {
+          id: scenario.id,
+          title: scenario.title,
+          description: scenario.description,
+          actors: scenario.actors,
+          moveOrder: scenario.moveOrder,
+          strategies: scenario.strategies,
+          coalitions: scenario.coalitions,
+          marketSectors: scenario.marketSectors,
+          timeHorizon: scenario.timeHorizon,
+        },
+        analysis,
+        liveDataSources: {
+          dbSignals: allDbSignals.length,
+          gdeltArticles: gdeltResults.flat().length,
+          manualSignals: manualSignals.length,
+          totalSignalUpdates: relevantSignals.length,
+        },
+      };
+    };
+
+    if (scenarioId) {
+      const scenario = N_PLAYER_SCENARIOS.find(s => s.id === scenarioId);
+      if (!scenario) {
+        return { error: `Scenario not found: ${scenarioId}. Available: ${N_PLAYER_SCENARIOS.map(s => s.id).join(", ")}` };
+      }
+      return runForScenario(scenario);
+    }
+
+    const results = scenariosToRun.map(runForScenario);
+    return { scenarios: results, count: results.length };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Bayesian analysis failed: ${message}` };
   }
 }

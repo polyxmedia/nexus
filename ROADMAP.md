@@ -155,12 +155,28 @@
 - [ ] Overlay on war room map alongside aircraft tracking
 
 ### v3.6 Signal Backtester
-- [ ] Run historical signal engine against past price data
-- [ ] Score convergence accuracy: did intensity 4-5 signals predict moves?
-- [ ] Per-layer accuracy breakdown (celestial, hebrew, geopolitical, esoteric)
-- [ ] Backtest specific signal types against specific asset classes
-- [ ] Calibration dashboard: where the engine is strong vs weak
+- [x] Run historical signal engine against past price data
+- [x] Score convergence accuracy: did intensity 4-5 signals predict moves?
+- [x] Per-layer accuracy breakdown (celestial, hebrew, geopolitical, esoteric)
+- [x] Backtest specific signal types against specific asset classes
+- [x] Calibration dashboard: where the engine is strong vs weak
 - [ ] Feed results into prediction engine confidence adjustment
+
+### v3.6.1 Backtest Institutional Hardening
+- [x] Fix: prior backtests now loadable (missing DB columns in query, JSONB string parsing, error handling)
+- [x] Remove "partial" outcome category, pure binary Brier scoring per Brier (1950)
+- [x] Climatological baseline: naive "always bullish" accuracy computed from historical data, not assumed 50%
+- [x] Walk-forward validation: 5-fold expanding window, out-of-sample accuracy, overfit ratio detection
+- [x] Holm-Bonferroni multiple testing correction: prevents p-hacking across preset scenarios
+- [x] Regime-conditioned analysis: break results by volatility regime (low_vol, normal, elevated, crisis)
+- [x] Transaction cost sensitivity: sweep 5-50bps to test profitability robustness
+- [x] Sharpe annualization: explicit sqrt(trades_per_year) for event-driven strategies, documented as non-standard
+- [x] Look-ahead bias audit: confirmed signal engine uses only deterministic calendar/recurring events, no reactive OSINT
+- [x] AI analysis prompt upgraded: references walk-forward, regime, cost sensitivity, climatological baseline, overfit detection
+- [ ] Survivorship bias: add delisted symbol detection for individual stock backtests
+- [ ] Non-independence correction: adjust p-values for temporally clustered predictions (Newey-West or block bootstrap)
+- [ ] Monte Carlo permutation test: compare observed accuracy against 10,000 random shuffles for exact p-value
+- [ ] Expanding window cross-validation with purging (de Prado 2018): purge overlapping predictions between train/test
 
 ### v3.7 Narrative Tracker
 - [x] Track narrative shifts across GDELT and Reddit (worldnews, geopolitics, economics, wallstreetbets)
@@ -377,10 +393,10 @@
 - [ ] Rebalancing suggestions
 
 ### Backtesting Engine
-- [ ] Define strategy rules (entry/exit, position sizing)
-- [ ] Backtest against historical data
-- [ ] Performance metrics (Sharpe, Sortino, max drawdown, win rate)
-- [ ] Walk-forward analysis
+- [x] Define strategy rules (entry/exit, position sizing)
+- [x] Backtest against historical data
+- [x] Performance metrics (Sharpe, Sortino, max drawdown, win rate)
+- [x] Walk-forward analysis
 - [ ] Compare strategy variants
 
 ### Advanced Order Management

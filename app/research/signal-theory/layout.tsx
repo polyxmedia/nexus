@@ -1,28 +1,31 @@
 import { Metadata } from "next";
+import { BreadcrumbJsonLd, ArticleJsonLd } from "@/components/seo/json-ld";
 
 export const metadata: Metadata = {
   title: "Signal Theory — Detection, Intensity, and Cross-Layer Amplification",
   description:
-    "Deep dive into NEXUS signal detection logic: intensity scoring from 1 to 5, decay functions, noise floor filtering, and the non-linear amplification model that scores multi-layer convergences.",
+    "Deep dive into NEXUS signal detection: intensity scoring from 1-5, temporal decay functions, noise floor filtering, cross-layer amplification curves, and how independent data domains create meaningful convergence events.",
   keywords: [
     "signal detection theory",
-    "geopolitical signal scoring",
-    "market signal intensity",
-    "convergence amplification",
+    "intensity scoring",
+    "cross-layer amplification",
+    "temporal decay functions",
+    "convergence signals",
+    "geopolitical signal analysis",
+    "market signal detection",
     "OSINT signal processing",
-    "signal decay function",
   ],
   openGraph: {
     title: "Signal Theory — NEXUS Intelligence",
     description:
-      "How NEXUS scores signal intensity, applies decay functions, and amplifies convergences across independent layers. The mathematics behind the detection engine.",
+      "Deep dive into signal detection, intensity scoring, decay functions, and cross-layer amplification. How independent data domains create meaningful convergence.",
     type: "article",
   },
   twitter: {
     card: "summary_large_image",
     title: "Signal Theory — NEXUS Intelligence",
     description:
-      "How NEXUS scores signal intensity, applies decay functions, and amplifies convergences across independent layers.",
+      "Signal detection, intensity scoring, decay functions, and cross-layer amplification across geopolitical, market, and OSINT domains.",
   },
   alternates: {
     canonical: "/research/signal-theory",
@@ -30,5 +33,20 @@ export const metadata: Metadata = {
 };
 
 export default function SignalTheoryLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return (
+    <>
+      <BreadcrumbJsonLd items={[
+        { name: "Home", url: "/" },
+        { name: "Research", url: "/research/methodology" },
+        { name: "Signal Theory", url: "/research/signal-theory" },
+      ]} />
+      <ArticleJsonLd
+        title="Signal Theory — Detection, Intensity, and Cross-Layer Amplification"
+        description="Deep dive into NEXUS signal detection: intensity scoring, temporal decay functions, cross-layer amplification curves, and how independent data domains create meaningful convergence events."
+        url="/research/signal-theory"
+        datePublished="2025-01-01"
+      />
+      {children}
+    </>
+  );
 }

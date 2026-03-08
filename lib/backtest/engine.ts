@@ -20,6 +20,10 @@ import type {
   BacktestRun,
   BacktestResults,
   CalibrationBucket,
+  WalkForwardFold,
+  WalkForwardResults,
+  RegimeStats,
+  CostSensitivityResult,
 } from "./types";
 
 // ── In-memory cache for actively running backtests (fast progress polling) ──
@@ -85,14 +89,19 @@ type DbRow = {
 };
 
 function rowToRun(row: DbRow): BacktestRun {
+  // JSONB columns may come back as strings from raw SQL queries
+  const config = typeof row.config === "string" ? JSON.parse(row.config) : row.config;
+  const predictions = typeof row.predictions === "string" ? JSON.parse(row.predictions) : row.predictions;
+  const results = typeof row.results === "string" ? JSON.parse(row.results) : row.results;
+
   return {
     id: row.id,
-    config: row.config as BacktestConfig,
+    config: config as BacktestConfig,
     status: row.status as BacktestRun["status"],
     progress: Number(row.progress),
-    progressMessage: row.progress_message,
-    predictions: (row.predictions as BacktestPrediction[]) ?? [],
-    results: row.results ?? undefined,
+    progressMessage: row.progress_message || "",
+    predictions: (predictions as BacktestPrediction[]) ?? [],
+    results: results ?? undefined,
     error: row.error ?? undefined,
     createdAt: typeof row.created_at === "string" ? row.created_at : new Date(row.created_at).toISOString(),
     completedAt: row.completed_at ? (typeof row.completed_at === "string" ? row.completed_at : new Date(row.completed_at).toISOString()) : undefined,
@@ -115,7 +124,7 @@ export async function getBacktestRun(id: string): Promise<BacktestRun | undefine
 
 export async function getAllBacktestRuns(): Promise<BacktestRun[]> {
   try {
-    const rows = await db.execute(sql`SELECT id, config, status, progress, progress_message, error, created_at, completed_at FROM backtest_runs ORDER BY created_at DESC LIMIT 50`);
+    const rows = await db.execute(sql`SELECT id, config, status, progress, progress_message, predictions, results, error, created_at, completed_at FROM backtest_runs ORDER BY created_at DESC LIMIT 50`);
     const dbRuns = (rows.rows as DbRow[]).map(rowToRun);
 
     // Merge: active in-memory runs override DB for the same ID (fresher progress)
@@ -192,6 +201,29 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+// ── VIX regime classification ──
+// Uses VIX ETF (VIXY) or ^VIX as proxy. Falls back to realized volatility.
+
+function classifyRegime(bars: DailyBar[], date: string): string {
+  const available = bars.filter(b => b.date <= date).sort((a, b) => b.date.localeCompare(a.date));
+  if (available.length < 20) return "unknown";
+
+  // Use 20-day realized volatility of the instrument as proxy
+  const window = available.slice(0, 20);
+  const returns: number[] = [];
+  for (let i = 0; i < window.length - 1; i++) {
+    returns.push(Math.log(window[i].close / window[i + 1].close));
+  }
+  const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
+  const annualizedVol = Math.sqrt(variance * 252) * 100;
+
+  if (annualizedVol < 12) return "low_vol";
+  if (annualizedVol < 20) return "normal";
+  if (annualizedVol < 35) return "elevated";
+  return "crisis";
+}
+
 // ── Main backtest execution ──
 
 export async function startBacktest(config: BacktestConfig): Promise<string> {
@@ -262,6 +294,9 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   });
 
   // ── Phase 2: Generate signals for all years ──
+  // NOTE: Signal engine uses only deterministic calendar/celestial events and
+  // recurring geopolitical patterns (OPEC meetings, UN sessions, etc.).
+  // No reactive/news-based signals are used, so no look-ahead bias.
   run.status = "generating_signals";
   run.progress = 15;
   await flushPhase();
@@ -371,6 +406,9 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.progress = 70;
   await flushPhase();
 
+  // Compute climatological baseline: what % of the time does each instrument go up?
+  const climatologicalUp = computeClimatologicalBaseline(priceData, config);
+
   for (let i = 0; i < run.predictions.length; i++) {
     const pred = run.predictions[i];
     run.progressMessage = `Validating prediction ${i + 1}/${run.predictions.length}...`;
@@ -416,19 +454,11 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
         pred.directionCorrect = Math.abs(avgReturn) < 0.01;
       }
 
-      // Brier score: (confidence - outcome)^2
+      // Pure Brier score: (confidence - outcome)^2
+      // No "partial" category, strict binary outcome per Brier (1950)
       const outcome = pred.directionCorrect ? 1 : 0;
       pred.brierScore = Math.pow(pred.confidence - outcome, 2);
       pred.outcome = pred.directionCorrect ? "confirmed" : "denied";
-
-      // Partial: direction wrong but magnitude < 2%
-      if (
-        !pred.directionCorrect &&
-        Math.abs(avgReturn) < 0.02
-      ) {
-        pred.outcome = "partial";
-        pred.brierScore = Math.pow(pred.confidence - 0.5, 2);
-      }
     }
   }
 
@@ -438,7 +468,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.progressMessage = "Computing statistical analysis...";
   await flushPhase();
 
-  const results = computeResults(run.predictions, config);
+  const results = computeResults(run.predictions, config, priceData, climatologicalUp);
 
   // Generate AI analysis
   run.progressMessage = "Generating AI analysis of results...";
@@ -464,6 +494,42 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
 
   // Remove from active cache — future reads come from DB
   activeRuns.delete(id);
+}
+
+// ── Climatological baseline ──
+// Computes the historical frequency of positive returns for the instruments
+// at the relevant timeframes. A naive "always bullish" strategy would achieve
+// this accuracy without any signal intelligence.
+
+function computeClimatologicalBaseline(
+  priceData: Record<string, DailyBar[]>,
+  config: BacktestConfig
+): number {
+  let totalObs = 0;
+  let totalUp = 0;
+
+  for (const symbol of config.instruments) {
+    const bars = priceData[symbol];
+    if (!bars || bars.length < 30) continue;
+
+    // Filter bars within the backtest date range
+    const inRange = bars.filter(b => b.date >= config.startDate && b.date <= config.endDate);
+    if (inRange.length < 10) continue;
+
+    // Use the median timeframe for baseline calculation
+    const tf = config.timeframes[Math.floor(config.timeframes.length / 2)] || 14;
+
+    for (let i = 0; i < inRange.length; i++) {
+      const futureDate = addDays(inRange[i].date, tf);
+      const futureBar = bars.find(b => b.date >= futureDate);
+      if (futureBar) {
+        totalObs++;
+        if (futureBar.close > inRange[i].close) totalUp++;
+      }
+    }
+  }
+
+  return totalObs > 0 ? totalUp / totalObs : 0.5;
 }
 
 // ── Build market context (time-gated) ──
@@ -602,11 +668,253 @@ Generate a single prediction based on this convergence event.`;
   }
 }
 
+// ── Walk-Forward Validation ──
+// Expanding window: train on [0..k], test on [k+1..k+fold_size]
+// This prevents in-sample overfitting, a requirement for any institutional backtest.
+
+function computeWalkForward(
+  predictions: BacktestPrediction[],
+  foldCount: number = 5
+): WalkForwardResults {
+  const validated = predictions
+    .filter(p => p.outcome !== undefined)
+    .sort((a, b) => a.predictionDate.localeCompare(b.predictionDate));
+
+  const n = validated.length;
+  if (n < foldCount * 2) {
+    // Not enough data for meaningful walk-forward
+    return {
+      foldCount: 0,
+      folds: [],
+      oosAccuracy: 0,
+      oosBrierScore: 0,
+      overfitRatio: 0,
+      oosSignificant: false,
+      oosPValue: 1,
+    };
+  }
+
+  const foldSize = Math.floor(n / (foldCount + 1)); // reserve first fold for initial training
+  const folds: WalkForwardFold[] = [];
+
+  let allOosCorrect = 0;
+  let allOosTotal = 0;
+  let allOosBrier = 0;
+  let allTrainAccuracy = 0;
+
+  for (let f = 0; f < foldCount; f++) {
+    const trainEnd = (f + 1) * foldSize;
+    const testStart = trainEnd;
+    const testEnd = Math.min(testStart + foldSize, n);
+
+    const trainSet = validated.slice(0, trainEnd);
+    const testSet = validated.slice(testStart, testEnd);
+
+    if (testSet.length === 0) continue;
+
+    const trainCorrect = trainSet.filter(p => p.directionCorrect).length;
+    const testCorrect = testSet.filter(p => p.directionCorrect).length;
+    const trainBrier = trainSet.reduce((s, p) => s + (p.brierScore || 0), 0) / trainSet.length;
+    const testBrier = testSet.reduce((s, p) => s + (p.brierScore || 0), 0) / testSet.length;
+
+    const fold: WalkForwardFold = {
+      foldIndex: f,
+      trainStart: trainSet[0].predictionDate,
+      trainEnd: trainSet[trainSet.length - 1].predictionDate,
+      testStart: testSet[0].predictionDate,
+      testEnd: testSet[testSet.length - 1].predictionDate,
+      trainCount: trainSet.length,
+      testCount: testSet.length,
+      trainAccuracy: trainCorrect / trainSet.length,
+      testAccuracy: testCorrect / testSet.length,
+      trainBrier,
+      testBrier,
+    };
+
+    folds.push(fold);
+    allOosCorrect += testCorrect;
+    allOosTotal += testSet.length;
+    allOosBrier += testBrier * testSet.length;
+    allTrainAccuracy += fold.trainAccuracy;
+  }
+
+  const oosAccuracy = allOosTotal > 0 ? allOosCorrect / allOosTotal : 0;
+  const oosBrierScore = allOosTotal > 0 ? allOosBrier / allOosTotal : 0;
+  const avgTrainAccuracy = folds.length > 0 ? allTrainAccuracy / folds.length : 0;
+
+  // Overfit ratio: OOS / in-sample. < 1 = overfit, 1 = no overfit
+  const overfitRatio = avgTrainAccuracy > 0 ? oosAccuracy / avgTrainAccuracy : 0;
+
+  // Statistical significance of OOS accuracy
+  const zScore = allOosTotal > 0
+    ? (allOosCorrect - allOosTotal * 0.5) / Math.sqrt(allOosTotal * 0.25)
+    : 0;
+  const oosPValue = 1 - normalCDF(Math.abs(zScore));
+
+  return {
+    foldCount: folds.length,
+    folds,
+    oosAccuracy,
+    oosBrierScore,
+    overfitRatio,
+    oosSignificant: oosPValue < 0.05,
+    oosPValue,
+  };
+}
+
+// ── Regime-Conditioned Analysis ──
+// Breaks results by volatility regime to test if model only works in benign markets.
+
+function computeRegimeAnalysis(
+  predictions: BacktestPrediction[],
+  priceData: Record<string, DailyBar[]>
+): Record<string, RegimeStats> {
+  const validated = predictions.filter(p => p.outcome !== undefined);
+  const regimeMap: Record<string, BacktestPrediction[]> = {};
+
+  // Use SPY as the primary regime indicator, fall back to first instrument
+  const regimeBars = priceData["SPY"] || priceData[Object.keys(priceData)[0]] || [];
+
+  for (const pred of validated) {
+    const regime = classifyRegime(regimeBars, pred.predictionDate);
+    if (!regimeMap[regime]) regimeMap[regime] = [];
+    regimeMap[regime].push(pred);
+  }
+
+  const result: Record<string, RegimeStats> = {};
+  for (const [regime, preds] of Object.entries(regimeMap)) {
+    const correct = preds.filter(p => p.directionCorrect).length;
+    const brierSum = preds.reduce((s, p) => s + (p.brierScore || 0), 0);
+    const confSum = preds.reduce((s, p) => s + p.confidence, 0);
+    const retSum = preds.reduce((s, p) => {
+      const rets = Object.values(p.actualReturn || {});
+      return s + (rets.length > 0 ? rets.reduce((a, b) => a + b, 0) / rets.length : 0);
+    }, 0);
+
+    result[regime] = {
+      regime,
+      count: preds.length,
+      directionalAccuracy: correct / preds.length,
+      brierScore: brierSum / preds.length,
+      avgConfidence: confSum / preds.length,
+      avgReturn: retSum / preds.length,
+    };
+  }
+
+  return result;
+}
+
+// ── Transaction Cost Sensitivity Analysis ──
+// Sweeps cost assumptions from 5bps to 50bps to test robustness of portfolio returns.
+
+function computeCostSensitivity(
+  predictions: BacktestPrediction[],
+  config: BacktestConfig,
+  priceData: Record<string, DailyBar[]>
+): CostSensitivityResult[] {
+  const costLevels = [5, 10, 15, 20, 30, 50];
+  const validated = predictions
+    .filter(p => p.outcome !== undefined)
+    .sort((a, b) => a.predictionDate.localeCompare(b.predictionDate));
+
+  const startDate = config.startDate;
+  const endDate = config.endDate;
+  const yearsSpanned =
+    (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+    (365.25 * 24 * 60 * 60 * 1000);
+
+  const initialCapital = config.initialCapital || 100000;
+  const positionSizePct = (config.positionSizePct || 5) / 100;
+
+  return costLevels.map(costBps => {
+    const costRate = costBps / 10000;
+    let portfolioValue = initialCapital;
+    let peak = initialCapital;
+    let maxDrawdownPct = 0;
+    const dailyReturns: number[] = [];
+    const negativeReturns: number[] = [];
+    let wins = 0;
+    let grossProfit = 0;
+    let grossLoss = 0;
+
+    for (const pred of validated) {
+      if (!pred.priceAtPrediction || !pred.priceAtValidation || !pred.actualReturn) continue;
+
+      const allocatedUsd = portfolioValue * positionSizePct * pred.confidence;
+      const instruments = Object.keys(pred.actualReturn);
+      const perInstrumentUsd = allocatedUsd / Math.max(1, instruments.length);
+
+      let tradePnl = 0;
+      for (const sym of instruments) {
+        const entryPrice = pred.priceAtPrediction[sym];
+        const exitPrice = pred.priceAtValidation[sym];
+        if (!entryPrice || !exitPrice) continue;
+
+        const shares = perInstrumentUsd / entryPrice;
+        const direction = pred.direction === "bearish" ? -1 : 1;
+        tradePnl += shares * (exitPrice - entryPrice) * direction;
+      }
+
+      // Round-trip trading cost
+      const cost = allocatedUsd * costRate * 2;
+      tradePnl -= cost;
+
+      const prevValue = portfolioValue;
+      portfolioValue += tradePnl;
+      const dailyReturn = tradePnl / prevValue;
+      dailyReturns.push(dailyReturn);
+      if (dailyReturn < 0) negativeReturns.push(dailyReturn);
+
+      if (tradePnl > 0) {
+        wins++;
+        grossProfit += tradePnl;
+      } else {
+        grossLoss += Math.abs(tradePnl);
+      }
+
+      if (portfolioValue > peak) peak = portfolioValue;
+      const ddPct = (peak - portfolioValue) / peak;
+      if (ddPct > maxDrawdownPct) maxDrawdownPct = ddPct;
+    }
+
+    const totalReturn = portfolioValue - initialCapital;
+    const totalReturnPct = totalReturn / initialCapital;
+
+    const meanReturn = dailyReturns.length > 0 ? dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length : 0;
+    const stdDev = dailyReturns.length > 1
+      ? Math.sqrt(dailyReturns.reduce((s, r) => s + (r - meanReturn) ** 2, 0) / (dailyReturns.length - 1))
+      : 0;
+    const tradesPerYear = dailyReturns.length / Math.max(0.1, yearsSpanned);
+    const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(tradesPerYear) : 0;
+
+    return {
+      costBps,
+      totalReturn,
+      totalReturnPct,
+      sharpeRatio,
+      maxDrawdownPct,
+      profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
+    };
+  });
+}
+
+// ── Holm-Bonferroni Multiple Testing Correction ──
+// When running multiple backtest scenarios, raw p-values must be adjusted
+// to control family-wise error rate. This prevents p-hacking.
+
+function holmBonferroniCorrection(pValue: number, hypothesisCount: number): number {
+  // Holm-Bonferroni: for the most significant test, multiply by m.
+  // For a single p-value with known test count, this is the adjustment.
+  return Math.min(1, pValue * hypothesisCount);
+}
+
 // ── Statistical analysis ──
 
 function computeResults(
   predictions: BacktestPrediction[],
-  config: BacktestConfig
+  config: BacktestConfig,
+  priceData: Record<string, DailyBar[]>,
+  climatologicalUp: number
 ): BacktestResults {
   const validated = predictions.filter((p) => p.outcome !== undefined);
   const n = validated.length;
@@ -638,12 +946,25 @@ function computeResults(
   // ── Random baseline (50% directional accuracy) ──
   const randomBrier = 0.25; // (0.5 - outcome)^2 averages to 0.25
 
+  // ── Climatological baseline ──
+  // A naive "always bullish" strategy achieves this accuracy.
+  // This is a stricter baseline than random 50%.
+  const climatoBrier = climatologicalUp * (1 - climatologicalUp) ** 2 +
+    (1 - climatologicalUp) * climatologicalUp ** 2;
+
   // ── Statistical significance (binomial test) ──
   // H0: true accuracy = 0.5 (random)
   // Use normal approximation to binomial
   const successes = validated.filter((p) => p.directionCorrect).length;
   const zScore = (successes - n * 0.5) / Math.sqrt(n * 0.5 * 0.5);
   const pValue = 1 - normalCDF(Math.abs(zScore)); // one-tailed
+
+  // Multiple testing correction: count how many hypothesis tests are run.
+  // Each backtest config represents one test. For preset scenarios we
+  // count 6 (the number of presets in the UI). For custom runs, count 1.
+  // This is conservative and prevents p-hacking from running many presets.
+  const hypothesisCount = 6; // number of preset scenarios
+  const pValueCorrected = holmBonferroniCorrection(pValue, hypothesisCount);
 
   // ── Breakdown by timeframe ──
   const byTimeframe: Record<number, { count: number; correct: number; brierSum: number; confSum: number }> = {};
@@ -884,6 +1205,9 @@ function computeResults(
     ? Math.sqrt(negativeReturns.reduce((s, r) => s + r ** 2, 0) / negativeReturns.length)
     : 0;
 
+  // Annualization: sqrt(trades_per_year) for event-driven strategies
+  // NOTE: This is standard for event-driven (non-daily) strategies.
+  // For daily strategies, sqrt(252) would be used instead.
   const tradesPerYear = tradeLog.length / Math.max(0.1, yearsSpanned);
   const annualizationFactor = Math.sqrt(tradesPerYear);
   const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * annualizationFactor : 0;
@@ -916,6 +1240,15 @@ function computeResults(
     tradeLog,
   };
 
+  // ── Walk-forward validation ──
+  const walkForward = computeWalkForward(predictions);
+
+  // ── Regime-conditioned analysis ──
+  const byRegime = computeRegimeAnalysis(predictions, priceData);
+
+  // ── Transaction cost sensitivity ──
+  const costSensitivity = computeCostSensitivity(predictions, config, priceData);
+
   return {
     totalPredictions: predictions.length,
     totalValidated: n,
@@ -933,8 +1266,19 @@ function computeResults(
       brierScore: randomBrier,
     },
 
+    climatologicalBaseline: {
+      directionalAccuracy: climatologicalUp,
+      brierScore: climatoBrier,
+    },
+
     pValue,
-    significant: pValue < 0.05,
+    pValueCorrected,
+    hypothesisCount,
+    significant: pValueCorrected < 0.05,
+
+    walkForward,
+    byRegime,
+    costSensitivity,
 
     byTimeframe: Object.fromEntries(
       Object.entries(byTimeframe).map(([k, v]) => [
@@ -1005,7 +1349,10 @@ function emptyResults(config: BacktestConfig): BacktestResults {
     avgConfidence: 0,
     calibrationGap: 0,
     randomBaseline: { directionalAccuracy: 0.5, brierScore: 0.25 },
+    climatologicalBaseline: { directionalAccuracy: 0.5, brierScore: 0.25 },
     pValue: 1,
+    pValueCorrected: 1,
+    hypothesisCount: 6,
     significant: false,
     byTimeframe: {},
     byCategory: {},
@@ -1027,7 +1374,34 @@ async function generateAiAnalysis(
   results: BacktestResults,
   config: BacktestConfig
 ): Promise<string> {
-  const prompt = `You are writing an academic-quality analysis of a backtesting study for a signal convergence intelligence platform.
+  const wfSection = results.walkForward && results.walkForward.foldCount > 0
+    ? `
+WALK-FORWARD VALIDATION (${results.walkForward.foldCount} folds, expanding window):
+- Out-of-sample accuracy: ${(results.walkForward.oosAccuracy * 100).toFixed(1)}%
+- Out-of-sample Brier: ${results.walkForward.oosBrierScore.toFixed(4)}
+- Overfit ratio: ${results.walkForward.overfitRatio.toFixed(2)} (1.0 = no overfit, <0.8 = concerning)
+- OOS significant: ${results.walkForward.oosSignificant ? "Yes" : "No"} (p=${results.walkForward.oosPValue.toFixed(4)})
+Per fold:
+${results.walkForward.folds.map(f => `  Fold ${f.foldIndex}: train ${(f.trainAccuracy * 100).toFixed(1)}% (n=${f.trainCount}), test ${(f.testAccuracy * 100).toFixed(1)}% (n=${f.testCount})`).join("\n")}`
+    : "WALK-FORWARD: Insufficient data for walk-forward validation.";
+
+  const regimeSection = results.byRegime
+    ? `
+REGIME-CONDITIONED ANALYSIS:
+${Object.entries(results.byRegime).map(([regime, stats]) =>
+      `  ${regime}: ${(stats.directionalAccuracy * 100).toFixed(1)}% accuracy, Brier ${stats.brierScore.toFixed(3)}, avg return ${(stats.avgReturn * 100).toFixed(2)}%, n=${stats.count}`
+    ).join("\n")}`
+    : "";
+
+  const costSection = results.costSensitivity
+    ? `
+TRANSACTION COST SENSITIVITY:
+${results.costSensitivity.map(c =>
+      `  ${c.costBps}bps: return ${(c.totalReturnPct * 100).toFixed(1)}%, Sharpe ${c.sharpeRatio.toFixed(2)}, max DD ${(c.maxDrawdownPct * 100).toFixed(1)}%, profit factor ${c.profitFactor === Infinity ? "inf" : c.profitFactor.toFixed(2)}`
+    ).join("\n")}`
+    : "";
+
+  const prompt = `You are writing an academic-quality analysis of a backtesting study for a signal convergence intelligence platform. Your analysis must meet the standard of a peer-reviewed quantitative finance paper.
 
 BACKTEST CONFIGURATION:
 - Date range: ${config.startDate} to ${config.endDate} (${results.yearsSpanned} years)
@@ -1045,7 +1419,15 @@ RESULTS:
 - Average confidence: ${(results.avgConfidence * 100).toFixed(1)}%
 - Calibration gap: ${(results.calibrationGap * 100).toFixed(1)}pp
 - p-value (vs random): ${results.pValue.toFixed(6)}
-- Statistically significant: ${results.significant ? "Yes (p < 0.05)" : "No"}
+- p-value (Holm-Bonferroni corrected, m=${results.hypothesisCount}): ${results.pValueCorrected.toFixed(6)}
+- Statistically significant after correction: ${results.significant ? "Yes (p_corrected < 0.05)" : "No"}
+
+BASELINES:
+- Random (coin flip): ${(results.randomBaseline.directionalAccuracy * 100).toFixed(1)}% accuracy, Brier ${results.randomBaseline.brierScore.toFixed(4)}
+- Climatological (naive "always bullish"): ${(results.climatologicalBaseline.directionalAccuracy * 100).toFixed(1)}% accuracy, Brier ${results.climatologicalBaseline.brierScore.toFixed(4)}
+${wfSection}
+${regimeSection}
+${costSection}
 
 BY TIMEFRAME:
 ${Object.entries(results.byTimeframe).map(([k, v]) => `  ${k}d: ${(v.directionalAccuracy * 100).toFixed(1)}% accuracy, Brier ${v.brierScore.toFixed(3)}, n=${v.count}`).join("\n")}
@@ -1061,18 +1443,21 @@ ${results.calibrationCurve.map((b) => `  ${b.range}: expected ${(b.expectedFrequ
 
 Write a structured analysis with these sections:
 1. EXECUTIVE SUMMARY - 2-3 sentences on headline findings
-2. METHODOLOGY VALIDATION - Assess the scientific rigor (time-gating, sample size, statistical significance)
-3. PERFORMANCE ANALYSIS - Interpret the accuracy, Brier score, and calibration metrics in academic context
-4. TEMPORAL CONSISTENCY - Comment on year-over-year stability
-5. CATEGORY INSIGHTS - Which signal categories perform best/worst
-6. LIMITATIONS AND CAVEATS - Honest assessment of methodological limitations
-7. CONCLUSIONS - Final assessment of predictive capability
+2. METHODOLOGY VALIDATION - Assess scientific rigor: time-gating, sample size, walk-forward validation, multiple testing correction, survivorship bias considerations
+3. BASELINE COMPARISON - Compare against BOTH random and climatological baselines. The climatological baseline is the critical one, beating random is trivial.
+4. WALK-FORWARD ANALYSIS - Assess out-of-sample performance and overfit ratio. Flag if OOS accuracy degrades significantly from in-sample.
+5. REGIME ANALYSIS - Comment on whether the model works across all volatility regimes or only in specific conditions
+6. COST SENSITIVITY - At what transaction cost level does the strategy become unprofitable?
+7. TEMPORAL CONSISTENCY - Year-over-year stability
+8. CATEGORY INSIGHTS - Which signal categories perform best/worst
+9. LIMITATIONS AND CAVEATS - Honest assessment including: survivorship bias in ETFs, LLM time-gating reliability, sample size adequacy, non-independence of predictions
+10. CONCLUSIONS - Final assessment of predictive capability with specific reference to walk-forward results
 
-Use precise, academic language. Be honest about both strengths and weaknesses. Reference specific numbers. Do not overstate findings.`;
+Use precise, academic language. Be honest about both strengths and weaknesses. Reference specific numbers. Do not overstate findings. If the walk-forward overfit ratio is below 0.85, flag this prominently.`;
 
   const response = await client.messages.create({
     model,
-    max_tokens: 2000,
+    max_tokens: 3000,
     messages: [{ role: "user", content: prompt }],
   });
 

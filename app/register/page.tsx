@@ -278,7 +278,7 @@ function RegisterForm() {
       {/* ── Globe: fixed background behind everything ── */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div
-          className="absolute left-1/2 -translate-x-1/2"
+          className="absolute left-1/2 -translate-x-1/2 light-globe-container"
           style={{ top: "5vh", width: "140vh", height: "140vh" }}
         >
           {/* Atmospheric glow */}
@@ -336,7 +336,7 @@ function RegisterForm() {
 
           {/* Card */}
           <div
-            className={`rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm p-8 ${base} ${mounted ? visible : hidden}`}
+            className={`auth-card rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm p-8 ${base} ${mounted ? visible : hidden}`}
             style={{ transitionDelay: "200ms" }}
           >
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -351,7 +351,7 @@ function RegisterForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@domain.com"
-                  className="w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
+                  className="auth-input w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
                   required
                   autoComplete="email"
                 />
@@ -368,7 +368,7 @@ function RegisterForm() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="3-32 characters"
-                  className="w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
+                  className="auth-input w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
                   required
                   minLength={3}
                   maxLength={32}
@@ -388,7 +388,7 @@ function RegisterForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min 10 characters"
-                  className="w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
+                  className="auth-input w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
                   required
                   minLength={10}
                   autoComplete="new-password"
@@ -407,7 +407,7 @@ function RegisterForm() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repeat password"
-                  className="w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
+                  className="auth-input w-full bg-navy-950/60 border border-navy-700/30 rounded-lg px-4 py-3 text-[13px] text-navy-100 font-mono placeholder:text-navy-700 focus:outline-none focus:border-navy-500/50 focus:bg-navy-950/80 transition-all"
                   required
                   minLength={10}
                   autoComplete="new-password"
@@ -424,7 +424,7 @@ function RegisterForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group w-full flex items-center justify-center gap-2.5 px-5 py-3 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all disabled:opacity-40 disabled:cursor-not-allowed mt-1"
+                className="auth-btn group w-full flex items-center justify-center gap-2.5 px-5 py-3 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all disabled:opacity-40 disabled:cursor-not-allowed mt-1"
               >
                 {loading ? (
                   <>

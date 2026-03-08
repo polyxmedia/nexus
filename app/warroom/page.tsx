@@ -65,12 +65,18 @@ export default function WarRoomPage() {
 
   useEffect(() => {
     fetch("/api/warroom")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         setData(d);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("War room fetch error:", err);
+        setLoading(false);
+      });
   }, []);
 
   const handleActorClick = (id: string) => {

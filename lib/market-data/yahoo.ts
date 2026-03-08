@@ -17,6 +17,7 @@ export interface QuoteData {
   change: number;
   changePercent: number;
   volume: number;
+  timestamp: string;
   name: string;
   marketCap?: number;
   high52w?: number;
@@ -104,12 +105,20 @@ export async function getQuoteData(symbol: string): Promise<QuoteData> {
   const ticker = resolveSymbol(symbol);
   const result = await yf.quote(ticker) as Record<string, unknown>;
 
+  const marketTime = result.regularMarketTime;
+  const timestamp = marketTime instanceof Date
+    ? marketTime.toISOString()
+    : typeof marketTime === "number"
+      ? new Date(marketTime * 1000).toISOString()
+      : new Date().toISOString();
+
   return {
     symbol,
     price: (result.regularMarketPrice as number) ?? 0,
     change: (result.regularMarketChange as number) ?? 0,
     changePercent: (result.regularMarketChangePercent as number) ?? 0,
     volume: (result.regularMarketVolume as number) ?? 0,
+    timestamp,
     name: (result.shortName as string) || (result.longName as string) || symbol,
     marketCap: (result.marketCap as number) ?? undefined,
     high52w: (result.fiftyTwoWeekHigh as number) ?? undefined,
