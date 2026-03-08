@@ -10,43 +10,13 @@ interface OsintMarkersLayerProps {
   onEventClick: (event: OsintEvent) => void;
 }
 
-const EVENT_STYLES: Record<OsintEventType, { color: string; label: string; svgIcon: string }> = {
-  battles: {
-    color: "#ef4444",
-    label: "KINETIC",
-    // Crosshair icon
-    svgIcon: `<circle cx="10" cy="10" r="3.5" fill="none" stroke="white" stroke-width="1.5"/><line x1="10" y1="3" x2="10" y2="7" stroke="white" stroke-width="1.3"/><line x1="10" y1="13" x2="10" y2="17" stroke="white" stroke-width="1.3"/><line x1="3" y1="10" x2="7" y2="10" stroke="white" stroke-width="1.3"/><line x1="13" y1="10" x2="17" y2="10" stroke="white" stroke-width="1.3"/>`,
-  },
-  explosions: {
-    color: "#f97316",
-    label: "DETONATION",
-    // Explosion/burst icon
-    svgIcon: `<polygon points="10,2 12,7 17,5 14,9 19,10 14,12 17,16 12,13 10,18 8,13 3,16 6,12 1,10 6,9 3,5 8,7" fill="white"/>`,
-  },
-  violence_against_civilians: {
-    color: "#f43f5e",
-    label: "ATROCITY",
-    // Alert triangle icon
-    svgIcon: `<path d="M10 3L18 17H2L10 3Z" fill="none" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><line x1="10" y1="8" x2="10" y2="12" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="14.5" r="0.8" fill="white"/>`,
-  },
-  protests: {
-    color: "#eab308",
-    label: "CIVIL UNREST",
-    // Raised fist / people icon
-    svgIcon: `<circle cx="10" cy="5" r="2.5" fill="white"/><path d="M5 18L7 11H13L15 18" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="8" x2="10" y2="14" stroke="white" stroke-width="1.5"/>`,
-  },
-  riots: {
-    color: "#f59e0b",
-    label: "RIOT",
-    // Flame icon
-    svgIcon: `<path d="M10 2C10 2 5 8 5 12C5 15.3 7.2 18 10 18C12.8 18 15 15.3 15 12C15 8 10 2 10 2Z" fill="white"/><path d="M10 8C10 8 7.5 11 7.5 13C7.5 14.7 8.6 16 10 16C11.4 16 12.5 14.7 12.5 13C12.5 11 10 8 10 8Z" fill="${"#f59e0b"}"/>`,
-  },
-  strategic_developments: {
-    color: "#06b6d4",
-    label: "INTEL",
-    // Signal/radio icon
-    svgIcon: `<circle cx="10" cy="14" r="2" fill="white"/><path d="M6 10C7 8.5 8.4 7.5 10 7.5C11.6 7.5 13 8.5 14 10" fill="none" stroke="white" stroke-width="1.3" stroke-linecap="round"/><path d="M3.5 7C5.5 4.5 7.6 3 10 3C12.4 3 14.5 4.5 16.5 7" fill="none" stroke="white" stroke-width="1.3" stroke-linecap="round"/>`,
-  },
+const EVENT_STYLES: Record<OsintEventType, { color: string; label: string }> = {
+  battles: { color: "#ef4444", label: "KINETIC" },
+  explosions: { color: "#f97316", label: "DETONATION" },
+  violence_against_civilians: { color: "#f43f5e", label: "ATROCITY" },
+  protests: { color: "#eab308", label: "CIVIL UNREST" },
+  riots: { color: "#f59e0b", label: "RIOT" },
+  strategic_developments: { color: "#06b6d4", label: "INTEL" },
 };
 
 function getMarkerSize(fatalities: number, recent: boolean): number {
@@ -83,27 +53,17 @@ function getOsintIcon(eventType: OsintEventType, fatalities: number, recent: boo
   const style = EVENT_STYLES[eventType] || EVENT_STYLES.strategic_developments;
   const size = getMarkerSize(fatalities, recent);
   const half = size / 2;
-  const op = recent ? 1 : 0.7;
+  const op = recent ? 0.9 : 0.55;
   const glow = severe
-    ? `filter:drop-shadow(0 0 8px ${style.color}99);`
-    : recent
     ? `filter:drop-shadow(0 0 4px ${style.color}66);`
-    : `filter:drop-shadow(0 0 2px rgba(0,0,0,0.5));`;
+    : "";
 
-  // Map pin with icon inside
+  // Clean minimal diamond marker
   icon = L.divIcon({
-    html: `<div style="position:relative;width:${size}px;height:${size + 8}px;${glow}opacity:${op}">
-      <svg viewBox="0 0 20 28" width="${size}" height="${size + 8}">
-        <path d="M10 27L10 27C10 27 1 16.5 1 10C1 5 5 1 10 1C15 1 19 5 19 10C19 16.5 10 27 10 27Z" fill="${style.color}" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
-        <circle cx="10" cy="10" r="7.5" fill="rgba(0,0,0,0.25)"/>
-      </svg>
-      <svg viewBox="0 0 20 20" width="${size * 0.65}" height="${size * 0.65}" style="position:absolute;top:${size * 0.05}px;left:${size * 0.175}px">
-        ${style.svgIcon}
-      </svg>
-    </div>`,
+    html: `<svg viewBox="0 0 20 20" width="${size}" height="${size}" style="${glow}"><polygon points="10,2 18,10 10,18 2,10" fill="${style.color}" opacity="${op}"/></svg>`,
     className: "",
-    iconSize: [size, size + 8],
-    iconAnchor: [half, size + 8],
+    iconSize: [size, size],
+    iconAnchor: [half, half],
   });
 
   osintIconCache.set(key, icon);

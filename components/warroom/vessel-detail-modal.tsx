@@ -1,10 +1,9 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
 import { X, Ship, Eye } from "lucide-react";
 import type { VesselState } from "@/lib/warroom/types";
 
-interface VesselDetailModalProps {
+interface VesselDetailPanelProps {
   vessel: VesselState | null;
   onClose: () => void;
   onWatch?: (vessel: VesselState) => void;
@@ -34,116 +33,98 @@ export function VesselDetailModal({
   onClose,
   onWatch,
   isWatched,
-}: VesselDetailModalProps) {
+}: VesselDetailPanelProps) {
   if (!vessel) return null;
 
   return (
-    <Dialog.Root open={!!vessel} onOpenChange={(open) => !open && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 wr-fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-navy-700/60 bg-navy-900/95 backdrop-blur-md p-6 wr-shadow-lg wr-modal-enter">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${vessel.vesselType === "military" ? "bg-accent-rose/10" : "bg-accent-cyan/10"}`}>
-                <Ship className={`h-5 w-5 ${VESSEL_TYPE_COLORS[vessel.vesselType] || "text-navy-400"}`} />
-              </div>
-              <div>
-                <Dialog.Title className="text-sm font-semibold text-navy-100 font-mono">
-                  {vessel.name}
-                </Dialog.Title>
-                <Dialog.Description className="text-[10px] text-navy-500 uppercase tracking-wider mt-0.5">
-                  {VESSEL_TYPE_LABELS[vessel.vesselType] || "VESSEL"}
-                </Dialog.Description>
-              </div>
+    <div className="absolute bottom-3 left-[21rem] z-40 pointer-events-auto w-80 rounded-lg border border-navy-700/40 bg-navy-900/95 backdrop-blur-md wr-shadow-lg overflow-hidden max-h-[calc(100vh-6rem)] overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-navy-700/20 sticky top-0 bg-navy-900/95 backdrop-blur-md z-10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`p-1.5 rounded ${vessel.vesselType === "military" ? "bg-accent-rose/10" : "bg-accent-cyan/10"}`}>
+            <Ship className={`h-4 w-4 ${VESSEL_TYPE_COLORS[vessel.vesselType] || "text-navy-400"}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-navy-100 font-mono truncate">
+              {vessel.name}
             </div>
-            <div className="flex items-center gap-1">
-              {onWatch && (
-                <button
-                  onClick={() => onWatch(vessel)}
-                  className={`p-1.5 rounded transition-colors wr-focus-ring ${
-                    isWatched
-                      ? "bg-accent-cyan/15 text-accent-cyan"
-                      : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/60"
-                  }`}
-                  title={isWatched ? "Remove from watchlist" : "Add to watchlist"}
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-              )}
-              <Dialog.Close asChild>
-                <button className="text-navy-500 hover:text-navy-300 hover:bg-navy-800/60 rounded p-1 transition-colors wr-focus-ring">
-                  <X className="h-4 w-4" />
-                </button>
-              </Dialog.Close>
+            <div className="text-[9px] text-navy-500 uppercase tracking-wider">
+              {VESSEL_TYPE_LABELS[vessel.vesselType] || "VESSEL"}
             </div>
           </div>
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {onWatch && (
+            <button
+              onClick={() => onWatch(vessel)}
+              className={`p-1 rounded transition-colors ${
+                isWatched
+                  ? "bg-accent-cyan/15 text-accent-cyan"
+                  : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/60"
+              }`}
+              title={isWatched ? "Remove from watchlist" : "Add to watchlist"}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-navy-500 hover:text-navy-300 hover:bg-navy-800/60 rounded p-1 transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
 
-          <div className="space-y-4">
-            {/* Identity */}
-            <section>
-              <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2 pb-1 border-b border-navy-700/20">
-                Identity
-              </h4>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                <div className="text-navy-500">Name</div>
-                <div className="text-navy-100 font-mono font-medium">{vessel.name}</div>
-                <div className="text-navy-500">MMSI</div>
-                <div className="text-navy-200 font-mono">{vessel.mmsi}</div>
-                <div className="text-navy-500">Flag</div>
-                <div className="text-navy-200">{vessel.flag}</div>
-                <div className="text-navy-500">Type</div>
-                <div className={VESSEL_TYPE_COLORS[vessel.vesselType] || "text-navy-200"}>
-                  {vessel.vesselType.charAt(0).toUpperCase() + vessel.vesselType.slice(1)}
-                </div>
-              </div>
-            </section>
+      <div className="px-3 py-2.5 space-y-3">
+        {/* Identity */}
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
+          <span className="text-navy-500">Name</span>
+          <span className="text-navy-100 font-mono font-medium">{vessel.name}</span>
+          <span className="text-navy-500">MMSI</span>
+          <span className="text-navy-300 font-mono">{vessel.mmsi}</span>
+          <span className="text-navy-500">Flag</span>
+          <span className="text-navy-300">{vessel.flag}</span>
+          <span className="text-navy-500">Type</span>
+          <span className={VESSEL_TYPE_COLORS[vessel.vesselType] || "text-navy-200"}>
+            {vessel.vesselType.charAt(0).toUpperCase() + vessel.vesselType.slice(1)}
+          </span>
+        </div>
 
-            {/* Navigation */}
-            <section>
-              <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2 pb-1 border-b border-navy-700/20">
-                Navigation
-              </h4>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-navy-800/40 rounded-lg p-3 text-center">
-                  <div className="text-[10px] text-navy-500 uppercase mb-1">Speed</div>
-                  <div className="text-sm font-mono font-medium text-navy-100">{vessel.speed.toFixed(1)}</div>
-                  <div className="text-[10px] text-navy-500">knots</div>
-                </div>
-                <div className="bg-navy-800/40 rounded-lg p-3 text-center">
-                  <div className="text-[10px] text-navy-500 uppercase mb-1">Course</div>
-                  <div className="text-sm font-mono font-medium text-navy-100">{Math.round(vessel.course)}&deg;</div>
-                  <div className="text-[10px] text-navy-500">{headingToCardinal(vessel.course)}</div>
-                </div>
-                <div className="bg-navy-800/40 rounded-lg p-3 text-center">
-                  <div className="text-[10px] text-navy-500 uppercase mb-1">Heading</div>
-                  <div className="text-sm font-mono font-medium text-navy-100">{Math.round(vessel.heading)}&deg;</div>
-                  <div className="text-[10px] text-navy-500">{headingToCardinal(vessel.heading)}</div>
-                </div>
-              </div>
-            </section>
-
-            {/* Position & Destination */}
-            <section>
-              <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2 pb-1 border-b border-navy-700/20">
-                Position
-              </h4>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                <div className="text-navy-500">Latitude</div>
-                <div className="text-navy-200 font-mono">{vessel.lat.toFixed(4)}&deg;</div>
-                <div className="text-navy-500">Longitude</div>
-                <div className="text-navy-200 font-mono">{vessel.lng.toFixed(4)}&deg;</div>
-                {vessel.destination && (
-                  <>
-                    <div className="text-navy-500">Destination</div>
-                    <div className="text-accent-cyan font-medium">{vessel.destination}</div>
-                  </>
-                )}
-              </div>
-            </section>
+        {/* Navigation */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-navy-800/40 rounded px-2 py-2 text-center">
+            <div className="text-[9px] text-navy-500 uppercase">Speed</div>
+            <div className="text-xs font-mono font-medium text-navy-100">{vessel.speed.toFixed(1)}</div>
+            <div className="text-[9px] text-navy-500">knots</div>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <div className="bg-navy-800/40 rounded px-2 py-2 text-center">
+            <div className="text-[9px] text-navy-500 uppercase">Course</div>
+            <div className="text-xs font-mono font-medium text-navy-100">{Math.round(vessel.course)}&deg;</div>
+            <div className="text-[9px] text-navy-500">{headingToCardinal(vessel.course)}</div>
+          </div>
+          <div className="bg-navy-800/40 rounded px-2 py-2 text-center">
+            <div className="text-[9px] text-navy-500 uppercase">Heading</div>
+            <div className="text-xs font-mono font-medium text-navy-100">{Math.round(vessel.heading)}&deg;</div>
+            <div className="text-[9px] text-navy-500">{headingToCardinal(vessel.heading)}</div>
+          </div>
+        </div>
+
+        {/* Position */}
+        <div className="flex gap-3 text-[10px] text-navy-400 font-mono">
+          <span>{vessel.lat.toFixed(4)}&deg;{vessel.lat >= 0 ? "N" : "S"}</span>
+          <span>{vessel.lng.toFixed(4)}&deg;{vessel.lng >= 0 ? "E" : "W"}</span>
+        </div>
+
+        {/* Destination */}
+        {vessel.destination && (
+          <div className="border-t border-navy-700/20 pt-2 text-[11px]">
+            <span className="text-navy-500">Destination: </span>
+            <span className="text-accent-cyan font-medium">{vessel.destination}</span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

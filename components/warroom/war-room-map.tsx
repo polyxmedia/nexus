@@ -65,16 +65,13 @@ const ESCALATION_FILL: Record<number, string> = {
 
 function strategicIcon(type: string) {
   const isChokepoint = type === "chokepoint";
-  const size = 18;
+  const size = 14;
   const color = isChokepoint ? "#f59e0b" : "#94a3b8";
-  const glow = isChokepoint
-    ? `filter:drop-shadow(0 0 5px ${color}99);`
-    : `filter:drop-shadow(0 0 3px rgba(0,0,0,0.4));`;
 
-  // Chokepoints get a crosshair target, bases get a diamond
+  // Chokepoints: small circle, bases: small square
   const svg = isChokepoint
-    ? `<svg viewBox="0 0 20 20" width="${size}" height="${size}" style="${glow}"><circle cx="10" cy="10" r="5" fill="${color}20" stroke="${color}" stroke-width="1.5"/><circle cx="10" cy="10" r="2" fill="${color}"/><line x1="10" y1="1" x2="10" y2="6" stroke="${color}" stroke-width="1.2"/><line x1="10" y1="14" x2="10" y2="19" stroke="${color}" stroke-width="1.2"/><line x1="1" y1="10" x2="6" y2="10" stroke="${color}" stroke-width="1.2"/><line x1="14" y1="10" x2="19" y2="10" stroke="${color}" stroke-width="1.2"/></svg>`
-    : `<svg viewBox="0 0 20 20" width="${size}" height="${size}" style="${glow}"><path d="M10 2L18 10L10 18L2 10Z" fill="${color}25" stroke="${color}" stroke-width="1.2"/><path d="M10 6L14 10L10 14L6 10Z" fill="${color}60"/></svg>`;
+    ? `<svg viewBox="0 0 14 14" width="${size}" height="${size}"><circle cx="7" cy="7" r="4" fill="${color}" opacity="0.6"/></svg>`
+    : `<svg viewBox="0 0 14 14" width="${size}" height="${size}"><rect x="3" y="3" width="8" height="8" fill="${color}" opacity="0.5"/></svg>`;
 
   return L.divIcon({
     html: svg,
