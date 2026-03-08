@@ -2,8 +2,19 @@ import { NextResponse } from "next/server";
 import { hashPassword } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  // Rate limit: 5 registrations per IP per hour
+  const ip = getClientIp(request);
+  const rl = rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const { username, password, referralCode } = await request.json();
 
@@ -14,16 +25,17 @@ export async function POST(request: Request) {
       );
     }
 
-    if (username.length < 3) {
+    const usernameRegex = /^[a-zA-Z0-9_]{3,32}$/;
+    if (!usernameRegex.test(username)) {
       return NextResponse.json(
-        { error: "Username must be at least 3 characters" },
+        { error: "Username must be 3-32 characters, letters, numbers and underscores only" },
         { status: 400 }
       );
     }
 
-    if (password.length < 8) {
+    if (password.length < 10) {
       return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
+        { error: "Password must be at least 10 characters" },
         { status: 400 }
       );
     }

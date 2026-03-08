@@ -1229,6 +1229,280 @@ function GdpNowcastWidget() {
   );
 }
 
+// ── Prediction Markets Widget ──
+
+interface PredictionMarketData {
+  id: string;
+  source: string;
+  title: string;
+  probability: number;
+  volume24h: number;
+  category: string;
+  priceChange24h: number;
+  url: string;
+}
+
+interface PredictionMarketsWidgetData {
+  markets: PredictionMarketData[];
+  topMovers: PredictionMarketData[];
+  geopolitical: PredictionMarketData[];
+  economic: PredictionMarketData[];
+  political: PredictionMarketData[];
+  totalMarkets: number;
+}
+
+function PredictionMarketsWidget() {
+  const [data, setData] = useState<PredictionMarketsWidgetData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"top" | "geo" | "econ" | "political">("top");
+
+  useEffect(() => {
+    fetch("/api/prediction-markets")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <WidgetSkeleton lines={8} />;
+  if (!data || !data.markets?.length) return <WidgetError message="No prediction market data" />;
+
+  const tabs = [
+    { key: "top" as const, label: "Top Vol" },
+    { key: "geo" as const, label: "Geopolitical" },
+    { key: "econ" as const, label: "Economic" },
+    { key: "political" as const, label: "Political" },
+  ];
+
+  const markets = tab === "geo" ? data.geopolitical
+    : tab === "econ" ? data.economic
+    : tab === "political" ? data.political
+    : data.markets;
+
+  return (
+    <div className="space-y-2">
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-navy-700/20 pb-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded transition-colors ${
+              tab === t.key ? "bg-navy-800 text-navy-200" : "text-navy-500 hover:text-navy-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+        <span className="ml-auto text-[8px] font-mono text-navy-600">{data.totalMarkets} markets</span>
+      </div>
+
+      {/* Top movers bar */}
+      {tab === "top" && data.topMovers?.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {data.topMovers.slice(0, 5).map((m) => (
+            <div key={m.id} className="shrink-0 px-2 py-1 rounded bg-navy-800/40 border border-navy-700/20">
+              <span className="text-[8px] text-navy-400 block truncate max-w-[120px]">{m.title}</span>
+              <span className={`text-[10px] font-mono font-bold ${m.priceChange24h > 0 ? "text-accent-emerald" : m.priceChange24h < 0 ? "text-accent-rose" : "text-navy-300"}`}>
+                {m.priceChange24h > 0 ? "+" : ""}{(m.priceChange24h * 100).toFixed(1)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Market list */}
+      <div className="space-y-1">
+        {(markets || []).slice(0, 12).map((m) => {
+          const pct = (m.probability * 100).toFixed(0);
+          const barColor = m.probability > 0.7 ? "bg-accent-emerald" : m.probability > 0.4 ? "bg-accent-amber" : "bg-accent-rose";
+          return (
+            <div key={m.id} className="p-1.5 rounded bg-navy-800/30 hover:bg-navy-800/50 transition-colors">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <span className="text-[10px] text-navy-200 leading-tight flex-1">{m.title}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[11px] font-mono text-navy-100 font-bold">{pct}%</span>
+                  {m.priceChange24h !== 0 && (
+                    <span className={`text-[8px] font-mono ${m.priceChange24h > 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                      {m.priceChange24h > 0 ? "+" : ""}{(m.priceChange24h * 100).toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1 bg-navy-700/40 rounded-full overflow-hidden">
+                  <div className={`h-full ${barColor}/60 rounded-full`} style={{ width: `${pct}%` }} />
+                </div>
+                <span className="text-[7px] font-mono text-navy-600 uppercase">{m.source}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Congressional Trading Widget ──
+
+interface CongressionalTradeData {
+  name: string;
+  chamber: string;
+  party?: string;
+  ticker: string;
+  asset: string;
+  transactionType: string;
+  amount: string;
+  transactionDate: string;
+}
+
+interface CongressionalWidgetData {
+  congressional: {
+    recent: CongressionalTradeData[];
+    topBuys: CongressionalTradeData[];
+    topSells: CongressionalTradeData[];
+    byParty: { democrat: number; republican: number; independent: number };
+    byChamber: { senate: number; house: number };
+  };
+  insider: {
+    recent: Array<{ insider: string; company: string; ticker: string; transactionType: string; shares: number; transactionDate: string }>;
+    clusterBuys: Array<{ ticker: string; company: string; insiders: Array<{ name: string }>; significance: string }>;
+    buyRatio: number;
+  };
+}
+
+function CongressionalTradingWidget() {
+  const [data, setData] = useState<CongressionalWidgetData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"recent" | "buys" | "clusters">("recent");
+
+  useEffect(() => {
+    fetch("/api/congressional-trading")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <WidgetSkeleton lines={8} />;
+  if (!data) return <WidgetError message="No congressional trading data" />;
+
+  const tabs = [
+    { key: "recent" as const, label: "Recent" },
+    { key: "buys" as const, label: "Top Buys" },
+    { key: "clusters" as const, label: "Clusters" },
+  ];
+
+  const partyColor = (party?: string) => {
+    const p = (party || "").toLowerCase();
+    if (p.includes("democrat") || p === "d") return "text-blue-400";
+    if (p.includes("republican") || p === "r") return "text-red-400";
+    return "text-navy-400";
+  };
+
+  const partyLabel = (party?: string) => {
+    const p = (party || "").toLowerCase();
+    if (p.includes("democrat") || p === "d") return "D";
+    if (p.includes("republican") || p === "r") return "R";
+    return "I";
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Summary bar */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          <span className="text-[8px] text-navy-500">Senate</span>
+          <span className="text-[10px] font-mono text-navy-200">{data.congressional?.byChamber?.senate || 0}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[8px] text-navy-500">House</span>
+          <span className="text-[10px] font-mono text-navy-200">{data.congressional?.byChamber?.house || 0}</span>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[8px] text-blue-400">D:{data.congressional?.byParty?.democrat || 0}</span>
+          <span className="text-[8px] text-red-400">R:{data.congressional?.byParty?.republican || 0}</span>
+        </div>
+      </div>
+
+      {/* Buy ratio */}
+      {data.insider?.buyRatio != null && (
+        <div className="flex items-center gap-2">
+          <span className="text-[8px] text-navy-500">Insider Buy Ratio</span>
+          <div className="flex-1 h-1.5 bg-navy-700/40 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${data.insider.buyRatio > 0.5 ? "bg-accent-emerald/60" : "bg-accent-rose/60"}`}
+              style={{ width: `${data.insider.buyRatio * 100}%` }}
+            />
+          </div>
+          <span className="text-[9px] font-mono text-navy-300">{(data.insider.buyRatio * 100).toFixed(0)}%</span>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-navy-700/20 pb-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded transition-colors ${
+              tab === t.key ? "bg-navy-800 text-navy-200" : "text-navy-500 hover:text-navy-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {(tab === "recent" || tab === "buys") && (
+        <div className="space-y-1">
+          {(tab === "buys" ? data.congressional?.topBuys : data.congressional?.recent || []).slice(0, 10).map((t, i) => (
+            <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-navy-800/30">
+              <span className={`text-[9px] font-mono font-bold w-4 ${partyColor(t.party)}`}>{partyLabel(t.party)}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-navy-200 truncate">{t.name}</span>
+                  <span className="text-[8px] text-navy-600 uppercase">{t.chamber === "senate" ? "SEN" : "HSE"}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-accent-cyan font-bold">{t.ticker}</span>
+                  <span className={`text-[8px] font-mono uppercase ${t.transactionType === "purchase" ? "text-accent-emerald" : "text-accent-rose"}`}>
+                    {t.transactionType === "purchase" ? "BUY" : "SELL"}
+                  </span>
+                  <span className="text-[8px] text-navy-500">{t.amount}</span>
+                </div>
+              </div>
+              <span className="text-[8px] font-mono text-navy-600 shrink-0">{t.transactionDate}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "clusters" && (
+        <div className="space-y-1.5">
+          {(data.insider?.clusterBuys || []).length === 0 && (
+            <p className="text-[10px] text-navy-500 py-2">No cluster buys detected in recent filings.</p>
+          )}
+          {(data.insider?.clusterBuys || []).slice(0, 8).map((c, i) => {
+            const sigColor = c.significance === "high" ? "text-accent-rose" : c.significance === "medium" ? "text-accent-amber" : "text-navy-400";
+            return (
+              <div key={i} className="p-2 rounded bg-navy-800/40 border border-navy-700/20">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-mono text-accent-cyan font-bold">{c.ticker}</span>
+                  <span className={`text-[8px] font-mono uppercase ${sigColor}`}>{c.significance}</span>
+                </div>
+                <span className="text-[9px] text-navy-400 block">{c.company}</span>
+                <span className="text-[9px] text-navy-500">{c.insiders.length} insiders buying</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── AI Progression Widget ──
 
 interface AIProgressionData {
@@ -1498,6 +1772,10 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <GdpNowcastWidget />;
       case "ai_progression":
         return <AIProgressionWidget />;
+      case "prediction_markets":
+        return <PredictionMarketsWidget />;
+      case "congressional_trading":
+        return <CongressionalTradingWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1537,4 +1815,6 @@ export const AVAILABLE_WIDGETS = [
   { type: "gdp_nowcast", name: "GDP Nowcast", description: "Real GDP growth with regime and industrial production", defaultWidth: 1, defaultConfig: {} },
   // AI
   { type: "ai_progression", name: "AI Progression", description: "Remote Labor Index, AI 2027 timeline, sector automation risk", defaultWidth: 2, defaultConfig: {} },
+  { type: "prediction_markets", name: "Prediction Markets", description: "Polymarket + Kalshi probability pricing", defaultWidth: 2, defaultConfig: {} },
+  { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider cluster buys", defaultWidth: 2, defaultConfig: {} },
 ];

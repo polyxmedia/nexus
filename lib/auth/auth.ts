@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare, hash } from "bcryptjs";
 import { db, schema } from "@/lib/db";
 import { eq, like } from "drizzle-orm";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function hashPassword(password: string): Promise<string> {
   return hash(password, 12);
@@ -22,6 +23,10 @@ export const authOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) return null;
+
+        // Rate limit: 10 login attempts per username per 15 minutes
+        const rl = rateLimit(`login:${credentials.username.toLowerCase()}`, 10, 15 * 60 * 1000);
+        if (!rl.allowed) return null; // Return null (not an error) so NextAuth shows generic "Sign in failed"
 
         try {
           const users = await db
@@ -64,14 +69,18 @@ export const authOptions = {
   },
   session: {
     strategy: "jwt" as const,
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 8 * 60 * 60, // 8 hours
   },
   secret: (() => {
     const secret = process.env.NEXTAUTH_SECRET;
-    if (!secret && process.env.NODE_ENV === "production") {
-      throw new Error("NEXTAUTH_SECRET must be set in production");
+    if (!secret) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("NEXTAUTH_SECRET must be set in production");
+      }
+      // Development only — still warn so devs set this before going live
+      console.warn("⚠️  NEXTAUTH_SECRET not set. Set it in .env.local before going to production.");
     }
-    return secret || "nexus-dev-only-secret";
+    return secret || "nexus-dev-fallback-" + process.env.DATABASE_URL?.slice(-8) || "nexus-dev";
   })(),
 };
 

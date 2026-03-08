@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getT212Client, checkDuplicate } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const t212 = await getT212Client();
     if (!t212) {
@@ -22,6 +27,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await request.json();
     const { ticker, quantity, direction, orderType, limitPrice, stopPrice, signalId, predictionId } = body;
@@ -125,6 +133,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get("orderId");

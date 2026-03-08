@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Sparkles, RefreshCw, ArrowRight } from "lucide-react";
+import { Loader2, FileText, Sparkles, RefreshCw, ArrowRight, ShieldAlert, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import type { ThesisSuggestion } from "@/app/api/thesis/suggestions/route";
 
@@ -24,6 +24,16 @@ interface TradingAction {
   riskLevel: string;
   confidence: number;
   sources: string[];
+}
+
+interface RedTeamAssessment {
+  challenge: string;
+  killConditions: string[];
+  alternativeScenarios: { scenario: string; probability: number; impact: string }[];
+  suggestedConfidence: number;
+  confidenceReason: string;
+  biasScore: number;
+  biasNotes: string;
 }
 
 interface ThesisSummary {
@@ -39,6 +49,7 @@ interface ThesisSummary {
   tradingActions: TradingAction[];
   executiveSummary: string;
   symbols: string[];
+  redTeamChallenge?: string | null;
 }
 
 const ANGLE_COLORS: Record<string, string> = {
@@ -408,6 +419,95 @@ export default function ThesisPage() {
                   />
                 </div>
               )}
+
+              {/* Red Team Challenge */}
+              {activeThesis.redTeamChallenge && (() => {
+                let rt: RedTeamAssessment;
+                try { rt = JSON.parse(activeThesis.redTeamChallenge); } catch { return null; }
+                const biasColors = ["", "#10b981", "#10b981", "#f59e0b", "#ef4444", "#ef4444"];
+                return (
+                  <div className="border border-accent-rose/20 rounded bg-accent-rose/[0.03]">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-accent-rose/10">
+                      <ShieldAlert className="h-3.5 w-3.5 text-accent-rose" />
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-accent-rose">
+                        Red Team Challenge
+                      </span>
+                      <span className="ml-auto text-[10px] font-mono text-navy-500">
+                        Bias score: <span style={{ color: biasColors[rt.biasScore] }}>{rt.biasScore}/5</span>
+                      </span>
+                    </div>
+
+                    <div className="p-4 space-y-4">
+                      {/* Core challenge */}
+                      <div>
+                        <p className="text-xs text-navy-300 leading-relaxed">{rt.challenge}</p>
+                      </div>
+
+                      {/* Confidence adjustment */}
+                      {rt.suggestedConfidence !== activeThesis.overallConfidence && (
+                        <div className="flex items-center gap-3 rounded bg-navy-900/40 px-3 py-2">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Suggested confidence:</span>
+                          <span className="text-xs font-mono font-bold" style={{
+                            color: rt.suggestedConfidence < activeThesis.overallConfidence ? "#f59e0b" : "#10b981"
+                          }}>
+                            {(rt.suggestedConfidence * 100).toFixed(0)}%
+                          </span>
+                          <span className="text-[10px] text-navy-600">
+                            (analyst: {(activeThesis.overallConfidence * 100).toFixed(0)}%)
+                          </span>
+                          <span className="text-[10px] text-navy-500 ml-auto">{rt.confidenceReason}</span>
+                        </div>
+                      )}
+
+                      {/* Kill conditions */}
+                      {rt.killConditions.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-mono uppercase tracking-widest text-navy-500 mb-2">
+                            Kill Conditions
+                          </h4>
+                          <div className="space-y-1">
+                            {rt.killConditions.map((kc, i) => (
+                              <div key={i} className="flex items-start gap-2">
+                                <AlertTriangle className="h-3 w-3 text-accent-amber shrink-0 mt-0.5" />
+                                <span className="text-[11px] text-navy-400">{kc}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Alternative scenarios */}
+                      {rt.alternativeScenarios.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-mono uppercase tracking-widest text-navy-500 mb-2">
+                            Alternative Scenarios
+                          </h4>
+                          <div className="space-y-2">
+                            {rt.alternativeScenarios.map((alt, i) => (
+                              <div key={i} className="flex items-start gap-3 rounded bg-navy-900/30 px-3 py-2">
+                                <span className="text-[10px] font-mono text-accent-cyan shrink-0 mt-0.5">
+                                  {(alt.probability * 100).toFixed(0)}%
+                                </span>
+                                <div>
+                                  <p className="text-[11px] text-navy-300">{alt.scenario}</p>
+                                  <p className="text-[10px] text-navy-500 mt-0.5">{alt.impact}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bias notes */}
+                      {rt.biasNotes && (
+                        <p className="text-[10px] text-navy-500 italic border-t border-navy-700/20 pt-3">
+                          {rt.biasNotes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

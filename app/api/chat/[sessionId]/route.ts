@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
@@ -7,17 +9,25 @@ import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const authSession = await getServerSession(authOptions);
+  if (!authSession?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const username = authSession.user.name;
+
   const { sessionId } = await params;
   const id = parseInt(sessionId, 10);
   try {
     const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.id, id));
-    const session = sessionRows[0];
-    if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    const chatSession = sessionRows[0];
+    if (!chatSession) return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    // Allow access to own sessions or legacy sessions (before user scoping was added)
+    if (chatSession.userId !== username && chatSession.userId !== "legacy") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const messages = await db.select().from(schema.chatMessages).where(eq(schema.chatMessages.sessionId, id)).orderBy(schema.chatMessages.createdAt);
-    return NextResponse.json({ session, messages });
+    return NextResponse.json({ session: chatSession, messages });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -28,6 +38,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const authSession = await getServerSession(authOptions);
+  if (!authSession?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const username = authSession.user.name;
+
   const { sessionId } = await params;
   const id = parseInt(sessionId, 10);
   const body = await req.json();
@@ -37,6 +51,9 @@ export async function POST(
   const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.id, id));
   const session = sessionRows[0];
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  if (session.userId !== username && session.userId !== "legacy") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "anthropic_api_key"));
   const apiKeySetting = apiKeyRows[0];

@@ -16,6 +16,7 @@ import type {
   GameTheoryAnalysis,
 } from "./types";
 import { getModel } from "@/lib/ai/model";
+import { runRedTeamAssessment } from "@/lib/analysis/red-team";
 
 export async function generateThesis(symbols: string[]): Promise<Thesis> {
   // 1. Gather settings
@@ -273,6 +274,28 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
         ;
     }
   }
+
+  // 12. Run red team challenge (non-blocking)
+  runRedTeamAssessment(
+    {
+      summary: thesis.executiveSummary,
+      confidence: thesis.overallConfidence,
+      marketImpact: JSON.stringify(tradingActions.map((a) => `${a.direction} ${a.ticker}`)),
+      tradeRecommendations: JSON.stringify(tradingActions),
+      reasoning: thesis.situationAssessment,
+      riskFactors: thesis.riskScenarios,
+    },
+    anthropicApiKey
+  )
+    .then(async (assessment) => {
+      await db
+        .update(schema.theses)
+        .set({ redTeamChallenge: JSON.stringify(assessment) })
+        .where(eq(schema.theses.id, record.id));
+    })
+    .catch((err) => {
+      console.error("Thesis red team challenge failed:", err);
+    });
 
   return thesis;
 }

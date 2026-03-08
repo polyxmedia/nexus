@@ -109,6 +109,7 @@ export const theses = pgTable("theses", {
   riskScenarios: text("risk_scenarios").notNull(),
   layerInputs: text("layer_inputs").notNull(), // JSON
   symbols: text("symbols").notNull(), // JSON array
+  redTeamChallenge: text("red_team_challenge"), // JSON: RedTeamAssessment
 });
 
 export const marketSnapshots = pgTable("market_snapshots", {
@@ -127,6 +128,7 @@ export const chatProjects = pgTable("chat_projects", {
 
 export const chatSessions = pgTable("chat_sessions", {
   id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("legacy"),
   title: text("title").notNull().default("New Chat"),
   projectId: integer("project_id").references(() => chatProjects.id),
   tags: text("tags"), // JSON array of string tags

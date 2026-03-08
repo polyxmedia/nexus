@@ -15,8 +15,11 @@ async function isAdmin(username: string): Promise<boolean> {
   return userData.role === "admin";
 }
 
-// GET all tiers
+// GET all tiers — requires auth (not admin, tiers are shown to logged-in users)
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const tiers = await db
       .select()

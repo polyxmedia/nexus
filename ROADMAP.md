@@ -5,33 +5,33 @@
 > From platform self-assessment. These are the features that transform NEXUS from "good analyst you have to ask" into "intelligence officer who wakes you up."
 
 ### v2.1 Proactive Push System (Event-Driven, Not Query-Driven)
-- [ ] Continuous monitoring loop (5-min intervals) comparing live data against active theses/positions
-- [ ] Threshold-based alert push: price targets, kill conditions, convergence detection
-- [ ] Auto-generate briefings when signal convergence detected
-- [ ] Browser push notifications for critical alerts
-- [ ] "You shouldn't have to ask" paradigm: NEXUS tells you before you think to check
+- [x] Continuous monitoring loop (5-min intervals) comparing live data against active theses/positions
+- [x] Threshold-based alert push: price targets, kill conditions, convergence detection
+- [x] Auto-generate briefings when signal convergence detected
+- [x] Browser push notifications for critical alerts
+- [x] "You shouldn't have to ask" paradigm: NEXUS tells you before you think to check
 
 ### v2.2 Red Team Adversarial Layer
-- [ ] Second Claude call in analysis pipeline challenging every thesis
-- [ ] Structural devil's advocate: attacks assumptions, prices alternative scenarios
-- [ ] Output: adjusted confidence, explicit risk caveats, counterarguments stored alongside analysis
-- [ ] Display as "Challenge" section on signal/thesis detail pages
-- [ ] Prevents confirmation bias structurally rather than hoping the analyst catches it
+- [x] Second Claude call in analysis pipeline challenging every thesis
+- [x] Structural devil's advocate: attacks assumptions, prices alternative scenarios
+- [x] Output: adjusted confidence, explicit risk caveats, counterarguments stored alongside analysis
+- [x] Display as "Challenge" section on signal/thesis detail pages
+- [x] Prevents confirmation bias structurally rather than hoping the analyst catches it
 
 ### v2.3 Prediction Auto-Resolve & Self-Calibration
-- [ ] Cron job checking expired predictions against real market data
-- [ ] Auto-score hit/miss using concrete resolution criteria
-- [ ] Feed results into Brier score calibration per category
-- [ ] Track confidence accuracy over time (calibration curve)
-- [ ] Surface insights: "underconfident on geo, overconfident on celestial"
-- [ ] After 6 months: self-calibrating prediction engine
+- [x] Cron job checking expired predictions against real market data
+- [x] Auto-score hit/miss using concrete resolution criteria
+- [x] Feed results into Brier score calibration per category
+- [x] Track confidence accuracy over time (calibration curve)
+- [x] Surface insights: "underconfident on geo, overconfident on celestial"
+- [x] After 6 months: self-calibrating prediction engine
 
 ### v2.4 Three-Brain Architecture
-- [ ] SENTINEL agent: lightweight, always-on, pattern detection, anomaly alerts (speed-optimised)
-- [ ] ANALYST agent: deep reasoning, thesis generation, convergence analysis (depth-optimised)
-- [ ] EXECUTOR agent: position sizing, entry/exit, risk calculations (precision-optimised)
-- [ ] Coordination: Sentinel detects -> Analyst reasons -> Executor acts
-- [ ] Each brain has specialised prompts and restricted tool access
+- [x] SENTINEL agent: lightweight, always-on, pattern detection, anomaly alerts (speed-optimised)
+- [x] ANALYST agent: deep reasoning, thesis generation, convergence analysis (depth-optimised)
+- [x] EXECUTOR agent: position sizing, entry/exit, risk calculations (precision-optimised)
+- [x] Coordination: Sentinel detects -> Analyst reasons -> Executor acts
+- [x] Each brain has specialised prompts and restricted tool access
 
 ### v2.5 Conditional Monte Carlo Simulation
 - [ ] Scenario-weighted simulation (not just historical returns)
@@ -478,10 +478,9 @@
 ### P0 — Critical
 
 #### Alert Delivery Pipeline
-Alerts evaluate and write to history but are never delivered in real-time. `/api/alerts/stream` SSE route exists but nothing consumes it.
-- [ ] Wire `NotificationBell` to SSE stream or polling fallback
-- [ ] Show toast on new alert trigger
-- [ ] Add sidebar badge count for undismissed alerts
+- [x] Wire `NotificationBell` to SSE stream or polling fallback
+- [x] Show toast on new alert trigger
+- [x] Add sidebar badge count for undismissed alerts
 - [ ] Stretch: email delivery via Resend or SendGrid
 
 #### Subscription Gating

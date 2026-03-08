@@ -5,6 +5,47 @@ All notable changes to Nexus are documented here.
 ## [Unreleased]
 
 ### Added
+
+#### v2.1 Proactive Push System
+- 14-job scheduler with continuous monitoring (1-min alert check, 5-min intelligence cycle, 5-min monitor sweep)
+- SSE real-time alert delivery via NotificationProvider, NotificationBell (sidebar badge + dropdown), NotificationToast (5s auto-dismiss)
+- Alert evaluation engine: price threshold, VIX level, signal intensity, prediction due, OSINT keyword
+- AI-powered alert suggestions based on active signals
+
+#### v2.2 Red Team Adversarial Layer
+- Red team assessment on every signal analysis (non-blocking Claude Sonnet 4 call)
+- Red team challenge wired into thesis generation pipeline with `red_team_challenge` DB column
+- Thesis page surfaces: core challenge, kill conditions, alternative scenarios with probabilities, confidence adjustment, bias score
+- Structural confirmation bias prevention
+
+#### v2.3 Prediction Auto-Resolve & Self-Calibration
+- Auto-resolve expired predictions every 6h via monitor sweep (compares against Alpha Vantage + GDELT)
+- Brier score, log loss, calibration gap per prediction and per category
+- Calibration API at `/api/predictions/calibration` with failure pattern detection
+- Performance feedback injected into prediction generation for self-calibration
+- Weighted Brier with exponential decay, resolution bias detection
+
+#### v2.4 Three-Brain Architecture
+- SENTINEL (Haiku): fast pattern detection, anomaly alerts, convergence detection
+- ANALYST (Sonnet 4): deep reasoning, thesis impact, regime detection
+- EXECUTOR (Haiku): position sizing (1-2% fixed fractional), risk enforcement (max 25% position, 15% drawdown, 1.5:1 R:R)
+- Coordinator: Sentinel -> Analyst -> Executor pipeline, 5-min cycle
+
+#### Signal Convergence Backtester
+- Admin backtesting engine with time-gated AI predictions and strict temporal isolation
+- 5-phase pipeline: collect data, generate signals, simulate, validate, analyze
+- Statistical validation: Brier scores, p-values (binomial test), calibration curves, log loss
+- Recharts dashboard with cumulative accuracy, Brier over time, hypothetical P&L, YoY performance
+
+#### Research Pages
+- Methodology: expandable phases, convergence scoring, data sources, risk framework
+- Game theory: interactive payoff matrix, escalation ladder, signalling theory, scenario branching
+- Signal theory: continuous animation, cleaned tag styling, code-style formulas
+
+#### Public Pages
+- About, careers, contact, docs, status, terms, privacy, cookies, security via (public) route group
+- Polyxmedia credit in footer, homepage footer replaced with shared PublicFooter
+
 - **Watchlists** - create multiple watchlists, add/remove symbols, live quotes from Alpha Vantage, drag-and-drop reorder, rename/delete, popular symbol suggestions
 - **Chat Projects** - organize chats into color-coded projects
 - **Chat Tags** - tag chats with custom labels, filter by tag
