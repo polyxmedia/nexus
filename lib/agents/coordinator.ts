@@ -291,6 +291,66 @@ export async function runIntelligenceCycle(): Promise<CycleResult> {
     agentState.analyst.lastDuration = result.analyst.duration;
   }
 
+  // ── Phase 2.5: Auto-generate predictions from analyst action items ──
+  if (result.analyst.briefing) {
+    const predictionActions = result.analyst.briefing.actionItems.filter(
+      (a) => a.type === "alert" || a.urgency === "immediate"
+    );
+    for (const action of predictionActions) {
+      try {
+        await db.insert(schema.predictions).values({
+          claim: action.description,
+          confidence: result.analyst.briefing.confidence,
+          category: "geopolitical",
+          timeframe: action.urgency === "immediate" ? "7 days" : "30 days",
+          deadline: new Date(Date.now() + (action.urgency === "immediate" ? 7 : 30) * 86400000).toISOString().split("T")[0],
+        });
+      } catch {
+        // prediction may already exist, continue
+      }
+    }
+  }
+
+  // ── Phase 2.6: Auto-create alerts for high-severity sentinel findings ──
+  const criticalAlerts = result.sentinel.alerts.filter((a) => a.severity >= 4);
+  if (criticalAlerts.length > 0) {
+    // Get or create a system alert to anchor auto-generated history entries
+    const systemAlerts = await db
+      .select()
+      .from(schema.alerts)
+      .where(eq(schema.alerts.name, "Intelligence Cycle"))
+      .limit(1);
+
+    let alertId = systemAlerts[0]?.id;
+    if (!alertId) {
+      const inserted = await db.insert(schema.alerts).values({
+        name: "Intelligence Cycle",
+        type: "signal_intensity",
+        condition: JSON.stringify({ threshold: 4 }),
+        enabled: 1,
+        cooldownMinutes: 5,
+        triggerCount: 0,
+      }).returning({ id: schema.alerts.id });
+      alertId = inserted[0]?.id;
+    }
+
+    if (alertId) {
+      for (const alert of criticalAlerts) {
+        try {
+          await db.insert(schema.alertHistory).values({
+            alertId,
+            title: `[AUTO] ${alert.title}`,
+            message: alert.summary,
+            severity: alert.severity,
+            data: JSON.stringify({ source: "sentinel", type: alert.type }),
+          });
+        } catch {
+          // continue on error
+        }
+      }
+    }
+  }
+
   // ── Phase 3: EXECUTOR (only if analyst has immediate actions) ──
   const hasImmediateActions = result.analyst.briefing?.actionItems.some(
     (a) => a.urgency === "immediate" && a.type === "trade"

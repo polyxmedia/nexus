@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ExternalLink, TrendingUp, AlertTriangle, CheckCircle2, Clock, Zap } from "lucide-react";
+import { ExternalLink, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 
 // ── Types ──
 
@@ -34,6 +34,20 @@ interface SectorRisk {
   jobsAtRisk: string;
   timeframe: string;
   trend: "accelerating" | "stable" | "early";
+}
+
+interface FREDDataPoint {
+  value: number;
+  date: string;
+}
+
+interface FREDLaborData {
+  unemploymentRate: FREDDataPoint | null;
+  initialClaims: FREDDataPoint | null;
+  nonfarmPayrolls: FREDDataPoint | null;
+  laborForceParticipation: FREDDataPoint | null;
+  source: string;
+  lastFetched: string;
 }
 
 interface Snapshot {
@@ -68,6 +82,7 @@ interface Snapshot {
     enterpriseAdoption: number;
     productivityGain: number;
   } | null;
+  fred: FREDLaborData | null;
   compositeScore: number;
   regime: string;
 }
@@ -88,7 +103,7 @@ export default function AIProgressionPage() {
 
   if (loading) {
     return (
-      <PageContainer title="AI Progression" subtitle="Tracking AI capability and labor displacement">
+      <PageContainer title="AI Progression" subtitle="Capability tracking and labor displacement analysis">
         <div className="grid grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-32 rounded" />)}
         </div>
@@ -98,280 +113,308 @@ export default function AIProgressionPage() {
 
   if (!data) {
     return (
-      <PageContainer title="AI Progression" subtitle="Tracking AI capability and labor displacement">
+      <PageContainer title="AI Progression" subtitle="Capability tracking and labor displacement analysis">
         <p className="text-sm text-navy-500">Failed to load AI progression data.</p>
       </PageContainer>
     );
   }
 
-  const regimeColor = data.regime === "transformation" ? "text-accent-rose"
-    : data.regime === "displacement" ? "text-accent-amber"
-    : data.regime === "inflection" ? "text-accent-cyan"
-    : data.regime === "accelerating" ? "text-accent-emerald"
-    : "text-navy-400";
-
-  const scoreBarColor = data.compositeScore > 60 ? "bg-accent-rose" : data.compositeScore > 40 ? "bg-accent-amber" : "bg-accent-cyan";
-
   return (
     <PageContainer
       title="AI Progression"
-      subtitle="Remote Labor Index, METR time horizons, AI 2027 timeline, sector automation risk"
+      subtitle="Capability tracking and labor displacement analysis"
     >
-      {/* Score Header */}
-      <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-5 mb-6">
-        <div className="flex items-center justify-between mb-3">
+      {/* ── Composite Score ── */}
+      <div className="border border-navy-800/60 rounded bg-navy-950/80 p-5 mb-8">
+        <div className="flex items-end justify-between mb-4">
           <div>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">AI Progression Score</span>
-            <div className="flex items-baseline gap-3 mt-1">
-              <span className="text-4xl font-mono font-bold text-navy-100">{data.compositeScore}</span>
-              <span className="text-lg font-mono text-navy-400">/100</span>
-              <span className={`text-sm font-mono font-bold uppercase ${regimeColor}`}>{data.regime}</span>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">Composite Score</span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-3xl font-mono font-light text-navy-100 tabular-nums">{data.compositeScore}</span>
+              <span className="text-sm font-mono text-navy-600">/100</span>
             </div>
           </div>
-          <div className="text-right space-y-1">
-            {data.displacement && (
-              <>
-                <div className="flex items-center gap-2 justify-end">
-                  <span className="text-[10px] text-navy-500">Enterprise AI adoption</span>
-                  <span className="text-sm font-mono text-accent-emerald font-bold">{data.displacement.enterpriseAdoption}%</span>
-                </div>
-                <div className="flex items-center gap-2 justify-end">
-                  <span className="text-[10px] text-navy-500">Companies replacing workers</span>
-                  <span className="text-sm font-mono text-accent-rose font-bold">{data.displacement.aiReplacementRate}%</span>
-                </div>
-                <div className="flex items-center gap-2 justify-end">
-                  <span className="text-[10px] text-navy-500">Hours saved/worker/week</span>
-                  <span className="text-sm font-mono text-accent-cyan font-bold">{data.displacement.productivityGain}</span>
-                </div>
-              </>
-            )}
-          </div>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500 border border-navy-800/60 px-2.5 py-1 rounded">{data.regime}</span>
         </div>
-        <div className="h-2 bg-navy-800 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all duration-700 ${scoreBarColor}`} style={{ width: `${data.compositeScore}%` }} />
+        <div className="h-px bg-navy-800/60 mb-4" />
+        <div className="h-1 bg-navy-900 rounded-full overflow-hidden">
+          <div className="h-full bg-navy-500/40 rounded-full transition-all duration-700" style={{ width: `${data.compositeScore}%` }} />
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* ── Key Displacement Figures ── */}
       {data.displacement && (
-        <div className="grid grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-px bg-navy-800/30 rounded overflow-hidden mb-8">
           {[
-            { label: "Companies replacing workers", value: `${data.displacement.aiReplacementRate}%`, color: "text-accent-rose" },
-            { label: "Routine job decline", value: `-${data.displacement.routineJobDecline}%`, color: "text-accent-rose" },
-            { label: "Technical job growth", value: `+${data.displacement.technicalJobGrowth}%`, color: "text-accent-emerald" },
-            { label: "AI-assisted work time", value: `${data.displacement.aiWorkPercentage}%`, color: "text-accent-cyan" },
-            { label: "Enterprise adoption", value: `${data.displacement.enterpriseAdoption}%`, color: "text-accent-emerald" },
-            { label: "Productivity gain", value: `${data.displacement.productivityGain}h/wk`, color: "text-accent-cyan" },
+            { label: "Enterprise Adoption", value: `${data.displacement.enterpriseAdoption}%`, delta: "up" },
+            { label: "Replacing Workers", value: `${data.displacement.aiReplacementRate}%`, delta: "up" },
+            { label: "Productivity Gain", value: `${data.displacement.productivityGain}h/wk`, delta: "neutral" },
+            { label: "Routine Job Decline", value: `${data.displacement.routineJobDecline}%`, delta: "down" },
+            { label: "Technical Job Growth", value: `+${data.displacement.technicalJobGrowth}%`, delta: "up" },
+            { label: "AI-Assisted Work", value: `${data.displacement.aiWorkPercentage}%`, delta: "up" },
           ].map((m, i) => (
-            <div key={i} className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3 text-center">
-              <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block">{m.label}</span>
-              <span className={`text-lg font-mono font-bold ${m.color}`}>{m.value}</span>
+            <div key={i} className="bg-navy-950/80 p-4">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600 block mb-1">{m.label}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-lg font-mono font-light text-navy-200 tabular-nums">{m.value}</span>
+                {m.delta === "up" && <ArrowUpRight className="h-3 w-3 text-navy-500" />}
+                {m.delta === "down" && <ArrowDownRight className="h-3 w-3 text-navy-500" />}
+                {m.delta === "neutral" && <Minus className="h-3 w-3 text-navy-600" />}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-6">
-        {/* Left Column */}
-        <div className="space-y-6">
+      {/* ── FRED Labor Market ── */}
+      {data.fred && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">Labor Market (FRED)</span>
+            <a href={data.fred.source} target="_blank" rel="noopener noreferrer" className="text-[9px] font-mono text-navy-600 hover:text-navy-400 transition-colors flex items-center gap-1">
+              Source <ExternalLink className="h-2.5 w-2.5" />
+            </a>
+          </div>
+          <div className="grid grid-cols-4 gap-px bg-navy-800/30 rounded overflow-hidden">
+            {[
+              {
+                label: "Unemployment",
+                value: data.fred.unemploymentRate ? `${data.fred.unemploymentRate.value.toFixed(1)}%` : "--",
+                series: "UNRATE",
+                date: data.fred.unemploymentRate?.date,
+              },
+              {
+                label: "Initial Claims",
+                value: data.fred.initialClaims ? `${(data.fred.initialClaims.value / 1000).toFixed(0)}K` : "--",
+                series: "ICSA",
+                date: data.fred.initialClaims?.date,
+              },
+              {
+                label: "Nonfarm Payrolls",
+                value: data.fred.nonfarmPayrolls ? `${(data.fred.nonfarmPayrolls.value / 1000).toFixed(1)}M` : "--",
+                series: "PAYEMS",
+                date: data.fred.nonfarmPayrolls?.date,
+              },
+              {
+                label: "Participation Rate",
+                value: data.fred.laborForceParticipation ? `${data.fred.laborForceParticipation.value.toFixed(1)}%` : "--",
+                series: "CIVPART",
+                date: data.fred.laborForceParticipation?.date,
+              },
+            ].map((m) => (
+              <div key={m.series} className="bg-navy-950/80 p-4">
+                <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600 block mb-1">{m.label}</span>
+                <span className="text-lg font-mono font-light text-navy-200 tabular-nums block">{m.value}</span>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[8px] font-mono text-navy-700">{m.series}</span>
+                  {m.date && <span className="text-[8px] font-mono text-navy-700">{m.date}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-8">
+        {/* ── Left Column ── */}
+        <div className="space-y-8">
           {/* Remote Labor Index */}
           {data.rli && (
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
+            <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[10px] font-mono uppercase tracking-widest text-navy-500">Remote Labor Index</h3>
-                <a href={data.rli.source} target="_blank" rel="noopener noreferrer" className="text-[9px] text-accent-cyan hover:text-accent-cyan/80 flex items-center gap-1">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">Remote Labor Index</span>
+                <a href={data.rli.source} target="_blank" rel="noopener noreferrer" className="text-[9px] font-mono text-navy-600 hover:text-navy-400 transition-colors flex items-center gap-1">
                   remotelabor.ai <ExternalLink className="h-2.5 w-2.5" />
                 </a>
               </div>
-              <p className="text-[11px] text-navy-400 mb-3 leading-relaxed">{data.rli.description}</p>
 
-              <div className="flex items-center gap-4 mb-3 pb-3 border-b border-navy-700/20">
-                <div>
-                  <span className="text-[9px] text-navy-500 block">Best Rate</span>
-                  <span className="text-2xl font-mono text-accent-cyan font-bold">{data.rli.bestRate.toFixed(1)}%</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-navy-500 block">Work Hours</span>
-                  <span className="text-sm font-mono text-navy-200">{data.rli.totalWorkHours.toLocaleString()}+</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-navy-500 block">Project Value</span>
-                  <span className="text-sm font-mono text-navy-200">${(data.rli.totalValue / 1000).toFixed(0)}K+</span>
-                </div>
-              </div>
+              <div className="border border-navy-800/60 rounded bg-navy-950/80 p-4">
+                <p className="text-[11px] text-navy-500 mb-4 leading-relaxed">{data.rli.description}</p>
 
-              <div className="space-y-2">
-                {data.rli.models.map((m) => (
-                  <div key={m.name} className="flex items-center gap-3">
-                    <span className="text-[10px] text-navy-300 w-36 truncate">{m.name}</span>
-                    <div className="flex-1 h-2 bg-navy-700/30 rounded-full overflow-hidden">
-                      <div className="h-full bg-accent-cyan/50 rounded-full transition-all duration-500" style={{ width: `${Math.min(m.automationRate * 10, 100)}%` }} />
-                    </div>
-                    <span className="text-[11px] font-mono text-navy-200 w-10 text-right">{m.automationRate.toFixed(1)}%</span>
+                <div className="grid grid-cols-3 gap-4 mb-4 pb-4 border-b border-navy-800/40">
+                  <div>
+                    <span className="text-[9px] font-mono text-navy-600 block mb-0.5">Best Rate</span>
+                    <span className="text-xl font-mono font-light text-navy-200 tabular-nums">{data.rli.bestRate.toFixed(1)}%</span>
                   </div>
-                ))}
+                  <div>
+                    <span className="text-[9px] font-mono text-navy-600 block mb-0.5">Work Hours</span>
+                    <span className="text-sm font-mono text-navy-300 tabular-nums">{data.rli.totalWorkHours.toLocaleString()}+</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-mono text-navy-600 block mb-0.5">Project Value</span>
+                    <span className="text-sm font-mono text-navy-300 tabular-nums">${(data.rli.totalValue / 1000).toFixed(0)}K+</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  {data.rli.models.map((m) => (
+                    <div key={m.name} className="flex items-center gap-3">
+                      <span className="text-[10px] text-navy-400 w-36 truncate">{m.name}</span>
+                      <div className="flex-1 h-1 bg-navy-800/60 rounded-full overflow-hidden">
+                        <div className="h-full bg-navy-500/50 rounded-full transition-all duration-500" style={{ width: `${Math.min(m.automationRate * 10, 100)}%` }} />
+                      </div>
+                      <span className="text-[10px] font-mono text-navy-400 w-10 text-right tabular-nums">{m.automationRate.toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
           {/* METR Time Horizons */}
           {data.metr && (
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
+            <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[10px] font-mono uppercase tracking-widest text-navy-500">METR Time Horizons</h3>
-                <a href={data.metr.source} target="_blank" rel="noopener noreferrer" className="text-[9px] text-accent-cyan hover:text-accent-cyan/80 flex items-center gap-1">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">METR Time Horizons</span>
+                <a href={data.metr.source} target="_blank" rel="noopener noreferrer" className="text-[9px] font-mono text-navy-600 hover:text-navy-400 transition-colors flex items-center gap-1">
                   metr.org <ExternalLink className="h-2.5 w-2.5" />
                 </a>
               </div>
-              <p className="text-[11px] text-navy-400 mb-3 leading-relaxed">{data.metr.description}</p>
 
-              <div className="flex items-center gap-4 mb-3 pb-3 border-b border-navy-700/20">
-                <div>
-                  <span className="text-[9px] text-navy-500 block">Capability Doubling Time</span>
-                  <span className="text-2xl font-mono text-accent-amber font-bold">{data.metr.doublingTimeDays}</span>
-                  <span className="text-sm font-mono text-navy-400 ml-1">days</span>
-                </div>
-              </div>
+              <div className="border border-navy-800/60 rounded bg-navy-950/80 p-4">
+                <p className="text-[11px] text-navy-500 mb-4 leading-relaxed">{data.metr.description}</p>
 
-              <div className="border border-navy-700/20 rounded overflow-hidden">
-                <div className="grid grid-cols-4 gap-2 px-3 py-1.5 bg-navy-800/40">
-                  <span className="text-[9px] font-mono text-navy-500 uppercase">Model</span>
-                  <span className="text-[9px] font-mono text-navy-500 uppercase text-right">50% Horizon</span>
-                  <span className="text-[9px] font-mono text-navy-500 uppercase text-right">80% Horizon</span>
-                  <span className="text-[9px] font-mono text-navy-500 uppercase text-right">Date</span>
-                </div>
-                {data.metr.latestModels.map((m) => (
-                  <div key={m.model} className="grid grid-cols-4 gap-2 px-3 py-2 border-t border-navy-700/10">
-                    <span className="text-[10px] text-navy-200">{m.model}</span>
-                    <span className="text-[11px] font-mono text-accent-cyan text-right">{m.fiftyPctHorizon}</span>
-                    <span className="text-[11px] font-mono text-navy-300 text-right">{m.eightyPctHorizon}</span>
-                    <span className="text-[10px] font-mono text-navy-500 text-right">{m.date}</span>
+                <div className="mb-4 pb-4 border-b border-navy-800/40">
+                  <span className="text-[9px] font-mono text-navy-600 block mb-0.5">Capability Doubling Time</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-xl font-mono font-light text-navy-200 tabular-nums">{data.metr.doublingTimeDays}</span>
+                    <span className="text-xs font-mono text-navy-500">days</span>
                   </div>
-                ))}
+                </div>
+
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-navy-800/40">
+                      <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider pb-2">Model</th>
+                      <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider pb-2">50% Horizon</th>
+                      <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider pb-2">80% Horizon</th>
+                      <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider pb-2">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.metr.latestModels.map((m) => (
+                      <tr key={m.model} className="border-b border-navy-800/20 last:border-0">
+                        <td className="text-[10px] text-navy-300 py-2">{m.model}</td>
+                        <td className="text-[10px] font-mono text-navy-300 text-right py-2 tabular-nums">{m.fiftyPctHorizon}</td>
+                        <td className="text-[10px] font-mono text-navy-400 text-right py-2 tabular-nums">{m.eightyPctHorizon}</td>
+                        <td className="text-[10px] font-mono text-navy-600 text-right py-2">{m.date}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
         </div>
 
-        {/* Right Column */}
-        <div className="space-y-6">
+        {/* ── Right Column ── */}
+        <div className="space-y-8">
           {/* AI 2027 Timeline */}
           {data.ai2027 && (
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
+            <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[10px] font-mono uppercase tracking-widest text-navy-500">AI 2027 Scenario Timeline</h3>
-                <a href={data.ai2027.source} target="_blank" rel="noopener noreferrer" className="text-[9px] text-accent-cyan hover:text-accent-cyan/80 flex items-center gap-1">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">AI 2027 Scenario Timeline</span>
+                <a href={data.ai2027.source} target="_blank" rel="noopener noreferrer" className="text-[9px] font-mono text-navy-600 hover:text-navy-400 transition-colors flex items-center gap-1">
                   ai-2027.com <ExternalLink className="h-2.5 w-2.5" />
                 </a>
               </div>
 
-              <div className="flex items-center gap-4 mb-3 pb-3 border-b border-navy-700/20">
-                <div>
-                  <span className="text-[9px] text-navy-500 block">Progress vs Prediction</span>
-                  <span className="text-2xl font-mono text-accent-amber font-bold">{data.ai2027.progressPace}%</span>
-                </div>
-                <div className="flex-1">
-                  <div className="h-2 bg-navy-700/30 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent-amber/50 rounded-full" style={{ width: `${data.ai2027.progressPace}%` }} />
+              <div className="border border-navy-800/60 rounded bg-navy-950/80 p-4">
+                <div className="mb-4 pb-4 border-b border-navy-800/40">
+                  <span className="text-[9px] font-mono text-navy-600 block mb-0.5">Progress vs Prediction</span>
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="text-xl font-mono font-light text-navy-200 tabular-nums">{data.ai2027.progressPace}%</span>
+                    <span className="text-[10px] font-mono text-navy-600">{data.ai2027.adjustedTimeline}</span>
                   </div>
-                  <span className="text-[9px] text-navy-500 mt-1 block">{data.ai2027.adjustedTimeline}</span>
+                  <div className="h-1 bg-navy-800/60 rounded-full overflow-hidden">
+                    <div className="h-full bg-navy-500/50 rounded-full" style={{ width: `${data.ai2027.progressPace}%` }} />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-0">
-                {data.ai2027.milestones.map((m, i) => {
-                  const StatusIcon = m.status === "passed" ? CheckCircle2
-                    : m.status === "on_track" ? TrendingUp
-                    : m.status === "delayed" ? AlertTriangle
-                    : Clock;
-                  const statusColor = m.status === "passed" ? "text-accent-emerald bg-accent-emerald"
-                    : m.status === "on_track" ? "text-accent-cyan bg-accent-cyan"
-                    : m.status === "delayed" ? "text-accent-rose bg-accent-rose"
-                    : "text-navy-500 bg-navy-600";
-                  const catColor = m.category === "risk" ? "text-accent-rose"
-                    : m.category === "governance" ? "text-accent-amber"
-                    : m.category === "capability" ? "text-accent-cyan"
-                    : "text-navy-400";
+                <div className="space-y-0">
+                  {data.ai2027.milestones.map((m, i) => {
+                    const dotColor = m.status === "passed" ? "bg-navy-400"
+                      : m.status === "on_track" ? "bg-navy-500"
+                      : m.status === "delayed" ? "bg-accent-amber/60"
+                      : "bg-navy-700";
 
-                  return (
-                    <div key={i} className="flex gap-3 group">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-3 h-3 rounded-full ${statusColor.split(" ")[1]}/30 border-2 border-current ${statusColor.split(" ")[0]} shrink-0 mt-1`} />
-                        {i < data.ai2027!.milestones.length - 1 && <div className="w-px flex-1 bg-navy-700/30 min-h-[16px]" />}
-                      </div>
-                      <div className="pb-4 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[10px] font-mono text-navy-500 font-bold">{m.date}</span>
-                          <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded ${catColor} bg-navy-800/60`}>{m.category}</span>
-                          <StatusIcon className={`h-3 w-3 ml-auto ${statusColor.split(" ")[0]}`} />
+                    return (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-2 h-2 rounded-full ${dotColor} shrink-0 mt-1.5`} />
+                          {i < data.ai2027!.milestones.length - 1 && <div className="w-px flex-1 bg-navy-800/40 min-h-[16px]" />}
                         </div>
-                        <span className="text-[11px] text-navy-200 font-medium block">{m.title}</span>
-                        <span className="text-[10px] text-navy-400 leading-relaxed block mt-0.5">{m.description}</span>
+                        <div className="pb-4 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-[10px] font-mono text-navy-600 tabular-nums">{m.date}</span>
+                            <span className="text-[8px] font-mono uppercase text-navy-600 border border-navy-800/40 px-1.5 py-0.5 rounded">{m.category}</span>
+                            {m.status === "passed" && <span className="text-[8px] font-mono text-navy-500 ml-auto">PASSED</span>}
+                            {m.status === "delayed" && <span className="text-[8px] font-mono text-accent-amber/70 ml-auto">DELAYED</span>}
+                          </div>
+                          <span className="text-[11px] text-navy-300 block">{m.title}</span>
+                          <span className="text-[10px] text-navy-500 leading-relaxed block mt-0.5">{m.description}</span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Sector Automation Risk - Full Width */}
+      {/* ── Sector Automation Risk ── */}
       {data.sectors.length > 0 && (
-        <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4 mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-navy-500">Sector Automation Risk</h3>
-            <div className="flex items-center gap-3 text-[9px] font-mono text-navy-500">
-              <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5 text-accent-rose" /> Accelerating</span>
-              <span className="flex items-center gap-1"><TrendingUp className="h-2.5 w-2.5 text-accent-amber" /> Stable</span>
-              <span className="flex items-center gap-1"><Clock className="h-2.5 w-2.5 text-navy-400" /> Early</span>
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">Sector Automation Risk</span>
+            <div className="flex items-center gap-4 text-[9px] font-mono text-navy-600">
+              <span>Accelerating</span>
+              <span>Stable</span>
+              <span>Early</span>
             </div>
           </div>
 
-          <div className="border border-navy-700/20 rounded overflow-hidden">
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-navy-800/40">
-              <span className="col-span-3 text-[9px] font-mono text-navy-500 uppercase">Sector</span>
-              <span className="col-span-3 text-[9px] font-mono text-navy-500 uppercase">Automation Risk</span>
-              <span className="col-span-2 text-[9px] font-mono text-navy-500 uppercase text-right">AI Adoption</span>
-              <span className="col-span-1 text-[9px] font-mono text-navy-500 uppercase text-right">Jobs at Risk</span>
-              <span className="col-span-1 text-[9px] font-mono text-navy-500 uppercase text-right">Timeframe</span>
-              <span className="col-span-2 text-[9px] font-mono text-navy-500 uppercase text-right">Trend</span>
-            </div>
-
-            {data.sectors.map((s) => {
-              const riskColor = s.automationRisk >= 70 ? "bg-accent-rose" : s.automationRisk >= 50 ? "bg-accent-amber" : s.automationRisk >= 30 ? "bg-accent-cyan" : "bg-navy-600";
-              const trendIcon = s.trend === "accelerating" ? Zap : s.trend === "stable" ? TrendingUp : Clock;
-              const trendColor = s.trend === "accelerating" ? "text-accent-rose" : s.trend === "stable" ? "text-accent-amber" : "text-navy-400";
-              const TrendIcon = trendIcon;
-
-              return (
-                <div key={s.sector} className="grid grid-cols-12 gap-2 px-4 py-2.5 border-t border-navy-700/10 hover:bg-navy-800/20 transition-colors">
-                  <div className="col-span-3 flex items-center">
-                    <span className="text-[11px] text-navy-200">{s.sector}</span>
-                  </div>
-                  <div className="col-span-3 flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-navy-700/30 rounded-full overflow-hidden">
-                      <div className={`h-full ${riskColor}/50 rounded-full`} style={{ width: `${s.automationRisk}%` }} />
-                    </div>
-                    <span className="text-[11px] font-mono text-navy-200 w-8 text-right">{s.automationRisk}%</span>
-                  </div>
-                  <div className="col-span-2 flex items-center justify-end">
-                    <span className="text-[11px] font-mono text-navy-300">{s.aiAdoption}%</span>
-                  </div>
-                  <div className="col-span-1 flex items-center justify-end">
-                    <span className="text-[10px] text-navy-400">{s.jobsAtRisk}</span>
-                  </div>
-                  <div className="col-span-1 flex items-center justify-end">
-                    <span className="text-[10px] font-mono text-navy-500">{s.timeframe}</span>
-                  </div>
-                  <div className="col-span-2 flex items-center justify-end gap-1">
-                    <TrendIcon className={`h-3 w-3 ${trendColor}`} />
-                    <span className={`text-[10px] font-mono uppercase ${trendColor}`}>{s.trend}</span>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-navy-800/40">
+                  <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5 w-48">Sector</th>
+                  <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">Automation Risk</th>
+                  <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">Adoption</th>
+                  <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">Jobs at Risk</th>
+                  <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">Timeframe</th>
+                  <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.sectors.map((s) => (
+                  <tr key={s.sector} className="border-b border-navy-800/20 last:border-0 hover:bg-navy-900/40 transition-colors">
+                    <td className="text-[11px] text-navy-300 px-4 py-2.5">{s.sector}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1 bg-navy-800/60 rounded-full overflow-hidden max-w-[120px]">
+                          <div
+                            className="h-full bg-navy-400/40 rounded-full"
+                            style={{ width: `${s.automationRisk}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-mono text-navy-400 tabular-nums w-8 text-right">{s.automationRisk}%</span>
+                      </div>
+                    </td>
+                    <td className="text-[10px] font-mono text-navy-400 text-right px-4 py-2.5 tabular-nums">{s.aiAdoption}%</td>
+                    <td className="text-[10px] text-navy-500 text-right px-4 py-2.5">{s.jobsAtRisk}</td>
+                    <td className="text-[10px] font-mono text-navy-600 text-right px-4 py-2.5">{s.timeframe}</td>
+                    <td className="text-right px-4 py-2.5">
+                      <span className={`text-[9px] font-mono uppercase ${s.trend === "accelerating" ? "text-navy-300" : s.trend === "stable" ? "text-navy-500" : "text-navy-600"}`}>
+                        {s.trend}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

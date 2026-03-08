@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/ui/upgrade-gate";
@@ -571,10 +572,12 @@ function ChartPanel({
   symbol,
   onClose,
   onSymbolChange,
+  chartHeight = 340,
 }: {
   symbol: string;
   onClose: () => void;
   onSymbolChange: (s: string) => void;
+  chartHeight?: number;
 }) {
   const [chartData, setChartData] = useState<ChartBar[]>([]);
   const [quote, setQuote] = useState<QuoteData | null>(null);
@@ -696,19 +699,19 @@ function ChartPanel({
       {/* Chart */}
       <div className="px-2 py-2">
         {loading ? (
-          <div className="h-[400px] flex items-center justify-center">
+          <div className="flex items-center justify-center" style={{ height: chartHeight }}>
             <Loader2 className="h-5 w-5 animate-spin text-navy-500" />
           </div>
         ) : error ? (
-          <div className="h-[400px] flex items-center justify-center">
+          <div className="flex items-center justify-center" style={{ height: chartHeight }}>
             <p className="text-xs text-accent-rose">{error}</p>
           </div>
         ) : chartData.length === 0 ? (
-          <div className="h-[400px] flex items-center justify-center">
+          <div className="flex items-center justify-center" style={{ height: chartHeight }}>
             <p className="text-xs text-navy-500">No chart data available for {symbol}</p>
           </div>
         ) : (
-          <CandlestickChart data={chartData} symbol={symbol} height={400} showVolume />
+          <CandlestickChart data={chartData} symbol={symbol} height={chartHeight} showVolume />
         )}
       </div>
 
@@ -730,6 +733,15 @@ function ChartPanel({
 // ── Main Page ──
 
 export default function TradingPage() {
+  return (
+    <Suspense>
+      <TradingPageInner />
+    </Suspense>
+  );
+}
+
+function TradingPageInner() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<"stocks" | "crypto">("stocks");
 
   const [account, setAccount] = useState<AccountData | null>(null);
@@ -751,8 +763,19 @@ export default function TradingPage() {
   const [placing, setPlacing] = useState(false);
   const [orderResult, setOrderResult] = useState<string | null>(null);
 
-  // Chart state
-  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  // Chart panels — array of open symbols, max 4
+  const [chartPanels, setChartPanels] = useState<string[]>([]);
+
+  const addPanel = (symbol: string) => {
+    setChartPanels(prev => {
+      if (prev.includes(symbol)) return prev; // already open
+      if (prev.length >= 4) return [...prev.slice(1), symbol]; // cap at 4, drop oldest
+      return [...prev, symbol];
+    });
+  };
+  const removePanel = (idx: number) => setChartPanels(prev => prev.filter((_, i) => i !== idx));
+  const updatePanel = (idx: number, symbol: string) => setChartPanels(prev => prev.map((s, i) => i === idx ? symbol : s));
+  const togglePanel = (symbol: string) => setChartPanels(prev => prev.includes(symbol) ? prev.filter(s => s !== symbol) : (prev.length >= 4 ? [...prev.slice(1), symbol] : [...prev, symbol]));
 
   const fetchAccountData = async () => {
     setLoading(true);
@@ -778,6 +801,20 @@ export default function TradingPage() {
       setLoading(false);
     }
   };
+
+  // Pre-fill from query params (e.g. from Copy Trade on congress page)
+  useEffect(() => {
+    const symbol = searchParams.get("symbol");
+    const side = searchParams.get("side");
+    if (symbol) {
+      setTicker(symbol);
+      addPanel(symbol);
+    }
+    if (side === "BUY" || side === "SELL") {
+      setDirection(side);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   useEffect(() => {
     fetchAccountData().then(() => {
@@ -828,7 +865,7 @@ export default function TradingPage() {
       header: "Ticker",
       accessor: (row) => (
         <button
-          onClick={(e) => { e.stopPropagation(); setChartSymbol(row.ticker); }}
+          onClick={(e) => { e.stopPropagation(); addPanel(row.ticker); }}
           className="font-semibold text-accent-cyan hover:underline"
         >
           {row.ticker}
@@ -882,7 +919,7 @@ export default function TradingPage() {
       key: "chart",
       header: "",
       accessor: (row) => (
-        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setChartSymbol(row.ticker); }}>
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); addPanel(row.ticker); }}>
           Chart
         </Button>
       ),
@@ -930,18 +967,29 @@ export default function TradingPage() {
         </button>
       </div>
 
-      {/* ── Chart Panel (shared) ── */}
-      {chartSymbol && (
-        <ChartPanel
-          symbol={chartSymbol}
-          onClose={() => setChartSymbol(null)}
-          onSymbolChange={setChartSymbol}
-        />
-      )}
+      {/* ── Chart Panels grid ── */}
+      {chartPanels.length > 0 && (() => {
+        const count = chartPanels.length;
+        const cols = count === 1 ? "grid-cols-1" : "grid-cols-2";
+        const h = count === 1 ? 380 : count <= 2 ? 300 : 260;
+        return (
+          <div className={`grid ${cols} gap-3 mb-6`}>
+            {chartPanels.map((sym, idx) => (
+              <ChartPanel
+                key={`${sym}-${idx}`}
+                symbol={sym}
+                onClose={() => removePanel(idx)}
+                onSymbolChange={(s) => updatePanel(idx, s)}
+                chartHeight={h}
+              />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* ── Crypto Tab ── */}
       {activeTab === "crypto" && (
-        <CoinbasePanel onOpenChart={(s) => setChartSymbol(s)} />
+        <CoinbasePanel onOpenChart={(s) => addPanel(s)} />
       )}
 
       {/* ── Stocks Tab ── */}
@@ -952,19 +1000,34 @@ export default function TradingPage() {
         </div>
       )}
 
-      {/* ── Watchlist quick buttons (when no chart open, stocks tab) ── */}
-      {activeTab === "stocks" && !chartSymbol && (
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-[10px] text-navy-500 uppercase tracking-wider mr-1">Quick Chart:</span>
-          {WATCHLIST_SYMBOLS.map((w) => (
+      {/* ── Watchlist quick-chart toggles ── */}
+      {activeTab === "stocks" && (
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-navy-600 uppercase tracking-wider font-mono mr-1">Charts:</span>
+          {WATCHLIST_SYMBOLS.map((w) => {
+            const isOpen = chartPanels.includes(w.symbol);
+            return (
+              <button
+                key={w.symbol}
+                onClick={() => togglePanel(w.symbol)}
+                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded border transition-colors ${
+                  isOpen
+                    ? "border-accent-cyan/40 text-accent-cyan bg-accent-cyan/10"
+                    : "border-navy-700/30 text-navy-500 hover:text-accent-cyan hover:border-accent-cyan/30"
+                }`}
+              >
+                {w.label}
+              </button>
+            );
+          })}
+          {chartPanels.length > 0 && (
             <button
-              key={w.symbol}
-              onClick={() => setChartSymbol(w.symbol)}
-              className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded border border-navy-700/30 text-navy-400 hover:text-accent-cyan hover:border-accent-cyan/30 transition-colors"
+              onClick={() => setChartPanels([])}
+              className="ml-auto px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-navy-700 hover:text-navy-500 transition-colors"
             >
-              {w.label}
+              Clear all
             </button>
-          ))}
+          )}
         </div>
       )}
 

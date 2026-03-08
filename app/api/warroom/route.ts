@@ -12,8 +12,11 @@ import {
   getAllianceLinks,
 } from "@/lib/warroom/geo-constants";
 import type { WarRoomData, ActorWithGeo, ScenarioWithAnalysis, WarRoomSignal, WarRoomThesis, GlobalMetrics } from "@/lib/warroom/types";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     // Actors with geo data
     const actors: ActorWithGeo[] = ACTORS.map((actor) => ({

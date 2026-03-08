@@ -346,6 +346,31 @@ export const commissions = pgTable("commissions", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Support Tickets ──
+
+export const supportTickets = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(), // user:{username}
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull().default("open"), // open | in_progress | resolved | closed
+  priority: text("priority").notNull().default("normal"), // low | normal | high | urgent
+  category: text("category").notNull().default("general"), // billing | technical | feature | account | general
+  assignedTo: text("assigned_to"), // admin username
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  resolvedAt: text("resolved_at"),
+});
+
+export const supportMessages = pgTable("support_messages", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  userId: text("user_id").notNull(), // who sent it
+  content: text("content").notNull(),
+  isStaff: integer("is_staff").notNull().default(0), // 0 = user, 1 = staff
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // ── Analytics ──
 
 export const analyticsEvents = pgTable("analytics_events", {
@@ -410,3 +435,7 @@ export type Commission = typeof commissions.$inferSelect;
 export type NewCommission = typeof commissions.$inferInsert;
 export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
 export type NewAnalyticsEvent = typeof analyticsEvents.$inferInsert;
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type NewSupportTicket = typeof supportTickets.$inferInsert;
+export type SupportMessage = typeof supportMessages.$inferSelect;
+export type NewSupportMessage = typeof supportMessages.$inferInsert;

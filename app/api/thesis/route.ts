@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
 import { generateThesis } from "@/lib/thesis/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function POST(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const body = await request.json();
     const { symbols } = body;
@@ -25,6 +28,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");

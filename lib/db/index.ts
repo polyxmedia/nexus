@@ -1,7 +1,10 @@
 import * as schema from "./schema";
 
-function createDb() {
-  const url = process.env.DATABASE_URL!;
+let _db: ReturnType<typeof initDb> | null = null;
+
+function initDb() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set");
 
   // Use Neon serverless driver for Neon/Vercel (wss:// or neon.tech URLs)
   // Use standard pg for local development
@@ -18,5 +21,10 @@ function createDb() {
   }
 }
 
-export const db = createDb();
+export const db = new Proxy({} as ReturnType<typeof initDb>, {
+  get(_target, prop) {
+    if (!_db) _db = initDb();
+    return (_db as Record<string | symbol, unknown>)[prop];
+  },
+});
 export { schema };

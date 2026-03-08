@@ -23,6 +23,15 @@ import { createAnalysis as createACH, addHypothesis as addACHHypothesis, addEvid
 import { getLatestNowcast, generateNowcast } from "@/lib/nowcast/engine";
 import { analyzeCentralBankText } from "@/lib/nlp/central-bank";
 import { assessCoverage } from "@/lib/intelligence/collection-gaps";
+import { getLatestSystemicRisk, computeSystemicRisk } from "@/lib/risk/systemic";
+import { getPredictionMarkets } from "@/lib/prediction-markets";
+import { getOnChainSnapshot } from "@/lib/on-chain";
+import { getShippingSnapshot } from "@/lib/shipping";
+import { getNarrativeSnapshot } from "@/lib/narrative";
+import { getBOCPDSnapshot } from "@/lib/bocpd";
+import { getShortInterestSnapshot } from "@/lib/short-interest";
+import { getGPRSnapshot } from "@/lib/gpr";
+import { getGEXSnapshot } from "@/lib/gex";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Tool Definitions (Anthropic format) ──
@@ -475,6 +484,28 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   { name: "get_economic_nowcast", description: "Real-time economic nowcast: GDP, inflation, employment, financial conditions, recession probability.", input_schema: { type: "object" as const, properties: {}, required: [] } },
   { name: "analyze_central_bank_statement", description: "Analyze central bank statement for hawkish/dovish tone, forward guidance, market implications.", input_schema: { type: "object" as const, properties: { text: { type: "string", description: "Statement text" }, institution: { type: "string", description: "Institution name" } }, required: ["text", "institution"] } },
   { name: "get_collection_gaps", description: "Intelligence collection coverage report. Gaps, blind spots, silence detection across 16 critical regions.", input_schema: { type: "object" as const, properties: {}, required: [] } },
+  {
+    name: "get_systemic_risk",
+    description:
+      "Get systemic risk assessment: absorption ratio (PCA-based market coupling), turbulence index (Mahalanobis distance), composite stress score, and crisis regime classification. Based on Kritzman et al. (2011) methodology validated across 40+ years. Tracks 11 cross-asset returns (equities, bonds, commodities, FX, VIX).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        refresh: {
+          type: "boolean",
+          description: "Force fresh computation (slow, ~20s). Default: return cached latest.",
+        },
+      },
+      required: [],
+    },
+  },
+  { name: "get_on_chain", description: "On-chain crypto analytics: whale transactions (>100 BTC), exchange flows, DeFi TVL, stablecoin supply. Data from Blockchain.com, CoinGecko, DeFi Llama.", input_schema: { type: "object" as const, properties: { section: { type: "string", enum: ["whales", "flows", "defi", "stablecoins"], description: "Filter to specific section" } }, required: [] } },
+  { name: "get_shipping_intelligence", description: "Maritime shipping intelligence: chokepoint status (Hormuz, Suez, Malacca, Bab el-Mandeb, Panama), traffic anomalies, dark fleet alerts, sanctions evasion detection.", input_schema: { type: "object" as const, properties: { chokepoint: { type: "string", enum: ["hormuz", "suez", "malacca", "mandeb", "panama"], description: "Filter to specific chokepoint" } }, required: [] } },
+  { name: "get_narratives", description: "Track narrative shifts across GDELT and Reddit. Shows trending themes, momentum (rising/peaking/fading), sentiment scores, and divergences where narrative contradicts price action.", input_schema: { type: "object" as const, properties: { theme: { type: "string", description: "Filter to specific theme keyword" } }, required: [] } },
+  { name: "get_change_points", description: "Bayesian Online Change-Point Detection (Adams & MacKay 2007). Detects structural breaks in VIX, gold, oil, yields, DXY, and signal intensity. Shows run lengths and regime shifts.", input_schema: { type: "object" as const, properties: { stream: { type: "string", enum: ["vix", "gold", "oil", "yield", "dxy", "signals"], description: "Filter to specific data stream" } }, required: [] } },
+  { name: "get_short_interest", description: "Aggregate short interest across sector ETFs (SPY, QQQ, IWM, XLF, XLE, XLK, etc). 52-week z-score, contrarian signals, per-sector breakdown.", input_schema: { type: "object" as const, properties: { sector: { type: "string", description: "Filter by sector name" } }, required: [] } },
+  { name: "get_gpr_index", description: "Geopolitical Risk Index (Caldara-Iacoviello). Threats vs acts decomposition, regional GPR proxies (Middle East, East Asia, Europe, South Asia, Africa), threshold crossings, asset exposure mapping.", input_schema: { type: "object" as const, properties: { region: { type: "string", description: "Filter to specific region" } }, required: [] } },
+  { name: "get_gamma_exposure", description: "Gamma Exposure (GEX) for SPY, QQQ, IWM. Net dealer gamma, zero-gamma level, put/call walls, regime (dampening vs amplifying). Determines if options market amplifies or dampens moves.", input_schema: { type: "object" as const, properties: { ticker: { type: "string", enum: ["SPY", "QQQ", "IWM"], description: "Filter to specific ticker" } }, required: [] } },
 ];
 
 // ── Tool Execution ──
@@ -552,6 +583,22 @@ export async function executeTool(
       return executeAnalyzeCentralBank(input);
     case "get_collection_gaps":
       return executeGetCollectionGaps();
+    case "get_systemic_risk":
+      return executeGetSystemicRisk(input);
+    case "get_on_chain":
+      return executeGetOnChain(input);
+    case "get_shipping_intelligence":
+      return executeGetShipping(input);
+    case "get_narratives":
+      return executeGetNarratives(input);
+    case "get_change_points":
+      return executeGetChangePoints(input);
+    case "get_short_interest":
+      return executeGetShortInterest(input);
+    case "get_gpr_index":
+      return executeGetGPR(input);
+    case "get_gamma_exposure":
+      return executeGetGEX(input);
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -1600,5 +1647,115 @@ async function executeGetCollectionGaps() {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Collection gaps check failed: ${message}` };
+  }
+}
+
+async function executeGetSystemicRisk(input: Record<string, unknown>) {
+  try {
+    const refresh = input.refresh === true;
+    if (refresh) {
+      return await computeSystemicRisk();
+    }
+    const latest = await getLatestSystemicRisk();
+    if (latest) return latest;
+    return await computeSystemicRisk();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Systemic risk computation failed: ${message}` };
+  }
+}
+
+async function executeGetOnChain(input: Record<string, unknown>) {
+  try {
+    const snapshot = await getOnChainSnapshot();
+    const section = input.section as string | undefined;
+    if (section === "whales") return { whales: snapshot.whales };
+    if (section === "flows") return { exchanges: snapshot.exchanges };
+    if (section === "defi") return { defi: snapshot.defi };
+    if (section === "stablecoins") return { stablecoins: snapshot.stablecoins };
+    return snapshot;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `On-chain analytics failed: ${message}` };
+  }
+}
+
+async function executeGetShipping(input: Record<string, unknown>) {
+  try {
+    const chokepoint = input.chokepoint as "hormuz" | "suez" | "malacca" | "mandeb" | "panama" | undefined;
+    return await getShippingSnapshot(chokepoint);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Shipping intelligence failed: ${message}` };
+  }
+}
+
+async function executeGetNarratives(input: Record<string, unknown>) {
+  try {
+    const theme = input.theme as string | undefined;
+    return await getNarrativeSnapshot(theme);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Narrative tracking failed: ${message}` };
+  }
+}
+
+async function executeGetChangePoints(input: Record<string, unknown>) {
+  try {
+    const snapshot = await getBOCPDSnapshot();
+    const stream = input.stream as string | undefined;
+    if (stream) {
+      const filtered = snapshot.streams.find((s) => s.stream.toLowerCase().includes(stream));
+      return filtered || { error: `Stream '${stream}' not found` };
+    }
+    return snapshot;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Change-point detection failed: ${message}` };
+  }
+}
+
+async function executeGetShortInterest(input: Record<string, unknown>) {
+  try {
+    const snapshot = await getShortInterestSnapshot();
+    const sector = input.sector as string | undefined;
+    if (sector) {
+      const filtered = snapshot.bySector.filter((s) => s.sector.toLowerCase().includes(sector.toLowerCase()));
+      return { bySector: filtered, aggregateRatio: snapshot.aggregateRatio, aggregateSignal: snapshot.aggregateSignal };
+    }
+    return snapshot;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Short interest failed: ${message}` };
+  }
+}
+
+async function executeGetGPR(input: Record<string, unknown>) {
+  try {
+    const snapshot = await getGPRSnapshot();
+    const region = input.region as string | undefined;
+    if (region) {
+      const filtered = snapshot.regional.filter((r) => r.region.toLowerCase().includes(region.toLowerCase()));
+      return { current: snapshot.current, regional: filtered };
+    }
+    return snapshot;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `GPR index failed: ${message}` };
+  }
+}
+
+async function executeGetGEX(input: Record<string, unknown>) {
+  try {
+    const snapshot = await getGEXSnapshot();
+    const ticker = input.ticker as string | undefined;
+    if (ticker) {
+      const filtered = snapshot.summaries.find((s) => s.ticker === ticker);
+      return filtered || { error: `Ticker '${ticker}' not found` };
+    }
+    return snapshot;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Gamma exposure failed: ${message}` };
   }
 }

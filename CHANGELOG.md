@@ -31,6 +31,60 @@ All notable changes to Nexus are documented here.
 - EXECUTOR (Haiku): position sizing (1-2% fixed fractional), risk enforcement (max 25% position, 15% drawdown, 1.5:1 R:R)
 - Coordinator: Sentinel -> Analyst -> Executor pipeline, 5-min cycle
 
+#### v3.1 Prediction Markets Integration
+- Polymarket + Kalshi real-time probability feeds via Gamma API
+- Divergence detection engine: cross-references market odds against NEXUS prediction confidence
+- Full page with Overview/Geopolitical/Economic/Political/Divergences tabs
+- Chat tool: `get_prediction_markets`
+
+#### v3.4 On-Chain Analytics
+- Whale transaction tracking (BTC >100) via Blockchain.com API
+- Exchange flows (top 20 exchanges) via CoinGecko
+- DeFi TVL tracking (top protocols) via DeFi Llama
+- Stablecoin supply monitoring (USDT/USDC/DAI/FDUSD/USDe)
+- Full page with whale alerts, exchange flows, DeFi TVL, stablecoin sections
+- Chat tool: `get_on_chain`
+
+#### v3.5 Shipping & Dark Fleet Intelligence
+- 5 chokepoint monitoring (Hormuz, Suez, Malacca, Bab el-Mandeb, Panama)
+- Dark fleet detection via GDELT maritime event keywords (sanctions evasion, STS transfers, AIS gaps)
+- Traffic anomaly scoring correlating oil price volatility with GDELT mention frequency
+- Chat tool: `get_shipping_intelligence`
+
+#### v3.7 Narrative Tracker
+- GDELT + Reddit (4 subreddits) narrative tracking with theme clustering
+- Momentum scoring (rising/peaking/fading/stable) based on article recency
+- Sentiment analysis via keyword matching (-1 to 1 scale)
+- Narrative-price divergence detection
+- Chat tool: `get_narratives`
+
+#### v3.14 Bayesian Change-Point Detection
+- Adams & MacKay (2007) BOCPD algorithm with Student-t predictive distribution
+- Monitors 6 streams: VIX, gold, oil, US 10Y yield, DXY, signal intensity
+- Run-length distribution tracking with memory-efficient pruning
+- Full page with stream cards, timeline visualization, change-point table
+- Chat tool: `get_change_points`
+
+#### v3.15 Aggregate Short Interest Signal
+- Short interest tracking for 10 sector-proxy ETFs via Alpha Vantage
+- Per-sector aggregation with trend detection
+- 52-week z-score and contrarian signal generation
+- Chat tool: `get_short_interest`
+
+#### v3.16 GPR Threats vs Acts Decomposition
+- Caldara-Iacoviello GPR daily index with threats/acts sub-indices
+- Regional GPR proxies (5 regions) via GDELT event counting
+- Asset exposure mapping per region (ME->oil, East Asia->semis, etc.)
+- Threshold crossing detection (elevated/crisis/extreme)
+- Chat tool: `get_gpr_index`
+
+#### v3.17 Gamma Exposure (GEX) Engine
+- Net dealer gamma calculation for SPY, QQQ, IWM from options chain data
+- Zero-gamma level, put wall, call wall identification
+- Regime classification: dampening (positive GEX) vs amplifying (negative GEX)
+- Synthetic fallback using VIX + put/call ratio with confidence scoring
+- Chat tool: `get_gamma_exposure`
+
 #### Subscription Gating (P0)
 - `requireTier(minTier)` server-side middleware: checks user subscription, admin bypass, returns 403 with upgrade prompt
 - `getUserTier()` non-enforcing check for soft-gating and rate limiting

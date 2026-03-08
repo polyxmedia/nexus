@@ -80,7 +80,7 @@ export const authOptions = {
       // Development only — still warn so devs set this before going live
       console.warn("⚠️  NEXTAUTH_SECRET not set. Set it in .env.local before going to production.");
     }
-    return secret || "nexus-dev-fallback-" + process.env.DATABASE_URL?.slice(-8) || "nexus-dev";
+    return secret ?? "nexus-dev-secret-change-before-prod";
   })(),
 };
 

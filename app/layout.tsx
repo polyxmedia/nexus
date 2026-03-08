@@ -6,10 +6,60 @@ import { NotificationToast } from "@/components/notifications/notification-toast
 import { AuthProvider } from "@/components/providers/session-provider";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { SubscriptionProvider } from "@/lib/hooks/useSubscription";
+import { OrganizationJsonLd, WebSiteJsonLd, SoftwareApplicationJsonLd } from "@/components/seo/json-ld";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexusintel.io";
 
 export const metadata: Metadata = {
-  title: "NEXUS - Signal Intelligence",
-  description: "Celestial-geopolitical market intelligence platform",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "NEXUS Intelligence — Geopolitical-Market Signal Platform",
+    template: "%s | NEXUS Intelligence",
+  },
+  description:
+    "NEXUS detects convergence across geopolitical, calendar, celestial, market, and OSINT signal layers before consensus catches up. AI-driven intelligence briefs for analysts, traders, and institutions.",
+  keywords: [
+    "geopolitical intelligence",
+    "market intelligence",
+    "signal detection",
+    "convergence analysis",
+    "OSINT",
+    "trading signals",
+    "geopolitical risk",
+    "market analysis",
+    "AI intelligence platform",
+    "signal intelligence",
+  ],
+  authors: [{ name: "Andre Figueira", url: "https://polyxmedia.com" }],
+  creator: "Polyxmedia",
+  publisher: "NEXUS Intelligence",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_GB",
+    url: SITE_URL,
+    siteName: "NEXUS Intelligence",
+    title: "NEXUS Intelligence — Geopolitical-Market Signal Platform",
+    description:
+      "Five independent signal layers. AI-driven convergence analysis. Intelligence briefs before consensus. Built for analysts, traders, and institutions.",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "NEXUS Intelligence Platform" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NEXUS Intelligence — Geopolitical-Market Signal Platform",
+    description:
+      "Five independent signal layers. AI-driven convergence analysis. Intelligence briefs before consensus.",
+    images: ["/opengraph-image"],
+    creator: "@polyxmedia",
+  },
+  alternates: {
+    canonical: SITE_URL,
+  },
+  category: "technology",
 };
 
 export default function RootLayout({
@@ -19,6 +69,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <OrganizationJsonLd />
+        <WebSiteJsonLd />
+        <SoftwareApplicationJsonLd />
+      </head>
       <body className="min-h-screen bg-navy-950 text-navy-100 antialiased">
         <AuthProvider>
           <NotificationProvider>

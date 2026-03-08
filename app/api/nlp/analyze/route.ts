@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeCentralBankText, compareStatements } from "@/lib/nlp/central-bank";
 import { analyzeEarningsCall } from "@/lib/nlp/filings";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function POST(request: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const body = await request.json();
     const { text, type, institution, company, previousText } = body;

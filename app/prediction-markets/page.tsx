@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowUpRight, ArrowDownRight, ExternalLink, TrendingUp, Globe, DollarSign, Vote } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, ExternalLink } from "lucide-react";
 
 // ── Types ──
 
@@ -33,6 +33,43 @@ interface Snapshot {
   lastUpdated: string;
 }
 
+interface Divergence {
+  market: Market;
+  nexusConfidence: number;
+  marketProbability: number;
+  divergence: number;
+  direction: "nexus_higher" | "nexus_lower";
+}
+
+interface DivergenceStats {
+  count: number;
+  avgDivergence: number;
+  maxDivergence: number;
+  nexusHigherCount: number;
+  nexusLowerCount: number;
+  arbitrageOpportunities: number;
+}
+
+interface DivergenceData {
+  divergences: Divergence[];
+  stats: DivergenceStats;
+  marketsAnalyzed: number;
+  predictionsAnalyzed: number;
+  lastUpdated: string;
+}
+
+// ── Tabs ──
+
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "geopolitical", label: "Geopolitical" },
+  { key: "economic", label: "Economic" },
+  { key: "political", label: "Political" },
+  { key: "divergences", label: "Divergences" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
 // ── Helpers ──
 
 function formatVolume(v: number): string {
@@ -42,269 +79,598 @@ function formatVolume(v: number): string {
 }
 
 function formatDate(d: string): string {
-  if (!d) return "N/A";
-  try { return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
-  catch { return d; }
+  if (!d) return "--";
+  try {
+    return new Date(d).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return d;
+  }
 }
 
-const CATEGORIES = [
-  { key: "all", label: "All Markets", icon: TrendingUp },
-  { key: "geopolitical", label: "Geopolitical", icon: Globe },
-  { key: "economic", label: "Economic", icon: DollarSign },
-  { key: "political", label: "Political", icon: Vote },
-] as const;
+function formatPct(v: number): string {
+  return (v * 100).toFixed(1);
+}
+
+// ── Market Table Row ──
+
+function MarketRow({ market }: { market: Market }) {
+  const probPct = (market.probability * 100).toFixed(0);
+
+  return (
+    <tr className="border-b border-navy-800/20 last:border-0 hover:bg-navy-900/30 transition-colors">
+      {/* Title */}
+      <td className="py-2.5 px-4 max-w-[320px]">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] text-navy-200 leading-tight truncate">
+              {market.title}
+            </p>
+            <div className="mt-1.5 h-[3px] bg-navy-800/40 rounded-full overflow-hidden max-w-[160px]">
+              <div
+                className="h-full bg-navy-500/40 rounded-full"
+                style={{ width: `${probPct}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Source */}
+      <td className="py-2.5 px-3">
+        <span className="text-[8px] font-mono uppercase border border-navy-800/40 px-1.5 py-0.5 rounded text-navy-500">
+          {market.source === "polymarket" ? "POLY" : "KLSH"}
+        </span>
+      </td>
+
+      {/* Probability */}
+      <td className="py-2.5 px-3 text-right">
+        <span className="font-mono font-light text-navy-200 tabular-nums text-sm">
+          {probPct}%
+        </span>
+      </td>
+
+      {/* 24h Change */}
+      <td className="py-2.5 px-3 text-right">
+        {market.priceChange24h !== 0 ? (
+          <span
+            className={`text-[11px] font-mono tabular-nums flex items-center justify-end gap-0.5 ${
+              market.priceChange24h > 0 ? "text-navy-300" : "text-navy-500"
+            }`}
+          >
+            {market.priceChange24h > 0 ? (
+              <ArrowUpRight className="h-3 w-3" />
+            ) : (
+              <ArrowDownRight className="h-3 w-3" />
+            )}
+            {market.priceChange24h > 0 ? "+" : ""}
+            {formatPct(market.priceChange24h)}
+          </span>
+        ) : (
+          <span className="text-[11px] font-mono text-navy-600">--</span>
+        )}
+      </td>
+
+      {/* 7d Change */}
+      <td className="py-2.5 px-3 text-right">
+        {market.priceChange7d !== 0 ? (
+          <span
+            className={`text-[11px] font-mono tabular-nums ${
+              market.priceChange7d > 0 ? "text-navy-300" : "text-navy-500"
+            }`}
+          >
+            {market.priceChange7d > 0 ? "+" : ""}
+            {formatPct(market.priceChange7d)}
+          </span>
+        ) : (
+          <span className="text-[11px] font-mono text-navy-600">--</span>
+        )}
+      </td>
+
+      {/* Volume */}
+      <td className="py-2.5 px-3 text-right">
+        <span className="text-[11px] font-mono text-navy-400 tabular-nums">
+          {formatVolume(market.volume24h)}
+        </span>
+      </td>
+
+      {/* End Date */}
+      <td className="py-2.5 px-3 text-right">
+        <span className="text-[10px] font-mono text-navy-600">
+          {formatDate(market.endDate)}
+        </span>
+      </td>
+
+      {/* Link */}
+      <td className="py-2.5 px-3 text-right">
+        <a
+          href={market.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-navy-600 hover:text-navy-400 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </td>
+    </tr>
+  );
+}
+
+// ── Market Table ──
+
+function MarketTable({ markets }: { markets: Market[] }) {
+  if (markets.length === 0) {
+    return (
+      <div className="border border-navy-800/60 rounded bg-navy-950/80 p-8 text-center">
+        <p className="text-sm text-navy-500">No markets available.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-x-auto">
+      <table className="w-full min-w-[640px]">
+        <thead>
+          <tr className="border-b border-navy-800/40">
+            <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">
+              Market
+            </th>
+            <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+              Src
+            </th>
+            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+              Prob
+            </th>
+            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+              24h
+            </th>
+            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+              7d
+            </th>
+            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+              Vol 24h
+            </th>
+            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+              Ends
+            </th>
+            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5 w-8" />
+          </tr>
+        </thead>
+        <tbody>
+          {markets.map((m) => (
+            <MarketRow key={m.id} market={m} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Summary Stat ──
+
+function StatCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="bg-navy-950/80 p-4">
+      <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600 block mb-1">
+        {label}
+      </span>
+      <span className="text-lg font-mono font-light text-navy-200 tabular-nums block">
+        {value}
+      </span>
+      {sub && (
+        <span className="text-[9px] font-mono text-navy-700 mt-1 block">
+          {sub}
+        </span>
+      )}
+    </div>
+  );
+}
 
 // ── Page ──
 
 export default function PredictionMarketsPage() {
   const [data, setData] = useState<Snapshot | null>(null);
+  const [divData, setDivData] = useState<DivergenceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [category, setCategory] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [divLoading, setDivLoading] = useState(false);
+  const [tab, setTab] = useState<TabKey>("overview");
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
+  // Fetch market data
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch("/api/prediction-markets");
         const json = await res.json();
         setData(json);
-      } catch { setData(null); }
-      finally { setLoading(false); }
+      } catch {
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
-    pollRef.current = setInterval(load, 60_000); // refresh every minute
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    pollRef.current = setInterval(load, 60_000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, []);
+
+  // Fetch divergences when tab activates
+  useEffect(() => {
+    if (tab !== "divergences" || divData) return;
+    setDivLoading(true);
+    fetch("/api/prediction-markets/divergence")
+      .then((r) => r.json())
+      .then((d) => setDivData(d))
+      .catch(() => setDivData(null))
+      .finally(() => setDivLoading(false));
+  }, [tab, divData]);
 
   if (loading) {
     return (
-      <PageContainer title="Prediction Markets" subtitle="Polymarket + Kalshi probability pricing">
+      <PageContainer
+        title="Prediction Markets"
+        subtitle="Polymarket + Kalshi probability pricing"
+      >
         <div className="space-y-4">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded" />)}
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded" />
+          ))}
         </div>
       </PageContainer>
     );
   }
 
-  const markets = data ? (
-    category === "geopolitical" ? data.geopolitical
-    : category === "economic" ? data.economic
-    : category === "political" ? data.political
-    : data.markets
-  ) : [];
+  if (!data) {
+    return (
+      <PageContainer
+        title="Prediction Markets"
+        subtitle="Polymarket + Kalshi probability pricing"
+      >
+        <p className="text-sm text-navy-500">
+          Failed to load prediction market data.
+        </p>
+      </PageContainer>
+    );
+  }
 
-  const filtered = search
-    ? markets.filter(m => m.title.toLowerCase().includes(search.toLowerCase()))
-    : markets;
+  // Compute overview stats
+  const avgShift =
+    data.markets.length > 0
+      ? data.markets.reduce(
+          (sum, m) => sum + Math.abs(m.priceChange24h),
+          0
+        ) / data.markets.length
+      : 0;
 
-  const movers = data?.topMovers || [];
+  const categoryBreakdown = {
+    geopolitical: data.geopolitical.length,
+    economic: data.economic.length,
+    political: data.political.length,
+  };
+  const topCategory = Object.entries(categoryBreakdown).sort(
+    (a, b) => b[1] - a[1]
+  )[0];
 
   return (
     <PageContainer
       title="Prediction Markets"
-      subtitle={`${data?.totalMarkets || 0} active markets from Polymarket and Kalshi`}
+      subtitle={`${data.totalMarkets} active markets from Polymarket and Kalshi`}
     >
-      {/* Top Movers */}
-      {movers.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-navy-500 mb-2">Top Movers (24h)</h3>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {movers.slice(0, 8).map((m) => (
-              <div key={m.id} className="shrink-0 w-56 border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
-                <p className="text-[11px] text-navy-200 leading-tight mb-2 line-clamp-2">{m.title}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-mono font-bold text-navy-100">{(m.probability * 100).toFixed(0)}%</span>
-                  <div className="flex items-center gap-1">
-                    {m.priceChange24h > 0 ? (
-                      <ArrowUpRight className="h-3 w-3 text-accent-emerald" />
-                    ) : (
-                      <ArrowDownRight className="h-3 w-3 text-accent-rose" />
-                    )}
-                    <span className={`text-xs font-mono ${m.priceChange24h > 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                      {m.priceChange24h > 0 ? "+" : ""}{(m.priceChange24h * 100).toFixed(1)}pp
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-[9px] font-mono text-navy-500">Vol: {formatVolume(m.volume24h)}</span>
-                  <span className="text-[8px] font-mono text-navy-600 uppercase">{m.source}</span>
-                </div>
-              </div>
-            ))}
+      {/* ── Tabs ── */}
+      <div className="flex items-center gap-0 border-b border-navy-800/40 mb-6">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px ${
+              tab === t.key
+                ? "text-navy-200 border-navy-400"
+                : "text-navy-600 border-transparent hover:text-navy-400"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Overview Tab ── */}
+      {tab === "overview" && (
+        <div className="space-y-8">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-3 gap-px bg-navy-800/30 rounded overflow-hidden">
+            <StatCard
+              label="Total Markets"
+              value={String(data.totalMarkets)}
+              sub="Polymarket + Kalshi"
+            />
+            <StatCard
+              label="Avg Probability Shift (24h)"
+              value={`${formatPct(avgShift)}pp`}
+              sub="Absolute average"
+            />
+            <StatCard
+              label="Top Category"
+              value={topCategory ? topCategory[0] : "--"}
+              sub={
+                topCategory ? `${topCategory[1]} active markets` : undefined
+              }
+            />
+          </div>
+
+          {/* Top Movers */}
+          {data.topMovers.length > 0 && (
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600 block mb-3">
+                Top Movers (24h)
+              </span>
+              <MarketTable markets={data.topMovers} />
+            </div>
+          )}
+
+          {/* All Markets */}
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600 block mb-3">
+              All Markets by Volume
+            </span>
+            <MarketTable markets={data.markets} />
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex items-center gap-1">
-          {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            return (
-              <button
-                key={cat.key}
-                onClick={() => setCategory(cat.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded border transition-colors ${
-                  category === cat.key
-                    ? "border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan"
-                    : "border-navy-700/30 text-navy-500 hover:text-navy-300 hover:border-navy-600/40"
-                }`}
-              >
-                <Icon className="h-3 w-3" />
-                {cat.label}
-              </button>
-            );
-          })}
-        </div>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search markets..."
-          className="ml-auto w-64 px-3 py-1.5 rounded border border-navy-700/40 bg-navy-800/60 text-xs text-navy-100 font-mono placeholder:text-navy-600 focus:outline-none focus:border-accent-cyan/40"
-        />
-      </div>
-
-      {/* Market count */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] text-navy-500">{filtered.length} markets</span>
-        {data?.lastUpdated && (
-          <span className="text-[9px] text-navy-600">Updated {formatDate(data.lastUpdated)}</span>
-        )}
-      </div>
-
-      {/* Markets Table */}
-      <div className="border border-navy-700/30 rounded-md overflow-hidden">
-        {/* Header */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-navy-800/40 border-b border-navy-700/20">
-          <span className="col-span-5 text-[9px] font-mono uppercase tracking-wider text-navy-500">Market</span>
-          <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Prob</span>
-          <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">24h</span>
-          <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">7d</span>
-          <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Vol 24h</span>
-          <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Total Vol</span>
-          <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Ends</span>
-          <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Source</span>
-        </div>
-
-        {/* Rows */}
-        {filtered.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-navy-500">
-            {loading ? "Loading markets..." : "No markets found."}
+      {/* ── Geopolitical Tab ── */}
+      {tab === "geopolitical" && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">
+              Geopolitical Markets
+            </span>
+            <span className="text-[9px] font-mono text-navy-700">
+              {data.geopolitical.length} markets
+            </span>
           </div>
-        )}
+          <MarketTable markets={data.geopolitical} />
+        </div>
+      )}
 
-        {filtered.map((m) => {
-          const isExpanded = expanded === m.id;
-          const probPct = (m.probability * 100).toFixed(0);
-          const barColor = m.probability > 0.7 ? "bg-accent-emerald" : m.probability > 0.4 ? "bg-accent-amber" : "bg-accent-rose";
+      {/* ── Economic Tab ── */}
+      {tab === "economic" && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">
+              Economic Markets
+            </span>
+            <span className="text-[9px] font-mono text-navy-700">
+              {data.economic.length} markets
+            </span>
+          </div>
+          <MarketTable markets={data.economic} />
+        </div>
+      )}
 
-          return (
-            <div key={m.id}>
-              <div
-                className={`grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-navy-700/10 cursor-pointer hover:bg-navy-800/30 transition-colors ${isExpanded ? "bg-navy-800/20" : ""}`}
-                onClick={() => setExpanded(isExpanded ? null : m.id)}
-              >
-                {/* Market title + probability bar */}
-                <div className="col-span-5">
-                  <p className="text-[11px] text-navy-200 leading-tight mb-1">{m.title}</p>
-                  <div className="h-1 bg-navy-700/30 rounded-full overflow-hidden w-full max-w-[200px]">
-                    <div className={`h-full ${barColor}/60 rounded-full`} style={{ width: `${probPct}%` }} />
-                  </div>
-                </div>
+      {/* ── Political Tab ── */}
+      {tab === "political" && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">
+              Political Markets
+            </span>
+            <span className="text-[9px] font-mono text-navy-700">
+              {data.political.length} markets
+            </span>
+          </div>
+          <MarketTable markets={data.political} />
+        </div>
+      )}
 
-                {/* Probability */}
-                <div className="col-span-1 flex items-center justify-end">
-                  <span className="text-sm font-mono font-bold text-navy-100">{probPct}%</span>
-                </div>
-
-                {/* 24h change */}
-                <div className="col-span-1 flex items-center justify-end">
-                  {m.priceChange24h !== 0 ? (
-                    <span className={`text-[11px] font-mono ${m.priceChange24h > 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                      {m.priceChange24h > 0 ? "+" : ""}{(m.priceChange24h * 100).toFixed(1)}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-mono text-navy-600">--</span>
-                  )}
-                </div>
-
-                {/* 7d change */}
-                <div className="col-span-1 flex items-center justify-end">
-                  {m.priceChange7d !== 0 ? (
-                    <span className={`text-[11px] font-mono ${m.priceChange7d > 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                      {m.priceChange7d > 0 ? "+" : ""}{(m.priceChange7d * 100).toFixed(1)}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-mono text-navy-600">--</span>
-                  )}
-                </div>
-
-                {/* Volume 24h */}
-                <div className="col-span-1 flex items-center justify-end">
-                  <span className="text-[11px] font-mono text-navy-300">{formatVolume(m.volume24h)}</span>
-                </div>
-
-                {/* Total volume */}
-                <div className="col-span-1 flex items-center justify-end">
-                  <span className="text-[11px] font-mono text-navy-400">{formatVolume(m.totalVolume)}</span>
-                </div>
-
-                {/* End date */}
-                <div className="col-span-1 flex items-center justify-end">
-                  <span className="text-[10px] font-mono text-navy-500">{formatDate(m.endDate)}</span>
-                </div>
-
-                {/* Source */}
-                <div className="col-span-1 flex items-center justify-end">
-                  <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded ${
-                    m.source === "polymarket" ? "bg-purple-900/30 text-purple-400" : "bg-blue-900/30 text-blue-400"
-                  }`}>
-                    {m.source === "polymarket" ? "POLY" : "KLSH"}
-                  </span>
-                </div>
+      {/* ── Divergences Tab ── */}
+      {tab === "divergences" && (
+        <div className="space-y-6">
+          {divLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded" />
+              ))}
+            </div>
+          ) : divData ? (
+            <>
+              {/* Divergence Stats */}
+              <div className="grid grid-cols-4 gap-px bg-navy-800/30 rounded overflow-hidden">
+                <StatCard
+                  label="Divergences Found"
+                  value={String(divData.stats.count)}
+                  sub={`${divData.marketsAnalyzed} markets vs ${divData.predictionsAnalyzed} predictions`}
+                />
+                <StatCard
+                  label="Avg Divergence"
+                  value={`${(divData.stats.avgDivergence * 100).toFixed(1)}pp`}
+                />
+                <StatCard
+                  label="Max Divergence"
+                  value={`${(divData.stats.maxDivergence * 100).toFixed(1)}pp`}
+                />
+                <StatCard
+                  label="Arbitrage Signals"
+                  value={String(divData.stats.arbitrageOpportunities)}
+                  sub=">25pp divergence"
+                />
               </div>
 
-              {/* Expanded detail */}
-              {isExpanded && (
-                <div className="px-6 py-3 bg-navy-800/20 border-b border-navy-700/20">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider">Description</span>
-                      <p className="text-xs text-navy-300 mt-1 leading-relaxed">{m.description || "No description available."}</p>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-navy-400">Category</span>
-                        <span className="text-[10px] font-mono text-navy-200 capitalize">{m.category}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-navy-400">End Date</span>
-                        <span className="text-[10px] font-mono text-navy-200">{formatDate(m.endDate)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-navy-400">Total Volume</span>
-                        <span className="text-[10px] font-mono text-navy-200">{formatVolume(m.totalVolume)}</span>
-                      </div>
-                      <a
-                        href={m.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors mt-2"
-                      >
-                        View on {m.source === "polymarket" ? "Polymarket" : "Kalshi"}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
+              {/* Direction Breakdown */}
+              {divData.stats.count > 0 && (
+                <div className="grid grid-cols-2 gap-px bg-navy-800/30 rounded overflow-hidden">
+                  <StatCard
+                    label="NEXUS Higher"
+                    value={String(divData.stats.nexusHigherCount)}
+                    sub="NEXUS confidence exceeds market price"
+                  />
+                  <StatCard
+                    label="NEXUS Lower"
+                    value={String(divData.stats.nexusLowerCount)}
+                    sub="Market price exceeds NEXUS confidence"
+                  />
                 </div>
               )}
+
+              {/* Divergence Table */}
+              {divData.divergences.length > 0 ? (
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600 block mb-3">
+                    Divergences by Magnitude
+                  </span>
+                  <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-x-auto">
+                    <table className="w-full min-w-[640px]">
+                      <thead>
+                        <tr className="border-b border-navy-800/40">
+                          <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">
+                            Market
+                          </th>
+                          <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+                            Src
+                          </th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+                            Market Prob
+                          </th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+                            NEXUS Conf
+                          </th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+                            Divergence
+                          </th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
+                            Direction
+                          </th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5 w-8" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {divData.divergences.map((d, i) => {
+                          const divPct = (d.divergence * 100).toFixed(1);
+                          const isArbitrage = d.divergence > 0.25;
+
+                          return (
+                            <tr
+                              key={`${d.market.id}-${i}`}
+                              className="border-b border-navy-800/20 last:border-0 hover:bg-navy-900/30 transition-colors"
+                            >
+                              {/* Title */}
+                              <td className="py-2.5 px-4 max-w-[280px]">
+                                <p className="text-[11px] text-navy-200 leading-tight truncate">
+                                  {d.market.title}
+                                </p>
+                              </td>
+
+                              {/* Source */}
+                              <td className="py-2.5 px-3">
+                                <span className="text-[8px] font-mono uppercase border border-navy-800/40 px-1.5 py-0.5 rounded text-navy-500">
+                                  {d.market.source === "polymarket"
+                                    ? "POLY"
+                                    : "KLSH"}
+                                </span>
+                              </td>
+
+                              {/* Market Probability */}
+                              <td className="py-2.5 px-3 text-right">
+                                <span className="font-mono font-light text-navy-400 tabular-nums text-sm">
+                                  {(d.marketProbability * 100).toFixed(0)}%
+                                </span>
+                              </td>
+
+                              {/* NEXUS Confidence */}
+                              <td className="py-2.5 px-3 text-right">
+                                <span className="font-mono font-light text-navy-200 tabular-nums text-sm">
+                                  {(d.nexusConfidence * 100).toFixed(0)}%
+                                </span>
+                              </td>
+
+                              {/* Divergence */}
+                              <td className="py-2.5 px-3 text-right">
+                                <span
+                                  className={`font-mono font-light tabular-nums text-sm ${
+                                    isArbitrage
+                                      ? "text-navy-200"
+                                      : "text-navy-300"
+                                  }`}
+                                >
+                                  {divPct}pp
+                                </span>
+                              </td>
+
+                              {/* Direction */}
+                              <td className="py-2.5 px-3 text-right">
+                                <span
+                                  className={`text-[9px] font-mono uppercase ${
+                                    d.direction === "nexus_higher"
+                                      ? "text-navy-300"
+                                      : "text-navy-500"
+                                  }`}
+                                >
+                                  {d.direction === "nexus_higher" ? (
+                                    <span className="flex items-center justify-end gap-1">
+                                      <ArrowUpRight className="h-3 w-3" />
+                                      NEXUS +
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center justify-end gap-1">
+                                      <ArrowDownRight className="h-3 w-3" />
+                                      NEXUS -
+                                    </span>
+                                  )}
+                                </span>
+                              </td>
+
+                              {/* Link */}
+                              <td className="py-2.5 px-3 text-right">
+                                <a
+                                  href={d.market.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-navy-600 hover:text-navy-400 transition-colors"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="border border-navy-800/60 rounded bg-navy-950/80 p-8 text-center">
+                  <p className="text-sm text-navy-500 mb-1">
+                    No divergences detected.
+                  </p>
+                  <p className="text-[11px] text-navy-600">
+                    Divergences appear when NEXUS prediction confidence differs
+                    from market probability by more than 15 percentage points on
+                    matching topics.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="border border-navy-800/60 rounded bg-navy-950/80 p-8 text-center">
+              <p className="text-sm text-navy-500">
+                Failed to load divergence data.
+              </p>
             </div>
-          );
-        })}
-      </div>
+          )}
+        </div>
+      )}
     </PageContainer>
   );
 }

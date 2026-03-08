@@ -1,4 +1,12 @@
+import { Metadata } from "next";
 import { Mail } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Contact",
+  description: "Get in touch with the NEXUS Intelligence team. Questions about the platform, subscriptions, or enterprise access.",
+  openGraph: { title: "Contact NEXUS Intelligence", description: "Reach the NEXUS team for platform questions, enterprise inquiries, and subscription support." },
+  alternates: { canonical: "/contact" },
+};
 
 export default function ContactPage() {
   return (

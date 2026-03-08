@@ -19,7 +19,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           "inline-flex items-center justify-center rounded font-mono text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-cyan disabled:pointer-events-none disabled:opacity-50",
           {
-            default: "bg-accent-cyan/20 text-accent-cyan hover:bg-accent-cyan/30 border border-accent-cyan/30",
+            default: "bg-navy-100 text-navy-950 hover:bg-white",
             primary: "bg-navy-100 text-navy-950 hover:bg-white border border-navy-100 hover:border-white",
             outline: "border border-navy-600 text-navy-200 hover:bg-navy-800 hover:text-navy-100",
             ghost: "text-navy-300 hover:bg-navy-800 hover:text-navy-100",

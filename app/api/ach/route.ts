@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listAnalyses, createAnalysis } from "@/lib/ach/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const analyses = await listAnalyses();
     return NextResponse.json({ analyses });
@@ -12,6 +15,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { title, question } = await request.json();
     if (!title || !question) {

@@ -293,6 +293,61 @@ export function getSectorAutomationRisk(): SectorRisk[] {
   ];
 }
 
+// ── FRED Labor Market Data ──
+
+export interface FREDLaborData {
+  unemploymentRate: { value: number; date: string } | null;       // UNRATE
+  initialClaims: { value: number; date: string } | null;          // ICSA
+  nonfarmPayrolls: { value: number; date: string } | null;        // PAYEMS
+  laborForceParticipation: { value: number; date: string } | null; // CIVPART
+  source: string;
+  lastFetched: string;
+}
+
+async function fetchFREDSeries(seriesId: string): Promise<{ value: number; date: string } | null> {
+  const apiKey = process.env.FRED_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch(
+      `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const obs = data.observations?.[0];
+    if (!obs || obs.value === ".") return null;
+    return { value: parseFloat(obs.value), date: obs.date };
+  } catch {
+    return null;
+  }
+}
+
+export async function getFREDLaborData(): Promise<FREDLaborData> {
+  const cacheKey = "fred:labor";
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) return cached.data as FREDLaborData;
+
+  const [unrate, icsa, payems, civpart] = await Promise.allSettled([
+    fetchFREDSeries("UNRATE"),
+    fetchFREDSeries("ICSA"),
+    fetchFREDSeries("PAYEMS"),
+    fetchFREDSeries("CIVPART"),
+  ]);
+
+  const result: FREDLaborData = {
+    unemploymentRate: unrate.status === "fulfilled" ? unrate.value : null,
+    initialClaims: icsa.status === "fulfilled" ? icsa.value : null,
+    nonfarmPayrolls: payems.status === "fulfilled" ? payems.value : null,
+    laborForceParticipation: civpart.status === "fulfilled" ? civpart.value : null,
+    source: "https://fred.stlouisfed.org/",
+    lastFetched: new Date().toISOString(),
+  };
+
+  cache.set(cacheKey, { data: result, expiry: Date.now() + CACHE_TTL });
+  return result;
+}
+
 // ── Labor Displacement Indicators ──
 
 export interface LaborDisplacementData {
@@ -323,6 +378,7 @@ export interface AIProgressionSnapshot {
   ai2027: ReturnType<typeof getAI2027Timeline>;
   sectors: SectorRisk[];
   displacement: LaborDisplacementData;
+  fred: FREDLaborData;
   compositeScore: number; // 0-100, overall AI progression intensity
   regime: "nascent" | "accelerating" | "inflection" | "displacement" | "transformation";
 }
@@ -332,7 +388,10 @@ export async function getAIProgressionSnapshot(): Promise<AIProgressionSnapshot>
   const cached = cache.get(cacheKey);
   if (cached && cached.expiry > Date.now()) return cached.data as AIProgressionSnapshot;
 
-  const rli = await getRemoteLaborIndex();
+  const [rli, fred] = await Promise.all([
+    getRemoteLaborIndex(),
+    getFREDLaborData(),
+  ]);
   const metr = getMETRData();
   const ai2027 = getAI2027Timeline();
   const sectors = getSectorAutomationRisk();
@@ -358,6 +417,7 @@ export async function getAIProgressionSnapshot(): Promise<AIProgressionSnapshot>
     ai2027,
     sectors,
     displacement,
+    fred,
     compositeScore,
     regime,
   };

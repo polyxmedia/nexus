@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
-import { desc, eq, like } from "drizzle-orm";
+import { desc, eq, like, or } from "drizzle-orm";
 
 async function getUsername(): Promise<string | null> {
   const session = await getServerSession(authOptions);
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
 
     let sessions = await db.select().from(schema.chatSessions)
-      .where(eq(schema.chatSessions.userId, username))
+      .where(or(eq(schema.chatSessions.userId, username), eq(schema.chatSessions.userId, "legacy")))
       .orderBy(desc(schema.chatSessions.updatedAt));
 
     if (projectId) {

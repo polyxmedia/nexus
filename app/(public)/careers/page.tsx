@@ -1,4 +1,12 @@
+import { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Careers",
+  description: "Join NEXUS Intelligence. We're building the intersection of geopolitical signal detection and market intelligence. Roles for engineers, analysts, and researchers.",
+  openGraph: { title: "Careers at NEXUS Intelligence", description: "Join the team building geopolitical-market signal intelligence. Engineering, analysis, and research roles." },
+  alternates: { canonical: "/careers" },
+};
 
 export default function CareersPage() {
   return (

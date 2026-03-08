@@ -1,3 +1,12 @@
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "NEXUS Intelligence privacy policy. How we collect, use, and protect your data.",
+  robots: { index: true, follow: false },
+  alternates: { canonical: "/privacy" },
+};
+
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen pt-28 pb-20 px-6">

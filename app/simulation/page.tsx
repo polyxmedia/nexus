@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { PageContainer } from "@/components/layout/page-container";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Play, RotateCcw, Sparkles } from "lucide-react";
+import { Loader2, Play, Sparkles, Search, TrendingUp, ChevronDown } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -16,9 +14,38 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   ReferenceLine,
 } from "recharts";
+
+const POPULAR_SYMBOLS = [
+  { symbol: "SPY", name: "S&P 500 ETF" },
+  { symbol: "QQQ", name: "Nasdaq 100 ETF" },
+  { symbol: "IWM", name: "Russell 2000 ETF" },
+  { symbol: "DIA", name: "Dow Jones ETF" },
+  { symbol: "AAPL", name: "Apple" },
+  { symbol: "MSFT", name: "Microsoft" },
+  { symbol: "NVDA", name: "Nvidia" },
+  { symbol: "GOOGL", name: "Alphabet" },
+  { symbol: "AMZN", name: "Amazon" },
+  { symbol: "META", name: "Meta Platforms" },
+  { symbol: "TSLA", name: "Tesla" },
+  { symbol: "AMD", name: "AMD" },
+  { symbol: "JPM", name: "JPMorgan" },
+  { symbol: "GS", name: "Goldman Sachs" },
+  { symbol: "XOM", name: "Exxon Mobil" },
+  { symbol: "CVX", name: "Chevron" },
+  { symbol: "GLD", name: "Gold ETF" },
+  { symbol: "SLV", name: "Silver ETF" },
+  { symbol: "TLT", name: "20+ Year Treasury ETF" },
+  { symbol: "USO", name: "Oil ETF" },
+  { symbol: "UNG", name: "Natural Gas ETF" },
+  { symbol: "EEM", name: "Emerging Markets ETF" },
+  { symbol: "HYG", name: "High Yield Bond ETF" },
+  { symbol: "BTC", name: "Bitcoin" },
+  { symbol: "ETH", name: "Ethereum" },
+  { symbol: "XRP", name: "Ripple" },
+  { symbol: "SOL", name: "Solana" },
+];
 
 interface ScenarioInput {
   name: string;
@@ -65,6 +92,8 @@ const SCENARIO_COLORS = ["#06b6d4", "#f59e0b", "#f43f5e", "#10b981", "#8b5cf6"];
 
 export default function SimulationPage() {
   const [symbol, setSymbol] = useState("USO");
+  const [symbolQuery, setSymbolQuery] = useState("USO");
+  const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
   const [price, setPrice] = useState("90");
   const [days, setDays] = useState(30);
   const [leverage, setLeverage] = useState(1);
@@ -77,6 +106,23 @@ export default function SimulationPage() {
   const [loading, setLoading] = useState(false);
   const [activeScenario, setActiveScenario] = useState<number | null>(null);
   const [presetsLoaded, setPresetsLoaded] = useState(false);
+  const symbolDropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredSymbols = POPULAR_SYMBOLS.filter(
+    (s) =>
+      s.symbol.toLowerCase().includes(symbolQuery.toLowerCase()) ||
+      s.name.toLowerCase().includes(symbolQuery.toLowerCase())
+  ).slice(0, 8);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (symbolDropdownRef.current && !symbolDropdownRef.current.contains(e.target as Node)) {
+        setShowSymbolDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loadPresets = async () => {
     if (presetsLoaded) return;
@@ -167,49 +213,108 @@ export default function SimulationPage() {
       <div className="grid grid-cols-12 gap-4">
         {/* Config Panel */}
         <div className="col-span-3 space-y-4">
-          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4 space-y-3">
+          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4 space-y-3 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/30 to-transparent" />
             <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Configuration</div>
 
-            <div>
+            <div ref={symbolDropdownRef} className="relative">
               <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Symbol</label>
-              <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="USO" />
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-600" />
+                <input
+                  value={symbolQuery}
+                  onChange={(e) => {
+                    setSymbolQuery(e.target.value.toUpperCase());
+                    setShowSymbolDropdown(true);
+                  }}
+                  onFocus={() => setShowSymbolDropdown(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setSymbol(symbolQuery);
+                      setShowSymbolDropdown(false);
+                    }
+                  }}
+                  placeholder="Search symbol..."
+                  className="w-full h-8 pl-8 pr-3 rounded bg-navy-800/60 border border-navy-700/50 text-[11px] font-mono text-navy-200 placeholder:text-navy-600 focus:outline-none focus:border-accent-cyan/40 focus:ring-1 focus:ring-accent-cyan/20 transition-colors"
+                />
+              </div>
+              {showSymbolDropdown && filteredSymbols.length > 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-navy-900 border border-navy-700/50 rounded-lg overflow-hidden shadow-xl shadow-black/40">
+                  {filteredSymbols.map((s) => (
+                    <button
+                      key={s.symbol}
+                      onClick={() => {
+                        setSymbol(s.symbol);
+                        setSymbolQuery(s.symbol);
+                        setShowSymbolDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
+                        s.symbol === symbol
+                          ? "bg-accent-cyan/10 text-accent-cyan"
+                          : "text-navy-300 hover:bg-navy-800/60 hover:text-navy-100"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-3 w-3 text-navy-600" />
+                        <span className="text-[11px] font-mono font-medium">{s.symbol}</span>
+                      </div>
+                      <span className="text-[9px] text-navy-500">{s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
               <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Current Price</label>
-              <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
+              <input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full h-8 px-3 rounded bg-navy-800/60 border border-navy-700/50 text-[11px] font-mono text-navy-200 placeholder:text-navy-600 focus:outline-none focus:border-accent-cyan/40 focus:ring-1 focus:ring-accent-cyan/20 transition-colors"
+              />
             </div>
 
             <div>
-              <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Days: {days}</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-navy-500 uppercase tracking-wider">Days</label>
+                <span className="text-[10px] font-mono text-accent-cyan">{days}d</span>
+              </div>
               <input
                 type="range" min={7} max={180} value={days}
                 onChange={(e) => setDays(parseInt(e.target.value))}
-                className="w-full accent-accent-cyan"
+                className="w-full accent-accent-cyan h-1"
               />
             </div>
 
             <div>
-              <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Leverage: {leverage}x</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-navy-500 uppercase tracking-wider">Leverage</label>
+                <span className="text-[10px] font-mono text-accent-cyan">{leverage}x</span>
+              </div>
               <input
                 type="range" min={1} max={5} value={leverage}
                 onChange={(e) => setLeverage(parseInt(e.target.value))}
-                className="w-full accent-accent-cyan"
+                className="w-full accent-accent-cyan h-1"
               />
             </div>
 
             <div>
-              <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Paths: {numPaths.toLocaleString()}</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-navy-500 uppercase tracking-wider">Paths</label>
+                <span className="text-[10px] font-mono text-accent-cyan">{numPaths.toLocaleString()}</span>
+              </div>
               <input
                 type="range" min={1000} max={20000} step={1000} value={numPaths}
                 onChange={(e) => setNumPaths(parseInt(e.target.value))}
-                className="w-full accent-accent-cyan"
+                className="w-full accent-accent-cyan h-1"
               />
             </div>
           </div>
 
           {/* Preset Selection */}
-          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4 space-y-2">
+          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4 space-y-2 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/30 to-transparent" />
             <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Scenario Set</div>
             {presets.map((p) => (
               <button
@@ -227,10 +332,14 @@ export default function SimulationPage() {
             ))}
           </div>
 
-          <Button onClick={runSimulation} disabled={loading} className="w-full" size="sm">
-            {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Play className="h-3 w-3 mr-1.5" />}
-            Run Simulation
-          </Button>
+          <button
+            onClick={runSimulation}
+            disabled={loading}
+            className="w-full h-9 flex items-center justify-center gap-2 rounded bg-navy-100 text-navy-950 text-[11px] font-mono uppercase tracking-wider font-medium hover:bg-white transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none"
+          >
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+            {loading ? "Simulating..." : "Run Simulation"}
+          </button>
         </div>
 
         {/* Results */}
@@ -406,12 +515,26 @@ export default function SimulationPage() {
           )}
 
           {!result && !loading && (
-            <div className="border border-navy-700/50 border-dashed rounded-lg p-12 text-center">
-              <Sparkles className="h-8 w-8 text-navy-600 mx-auto mb-3" />
-              <p className="text-sm text-navy-400 mb-1">Conditional Monte Carlo Simulation</p>
-              <p className="text-[10px] text-navy-500">
-                Select a scenario preset, set the current price, and run the simulation to see probability distributions.
-              </p>
+            <div className="border border-navy-700/30 border-dashed rounded-lg p-16 text-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-accent-cyan/[0.02] via-transparent to-accent-amber/[0.02]" />
+              <div className="relative">
+                <Sparkles className="h-6 w-6 text-navy-600 mx-auto mb-4" />
+                <p className="text-sm text-navy-300 mb-1.5 font-medium">Conditional Monte Carlo Simulation</p>
+                <p className="text-[10px] text-navy-500 max-w-sm mx-auto leading-relaxed">
+                  Select a scenario preset, configure your parameters, and run the simulation to generate probability distributions across multiple outcome paths.
+                </p>
+                <div className="flex items-center justify-center gap-4 mt-6">
+                  {["Select Symbol", "Choose Scenario", "Run Simulation"].map((step, i) => (
+                    <div key={step} className="flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-full bg-navy-800/60 border border-navy-700/40 flex items-center justify-center">
+                        <span className="text-[8px] font-mono text-navy-500">{i + 1}</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-navy-600 uppercase tracking-wider">{step}</span>
+                      {i < 2 && <ChevronDown className="h-3 w-3 text-navy-700 -rotate-90" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

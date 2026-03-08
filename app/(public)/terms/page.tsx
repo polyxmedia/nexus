@@ -1,3 +1,12 @@
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description: "NEXUS Intelligence terms of service. Platform usage terms, subscription conditions, and legal framework.",
+  robots: { index: true, follow: false },
+  alternates: { canonical: "/terms" },
+};
+
 export default function TermsPage() {
   return (
     <main className="min-h-screen pt-28 pb-20 px-6">

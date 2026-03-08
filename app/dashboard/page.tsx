@@ -304,7 +304,7 @@ export default function DashboardPage() {
           )}
           <button
             onClick={() => setStoreOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded border border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded bg-navy-100 text-navy-950 font-medium hover:bg-white transition-colors"
           >
             <Plus className="h-3 w-3" />
             Add Widget
@@ -394,7 +394,7 @@ export default function DashboardPage() {
           <p className="text-sm text-navy-500 mb-3">No widgets configured.</p>
           <button
             onClick={() => setStoreOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded border border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded bg-navy-100 text-navy-950 font-medium hover:bg-white transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             Add your first widget
@@ -570,7 +570,7 @@ function WidgetStore({
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={onChartConfirm}
-                      className="flex-1 px-4 py-2 text-[10px] font-mono uppercase tracking-wider rounded-md border border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
+                      className="flex-1 px-4 py-2 text-[10px] font-mono uppercase tracking-wider rounded-md bg-navy-100 text-navy-950 font-medium hover:bg-white transition-colors"
                     >
                       Add Chart
                     </button>

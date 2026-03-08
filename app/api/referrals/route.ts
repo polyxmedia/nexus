@@ -174,6 +174,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (body.action === "request_payout") {
+      // User requests payout of pending/approved commissions
+      const pendingCommissions = await db
+        .select()
+        .from(schema.commissions)
+        .where(
+          and(
+            eq(schema.commissions.referrerId, userId),
+            eq(schema.commissions.status, "pending")
+          )
+        );
+
+      if (pendingCommissions.length === 0) {
+        return NextResponse.json({ error: "No pending commissions to pay out" }, { status: 400 });
+      }
+
+      const totalAmount = pendingCommissions.reduce((sum, c) => sum + c.amount, 0);
+
+      // Mark all pending as approved (admin will then mark as paid)
+      for (const c of pendingCommissions) {
+        await db
+          .update(schema.commissions)
+          .set({
+            status: "approved",
+            paymentMethod: body.paymentMethod || null,
+            notes: body.paymentDetails || null,
+          })
+          .where(eq(schema.commissions.id, c.id));
+      }
+
+      return NextResponse.json({
+        success: true,
+        approved: pendingCommissions.length,
+        totalAmount,
+        message: "Payout requested. An admin will process your payment.",
+      });
+    }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

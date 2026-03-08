@@ -109,12 +109,12 @@
 > Intelligence capabilities that close the loop between signal detection, market positioning, and real-world power dynamics.
 
 ### v3.1 Prediction Markets Integration (Polymarket / Kalshi)
-- [ ] Real-time probability feeds from Polymarket and Kalshi
-- [ ] Geopolitical event markets (elections, conflicts, policy decisions)
-- [ ] Cross-reference prediction market odds against NEXUS prediction engine confidence
-- [ ] Arbitrage detection: where NEXUS disagrees with market pricing
-- [ ] Dashboard widget with top movers and divergence alerts
-- [ ] Chat tool for querying prediction market data
+- [x] Real-time probability feeds from Polymarket and Kalshi
+- [x] Geopolitical event markets (elections, conflicts, policy decisions)
+- [x] Cross-reference prediction market odds against NEXUS prediction engine confidence
+- [x] Arbitrage detection: where NEXUS disagrees with market pricing (divergence engine)
+- [x] Full page with Overview/Geopolitical/Economic/Political/Divergences tabs
+- [x] Chat tool for querying prediction market data
 - [ ] Historical accuracy comparison: prediction markets vs NEXUS Brier scores
 
 ### v3.2 Congressional & Insider Trading Tracker
@@ -137,22 +137,22 @@
 - [ ] Dashboard widget with latest sanctions activity
 
 ### v3.4 On-Chain Analytics
-- [ ] Whale wallet movement tracking (top 100 wallets per chain)
-- [ ] Exchange inflow/outflow monitoring (accumulation vs distribution)
-- [ ] Stablecoin flow analysis (USDT/USDC mint/burn as liquidity proxy)
-- [ ] DeFi TVL tracking across major protocols
+- [x] Whale wallet movement tracking (BTC >100 via Blockchain.com)
+- [x] Exchange inflow/outflow monitoring (CoinGecko top 20 exchanges)
+- [x] Stablecoin flow analysis (USDT/USDC/DAI/FDUSD/USDe market caps)
+- [x] DeFi TVL tracking across major protocols (DeFi Llama)
+- [x] Full page with whale alerts, exchange flows, DeFi TVL, stablecoins
+- [x] Chat tool for on-chain intelligence queries
 - [ ] Cross-reference on-chain signals with Coinbase trading integration
-- [ ] Dashboard widget with whale alerts and flow metrics
-- [ ] Chat tool for on-chain intelligence queries
 
 ### v3.5 Shipping & Dark Fleet Intelligence
-- [ ] AIS vessel tracking integration
-- [ ] Chokepoint monitoring: Hormuz, Suez, Malacca, Bab el-Mandeb, Panama
-- [ ] Dark fleet detection (AIS transponder gaps, sanctioned oil movements)
-- [ ] Tanker traffic anomaly scoring (deviation from baseline patterns)
-- [ ] Commodity flow signals hours before news reports
+- [x] Chokepoint monitoring: Hormuz, Suez, Malacca, Bab el-Mandeb, Panama (baseline + GDELT anomaly)
+- [x] Dark fleet detection (sanctions evasion, ship-to-ship transfers, AIS gap keywords via GDELT)
+- [x] Tanker traffic anomaly scoring (oil price + GDELT maritime correlation)
+- [x] Full page with chokepoint status, traffic anomalies, dark fleet alerts, GDELT events
+- [x] Chat tool for shipping intelligence queries
+- [ ] AIS vessel tracking integration (paid feed)
 - [ ] Overlay on war room map alongside aircraft tracking
-- [ ] Auto-generate signals on traffic pattern anomalies
 
 ### v3.6 Signal Backtester
 - [ ] Run historical signal engine against past price data
@@ -163,12 +163,13 @@
 - [ ] Feed results into prediction engine confidence adjustment
 
 ### v3.7 Narrative Tracker
-- [ ] Track narrative shifts across X/Twitter, Reddit, financial media
-- [ ] Narrative clustering: group related stories into themes
-- [ ] Narrative momentum scoring (rising, peaking, fading)
-- [ ] Divergence detection: when narrative contradicts price action
+- [x] Track narrative shifts across GDELT and Reddit (worldnews, geopolitics, economics, wallstreetbets)
+- [x] Narrative clustering: group related stories into themes via keyword matching
+- [x] Narrative momentum scoring (rising, peaking, fading, stable)
+- [x] Divergence detection: when narrative sentiment contradicts price action
+- [x] Full page with trending narratives, divergences, source breakdown
+- [x] Chat tool for narrative queries
 - [ ] Feed narrative signals into thesis generation
-- [ ] Dashboard widget with trending narratives and sentiment shift
 
 ### v3.8 Bond Auction Intelligence
 - [ ] Treasury auction bid-to-cover ratios
@@ -214,54 +215,57 @@
 
 ### v3.13 Systemic Risk & Tail Risk Engine
 > Empirically validated crisis detection. Kritzman et al. (2011, Journal of Portfolio Management) proved out-of-sample across 40+ years.
-- [ ] Absorption ratio: PCA on multi-asset returns, track fraction of variance explained by top eigenvectors
-- [ ] Turbulence index: Mahalanobis distance of current returns from historical mean vector
-- [ ] Combined stress dashboard: rising absorption + rising turbulence = crisis warning
-- [ ] Historical overlay: flag when current readings match pre-crisis signatures (2007, 2020, 2022)
-- [ ] Feed into regime detection as a fragility dimension
-- [ ] Chat tool for querying current systemic stress level
+- [x] Absorption ratio: PCA on multi-asset returns, track fraction of variance explained by top eigenvectors
+- [x] Turbulence index: Mahalanobis distance of current returns from historical mean vector
+- [x] Combined stress dashboard: rising absorption + rising turbulence = crisis warning
+- [x] Historical overlay: flag when current readings match pre-crisis signatures (2007, 2020, 2022)
+- [x] Feed into regime detection as a fragility dimension
+- [x] Chat tool for querying current systemic stress level
 - [ ] Dashboard widget with absorption ratio gauge and turbulence time series
 
 ### v3.14 Bayesian Change-Point Detection (BOCPD)
 > Adams & MacKay (2007) algorithm. Detects structural breaks in real-time without predefined breakpoints.
-- [ ] Online BOCPD engine processing each new data point as it arrives
-- [ ] Apply to: GPR index, VIX, signal intensity scores, commodity prices, correlation pairs
-- [ ] Automatic regime labeling when change-point detected (replaces static threshold detection)
-- [ ] Historical change-point overlay on charts
+- [x] Online BOCPD engine with Student-t predictive distribution and constant hazard function
+- [x] Apply to: VIX, gold, oil, US 10Y yield, DXY, signal intensity
+- [x] Change-point detection with probability threshold (>0.5)
+- [x] Full page with stream cards, run lengths, timeline visualization, change-point table
+- [x] Chat tool for querying detected change-points across data streams
 - [ ] Alert generation on high-confidence change-points
 - [ ] Feed detected regime shifts into thesis generation context
-- [ ] Chat tool for querying detected change-points across data streams
 
 ### v3.15 Aggregate Short Interest Signal
 > Review of Asset Pricing Studies (2023): "one of the strongest known predictors of the equity risk premium."
-- [ ] FINRA short interest data ingestion (twice monthly)
-- [ ] Aggregate short interest ratio tracking (total short / total shares outstanding)
-- [ ] Per-sector short interest breakdown
+- [x] Short interest tracking via Alpha Vantage (10 sector-proxy ETFs)
+- [x] Aggregate short interest ratio tracking
+- [x] Per-sector short interest breakdown with trend detection
+- [x] 52-week z-score with contrarian signal generation (z>2 = bullish, z<-2 = bearish)
+- [x] Full page with aggregate stats, sector cards, individual ticker table
+- [x] Chat tool for short interest queries
 - [ ] Cross-reference high short interest sectors with geopolitical signal exposure
-- [ ] Extreme readings (>2 SD from 52-week mean) auto-generate contrarian signals
 - [ ] Historical short interest vs forward returns validation
-- [ ] Chat tool and dashboard widget
 
 ### v3.16 GPR Threats vs Acts Decomposition
 > Caldara & Iacoviello (AER 2022). Threats sub-index moves faster and is more tradeable than composite.
-- [ ] Ingest GPR daily index with threats/acts decomposition from matteoiacoviello.com
-- [ ] Build proprietary industry-specific GPR from earnings call NLP (Fed study Aug 2025 methodology)
-- [ ] Track GPR by region (Middle East, East Asia, Europe) using GDELT/ACLED feeds
-- [ ] Asset-class-specific response functions (oil to ME GPR, semis to East Asia GPR)
-- [ ] Auto-generate signals on GPR threshold crossings
+- [x] Ingest GPR daily index with threats/acts decomposition from matteoiacoviello.com CSV
+- [x] Track GPR by region (Middle East, East Asia, Europe, South Asia, Africa) using GDELT
+- [x] Asset-class-specific response functions (ME->oil/defense, East Asia->semis/tech, etc.)
+- [x] Threshold crossing detection (150 elevated, 200 crisis, 300 extreme)
+- [x] Full page with composite/threats/acts cards, T/A ratio, 30-day history, regional proxies
+- [x] Chat tool for querying current GPR levels and sub-indices
+- [ ] Build proprietary industry-specific GPR from earnings call NLP
 - [ ] Feed GPR decomposition into thesis layer inputs
-- [ ] Chat tool for querying current GPR levels and sub-indices
 
 ### v3.17 Gamma Exposure (GEX) Engine
 > Dealer hedging mechanics from Black-Scholes framework. Determines whether options market amplifies or dampens moves.
-- [ ] Compute net dealer gamma from options chain data (existing options flow API)
-- [ ] Track aggregate GEX level and sign (positive = dampening, negative = amplifying)
-- [ ] Identify "zero gamma" level as volatility inflection point
-- [ ] Put wall and call wall as support/resistance levels
+- [x] Compute net dealer gamma from options chain data (Alpha Vantage) for SPY, QQQ, IWM
+- [x] Track aggregate GEX level and sign (positive = dampening, negative = amplifying)
+- [x] Identify zero gamma level as volatility inflection point
+- [x] Put wall and call wall as support/resistance levels
+- [x] Synthetic fallback using VIX + put/call ratio when options data unavailable
+- [x] Full page with aggregate regime, per-ticker cards, gamma profile visualization
+- [x] Chat tool for querying current gamma positioning
 - [ ] GEX flip alerts when aggregate gamma crosses zero
 - [ ] Historical GEX vs realized volatility validation
-- [ ] Dashboard widget with GEX gauge and key strike levels
-- [ ] Chat tool for querying current gamma positioning
 
 ### v3.18 Insider Purchase Clustering
 > Lakonishok & Lee (2001, RFS): insider purchase firms outperform by 7.8% annually. Only buys matter, sells are noise.
@@ -490,6 +494,9 @@
 - [x] Client-side `useSubscription` hook + `SubscriptionProvider` context
 - [x] Chat rate limiting by tier (daily message limits)
 - [x] Chat gated to analyst+ tier
+- [x] Gate intelligence routes (regime, nowcast, ACH, I&W, NLP, collection gaps, systemic risk) behind operator+ tier
+- [x] Gate thesis routes behind analyst+ tier
+- [x] Gate war room behind analyst+ tier
 
 ### P1 — High Priority
 

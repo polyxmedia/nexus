@@ -361,7 +361,7 @@ export default function AlertsPage() {
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent-cyan/10 border border-accent-cyan/30 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-navy-100 text-navy-950 text-xs font-medium hover:bg-white transition-colors"
           >
             <Plus className="h-3 w-3" />
             New Alert
@@ -453,7 +453,7 @@ export default function AlertsPage() {
                     <button
                       onClick={() => addSuggestion(suggestion, idx)}
                       disabled={isAdding}
-                      className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded bg-accent-cyan/10 border border-accent-cyan/30 text-[10px] font-mono text-accent-cyan hover:bg-accent-cyan/20 transition-colors disabled:opacity-50"
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded bg-navy-100 text-navy-950 text-[10px] font-mono font-medium hover:bg-white transition-colors disabled:opacity-50"
                     >
                       {isAdding ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -729,7 +729,7 @@ export default function AlertsPage() {
               <button
                 onClick={createAlert}
                 disabled={!newName.trim()}
-                className="px-4 py-2 rounded bg-accent-cyan/10 border border-accent-cyan/30 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded bg-navy-100 text-navy-950 text-xs font-medium hover:bg-white transition-colors disabled:opacity-50"
               >
                 Create Alert
               </button>

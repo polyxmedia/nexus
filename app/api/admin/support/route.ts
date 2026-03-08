@@ -1,0 +1,106 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
+import { db } from "@/lib/db";
+import { supportTickets, supportMessages, settings } from "@/lib/db/schema";
+import { eq, desc, asc } from "drizzle-orm";
+
+async function isAdmin(username: string): Promise<boolean> {
+  const users = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.key, `user:${username}`));
+  if (users.length === 0) return false;
+  const userData = JSON.parse(users[0].value);
+  return userData.role === "admin";
+}
+
+// GET all tickets (admin only)
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name || !(await isAdmin(session.user.name))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const tickets = await db
+      .select()
+      .from(supportTickets)
+      .orderBy(desc(supportTickets.updatedAt));
+
+    return NextResponse.json({ tickets });
+  } catch (error) {
+    console.error("Admin support GET error:", error);
+    return NextResponse.json({ tickets: [] });
+  }
+}
+
+// PATCH - update ticket (status, priority, assignment)
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name || !(await isAdmin(session.user.name))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const { ticketId, status, priority, assignedTo } = await req.json();
+    if (!ticketId) {
+      return NextResponse.json({ error: "ticketId required" }, { status: 400 });
+    }
+
+    const updates: Record<string, string | null> = { updatedAt: new Date().toISOString() };
+    if (status) updates.status = status;
+    if (priority) updates.priority = priority;
+    if (assignedTo !== undefined) updates.assignedTo = assignedTo || null;
+    if (status === "resolved") updates.resolvedAt = new Date().toISOString();
+
+    await db
+      .update(supportTickets)
+      .set(updates)
+      .where(eq(supportTickets.id, ticketId));
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Admin support PATCH error:", error);
+    return NextResponse.json({ error: "Failed to update ticket" }, { status: 500 });
+  }
+}
+
+// POST - admin reply to ticket
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name || !(await isAdmin(session.user.name))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  try {
+    const { ticketId, content } = await req.json();
+    if (!ticketId || !content?.trim()) {
+      return NextResponse.json({ error: "ticketId and content required" }, { status: 400 });
+    }
+
+    const now = new Date().toISOString();
+    const [message] = await db
+      .insert(supportMessages)
+      .values({
+        ticketId,
+        userId: `user:${session.user.name}`,
+        content: content.trim(),
+        isStaff: 1,
+        createdAt: now,
+      })
+      .returning();
+
+    // Update ticket to in_progress if it was open
+    await db
+      .update(supportTickets)
+      .set({
+        updatedAt: now,
+        status: "in_progress",
+        assignedTo: session.user.name,
+      })
+      .where(eq(supportTickets.id, ticketId));
+
+    return NextResponse.json({ message });
+  } catch (error) {
+    console.error("Admin support POST error:", error);
+    return NextResponse.json({ error: "Failed to send reply" }, { status: 500 });
+  }
+}

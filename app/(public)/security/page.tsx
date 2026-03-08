@@ -1,4 +1,12 @@
+import { Metadata } from "next";
 import { Shield, Lock, Eye, Server } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Security",
+  description: "NEXUS Intelligence security practices. AES-256 encryption, rate limiting, authentication controls, and responsible disclosure policy.",
+  openGraph: { title: "Security — NEXUS Intelligence", description: "How NEXUS protects user data, API keys, and platform infrastructure." },
+  alternates: { canonical: "/security" },
+};
 
 export default function SecurityPage() {
   return (

@@ -154,11 +154,13 @@ export class Trading212Client {
 // Environment priority: DB setting > TRADING212_ENVIRONMENT env var > "demo"
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { decrypt } from "@/lib/encryption";
 
 async function getSetting(key: string): Promise<string | null> {
   try {
     const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
-    return rows[0]?.value ?? null;
+    const value = rows[0]?.value ?? null;
+    return value ? decrypt(value) : null;
   } catch {
     return null;
   }

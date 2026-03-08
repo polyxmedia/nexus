@@ -16,7 +16,7 @@ export function PageContainer({
   className,
 }: PageContainerProps) {
   return (
-    <main className={cn("ml-48 min-h-screen p-6", className)}>
+    <main className={cn("ml-0 md:ml-48 min-h-screen p-4 pt-14 md:p-6 md:pt-6", className)}>
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-lg font-bold uppercase tracking-widest text-navy-100">

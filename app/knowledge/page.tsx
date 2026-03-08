@@ -204,7 +204,7 @@ export default function KnowledgePage() {
             resetForm();
             setShowCreate(true);
           }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent-cyan/10 border border-accent-cyan/30 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-navy-100 text-navy-950 text-xs font-medium hover:bg-white transition-colors"
         >
           <Plus className="h-3 w-3" />
           Add Knowledge
@@ -597,7 +597,7 @@ export default function KnowledgePage() {
               <button
                 onClick={handleSave}
                 disabled={!formTitle.trim() || !formContent.trim() || saving}
-                className="flex items-center gap-2 px-5 py-2 rounded-md bg-accent-cyan/10 border border-accent-cyan/30 text-[11px] font-mono text-accent-cyan hover:bg-accent-cyan/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-5 py-2 rounded-md bg-navy-100 text-navy-950 text-[11px] font-mono font-medium hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? (
                   <Loader2 className="h-3 w-3 animate-spin" />

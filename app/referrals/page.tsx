@@ -91,6 +91,11 @@ export default function ReferralsPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [requestingPayout, setRequestingPayout] = useState(false);
+  const [payoutMessage, setPayoutMessage] = useState<string | null>(null);
+  const [showPayoutForm, setShowPayoutForm] = useState(false);
+  const [payoutMethod, setPayoutMethod] = useState("paypal");
+  const [payoutDetails, setPayoutDetails] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -117,6 +122,35 @@ export default function ReferralsPage() {
     await navigator.clipboard.writeText(getReferralLink());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function requestPayout() {
+    if (!payoutDetails.trim()) return;
+    setRequestingPayout(true);
+    setPayoutMessage(null);
+    try {
+      const res = await fetch("/api/referrals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "request_payout",
+          paymentMethod: payoutMethod,
+          paymentDetails: `${payoutMethod}: ${payoutDetails}`,
+        }),
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setPayoutMessage(`Payout requested: ${result.approved} commission(s) totaling ${formatMoney(result.totalAmount)} approved for review.`);
+        setShowPayoutForm(false);
+        setPayoutDetails("");
+        await fetchData();
+      } else {
+        setPayoutMessage(result.error || "Payout request failed");
+      }
+    } catch {
+      setPayoutMessage("Payout request failed");
+    }
+    setRequestingPayout(false);
   }
 
   async function regenerateCode() {
@@ -201,6 +235,65 @@ export default function ReferralsPage() {
         <StatCard icon={Wallet} label="Pending" value={formatMoney(stats.pendingEarnings)} sub="awaiting payout" />
         <StatCard icon={DollarSign} label="Total Earned" value={formatMoney(stats.totalEarned)} sub="all time" />
       </div>
+
+      {/* Payout Request */}
+      {stats.pendingEarnings > 0 && (
+        <div className="border border-accent-cyan/20 rounded-lg p-5 bg-accent-cyan/[0.03] mb-6">
+          {!showPayoutForm ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block">Available for Payout</span>
+                <span className="text-lg font-mono font-bold text-navy-100">{formatMoney(stats.pendingEarnings)}</span>
+              </div>
+              <button
+                onClick={() => setShowPayoutForm(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded bg-accent-cyan/10 text-accent-cyan text-[10px] font-mono uppercase tracking-wider hover:bg-accent-cyan/20 transition-colors border border-accent-cyan/20"
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                Request Payout
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
+                  Request Payout: {formatMoney(stats.pendingEarnings)}
+                </span>
+                <button onClick={() => setShowPayoutForm(false)} className="text-[10px] text-navy-500 hover:text-navy-300">Cancel</button>
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={payoutMethod}
+                  onChange={(e) => setPayoutMethod(e.target.value)}
+                  className="bg-navy-950/60 border border-navy-700/30 rounded px-3 py-2 text-xs text-navy-200 font-mono focus:outline-none focus:ring-1 focus:ring-accent-cyan/30"
+                >
+                  <option value="paypal">PayPal</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="crypto">Crypto Wallet</option>
+                </select>
+                <input
+                  type="text"
+                  value={payoutDetails}
+                  onChange={(e) => setPayoutDetails(e.target.value)}
+                  placeholder={payoutMethod === "paypal" ? "PayPal email..." : payoutMethod === "bank_transfer" ? "IBAN or account details..." : "Wallet address..."}
+                  className="flex-1 bg-navy-950/60 border border-navy-700/30 rounded px-3 py-2 text-xs text-navy-200 font-mono placeholder:text-navy-600 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30"
+                />
+                <button
+                  onClick={requestPayout}
+                  disabled={requestingPayout || !payoutDetails.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-accent-emerald/10 text-accent-emerald text-[10px] font-mono uppercase tracking-wider hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50"
+                >
+                  {requestingPayout ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  Submit
+                </button>
+              </div>
+            </div>
+          )}
+          {payoutMessage && (
+            <div className="mt-2 text-[11px] text-navy-300 font-sans">{payoutMessage}</div>
+          )}
+        </div>
+      )}
 
       {/* Commission Plan Card */}
       <div className="border border-accent-emerald/20 rounded-lg p-5 bg-accent-emerald/[0.04] mb-6">

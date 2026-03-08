@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { generateNowcast, getLatestNowcast } from "@/lib/nowcast/engine";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const latest = await getLatestNowcast();
     return NextResponse.json(latest || { error: "No nowcast available. Trigger POST to generate." });
@@ -12,6 +15,8 @@ export async function GET() {
 }
 
 export async function POST() {
+  const tierCheck = await requireTier("operator");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const report = await generateNowcast();
     return NextResponse.json(report);

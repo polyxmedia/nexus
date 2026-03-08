@@ -84,7 +84,7 @@ async function fetchPolymarketEvents(): Promise<PredictionMarket[]> {
   try {
     // Fetch active events sorted by volume
     const res = await fetch(
-      `${POLYMARKET_BASE}/events?active=true&closed=false&limit=100&order=volume_24hr&ascending=false`,
+      `${POLYMARKET_BASE}/events?active=true&closed=false&limit=100&order=volume24hr&ascending=false`,
       { signal: AbortSignal.timeout(10000) }
     );
     if (!res.ok) return [];
@@ -134,34 +134,42 @@ async function fetchPolymarketEvents(): Promise<PredictionMarket[]> {
 
 const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
 
-interface KalshiMarket {
-  ticker: string;
+interface KalshiEvent {
   event_ticker: string;
-  title?: string;
-  yes_sub_title: string;
-  no_sub_title: string;
-  status: string;
-  last_price: number;
-  yes_bid: number;
-  yes_ask: number;
-  volume: number;
-  volume_24h: number;
-  open_interest: number;
-  close_time: string;
-  result: string;
-  category?: string;
-  subtitle?: string;
+  title: string;
+  category: string;
+  markets: Array<{
+    ticker: string;
+    yes_sub_title: string;
+    status: string;
+    last_price: number;
+    yes_bid: number;
+    yes_ask: number;
+    volume: number;
+    volume_24h: number;
+    close_time: string;
+  }>;
 }
 
-interface KalshiResponse {
-  markets: KalshiMarket[];
-  cursor: string;
+const KALSHI_GEO_KEYWORDS = ["war", "conflict", "military", "sanction", "china", "russia", "iran", "nato", "invasion", "missile", "nuclear"];
+const KALSHI_ECON_KEYWORDS = ["cpi", "gdp", "fed", "rate", "inflation", "recession", "unemployment", "jobs", "nonfarm", "treasury"];
+const KALSHI_POLITICAL_KEYWORDS = ["president", "election", "congress", "senate", "house", "trump", "biden", "governor", "supreme court", "impeach"];
+
+function categorizeKalshi(title: string, category: string): string {
+  const lower = `${title} ${category}`.toLowerCase();
+  if (KALSHI_GEO_KEYWORDS.some((k) => lower.includes(k))) return "geopolitical";
+  if (KALSHI_ECON_KEYWORDS.some((k) => lower.includes(k))) return "economic";
+  if (KALSHI_POLITICAL_KEYWORDS.some((k) => lower.includes(k))) return "political";
+  if (category === "Politics") return "political";
+  if (category === "Economics") return "economic";
+  if (category === "World") return "geopolitical";
+  return "other";
 }
 
 async function fetchKalshiMarkets(): Promise<PredictionMarket[]> {
   try {
     const res = await fetch(
-      `${KALSHI_BASE}/markets?limit=100&status=open`,
+      `${KALSHI_BASE}/events?limit=100&status=open&with_nested_markets=true`,
       {
         signal: AbortSignal.timeout(10000),
         headers: { "Accept": "application/json" },
@@ -169,36 +177,34 @@ async function fetchKalshiMarkets(): Promise<PredictionMarket[]> {
     );
     if (!res.ok) return [];
 
-    const data: KalshiResponse = await res.json();
+    const data: { events: KalshiEvent[] } = await res.json();
     const markets: PredictionMarket[] = [];
 
-    for (const m of (data.markets || [])) {
-      if (m.status !== "open") continue;
+    for (const event of (data.events || [])) {
+      const cat = categorizeKalshi(event.title, event.category || "");
 
-      // Categorize by ticker prefix patterns
-      const ticker = m.ticker.toUpperCase();
-      let category = "other";
-      if (ticker.match(/^KX(CPI|NFP|GDP|FED|RATE|UNEMP|JOBS)/)) category = "economic";
-      else if (ticker.match(/^KX(PRES|ELECT|CONGRESS|SENATE|HOUSE|TRUMP|BIDEN)/)) category = "political";
-      else if (ticker.match(/^KX(WAR|CHINA|RUSSIA|IRAN|NATO|SANCT)/)) category = "geopolitical";
+      for (const m of (event.markets || [])) {
+        if (m.status !== "active" && m.status !== "open") continue;
+        if (m.last_price === 0 && m.volume === 0) continue; // skip empty markets
 
-      const probability = m.last_price || ((m.yes_bid + m.yes_ask) / 2) || 0;
+        const probability = (m.last_price || ((m.yes_bid + m.yes_ask) / 2) || 0) / 100; // cents to 0-1
 
-      markets.push({
-        id: `kalshi_${m.ticker}`,
-        source: "kalshi",
-        title: m.yes_sub_title || m.ticker,
-        description: m.subtitle || "",
-        probability: probability / 100, // Kalshi prices are in cents
-        volume24h: m.volume_24h || 0,
-        totalVolume: m.volume || 0,
-        category,
-        endDate: m.close_time || "",
-        active: true,
-        url: `https://kalshi.com/markets/${m.event_ticker}`,
-        priceChange24h: 0,
-        priceChange7d: 0,
-      });
+        markets.push({
+          id: `kalshi_${m.ticker}`,
+          source: "kalshi",
+          title: event.markets.length === 1 ? event.title : `${event.title}: ${m.yes_sub_title}`,
+          description: "",
+          probability: Math.min(1, Math.max(0, probability)),
+          volume24h: m.volume_24h || 0,
+          totalVolume: m.volume || 0,
+          category: cat,
+          endDate: m.close_time || "",
+          active: true,
+          url: `https://kalshi.com/markets/${event.event_ticker}`,
+          priceChange24h: 0,
+          priceChange7d: 0,
+        });
+      }
     }
 
     return markets;

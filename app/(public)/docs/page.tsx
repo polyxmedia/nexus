@@ -1,5 +1,13 @@
+import { Metadata } from "next";
 import { Lock } from "lucide-react";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "API Documentation",
+  description: "NEXUS Intelligence API documentation. Integrate signal detection, convergence data, and intelligence outputs into your own systems.",
+  openGraph: { title: "NEXUS Intelligence API Docs", description: "Integrate NEXUS signal detection and convergence data into your systems." },
+  alternates: { canonical: "/docs" },
+};
 
 export default function DocsPage() {
   return (

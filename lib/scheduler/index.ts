@@ -141,6 +141,14 @@ registerJob("collection-gaps-check", 2 * 60 * 60_000, async () => {
   if (!res.ok) throw new Error(`Collection gaps check failed: ${res.status}`);
 });
 
+registerJob("systemic-risk-check", 2 * 60 * 60_000, async () => {
+  // Compute systemic risk (absorption ratio + turbulence) every 2 hours during market hours
+  const hour = new Date().getUTCHours();
+  if (hour < 13 || hour > 21) return; // ~8am-4pm ET
+  const res = await fetch(`${getBaseUrl()}/api/risk/systemic`, { method: "POST" });
+  if (!res.ok) throw new Error(`Systemic risk check failed: ${res.status}`);
+});
+
 function getBaseUrl() {
   return process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 }
