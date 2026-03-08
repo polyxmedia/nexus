@@ -66,7 +66,7 @@ interface UpgradeGateProps {
 }
 
 export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGateProps) {
-  const { meetsMinTier, loading } = useSubscription();
+  const { meetsMinTier, loading, tier } = useSubscription();
   const [statIndex, setStatIndex] = useState(0);
   const [statVisible, setStatVisible] = useState(true);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -102,6 +102,18 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
 
   if (meetsMinTier(minTier)) {
     return <>{children}</>;
+  }
+
+  // If not authenticated (tier is null), redirect to login instead of showing paywall
+  if (tier === null && !loading) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-4 h-4 border-2 border-navy-600 border-t-navy-300 rounded-full animate-spin" />
+      </div>
+    );
   }
 
   const perks = TIER_PERKS[minTier] || TIER_PERKS.analyst;

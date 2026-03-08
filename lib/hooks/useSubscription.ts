@@ -48,10 +48,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     fetch("/api/subscription")
       .then((r) => {
+        if (r.status === 401) {
+          // Not authenticated - don't default to free, just stop loading
+          // Pages will redirect to login if needed
+          setTier(null);
+          setLoading(false);
+          return null;
+        }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((data) => {
+        if (!data) return;
         if (data.isAdmin) {
           setIsAdmin(true);
           // Admin gets full access regardless of subscription state
