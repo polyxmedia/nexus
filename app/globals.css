@@ -269,6 +269,12 @@ body {
   animation: warroom-zone-pulse 3s ease-in-out infinite;
 }
 
+/* ── Remove default Leaflet icon backgrounds ── */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
 /* ── MarkerCluster Dark Theme Overrides ── */
 .leaflet-cluster-anim .leaflet-marker-icon,
 .leaflet-cluster-anim .leaflet-marker-shadow {
