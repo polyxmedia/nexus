@@ -38,7 +38,7 @@ async function runJob(job: ScheduledJob) {
 export function startScheduler() {
   if (started) return;
   started = true;
-  console.log(`[scheduler] Starting ${jobs.size} jobs`);
+  console.log(`[scheduler] Starting ${jobs.size} jobs (AI ${aiEnabled() ? "ENABLED" : "DISABLED"})`);
 
   for (const job of jobs.values()) {
     // Run immediately on start
@@ -63,6 +63,14 @@ export function getJobStatus() {
     running: j.running,
     errors: j.errors,
   }));
+}
+
+// AI kill switch: set SCHEDULER_AI_ENABLED=false to disable all AI-consuming jobs
+// This saves ~$1-2/day in API costs while keeping data collection running
+function aiEnabled(): boolean {
+  const val = process.env.SCHEDULER_AI_ENABLED;
+  if (val === undefined || val === null) return true; // default: on
+  return val === "true" || val === "1";
 }
 
 // ── Default Jobs ──
@@ -94,18 +102,21 @@ registerJob("alert-check", 60_000, async () => {
 });
 
 registerJob("monitor-sweep", 5 * 60_000, async () => {
+  if (!aiEnabled()) return; // AI kill switch (prediction resolution uses Claude)
   // Master monitoring sweep every 5 minutes: alerts + prediction resolution
   const res = await fetch(`${getBaseUrl()}/api/scheduler/monitor`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Monitor sweep failed: ${res.status}`);
 });
 
 registerJob("intelligence-cycle", 15 * 60_000, async () => {
+  if (!aiEnabled()) return; // AI kill switch
   // Three-brain intelligence cycle: Sentinel -> Analyst -> Executor
   const res = await fetch(`${getBaseUrl()}/api/agents/cycle`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Intelligence cycle failed: ${res.status}`);
 });
 
 registerJob("prediction-daily", 6 * 60 * 60_000, async () => {
+  if (!aiEnabled()) return; // AI kill switch
   // Run prediction lifecycle every 6 hours: resolve overdue, then generate new
   const res = await fetch(`${getBaseUrl()}/api/predictions/daily`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Prediction daily cycle failed: ${res.status}`);
@@ -150,6 +161,7 @@ registerJob("systemic-risk-check", 2 * 60 * 60_000, async () => {
 });
 
 registerJob("actor-profile-update", 6 * 60 * 60_000, async () => {
+  if (!aiEnabled()) return; // AI kill switch
   // Update actor profiles from GDELT/news every 6 hours
   const res = await fetch(`${getBaseUrl()}/api/actors/update`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Actor profile update failed: ${res.status}`);
