@@ -2023,6 +2023,21 @@ function AnalyticsPanel({
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // Persist active tab in URL hash
+  const validTabs = ADMIN_TABS.map((t) => t.id);
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.slice(1);
+      if (validTabs.includes(hash)) return hash;
+    }
+    return "growth";
+  });
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `#${tab}`);
+  };
+
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2034,6 +2049,54 @@ export default function AdminPage() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsDays, setAnalyticsDays] = useState(30);
+  const [excludedIPs, setExcludedIPs] = useState<string[]>([]);
+  const [excludedIPsLoaded, setExcludedIPsLoaded] = useState(false);
+  const [newIP, setNewIP] = useState("");
+  const [ipSaving, setIPSaving] = useState(false);
+
+  const fetchExcludedIPs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        const entry = Array.isArray(data) ? data.find((s: { key: string }) => s.key === "analytics:excluded_ips") : null;
+        if (entry?.value) {
+          setExcludedIPs(JSON.parse(entry.value));
+        }
+      }
+    } catch {
+      // silent
+    }
+    setExcludedIPsLoaded(true);
+  }, []);
+
+  const saveExcludedIPs = useCallback(async (ips: string[]) => {
+    setIPSaving(true);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "analytics:excluded_ips", value: JSON.stringify(ips) }),
+      });
+      setExcludedIPs(ips);
+    } catch {
+      // silent
+    }
+    setIPSaving(false);
+  }, []);
+
+  const addExcludedIP = useCallback(() => {
+    const ip = newIP.trim();
+    if (!ip || excludedIPs.includes(ip)) return;
+    const updated = [...excludedIPs, ip];
+    saveExcludedIPs(updated);
+    setNewIP("");
+  }, [newIP, excludedIPs, saveExcludedIPs]);
+
+  const removeExcludedIP = useCallback((ip: string) => {
+    saveExcludedIPs(excludedIPs.filter((i) => i !== ip));
+  }, [excludedIPs, saveExcludedIPs]);
+
   const [growth, setGrowth] = useState<GrowthData | null>(null);
   const [growthLoading, setGrowthLoading] = useState(false);
   const [prompts, setPrompts] = useState<PromptEntry[]>([]);
@@ -2416,7 +2479,7 @@ export default function AdminPage() {
         <ArrowRight className="w-4 h-4 text-navy-400 group-hover:translate-x-0.5 transition-transform" />
       </Link>
 
-      <Tabs.Root defaultValue="growth">
+      <Tabs.Root value={activeTab} onValueChange={handleTabChange}>
         <Tabs.List className="flex gap-0 border-b border-navy-700 mb-6">
           {ADMIN_TABS.map((tab) => (
             <Tabs.Trigger
@@ -3471,8 +3534,56 @@ export default function AdminPage() {
             }}
             onLoad={() => {
               if (!analytics && !analyticsLoading) fetchAnalytics(analyticsDays);
+              if (!excludedIPsLoaded) fetchExcludedIPs();
             }}
           />
+
+          {/* IP Exclusion Manager */}
+          <div className="mt-6 border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Shield className="h-3.5 w-3.5 text-accent-rose opacity-60" />
+              <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Excluded IPs</span>
+            </div>
+            <p className="text-[10px] text-navy-600 mb-3">
+              Traffic from these IPs will not be tracked. Supports exact IPs, wildcards (192.168.1.*), and CIDR notation (/24, /16).
+            </p>
+
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                value={newIP}
+                onChange={(e) => setNewIP(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addExcludedIP(); }}
+                placeholder="e.g. 203.0.113.45 or 192.168.1.0/24"
+                className="flex-1 h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+              />
+              <Button size="sm" onClick={addExcludedIP} disabled={ipSaving || !newIP.trim()}>
+                {ipSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                Add
+              </Button>
+            </div>
+
+            {excludedIPs.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {excludedIPs.map((ip) => (
+                  <div
+                    key={ip}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-navy-700/40 bg-navy-800/40"
+                  >
+                    <span className="text-[11px] font-mono text-navy-300">{ip}</span>
+                    <button
+                      onClick={() => removeExcludedIP(ip)}
+                      className="text-navy-600 hover:text-accent-rose transition-colors"
+                      disabled={ipSaving}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[10px] text-navy-600 font-mono">No IPs excluded. All traffic is being tracked.</p>
+            )}
+          </div>
         </Tabs.Content>
       </Tabs.Root>
     </PageContainer>
