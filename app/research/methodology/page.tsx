@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Lock,
   AlertTriangle,
+  Sigma,
 } from "lucide-react";
 
 // ── Scroll reveal ──
@@ -240,6 +241,11 @@ export default function MethodologyPage() {
   const hero = useReveal(0.1);
   const principlesReveal = useReveal();
   const convergenceReveal = useReveal();
+  const formalReveal = useReveal();
+  const eq1Reveal = useReveal();
+  const eq2Reveal = useReveal();
+  const eq3Reveal = useReveal();
+  const constantsReveal = useReveal();
   const dataReveal = useReveal();
   const riskReveal = useReveal();
   const relatedReveal = useReveal();
@@ -389,6 +395,268 @@ export default function MethodologyPage() {
                   <div className="font-mono text-[9px] uppercase tracking-wider mt-1" style={{ color: item.color, opacity: 0.6 }}>{item.level}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
+
+      {/* ── Formal Mathematical Specification ── */}
+      <section className="px-6 py-16">
+        <div ref={formalReveal.ref} className="max-w-5xl mx-auto">
+          <div className={`transition-all duration-700 ${formalReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-px w-8 bg-navy-700" />
+              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Formal Mathematical Specification</h2>
+            </div>
+            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-10 ml-11 max-w-3xl">
+              The complete system reduces to three equations. Signal detection and Bayesian fusion produce a calibrated posterior. The posterior informs forecast generation. Forecasts are scored against outcomes with a proper scoring rule. Everything below is implemented in production code and runs against live data.
+            </p>
+          </div>
+
+          {/* Equation 1 */}
+          <div ref={eq1Reveal.ref} className={`mb-12 transition-all duration-700 ${eq1Reveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <Sigma className="w-4 h-4 text-accent-cyan/60" />
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/80">Equation 1: Signal Fusion</h3>
+            </div>
+
+            <div className="border border-navy-700/30 rounded-md bg-navy-900/40 p-6 mb-4">
+              <div className="font-mono text-sm text-navy-100 leading-loose text-center overflow-x-auto">
+                <div className="inline-block text-left">
+                  <span className="text-accent-cyan">P</span><sub className="text-navy-500">n</sub>
+                  <span className="text-navy-500"> = </span>
+                  <span className="text-navy-300">&sigma;</span><span className="text-navy-500">(</span>
+                  <span className="text-navy-500"> ln(</span><span className="text-accent-cyan">P</span><sub className="text-navy-500">0</sub>
+                  <span className="text-navy-500"> / (1 - </span><span className="text-accent-cyan">P</span><sub className="text-navy-500">0</sub><span className="text-navy-500">))</span>
+                  <span className="text-navy-500"> + </span>
+                  <span className="text-accent-amber">ln &mu;(n<sub>P</sub>)</span>
+                  <span className="text-navy-500"> + </span>
+                  <span className="text-accent-emerald">&Sigma;<sub>j</sub> d<sub>j</sub> ln(1 + &rho;<sub>j</sub>(e<sup>k&middot;s<sub>j</sub></sup> - 1))</span>
+                  <span className="text-navy-500"> + </span>
+                  <span className="text-navy-300">&beta;<sub>N</sub></span>
+                  <span className="text-navy-500"> )</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-5 max-w-3xl">
+              All terms are additive in log-odds space. The logistic function &sigma; guarantees the output is a valid probability in (0, 1) regardless of input magnitude. No dimensional mixing, no unbounded outputs.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Layer Evidence</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
+                  Each signal layer contributes a likelihood ratio via the exponential transform. The sensitivity constant <span className="font-mono text-navy-300">k = 0.45</span> is calibrated so that significance <span className="font-mono text-navy-300">s &isin; [0, 9]</span> spans the full intensity scale against operating priors of 5-10%.
+                </p>
+                <div className="space-y-1.5 text-[11px] font-mono">
+                  <div className="flex justify-between text-navy-500"><span>s = 1, GEO (&rho; = 0.85)</span><span className="text-navy-300">+0.37 log-odds, 10% &rarr; 14%</span></div>
+                  <div className="flex justify-between text-navy-500"><span>s = 5, GEO (&rho; = 0.85)</span><span className="text-navy-300">+1.98 log-odds, 10% &rarr; 45%</span></div>
+                  <div className="flex justify-between text-navy-500"><span>s = 9, GEO (&rho; = 0.85)</span><span className="text-navy-300">+3.87 log-odds, 10% &rarr; 84%</span></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Independence Discount</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
+                  The discount factor <span className="font-mono text-navy-300">d<sub>j</sub></span> prevents double-counting correlated evidence. It uses an evidence-weighted harmonic mean of pairwise independence factors, so layers that barely moved the posterior have negligible influence on the discount.
+                </p>
+                <div className="border border-navy-800/40 rounded px-3 py-2 font-mono text-[11px] text-navy-400">
+                  d<sub>j</sub> = &Sigma;<sub>i&lt;j</sub> ln&Lambda;<sub>i</sub> / &Sigma;<sub>i&lt;j</sub> (ln&Lambda;<sub>i</sub> / D<sub>i,j</sub>)
+                </div>
+                <p className="font-sans text-[11px] text-navy-500 mt-2 leading-relaxed">
+                  D<sub>i,j</sub> &isin; [0, 1] is pairwise independence (1 = fully independent). Reduces to direct pairwise independence when one prior layer dominates the evidence.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Convergence Amplification</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
+                  Applied as <span className="font-mono text-navy-300">ln &mu;</span> in log-odds. Only primary layers (GEO, MKT, OSI, SYS) count. Narrative overlays contribute zero convergence weight.
+                </p>
+                <div className="space-y-1.5 text-[11px] font-mono">
+                  <div className="flex justify-between text-navy-500"><span>2 primary layers</span><span className="text-navy-300">&mu; = 1.4, +8% at P = 0.5</span></div>
+                  <div className="flex justify-between text-navy-500"><span>3 primary layers</span><span className="text-navy-300">&mu; = 2.1, +17% at P = 0.5</span></div>
+                  <div className="flex justify-between text-navy-500"><span>4 primary layers</span><span className="text-accent-rose">&mu; = 3.2, +25% at P = 0.5 (rare)</span></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Narrative Bonus</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
+                  Calendar and celestial signals are actor-belief context. They tell you what market participants think matters, not what objectively matters. Capped at <span className="font-mono text-navy-300">&beta;<sub>max</sub> = 0.40</span> log-odds.
+                </p>
+                <div className="border border-navy-800/40 rounded px-3 py-2 font-mono text-[11px] text-navy-400">
+                  &beta;<sub>N</sub> = min(0.40, &Sigma;<sub>&ell; &isin; L<sub>N</sub></sub> &rho;<sub>&ell;</sub> &middot; s<sub>&ell;</sub>)
+                </div>
+                <p className="font-sans text-[11px] text-navy-500 mt-2 leading-relaxed">
+                  Maximum probability shift: ~10% at the midpoint, ~6% at extremes. Deliberately small.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Equation 2 */}
+          <div ref={eq2Reveal.ref} className={`mb-12 transition-all duration-700 ${eq2Reveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <Brain className="w-4 h-4 text-accent-amber/60" />
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-amber/80">Equation 2: Forecast Generation</h3>
+            </div>
+
+            <div className="border border-navy-700/30 rounded-md bg-navy-900/40 p-6 mb-4">
+              <div className="font-mono text-sm text-navy-100 text-center">
+                <span className="text-accent-amber">c</span><sub className="text-navy-500">i</sub>
+                <span className="text-navy-500"> = </span>
+                <span className="text-navy-300">F</span><span className="text-navy-500">(</span>
+                <span className="text-accent-cyan">P<sub>n</sub></span>
+                <span className="text-navy-500">, </span>
+                <span className="text-navy-300">R</span>
+                <span className="text-navy-500">, </span>
+                <span className="text-navy-300">&Gamma;</span>
+                <span className="text-navy-500">, </span>
+                <span className="text-navy-300">K</span>
+                <span className="text-navy-500">)</span>
+                <span className="text-navy-500"> &isin; [0, 1]</span>
+              </div>
+            </div>
+
+            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-5 max-w-3xl">
+              This is the step most systems hide. The posterior probability from Equation 1 is the quantitative anchor, but the final forecast confidence incorporates regime context, game-theoretic structure, and historical precedent. This function is not closed-form because it includes structured analytic tradecraft that resists reduction to algebra. We state this explicitly rather than hiding it behind an arrow.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                {
+                  symbol: "P\u2099",
+                  label: "Posterior Probability",
+                  desc: "Output of Equation 1. The quantitative anchor that constrains how far the forecast can deviate.",
+                  type: "(0, 1)",
+                },
+                {
+                  symbol: "\u211B",
+                  label: "Regime State",
+                  desc: "Tuple of volatility regime (calm/elevated/crisis), risk appetite (risk-on/neutral/risk-off/panic), and commodity regime (normal/tight/supply-shock). Wartime classification invalidates active predictions.",
+                  type: "Tuple",
+                },
+                {
+                  symbol: "\u0393",
+                  label: "Game-Theoretic Structure",
+                  desc: "Harsanyi incomplete-information game: actors, type spaces, strategy sets, belief distributions, audience costs (Fearon 1995), and bargaining range. Conflict structurally likely when bargaining range \u2264 0.1.",
+                  type: "Game",
+                },
+                {
+                  symbol: "\uD835\uDCA6",
+                  label: "Knowledge Base",
+                  desc: "Vector store of documents with 1024-dim embeddings (Voyage AI). Retrieved via cosine similarity \u2265 0.7. Contains historical precedents, resolved predictions, analyst notes, and ingested intelligence.",
+                  type: "Vector store",
+                },
+              ].map((input) => (
+                <div key={input.symbol} className="border border-navy-800/40 rounded px-4 py-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="font-mono text-sm text-accent-amber">{input.symbol}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">{input.label}</span>
+                    <span className="ml-auto font-mono text-[9px] text-navy-600">{input.type}</span>
+                  </div>
+                  <p className="font-sans text-[11px] text-navy-500 leading-relaxed">{input.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Equation 3 */}
+          <div ref={eq3Reveal.ref} className={`mb-12 transition-all duration-700 ${eq3Reveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <Target className="w-4 h-4 text-accent-rose/60" />
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-rose/80">Equation 3: Scored Accountability</h3>
+            </div>
+
+            <div className="border border-navy-700/30 rounded-md bg-navy-900/40 p-6 mb-4">
+              <div className="font-mono text-sm text-navy-100 text-center">
+                <span className="text-accent-rose">BS</span><sub className="text-navy-500">w</sub>
+                <span className="text-navy-500"> = </span>
+                <span className="text-navy-500">&Sigma;<sub>i</sub></span>
+                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/60</sup>
+                <span className="text-navy-500"> (</span>
+                <span className="text-accent-amber">c<sub>i</sub></span>
+                <span className="text-navy-500"> - </span>
+                <span className="text-navy-300">o<sub>i</sub></span>
+                <span className="text-navy-500">)</span><sup className="text-navy-400">2</sup>
+                <span className="text-navy-500"> / </span>
+                <span className="text-navy-500">&Sigma;<sub>i</sub></span>
+                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/60</sup>
+              </div>
+            </div>
+
+            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-5 max-w-3xl">
+              Decay-weighted Brier score with a 60-day half-life. Penalises overconfidence, rewards calibration. Recent predictions count more than older ones. This is a proper scoring rule: the only way to optimise it is to state your true beliefs.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">Outcome Encoding</div>
+                <div className="space-y-1 text-[11px] font-mono">
+                  <div className="flex justify-between text-navy-500"><span>Confirmed</span><span className="text-accent-emerald">o = 1.0</span></div>
+                  <div className="flex justify-between text-navy-500"><span>Partial</span><span className="text-accent-amber">o = 0.5</span></div>
+                  <div className="flex justify-between text-navy-500"><span>Denied</span><span className="text-accent-rose">o = 0.0</span></div>
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">Interpretation</div>
+                <div className="space-y-1 text-[11px] font-mono">
+                  <div className="flex justify-between text-navy-500"><span>BS = 0.00</span><span className="text-accent-emerald">Perfect</span></div>
+                  <div className="flex justify-between text-navy-500"><span>BS = 0.25</span><span className="text-navy-400">Coin flip</span></div>
+                  <div className="flex justify-between text-navy-500"><span>BS = 1.00</span><span className="text-accent-rose">Maximally wrong</span></div>
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">BIN Decomposition</div>
+                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
+                  Brier decomposes into Bias (systematic calibration error), Noise (confidence scatter), and Information (discrimination power). Positive Information means the signal framework has predictive value.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Constants Table */}
+          <div ref={constantsReveal.ref} className={`transition-all duration-700 ${constantsReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <Lock className="w-4 h-4 text-navy-500" />
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-400">System Constants</h3>
+            </div>
+
+            <div className="border border-navy-700/30 rounded-md overflow-hidden">
+              <div className="grid grid-cols-12 gap-4 px-4 py-2.5 bg-navy-800/30 border-b border-navy-700/20">
+                <div className="col-span-2 font-mono text-[9px] uppercase tracking-wider text-navy-500">Symbol</div>
+                <div className="col-span-2 font-mono text-[9px] uppercase tracking-wider text-navy-500">Value</div>
+                <div className="col-span-8 font-mono text-[9px] uppercase tracking-wider text-navy-500">Definition</div>
+              </div>
+              {[
+                { symbol: "k", value: "0.45", def: "LR sensitivity. Calibrated so s \u2208 [0, 9] spans full posterior range against 5-10% priors." },
+                { symbol: "\u03C1\u2097", value: "0.35 - 0.85", def: "Layer reliability. GEO: 0.85, OSI: 0.80, MKT: 0.75, CAL: 0.45, CEL: 0.35." },
+                { symbol: "D\u1D62,\u2C7C", value: "[0, 1]", def: "Pairwise independence matrix. Symmetric. 1 = fully independent, 0 = fully correlated." },
+                { symbol: "\u03BC(n\u209A)", value: "{1.0, 1.4, 2.1, 3.2}", def: "Convergence amplifier by distinct primary layer count within 3-day window." },
+                { symbol: "\u03B2\u2098\u2090\u2093", value: "0.40 log-odds", def: "Narrative overlay cap. Max ~10% probability shift at midpoint." },
+                { symbol: "P\u2080", value: "0.03 - 0.12", def: "Scenario base rates. Military escalation: 0.05, market disruption: 0.12, regime change: 0.03." },
+                { symbol: "\u03C4", value: "60 days", def: "Brier score decay half-life. Recent predictions weighted more heavily." },
+                { symbol: "s\u2C7C", value: "[0, 9]", def: "Event significance. Confirming evidence only. Disconfirmation via decay to prior." },
+              ].map((row, i) => (
+                <div key={row.symbol} className={`grid grid-cols-12 gap-4 px-4 py-2.5 ${i % 2 === 0 ? "bg-navy-900/20" : ""}`}>
+                  <div className="col-span-2 font-mono text-[11px] text-accent-cyan">{row.symbol}</div>
+                  <div className="col-span-2 font-mono text-[11px] text-navy-200">{row.value}</div>
+                  <div className="col-span-8 font-sans text-[11px] text-navy-400 leading-relaxed">{row.def}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex items-start gap-3">
+              <AlertTriangle className="w-3.5 h-3.5 text-navy-600 flex-shrink-0 mt-0.5" />
+              <p className="font-sans text-xs text-navy-500 leading-relaxed">
+                All constants are implemented in production code and validated against live outcomes. The sensitivity parameter k and layer reliabilities are living values subject to recalibration as the prediction record grows. Signal decay models disconfirmation as reversion to prior rather than negative evidence, a deliberate design choice that bounds the likelihood ratio to [1, &infin;) for the current signal space.
+              </p>
             </div>
           </div>
         </div>

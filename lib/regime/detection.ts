@@ -4,6 +4,7 @@
 
 import { getFredSeries } from "@/lib/market-data/fred";
 import { saveRegimeState, loadRegimeState, appendToHistory } from "./store";
+import { getRegimePerformanceContext } from "@/lib/backtest/feedback-loops";
 
 export interface RegimeDimension {
   regime: string;
@@ -377,6 +378,24 @@ export async function detectCurrentRegime(): Promise<RegimeState> {
     composite: label,
     compositeScore: score,
   };
+
+  // Enrich with backtest regime performance data
+  try {
+    const volRegimeLabel = state.volatility.regime;
+    const regimeContext = await getRegimePerformanceContext(volRegimeLabel);
+    if (regimeContext) {
+      // Store backtest accuracy context alongside the regime state
+      // This lets downstream consumers know how reliable predictions are in this regime
+      (state as RegimeState & { backtestContext?: unknown }).backtestContext = {
+        currentRegimeAccuracy: regimeContext.currentRegimeAccuracy,
+        currentRegimeBrier: regimeContext.currentRegimeBrier,
+        bestRegime: regimeContext.bestRegime,
+        worstRegime: regimeContext.worstRegime,
+      };
+    }
+  } catch {
+    // backtest data unavailable, proceed without
+  }
 
   // Persist
   const previous = await loadRegimeState<RegimeState>("latest");

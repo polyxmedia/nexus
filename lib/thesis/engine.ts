@@ -17,6 +17,7 @@ import type {
 } from "./types";
 import { getModel } from "@/lib/ai/model";
 import { runRedTeamAssessment } from "@/lib/analysis/red-team";
+import { getWalkForwardCredibility, getBacktestFeedbackPromptSection } from "@/lib/backtest/feedback-loops";
 
 export async function generateThesis(symbols: string[]): Promise<Thesis> {
   // 1. Gather settings
@@ -381,6 +382,18 @@ async function computeOverallConfidence(
     // feedback module not available, proceed without
   }
 
+  // Walk-forward credibility: scale confidence by OOS validation results
+  try {
+    const wfCredibility = await getWalkForwardCredibility();
+    if (wfCredibility) {
+      // Blend toward credibility score: if OOS is poor, reduce confidence
+      // Weight: 30% walk-forward, 70% existing confidence
+      confidence = confidence * 0.7 + confidence * wfCredibility.credibilityScore * 0.3;
+    }
+  } catch {
+    // backtest feedback unavailable, proceed without
+  }
+
   return Math.max(0.1, Math.min(0.95, confidence));
 }
 
@@ -570,6 +583,8 @@ ${actionsSummary || "No trading actions generated from current data"}
 
 ${await buildPredictionTrackRecord()}
 
+${await buildBacktestFeedbackSection()}
+
 Write the briefing with three sections:
 1. EXECUTIVE SUMMARY (2-3 sentences)
 2. SITUATION ASSESSMENT (integrate all primary layers into coherent narrative, calendar/celestial as actor-belief context only)
@@ -595,6 +610,22 @@ async function buildPredictionTrackRecord(): Promise<string> {
     }
 
     lines.push("Factor this track record into the confidence and tone of the briefing.");
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
+async function buildBacktestFeedbackSection(): Promise<string> {
+  try {
+    const [wfCredibility, backtestFeedback] = await Promise.all([
+      getWalkForwardCredibility(),
+      getBacktestFeedbackPromptSection(),
+    ]);
+
+    const lines: string[] = [];
+    if (backtestFeedback) lines.push(backtestFeedback);
+    if (wfCredibility) lines.push("", wfCredibility.promptSection);
     return lines.join("\n");
   } catch {
     return "";

@@ -46,7 +46,7 @@ const shown = "opacity-100 translate-y-0";
 function Ruled() {
   return (
     <div className="max-w-4xl mx-auto px-6">
-      <div className="h-px bg-navy-800/60" />
+      <div className="h-px bg-navy-700/40" />
     </div>
   );
 }
@@ -69,10 +69,10 @@ function SectionHead({
       className={`flex items-center gap-4 mb-10 ${anim} ${visible ? shown : hidden}`}
       style={{ transitionDelay: `${delay}ms` }}
     >
-      <span className="font-mono text-[10px] text-navy-700 tabular-nums">
+      <span className="font-mono text-[10px] text-navy-600 tabular-nums">
         {number}
       </span>
-      <div className="h-px w-8 bg-navy-700/50" />
+      <div className="h-px w-8 bg-navy-600/50" />
       <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-navy-500">
         {label}
       </span>
@@ -191,11 +191,11 @@ export default function AboutPage() {
             className={`${anim} ${heroReveal.visible ? shown : hidden}`}
           >
             <div className="flex items-center gap-3 mb-8">
-              <span className="font-mono text-[10px] text-navy-700 tabular-nums">
+              <span className="font-mono text-[10px] text-navy-600 tabular-nums">
                 00
               </span>
-              <div className="h-px w-6 bg-navy-700/50" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-navy-600">
+              <div className="h-px w-6 bg-navy-600/50" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-navy-500">
                 Briefing / What is NEXUS
               </span>
             </div>
@@ -292,8 +292,8 @@ export default function AboutPage() {
               className={`md:col-span-5 ${anim} ${problemReveal.visible ? shown : hidden}`}
               style={{ transitionDelay: "250ms" }}
             >
-              <div className="border border-navy-800/50 rounded-lg p-6 bg-navy-900/20">
-                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-navy-600 mb-6">
+              <div className="border border-navy-700/50 rounded-lg p-6 bg-navy-900/20">
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-navy-500 mb-6">
                   The Information Gap
                 </div>
                 <div className="space-y-5">
@@ -328,20 +328,20 @@ export default function AboutPage() {
                           className={`font-mono text-[11px] font-bold tabular-nums ${
                             i === 3
                               ? "text-accent-rose"
-                              : "text-navy-400"
+                              : "text-navy-300"
                           }`}
                         >
                           {step.time}
                         </span>
                         {i < 3 && (
-                          <div className="w-px h-6 bg-navy-800/60 mt-1" />
+                          <div className="w-px h-6 bg-navy-700/60 mt-1" />
                         )}
                       </div>
                       <div>
-                        <div className="font-sans text-[12px] text-navy-300 leading-snug">
+                        <div className="font-sans text-[12px] text-navy-200 leading-snug">
                           {step.event}
                         </div>
-                        <div className="font-mono text-[10px] text-navy-600 mt-0.5">
+                        <div className="font-mono text-[10px] text-navy-500 mt-0.5">
                           {step.who}
                         </div>
                       </div>
@@ -425,12 +425,10 @@ export default function AboutPage() {
                   {/* Connecting line */}
                   {i < pipelineSteps.length - 1 && (
                     <div
-                      className="absolute left-[15px] top-[42px] w-px transition-all duration-500"
+                      className={`absolute left-[15px] top-[42px] w-px transition-all duration-500 ${isActive ? "" : "bg-navy-700/30"}`}
                       style={{
                         height: "calc(100% - 20px)",
-                        backgroundColor: isActive
-                          ? `${step.color}30`
-                          : "rgba(60,60,60,0.3)",
+                        ...(isActive ? { backgroundColor: `${step.color}30` } : {}),
                       }}
                     />
                   )}
@@ -441,19 +439,16 @@ export default function AboutPage() {
                   >
                     {/* Icon node */}
                     <div
-                      className="relative flex-shrink-0 w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-500 mt-0.5"
+                      className={`relative flex-shrink-0 w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-500 mt-0.5 ${isActive ? "" : "border-navy-700/40"}`}
                       style={{
-                        backgroundColor: isActive
-                          ? `${step.color}15`
-                          : "transparent",
-                        border: `1px solid ${isActive ? `${step.color}40` : "rgba(60,60,60,0.4)"}`,
+                        backgroundColor: isActive ? `${step.color}15` : "transparent",
+                        border: `1px solid ${isActive ? `${step.color}40` : ""}`,
+                        ...(isActive ? {} : { borderColor: "var(--color-navy-700)" }),
                       }}
                     >
                       <Icon
-                        className="w-3.5 h-3.5 transition-colors duration-500"
-                        style={{
-                          color: isActive ? step.color : "rgba(100,100,100,0.6)",
-                        }}
+                        className={`w-3.5 h-3.5 transition-colors duration-500 ${isActive ? "" : "text-navy-600"}`}
+                        style={isActive ? { color: step.color } : {}}
                       />
                     </div>
 
@@ -461,39 +456,23 @@ export default function AboutPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2">
                         <span
-                          className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] transition-colors duration-500"
-                          style={{
-                            color: isActive ? step.color : "rgba(100,100,100,0.5)",
-                          }}
+                          className={`font-mono text-[9px] font-bold uppercase tracking-[0.2em] transition-colors duration-500 ${isActive ? "" : "text-navy-600"}`}
+                          style={isActive ? { color: step.color } : {}}
                         >
                           {step.tag}
                         </span>
                         <div
-                          className="h-px flex-1 max-w-16 transition-all duration-500"
-                          style={{
-                            backgroundColor: isActive
-                              ? `${step.color}20`
-                              : "rgba(60,60,60,0.2)",
-                          }}
+                          className={`h-px flex-1 max-w-16 transition-all duration-500 ${isActive ? "" : "bg-navy-700/20"}`}
+                          style={isActive ? { backgroundColor: `${step.color}20` } : {}}
                         />
                       </div>
                       <h3
-                        className="font-sans text-base font-medium transition-colors duration-500 mb-2"
-                        style={{
-                          color: isActive
-                            ? "rgba(220,220,220,1)"
-                            : "rgba(140,140,140,0.6)",
-                        }}
+                        className={`font-sans text-base font-medium transition-colors duration-500 mb-2 ${isActive ? "text-navy-100" : "text-navy-500"}`}
                       >
                         {step.title}
                       </h3>
                       <p
-                        className="font-sans text-[13px] leading-[1.7] max-w-xl transition-colors duration-500"
-                        style={{
-                          color: isActive
-                            ? "rgba(160,160,160,1)"
-                            : "rgba(100,100,100,0.5)",
-                        }}
+                        className={`font-sans text-[13px] leading-[1.7] max-w-xl transition-colors duration-500 ${isActive ? "text-navy-400" : "text-navy-600"}`}
                       >
                         {step.body}
                       </p>
@@ -512,24 +491,19 @@ export default function AboutPage() {
             {pipelineSteps.map((step, i) => (
               <div key={step.tag} className="flex items-center gap-2">
                 <span
-                  className="font-mono text-[9px] font-bold uppercase tracking-[0.15em] px-2.5 py-1 rounded border transition-all duration-500"
-                  style={{
-                    color: activeStep >= i ? step.color : "rgba(80,80,80,0.6)",
-                    borderColor:
-                      activeStep >= i ? `${step.color}30` : "rgba(60,60,60,0.3)",
-                    backgroundColor:
-                      activeStep >= i ? `${step.color}08` : "transparent",
-                  }}
+                  className={`font-mono text-[9px] font-bold uppercase tracking-[0.15em] px-2.5 py-1 rounded border transition-all duration-500 ${activeStep >= i ? "" : "text-navy-600 border-navy-700/30"}`}
+                  style={activeStep >= i ? {
+                    color: step.color,
+                    borderColor: `${step.color}30`,
+                    backgroundColor: `${step.color}08`,
+                  } : {}}
                 >
                   {step.tag}
                 </span>
                 {i < pipelineSteps.length - 1 && (
                   <ArrowRight
-                    className="w-3 h-3 transition-colors duration-500"
-                    style={{
-                      color:
-                        activeStep > i ? `${step.color}60` : "rgba(60,60,60,0.3)",
-                    }}
+                    className={`w-3 h-3 transition-colors duration-500 ${activeStep > i ? "" : "text-navy-700/30"}`}
+                    style={activeStep > i ? { color: `${step.color}60` } : {}}
                   />
                 )}
               </div>
@@ -563,7 +537,7 @@ export default function AboutPage() {
             {audiences.map((a, i) => (
               <div
                 key={a.title}
-                className={`border border-navy-800/40 rounded-lg p-6 bg-navy-900/10 hover:border-navy-700/50 hover:bg-navy-900/20 transition-all duration-300 ${anim} ${audienceReveal.visible ? shown : hidden}`}
+                className={`border border-navy-700/40 rounded-lg p-6 bg-navy-900/10 hover:border-navy-600/50 hover:bg-navy-900/20 transition-all duration-300 ${anim} ${audienceReveal.visible ? shown : hidden}`}
                 style={{ transitionDelay: `${200 + i * 100}ms` }}
               >
                 <h3 className="font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-navy-200 mb-3">
@@ -644,8 +618,8 @@ export default function AboutPage() {
               className={`md:col-span-5 ${anim} ${credReveal.visible ? shown : hidden}`}
               style={{ transitionDelay: "250ms" }}
             >
-              <div className="border border-navy-800/50 rounded-lg p-6 bg-navy-900/20">
-                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-navy-600 mb-6">
+              <div className="border border-navy-700/50 rounded-lg p-6 bg-navy-900/20">
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-navy-500 mb-6">
                   A Polyxmedia Product
                 </div>
                 <p className="font-sans text-[12px] text-navy-400 leading-[1.7] mb-6">
@@ -663,7 +637,7 @@ export default function AboutPage() {
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="flex items-center justify-between border-b border-navy-800/30 pb-3 last:border-0 last:pb-0"
+                      className="flex items-center justify-between border-b border-navy-700/30 pb-3 last:border-0 last:pb-0"
                     >
                       <span className="font-sans text-[11px] text-navy-500">
                         {item.label}
@@ -694,9 +668,9 @@ export default function AboutPage() {
             className={`text-center ${anim} ${ctaReveal.visible ? shown : hidden}`}
           >
             <div className="flex items-center justify-center gap-4 mb-8">
-              <div className="h-px w-12 bg-navy-700/50" />
+              <div className="h-px w-12 bg-navy-600/50" />
               <Radar className="w-4 h-4 text-accent-cyan/40" />
-              <div className="h-px w-12 bg-navy-700/50" />
+              <div className="h-px w-12 bg-navy-600/50" />
             </div>
 
             <h2 className="font-sans text-2xl md:text-3xl font-light text-navy-100 mb-4 leading-tight">

@@ -84,6 +84,8 @@ export default function SettingsPage() {
   const [coinbaseKey, setCoinbaseKey] = useState("");
   const [coinbaseSecret, setCoinbaseSecret] = useState("");
   const [fredKey, setFredKey] = useState("");
+  const [ibkrGatewayUrl, setIbkrGatewayUrl] = useState("");
+  const [ibkrAccountId, setIbkrAccountId] = useState("");
   const [acledKey, setAcledKey] = useState("");
   const [acledEmail, setAcledEmail] = useState("");
 
@@ -727,7 +729,7 @@ export default function SettingsPage() {
             {/* Brokers */}
             <div className="border border-navy-700 rounded p-4">
               <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                Trading 212
+                Trading 212 (Stocks)
               </h3>
               <div className="space-y-3">
                 <ApiKeyField
@@ -749,7 +751,7 @@ export default function SettingsPage() {
 
             <div className="border border-navy-700 rounded p-4">
               <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                Coinbase
+                Coinbase (Crypto)
               </h3>
               <div className="space-y-3">
                 <ApiKeyField
@@ -765,6 +767,31 @@ export default function SettingsPage() {
                   value={coinbaseSecret}
                   onChange={setCoinbaseSecret}
                   placeholder="Enter Coinbase API secret..."
+                />
+              </div>
+            </div>
+
+            <div className="border border-navy-700 rounded p-4">
+              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
+                Interactive Brokers
+              </h3>
+              <p className="text-[10px] text-navy-600 mb-3">
+                Connect via the IBKR Client Portal Gateway. Multi-asset: stocks, options, futures, forex, bonds.
+              </p>
+              <div className="space-y-3">
+                <ApiKeyField
+                  label="Gateway URL"
+                  settingKey="ibkr_gateway_url"
+                  value={ibkrGatewayUrl}
+                  onChange={setIbkrGatewayUrl}
+                  placeholder="https://localhost:5000"
+                />
+                <ApiKeyField
+                  label="Account ID (optional)"
+                  settingKey="ibkr_account_id"
+                  value={ibkrAccountId}
+                  onChange={setIbkrAccountId}
+                  placeholder="e.g. U1234567 or DU1234567 for paper"
                 />
               </div>
             </div>

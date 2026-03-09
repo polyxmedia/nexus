@@ -681,8 +681,12 @@ export default function CongressionalTradingPage() {
             <div className="px-4 py-8 text-center text-sm text-navy-500">No trades match your filters.</div>
           )}
 
-          {filteredTrades.slice(0, 100).map((t, i) => {
+          {(() => {
+            const shownConflictPanel = new Set<string>();
+            return filteredTrades.slice(0, 100).map((t, i) => {
             const isAnalyzing = conflictMember === t.name;
+            const showPanel = isAnalyzing && !shownConflictPanel.has(t.name);
+            if (showPanel) shownConflictPanel.add(t.name);
             return (
               <div key={t.id || i}>
                 <div
@@ -751,13 +755,14 @@ export default function CongressionalTradingPage() {
                     </button>
                   </div>
                 </div>
-                {/* Inline conflict analysis */}
-                {isAnalyzing && (
+                {/* Inline conflict analysis - only show once per member */}
+                {showPanel && (
                   <ConflictPanel memberName={t.name} onClose={() => setConflictMember(null)} />
                 )}
               </div>
             );
-          })}
+          });
+          })()}
         </div>
       )}
 

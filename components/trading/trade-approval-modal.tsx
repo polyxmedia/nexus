@@ -21,13 +21,64 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  computeSizingSuggestions,
-  computeRiskEstimates,
-  type SizingTier,
-  type RiskEstimates,
-} from "@/lib/trading/sizing";
 import type { TechnicalSnapshot } from "@/lib/thesis/types";
+
+interface SizingTier {
+  label: string;
+  percentOfCash: number;
+  positionValue: number;
+  quantity: number;
+}
+
+interface RiskEstimates {
+  upsideTarget: number;
+  upsidePercent: number;
+  downsideRisk: number;
+  downsidePercent: number;
+  riskRewardRatio: number;
+}
+
+function computeSizingTiers(freeCash: number, currentPrice: number, minQty = 0.001): SizingTier[] {
+  if (freeCash <= 0 || currentPrice <= 0) return [];
+  const tiers = [
+    { label: "Conservative", pct: 0.01 },
+    { label: "Moderate", pct: 0.025 },
+    { label: "Aggressive", pct: 0.05 },
+  ];
+  return tiers.map(({ label, pct }) => {
+    const positionValue = freeCash * pct;
+    const rawQty = positionValue / currentPrice;
+    const quantity = Math.max(Math.floor(rawQty * 1000) / 1000, minQty);
+    return {
+      label,
+      percentOfCash: Math.round(pct * 10000) / 100,
+      positionValue: Math.round(positionValue * 100) / 100,
+      quantity,
+    };
+  });
+}
+
+function computeRiskEstimates(
+  direction: "BUY" | "SELL",
+  snapshot: TechnicalSnapshot
+): RiskEstimates | null {
+  const { price, bollingerBands, atr14 } = snapshot;
+  if (!bollingerBands || !atr14 || price <= 0) return null;
+  const upsideTarget = direction === "BUY" ? bollingerBands.upper : bollingerBands.lower;
+  const downsideRisk = direction === "BUY" ? price - 2 * atr14 : price + 2 * atr14;
+  const upsidePercent = ((upsideTarget - price) / price) * 100;
+  const downsidePercent = ((downsideRisk - price) / price) * 100;
+  const absUpside = Math.abs(upsideTarget - price);
+  const absDownside = Math.abs(price - downsideRisk);
+  const riskRewardRatio = absDownside > 0 ? absUpside / absDownside : 0;
+  return {
+    upsideTarget: Math.round(upsideTarget * 100) / 100,
+    upsidePercent: Math.round(upsidePercent * 100) / 100,
+    downsideRisk: Math.round(downsideRisk * 100) / 100,
+    downsidePercent: Math.round(downsidePercent * 100) / 100,
+    riskRewardRatio: Math.round(riskRewardRatio * 100) / 100,
+  };
+}
 
 interface TradingAction {
   ticker: string;
@@ -130,7 +181,7 @@ export function TradeApprovalModal({ action, thesisContext, onClose, onExecuted 
         .then((r) => r.json())
         .catch(() => null),
       fetch("/api/trading212/instruments").then((r) => r.json()).catch(() => []),
-    ]).then(([accountData, snapshotData, instrumentData]) => {
+    ]).then(async ([accountData, snapshotData, instrumentData]) => {
       const cash = accountData?.cash?.free ?? 0;
       setFreeCash(cash);
 
@@ -151,7 +202,7 @@ export function TradeApprovalModal({ action, thesisContext, onClose, onExecuted 
 
       // Compute sizing & risk
       if (snap && cash > 0) {
-        setSizingTiers(computeSizingSuggestions(cash, snap.price));
+        setSizingTiers(computeSizingTiers(cash, snap.price));
       }
       if (snap && action.direction !== "HOLD") {
         setRiskEstimates(computeRiskEstimates(action.direction, snap));

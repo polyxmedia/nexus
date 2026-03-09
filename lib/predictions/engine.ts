@@ -11,6 +11,7 @@ import { loadPrompt } from "@/lib/prompts/loader";
 import { SONNET_MODEL, HAIKU_MODEL } from "@/lib/ai/model";
 import { getBaseRateContext, adjustForBaseRate, BASE_RATES } from "./base-rates";
 import { getCalendarActorInsights } from "../signals/actor-beliefs";
+import { getCategoryCalibrationAdjustment, applyCalibrationCorrection } from "../backtest/feedback-loops";
 
 // ── Constants ──
 
@@ -70,7 +71,7 @@ async function fetchReferencePrices(alphaVantageKey: string): Promise<Record<str
 
 // ── Base Rate Confidence Adjustment ──
 
-function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): number {
+async function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): Promise<number> {
   const clamped = Math.max(0.1, Math.min(0.95, rawConfidence));
 
   // Select the most relevant base rate for this prediction
@@ -106,7 +107,19 @@ function adjustConfidenceForBaseRate(rawConfidence: number, category: string, cl
     baseRate = BASE_RATES.celestial.convergence_with_market_move;
   }
 
-  return adjustForBaseRate(clamped, baseRate, evidenceStrength);
+  const baseRateAdjusted = adjustForBaseRate(clamped, baseRate, evidenceStrength);
+
+  // Apply backtest calibration correction on top of base rate adjustment
+  try {
+    const catAdj = await getCategoryCalibrationAdjustment(category);
+    if (catAdj.reliable) {
+      return Math.max(0.05, Math.min(0.95, baseRateAdjusted * catAdj.multiplier));
+    }
+  } catch {
+    // Backtest data unavailable, proceed with base rate adjustment only
+  }
+
+  return baseRateAdjusted;
 }
 
 // ── Direction/Level Extraction ──
@@ -674,7 +687,7 @@ Output a brief devil's advocate summary.`;
         claim: p.claim,
         timeframe: p.timeframe,
         deadline: p.deadline,
-        confidence: adjustConfidenceForBaseRate(p.confidence, p.category, p.claim),
+        confidence: await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim),
         category,
         metrics: p.grounding ? JSON.stringify({ grounding: p.grounding }) : null,
         // New fields

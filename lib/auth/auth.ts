@@ -58,7 +58,8 @@ export const authOptions = {
           if (!valid) return null;
 
           return { id: credentials.username, name: credentials.username, email: `${credentials.username}@nexus` };
-        } catch {
+        } catch (error) {
+          console.error("[auth] authorize error:", error);
           return null;
         }
       },

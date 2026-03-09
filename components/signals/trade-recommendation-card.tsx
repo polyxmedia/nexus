@@ -13,10 +13,32 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  computeSizingSuggestions,
-  type SizingTier,
-} from "@/lib/trading/sizing";
+export interface SizingTier {
+  label: string;
+  percentOfCash: number;
+  positionValue: number;
+  quantity: number;
+}
+
+function computeSizingTiers(freeCash: number, currentPrice: number, minQty = 0.001): SizingTier[] {
+  if (freeCash <= 0 || currentPrice <= 0) return [];
+  const tiers = [
+    { label: "Conservative", pct: 0.01 },
+    { label: "Moderate", pct: 0.025 },
+    { label: "Aggressive", pct: 0.05 },
+  ];
+  return tiers.map(({ label, pct }) => {
+    const positionValue = freeCash * pct;
+    const rawQty = positionValue / currentPrice;
+    const quantity = Math.max(Math.floor(rawQty * 1000) / 1000, minQty);
+    return {
+      label,
+      percentOfCash: Math.round(pct * 10000) / 100,
+      positionValue: Math.round(positionValue * 100) / 100,
+      quantity,
+    };
+  });
+}
 
 export interface TradeRecommendation {
   ticker: string;
@@ -85,7 +107,7 @@ export function TradeRecommendationCard({ rec, signalId }: TradeRecommendationCa
         .then((r) => r.json())
         .catch(() => null),
       fetch("/api/trading212/instruments").then((r) => r.json()).catch(() => []),
-    ]).then(([accountData, snapshotData, instrumentData]) => {
+    ]).then(async ([accountData, snapshotData, instrumentData]) => {
       const cash = accountData?.cash?.free ?? 0;
       setFreeCash(cash);
 
@@ -103,7 +125,7 @@ export function TradeRecommendationCard({ rec, signalId }: TradeRecommendationCa
       setResolvedTicker(match?.ticker || symbol);
 
       if (price && cash > 0) {
-        setSizingTiers(computeSizingSuggestions(cash, price));
+        setSizingTiers(computeSizingTiers(cash, price));
       }
 
       setDataLoaded(true);

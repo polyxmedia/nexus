@@ -1,6 +1,19 @@
 import { withAuth } from "next-auth/middleware";
 
+// Public API paths that skip auth (used by public research pages)
+const PUBLIC_API_PATHS = [
+  "/api/predictions/feedback",
+  "/api/predictions/recent-resolved",
+];
+
 export default withAuth({
+  callbacks: {
+    authorized({ req, token }) {
+      // Allow public API paths without auth
+      if (PUBLIC_API_PATHS.some((p) => req.nextUrl.pathname === p)) return true;
+      return !!token;
+    },
+  },
   pages: {
     signIn: "/login",
   },
@@ -14,6 +27,7 @@ export const config = {
     "/api/predictions/:path*",
     "/api/trading212/:path*",
     "/api/coinbase/:path*",
+    "/api/ibkr/:path*",
     "/api/settings/:path*",
     "/api/knowledge/:path*",
     "/api/warroom/:path*",

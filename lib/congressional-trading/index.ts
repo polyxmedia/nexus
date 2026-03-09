@@ -90,6 +90,7 @@ async function fetchCongressionalTrades(): Promise<CongressionalTrade[]> {
     const res = await fetch(QUIVER_URL, {
       signal: AbortSignal.timeout(15000),
       headers: { "Accept": "application/json" },
+      cache: "no-store",
     });
     if (!res.ok) return [];
 
@@ -139,6 +140,7 @@ async function fetchEdgarInsiderTrades(): Promise<InsiderTrade[]> {
           "User-Agent": "NexusIntelligence admin@nexus.app",
           "Accept": "application/json",
         },
+        cache: "no-store",
       }
     );
     if (!res.ok) return [];

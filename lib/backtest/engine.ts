@@ -3,6 +3,7 @@ import { db, schema } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { generateSignals } from "../signals/engine";
 import { getHistoricalData } from "../market-data/yahoo";
+import { invalidateBacktestCache } from "./feedback-loops";
 
 // Unified bar type matching yahoo output
 interface DailyBar {
@@ -491,6 +492,9 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
 
   // Persist full results (predictions + results JSON) to DB
   await dbFinaliseRun(run).catch(() => {});
+
+  // Invalidate feedback loop cache so downstream systems pick up new results
+  invalidateBacktestCache();
 
   // Remove from active cache — future reads come from DB
   activeRuns.delete(id);

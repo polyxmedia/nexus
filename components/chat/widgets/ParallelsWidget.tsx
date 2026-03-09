@@ -38,6 +38,10 @@ function similarityColor(s: number): string {
 }
 
 function ParallelCard({ parallel }: { parallel: HistoricalParallel }) {
+  // Handle both old typo (keySimlarities) and corrected spelling
+  const similarities = parallel.keySimilarities || (parallel as any).keySimlarities || [];
+  const differences = parallel.keyDifferences || [];
+
   return (
     <div className="border border-navy-700 rounded bg-navy-900/60 p-3">
       <div className="flex items-center justify-between mb-2">
@@ -63,13 +67,13 @@ function ParallelCard({ parallel }: { parallel: HistoricalParallel }) {
         </div>
       </div>
 
-      {(parallel.keySimilarities.length > 0 || parallel.keyDifferences.length > 0) && (
+      {(similarities.length > 0 || differences.length > 0) && (
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-navy-800/50">
-          {parallel.keySimilarities.length > 0 && (
+          {similarities.length > 0 && (
             <div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-accent-cyan/60 mb-1">Similarities</div>
               <ul className="space-y-0.5">
-                {parallel.keySimilarities.map((s, i) => (
+                {similarities.map((s, i) => (
                   <li key={i} className="text-[10px] text-navy-400 flex items-start gap-1">
                     <span className="text-accent-cyan/50 mt-px shrink-0">&gt;</span>
                     {s}
@@ -78,11 +82,11 @@ function ParallelCard({ parallel }: { parallel: HistoricalParallel }) {
               </ul>
             </div>
           )}
-          {parallel.keyDifferences.length > 0 && (
+          {differences.length > 0 && (
             <div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-accent-amber/60 mb-1">Differences</div>
               <ul className="space-y-0.5">
-                {parallel.keyDifferences.map((d, i) => (
+                {differences.map((d, i) => (
                   <li key={i} className="text-[10px] text-navy-400 flex items-start gap-1">
                     <span className="text-accent-amber/50 mt-px shrink-0">&gt;</span>
                     {d}

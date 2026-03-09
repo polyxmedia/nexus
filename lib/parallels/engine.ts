@@ -61,7 +61,7 @@ Respond in this exact JSON structure:
       "timeToResolution": "how long it took to resolve",
       "marketImpact": "specific market effects",
       "keyDifferences": ["difference 1", "difference 2"],
-      "keySimlarities": ["similarity 1", "similarity 2"]
+      "keySimilarities": ["similarity 1", "similarity 2"]
     }
   ],
   "synthesis": "2-4 sentence synthesis of what the parallels suggest for the current situation",

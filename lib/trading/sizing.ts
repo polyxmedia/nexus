@@ -1,4 +1,6 @@
+import "server-only";
 import type { TechnicalSnapshot } from "@/lib/thesis/types";
+import { getCostAwareSizing } from "@/lib/backtest/feedback-loops";
 
 export interface SizingTier {
   label: string;
@@ -18,13 +20,25 @@ export interface RiskEstimates {
 /**
  * Returns 3 position sizing tiers based on free cash and current price.
  * Conservative = 1%, Moderate = 2.5%, Aggressive = 5% of free cash.
+ *
+ * If backtest cost sensitivity data is available, scales positions down
+ * when the strategy has thin margins after transaction costs.
  */
-export function computeSizingSuggestions(
+export async function computeSizingSuggestions(
   freeCash: number,
   currentPrice: number,
   minQty = 0.001
-): SizingTier[] {
+): Promise<SizingTier[]> {
   if (freeCash <= 0 || currentPrice <= 0) return [];
+
+  // Get cost-aware scale factor from backtest feedback
+  let scaleFactor = 1.0;
+  try {
+    const costSizing = await getCostAwareSizing();
+    scaleFactor = costSizing.positionScaleFactor;
+  } catch {
+    // backtest data unavailable, use full sizing
+  }
 
   const tiers = [
     { label: "Conservative", pct: 0.01 },
@@ -33,12 +47,13 @@ export function computeSizingSuggestions(
   ];
 
   return tiers.map(({ label, pct }) => {
-    const positionValue = freeCash * pct;
+    const adjustedPct = pct * scaleFactor;
+    const positionValue = freeCash * adjustedPct;
     const rawQty = positionValue / currentPrice;
     const quantity = Math.max(Math.floor(rawQty * 1000) / 1000, minQty);
     return {
       label,
-      percentOfCash: pct * 100,
+      percentOfCash: Math.round(adjustedPct * 10000) / 100,
       positionValue: Math.round(positionValue * 100) / 100,
       quantity,
     };
