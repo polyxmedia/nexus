@@ -453,6 +453,8 @@ function TierEditor({
   });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [showLimits, setShowLimits] = useState(false);
 
   const handleSave = async () => {
@@ -627,10 +629,53 @@ function TierEditor({
         ) : (
           <div />
         )}
-        <Button variant="outline" size="sm" onClick={handleSave} disabled={saving || !form.name}>
-          {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
-          {tier.id ? "Save Changes" : "Create Tier"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {syncResult && (
+            <span className={`text-[10px] font-mono ${syncResult.ok ? "text-accent-emerald" : "text-accent-rose"}`}>
+              {syncResult.msg}
+            </span>
+          )}
+          {tier.id && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={syncing || !form.name}
+              onClick={async () => {
+                setSyncing(true);
+                setSyncResult(null);
+                try {
+                  const res = await fetch("/api/admin/tiers/stripe-sync", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tierId: tier.id }),
+                  });
+                  const data = await res.json();
+                  if (res.ok) {
+                    setForm((f) => ({
+                      ...f,
+                      stripePriceId: data.stripePriceId || f.stripePriceId,
+                      stripeProductId: data.stripeProductId || f.stripeProductId,
+                    }));
+                    setSyncResult({ ok: true, msg: "Synced" });
+                  } else {
+                    setSyncResult({ ok: false, msg: data.error || "Failed" });
+                  }
+                } catch {
+                  setSyncResult({ ok: false, msg: "Network error" });
+                }
+                setSyncing(false);
+                setTimeout(() => setSyncResult(null), 4000);
+              }}
+            >
+              {syncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CreditCard className="h-3 w-3 mr-1" />}
+              Sync to Stripe
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleSave} disabled={saving || !form.name}>
+            {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+            {tier.id ? "Save Changes" : "Create Tier"}
+          </Button>
+        </div>
       </div>
     </div>
   );
