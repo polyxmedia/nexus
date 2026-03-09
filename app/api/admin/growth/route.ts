@@ -92,6 +92,8 @@ export async function GET() {
       }
     }
 
+    // Convert from cents to dollars
+    mrr = mrr / 100;
     const arr = mrr * 12;
 
     // Churn rate (cancelled / total ever subscribed)
@@ -172,13 +174,13 @@ export async function GET() {
         ? (confirmedPredictions / resolvedPredictions) * 100
         : 0;
 
-    // Tier breakdown
+    // Tier breakdown (convert cents to dollars)
     const tierBreakdown = tiers.map((t) => ({
       id: t.id,
       name: t.name,
-      price: t.price,
+      price: t.price / 100,
       subscribers: subscribersByTier[t.name.toLowerCase()] || 0,
-      revenue: revenueByTier[t.name.toLowerCase()] || 0,
+      revenue: (revenueByTier[t.name.toLowerCase()] || 0) / 100,
     }));
 
     // Recent activity
