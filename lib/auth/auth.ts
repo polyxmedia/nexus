@@ -1,9 +1,11 @@
-import NextAuth from "next-auth";
+import NextAuth, { type AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare, hash } from "bcryptjs";
 import { db, schema } from "@/lib/db";
 import { eq, like } from "drizzle-orm";
 import { rateLimit } from "@/lib/rate-limit";
+import { cookies } from "next/headers";
+import { COOKIE_NAME, verifyImpersonationToken } from "@/lib/auth/impersonation";
 
 export async function hashPassword(password: string): Promise<string> {
   return hash(password, 12);
@@ -13,7 +15,7 @@ export async function verifyPassword(password: string, hashed: string): Promise<
   return compare(password, hashed);
 }
 
-export const authOptions = {
+export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -29,10 +31,29 @@ export const authOptions = {
         if (!rl.allowed) return null; // Return null (not an error) so NextAuth shows generic "Sign in failed"
 
         try {
-          const users = await db
+          let users = await db
             .select()
             .from(schema.settings)
             .where(eq(schema.settings.key, `user:${credentials.username}`));
+
+          // If no match by username, try finding by email
+          let resolvedUsername = credentials.username;
+          if (users.length === 0 && credentials.username.includes("@")) {
+            const allUsers = await db
+              .select()
+              .from(schema.settings)
+              .where(like(schema.settings.key, "user:%"));
+            for (const row of allUsers) {
+              try {
+                const data = JSON.parse(row.value);
+                if (data.email?.toLowerCase() === credentials.username.toLowerCase()) {
+                  users = [row];
+                  resolvedUsername = row.key.replace("user:", "");
+                  break;
+                }
+              } catch {}
+            }
+          }
 
           if (users.length === 0) {
             // Auto-create first user if no users exist
@@ -46,7 +67,7 @@ export const authOptions = {
               await db.insert(schema.settings)
                 .values({
                   key: `user:${credentials.username}`,
-                  value: JSON.stringify({ password: hashed, role: "admin" }),
+                  value: JSON.stringify({ password: hashed, role: "admin", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString() }),
                 });
               return { id: credentials.username, name: credentials.username, email: `${credentials.username}@nexus` };
             }
@@ -54,10 +75,19 @@ export const authOptions = {
           }
 
           const userData = JSON.parse(users[0].value);
+          if (userData.blocked) return null;
+
           const valid = await verifyPassword(credentials.password, userData.password);
           if (!valid) return null;
 
-          return { id: credentials.username, name: credentials.username, email: `${credentials.username}@nexus` };
+          // Track last login
+          userData.lastLogin = new Date().toISOString();
+          await db
+            .update(schema.settings)
+            .set({ value: JSON.stringify(userData), updatedAt: new Date().toISOString() })
+            .where(eq(schema.settings.key, `user:${resolvedUsername}`));
+
+          return { id: resolvedUsername, name: resolvedUsername, email: userData.email || `${resolvedUsername}@nexus` };
         } catch (error) {
           console.error("[auth] authorize error:", error);
           return null;
@@ -71,6 +101,26 @@ export const authOptions = {
   session: {
     strategy: "jwt" as const,
     maxAge: 8 * 60 * 60, // 8 hours
+  },
+  callbacks: {
+    async session({ session }) {
+      // Check for admin impersonation cookie
+      try {
+        const jar = await cookies();
+        const impCookie = jar.get(COOKIE_NAME);
+        if (impCookie?.value) {
+          const impData = verifyImpersonationToken(impCookie.value);
+          if (impData && session.user?.name === impData.adminUsername) {
+            // Override session with impersonated user
+            session.user.name = impData.targetUsername;
+            session.user.email = `${impData.targetUsername}@nexus`;
+          }
+        }
+      } catch {
+        // cookies() may not be available in all contexts (e.g. middleware)
+      }
+      return session;
+    },
   },
   secret: (() => {
     const secret = process.env.NEXTAUTH_SECRET;

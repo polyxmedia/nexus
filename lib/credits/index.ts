@@ -24,7 +24,7 @@ const MODEL_RATES: Record<string, { input: number; output: number }> = {
 
 // ── Fallback monthly credit grants (used when tier limits not in DB) ──
 export const TIER_CREDITS: Record<string, number> = {
-  free: 0,
+  free: 5_000, // trial cap: $5 worth of AI usage
   analyst: 50_000,
   operator: 250_000,
   institution: -1, // unlimited

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { requireTier } from "@/lib/auth/require-tier";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
 
 export async function GET() {
-  const tierCheck = await requireTier("analyst");
-  if ("response" in tierCheck) return tierCheck.response;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const allSignals = await db.select().from(schema.signals);
     const allPredictions = await db.select().from(schema.predictions);

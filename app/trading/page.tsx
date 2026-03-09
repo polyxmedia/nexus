@@ -14,6 +14,7 @@ import { Metric } from "@/components/ui/metric";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  Link2,
   Loader2,
   RefreshCw,
   X,
@@ -22,8 +23,10 @@ import {
   Coins,
   BarChart3,
   Landmark,
+  Flame,
 } from "lucide-react";
 import { IBKRPanel } from "@/components/trading/ibkr-panel";
+import { IGPanel } from "@/components/trading/ig-panel";
 import { EquityCurve } from "@/components/trading/equity-curve";
 
 const CandlestickChart = dynamic(() => import("@/components/charts/candlestick-chart"), { ssr: false });
@@ -246,7 +249,7 @@ function CoinbasePanel({
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {cbLoading ? (
           [...Array(4)].map((_, i) => (
             <div key={i} className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
@@ -283,9 +286,9 @@ function CoinbasePanel({
       </div>
 
       {/* Holdings + Order Form */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Holdings (2/3) */}
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2 pb-2 border-b border-navy-700/20">
             Crypto Holdings ({holdings.length})
           </h2>
@@ -348,7 +351,7 @@ function CoinbasePanel({
               <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2 pb-2 border-b border-navy-700/20">
                 Watchlist
               </h2>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {CRYPTO_WATCHLIST.map((w) => {
                   const p = prices[w.productId];
                   if (!p) return null;
@@ -745,13 +748,14 @@ export default function TradingPage() {
 
 function TradingPageInner() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"stocks" | "crypto" | "ibkr">("stocks");
+  const [activeTab, setActiveTab] = useState<"stocks" | "crypto" | "ibkr" | "ig">("stocks");
 
   const [account, setAccount] = useState<AccountData | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasAnyBroker, setHasAnyBroker] = useState<boolean | null>(null); // null = loading
 
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [instrumentsLoading, setInstrumentsLoading] = useState(true);
@@ -820,13 +824,32 @@ function TradingPageInner() {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchAccountData().then(() => {
-      fetch("/api/trading212/instruments")
-        .then((r) => r.json())
-        .then((data) => { if (Array.isArray(data)) setInstruments(data); })
-        .catch(() => {})
-        .finally(() => setInstrumentsLoading(false));
-    });
+    // Check if any broker is configured before making API calls
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        const s: { key: string; value: string }[] = Array.isArray(data) ? data : data.settings || [];
+        const brokerKeys = ["t212_api_key", "coinbase_api_key", "ibkr_gateway_url", "ig_api_key"];
+        const hasBroker = s.some(
+          (setting) => brokerKeys.includes(setting.key) && setting.value && setting.value.length > 0
+        );
+        setHasAnyBroker(hasBroker);
+
+        // Only fetch broker data if a broker is configured
+        if (hasBroker) {
+          fetchAccountData().then(() => {
+            fetch("/api/trading212/instruments")
+              .then((r) => r.json())
+              .then((d) => { if (Array.isArray(d)) setInstruments(d); })
+              .catch(() => {})
+              .finally(() => setInstrumentsLoading(false));
+          });
+        } else {
+          setLoading(false);
+          setInstrumentsLoading(false);
+        }
+      })
+      .catch(() => setHasAnyBroker(true)); // Default to true on error to not block UI
   }, []);
 
   const placeOrder = async () => {
@@ -935,6 +958,7 @@ function TradingPageInner() {
       title="Trading"
       subtitle="Stocks & Crypto"
       actions={
+        hasAnyBroker !== false ? (
         <div className="flex items-center gap-3">
           <StatusDot color={connected ? "green" : "red"} label={connected ? `Connected (${account?.environment || "live"})` : "Disconnected"} />
           <Button variant="primary" size="sm" onClick={fetchAccountData}>
@@ -942,10 +966,29 @@ function TradingPageInner() {
             Refresh
           </Button>
         </div>
+        ) : undefined
       }
     >
+      {/* ── No broker connected prompt ── */}
+      {hasAnyBroker === false && (
+        <div className="border border-navy-700/40 rounded-lg p-12 bg-navy-900/30 text-center">
+          <Link2 className="h-10 w-10 text-navy-600 mx-auto mb-4" />
+          <h2 className="text-base font-semibold text-navy-200 mb-2">Connect a broker to start trading</h2>
+          <p className="text-xs text-navy-400 mb-6 max-w-md mx-auto leading-relaxed">
+            Link your Interactive Brokers, IG Markets, Trading 212, or Coinbase account to execute trades, view positions, and track your portfolio directly from the platform.
+          </p>
+          <a
+            href="/settings?tab=connections"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono uppercase tracking-widest text-navy-100 transition-all"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            Go to Connections
+          </a>
+        </div>
+      )}
+
       {/* ── Tabs ── */}
-      <div className="flex items-center gap-1 mb-6 border-b border-navy-700/30 pb-0">
+      {hasAnyBroker !== false && <><div className="flex items-center gap-1 mb-6 border-b border-navy-700/30 pb-0">
         <button
           onClick={() => setActiveTab("stocks")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px ${
@@ -978,6 +1021,17 @@ function TradingPageInner() {
         >
           <Landmark className="h-3.5 w-3.5" />
           Interactive Brokers
+        </button>
+        <button
+          onClick={() => setActiveTab("ig")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px ${
+            activeTab === "ig"
+              ? "border-accent-cyan text-accent-cyan"
+              : "border-transparent text-navy-500 hover:text-navy-300"
+          }`}
+        >
+          <Flame className="h-3.5 w-3.5" />
+          IG Markets
         </button>
       </div>
 
@@ -1012,6 +1066,11 @@ function TradingPageInner() {
       {/* ── IBKR Tab ── */}
       {activeTab === "ibkr" && (
         <IBKRPanel onOpenChart={(s) => addPanel(s)} />
+      )}
+
+      {/* ── IG Markets Tab ── */}
+      {activeTab === "ig" && (
+        <IGPanel onOpenChart={(s) => addPanel(s)} />
       )}
 
       {/* ── Stocks Tab ── */}
@@ -1056,7 +1115,7 @@ function TradingPageInner() {
       {/* ── Stocks content ── */}
       {activeTab === "stocks" && <>
       {/* ── Metrics Row ── */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
         {loading ? (
           [...Array(5)].map((_, i) => (
             <div key={i} className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
@@ -1095,9 +1154,9 @@ function TradingPageInner() {
       </div>
 
       {/* ── Positions + Order Form side by side ── */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Positions (2/3 width) */}
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-2 pb-2 border-b border-navy-700/20">
             Open Positions ({positions.length})
           </h2>
@@ -1186,6 +1245,7 @@ function TradingPageInner() {
           </div>
         </div>
       </div>
+      </>}
       </>}
     </PageContainer>
     </UpgradeGate>

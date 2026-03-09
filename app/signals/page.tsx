@@ -1,33 +1,21 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Activity,
-  ArrowRight,
-  Calendar,
   ChevronRight,
-  Filter,
-  Layers,
   Search,
-  TrendingUp,
-  Zap,
-  AlertTriangle,
   Radio,
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
   AreaChart,
   Area,
 } from "recharts";
@@ -50,16 +38,16 @@ interface Signal {
   createdAt: string;
 }
 
-const INTENSITY_COLORS = ["#3b82f6", "#06b6d4", "#f59e0b", "#f97316", "#ef4444"];
+const INTENSITY_COLORS = ["#4a5568", "#5a6577", "#8b8b6e", "#9a7b6a", "#8b5c5c"];
 const INTENSITY_LABELS = ["Low", "Moderate", "Elevated", "High", "Critical"];
 
 const CATEGORY_COLORS: Record<string, string> = {
-  convergence: "#06b6d4",
-  celestial: "#8b5cf6",
-  hebrew: "#f59e0b",
-  geopolitical: "#ef4444",
-  islamic: "#10b981",
-  economic: "#3b82f6",
+  convergence: "#6b7280",
+  celestial: "#6b7280",
+  hebrew: "#6b7280",
+  geopolitical: "#6b7280",
+  islamic: "#6b7280",
+  economic: "#6b7280",
 };
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
@@ -69,7 +57,6 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
 };
 
 export default function SignalsPage() {
-  const router = useRouter();
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -222,7 +209,7 @@ export default function SignalsPage() {
       <PageContainer title="Signal Intelligence" subtitle="Multi-layer convergence detection">
         <UpgradeGate minTier="analyst" feature="Signal detection and monitoring" blur>
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
           </div>
           <Skeleton className="h-48 w-full" />
@@ -239,16 +226,15 @@ export default function SignalsPage() {
       {/* Overview Metrics */}
       {analytics && (
         <>
-          <div className="grid grid-cols-5 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
             {[
-              { label: "Total Signals", value: analytics.total, sub: "detected", accent: "accent-cyan" },
-              { label: "Avg Intensity", value: analytics.avgIntensity.toFixed(1), sub: "out of 5", accent: "accent-amber" },
-              { label: "Convergences", value: analytics.convergences, sub: "L3+ events", accent: "accent-rose" },
-              { label: "Active", value: analytics.statusCounts.active, sub: "in progress", accent: "accent-emerald" },
-              { label: "Upcoming", value: analytics.statusCounts.upcoming, sub: "pending", accent: "accent-cyan" },
+              { label: "Total Signals", value: analytics.total, sub: "detected" },
+              { label: "Avg Intensity", value: analytics.avgIntensity.toFixed(1), sub: "out of 5" },
+              { label: "Convergences", value: analytics.convergences, sub: "L3+ events" },
+              { label: "Active", value: analytics.statusCounts.active, sub: "in progress" },
+              { label: "Upcoming", value: analytics.statusCounts.upcoming, sub: "pending" },
             ].map((m) => (
-              <div key={m.label} className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden group hover:border-navy-700/50 transition-colors">
-                <div className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-${m.accent}/20 to-transparent`} />
+              <div key={m.label} className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 hover:border-navy-700/50 transition-colors">
                 <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-0.5">{m.label}</div>
                 <div className="text-xl font-mono font-bold text-navy-100 tabular-nums leading-tight">{m.value}</div>
                 <div className="text-[9px] font-mono text-navy-600">{m.sub}</div>
@@ -259,8 +245,7 @@ export default function SignalsPage() {
           {/* Analytics Row */}
           <div className="grid grid-cols-12 gap-4 mb-6">
             {/* Intensity Distribution */}
-            <div className="col-span-3 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/20 to-transparent" />
+            <div className="col-span-3 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
               <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Intensity Distribution</div>
               <div className="space-y-2">
                 {analytics.intensityDist.map((d) => (
@@ -289,16 +274,15 @@ export default function SignalsPage() {
             </div>
 
             {/* Timeline */}
-            <div className="col-span-5 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
+            <div className="col-span-5 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
               <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Signal Frequency</div>
               <div className="h-28">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={analytics.timeline} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="signalGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#6b7280" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#6b7280" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
@@ -308,15 +292,14 @@ export default function SignalsPage() {
                       contentStyle={{ background: "rgba(10,10,10,0.95)", border: "1px solid #1f1f1f", borderRadius: "4px", fontSize: "10px", fontFamily: "IBM Plex Mono" }}
                       labelFormatter={formatMonth}
                     />
-                    <Area type="monotone" dataKey="count" stroke="#06b6d4" strokeWidth={1.5} fill="url(#signalGrad)" />
+                    <Area type="monotone" dataKey="count" stroke="#6b7280" strokeWidth={1} fill="url(#signalGrad)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* Layer & Category Breakdown */}
-            <div className="col-span-4 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-emerald/20 to-transparent" />
+            <div className="col-span-4 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
               <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Signal Layers</div>
               <div className="space-y-1.5">
                 {analytics.layers.slice(0, 7).map((l) => (
@@ -331,7 +314,7 @@ export default function SignalsPage() {
                     <div className="flex items-center gap-2">
                       <div className="w-16 h-1.5 bg-navy-800 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-accent-emerald/50 rounded-full"
+                          className="h-full bg-navy-500/50 rounded-full"
                           style={{ width: `${(l.count / analytics.total) * 100}%` }}
                         />
                       </div>
@@ -441,7 +424,6 @@ export default function SignalsPage() {
             let sectors: string[] = [];
             try { if (signal.marketSectors) sectors = JSON.parse(signal.marketSectors); } catch {}
             const statusCfg = STATUS_CONFIG[signal.status] || STATUS_CONFIG.passed;
-            const isConvergence = signal.category === "convergence";
             const isHighIntensity = signal.intensity >= 4;
             const intensityColor = INTENSITY_COLORS[signal.intensity - 1] || "#6b7280";
             const descriptionPreview = signal.description?.split(" | ")[0] || "";
@@ -450,24 +432,12 @@ export default function SignalsPage() {
               <Link
                 key={signal.id}
                 href={`/signals/${signal.uuid}`}
-                className={`block rounded-lg transition-all group relative overflow-hidden ${
-                  isConvergence
-                    ? "border border-accent-cyan/20 bg-accent-cyan/[0.02] hover:bg-accent-cyan/[0.05] hover:border-accent-cyan/30"
-                    : "border border-navy-700/30 bg-navy-900/20 hover:bg-navy-800/30 hover:border-navy-700/50"
-                }`}
+                className="block rounded-lg transition-all group border border-navy-700/30 bg-navy-900/20 hover:bg-navy-800/30 hover:border-navy-700/50"
               >
-                {/* Top accent line for high-intensity signals */}
-                {isHighIntensity && (
-                  <div
-                    className="absolute top-0 left-0 right-0 h-px"
-                    style={{ background: `linear-gradient(to right, transparent, ${intensityColor}40, transparent)` }}
-                  />
-                )}
-
                 <div className="flex items-stretch">
-                  {/* Intensity bar - thicker for convergences */}
+                  {/* Intensity bar */}
                   <div
-                    className={`${isConvergence ? "w-1.5" : "w-1"} rounded-l-lg shrink-0`}
+                    className="w-0.5 rounded-l-lg shrink-0"
                     style={{ backgroundColor: intensityColor }}
                   />
 
@@ -475,9 +445,6 @@ export default function SignalsPage() {
                     <div className="flex items-start justify-between mb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[10px] font-mono text-navy-600">#{signal.id}</span>
-                        {isConvergence && (
-                          <Layers className="h-3 w-3 text-accent-cyan/60 shrink-0" />
-                        )}
                         <span className="text-sm text-navy-200 font-medium truncate">{signal.title}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-3">
@@ -519,18 +486,11 @@ export default function SignalsPage() {
                           {signal.intensity}
                         </span>
                       </div>
-                      <span
-                        className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-                        style={{
-                          color: CATEGORY_COLORS[signal.category] || "#6b7280",
-                          backgroundColor: `${CATEGORY_COLORS[signal.category] || "#6b7280"}15`,
-                        }}
-                      >
+                      <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded text-navy-500 bg-navy-800/40">
                         {signal.category}
                       </span>
                       {isHighIntensity && (
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-accent-rose/70 flex items-center gap-1">
-                          <AlertTriangle className="h-2.5 w-2.5" />
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-navy-400">
                           {INTENSITY_LABELS[signal.intensity - 1]}
                         </span>
                       )}
@@ -565,12 +525,12 @@ export default function SignalsPage() {
                     {(signal.hebrewHoliday || signal.celestialType) && (
                       <div className="flex items-center gap-3 mt-1.5">
                         {signal.hebrewHoliday && (
-                          <span className="text-[9px] text-accent-amber/70 font-mono">
+                          <span className="text-[9px] text-navy-500 font-mono">
                             {signal.hebrewHoliday}
                           </span>
                         )}
                         {signal.celestialType && (
-                          <span className="text-[9px] text-accent-cyan/70 font-mono capitalize">
+                          <span className="text-[9px] text-navy-500 font-mono capitalize">
                             {signal.celestialType.replace(/_/g, " ")}
                           </span>
                         )}

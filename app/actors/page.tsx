@@ -105,17 +105,17 @@ export default function ActorsPage() {
 
   const typeColor = (type: string) => {
     switch (type) {
-      case "hawkish": return "text-red-400";
-      case "cooperative": return "text-emerald-400";
-      default: return "text-amber-400";
+      case "hawkish": return "text-accent-rose";
+      case "cooperative": return "text-accent-emerald";
+      default: return "text-accent-amber";
     }
   };
 
   const significanceColor = (sig: string) => {
     switch (sig) {
-      case "critical": return "bg-red-900/30 border-red-800/50 text-red-300";
-      case "high": return "bg-amber-900/20 border-amber-800/50 text-amber-300";
-      default: return "bg-neutral-800/30 border-neutral-700/50 text-neutral-300";
+      case "critical": return "bg-accent-rose/10 border-accent-rose/30 text-accent-rose";
+      case "high": return "bg-accent-amber/10 border-accent-amber/30 text-accent-amber";
+      default: return "bg-navy-800/30 border-navy-700/50 text-navy-300";
     }
   };
 
@@ -138,7 +138,7 @@ export default function ActorsPage() {
       <UpgradeGate minTier="analyst" feature="Actor tracking and analysis" blur>
       <div className="space-y-4">
         <div className="mb-2">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
             Bayesian Actor Typing / {profiles.length} actors tracked
           </span>
         </div>
@@ -153,22 +153,22 @@ export default function ActorsPage() {
           return (
             <div
               key={profile.base.id}
-              className="rounded-lg border border-neutral-800 bg-neutral-900/50 overflow-hidden"
+              className="rounded-lg border border-navy-700 bg-navy-900/50 overflow-hidden"
             >
               {/* Header */}
               <button
                 onClick={() =>
                   setExpanded(isExpanded ? null : profile.base.id)
                 }
-                className="w-full flex items-center justify-between p-4 hover:bg-neutral-800/30 transition-colors"
+                className="w-full flex items-center justify-between p-4 hover:bg-navy-800/30 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-neutral-500" />
+                  <Shield className="w-5 h-5 text-navy-500" />
                   <div className="text-left">
-                    <div className="text-sm font-medium text-neutral-200">
+                    <div className="text-sm font-medium text-navy-200">
                       {profile.base.name}
                     </div>
-                    <div className="text-xs text-neutral-500">
+                    <div className="text-xs text-navy-500">
                       {profile.base.country}
                     </div>
                   </div>
@@ -179,22 +179,22 @@ export default function ActorsPage() {
                   >
                     {dominant[0]} ({(dominant[1] * 100).toFixed(0)}%)
                   </span>
-                  <span className="text-[10px] font-mono text-neutral-600">
+                  <span className="text-[10px] font-mono text-navy-600">
                     {profile.calendarModifiers.length} cal modifiers
                   </span>
                   {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-neutral-500" />
+                    <ChevronDown className="w-4 h-4 text-navy-500" />
                   ) : (
-                    <ChevronRight className="w-4 h-4 text-neutral-500" />
+                    <ChevronRight className="w-4 h-4 text-navy-500" />
                   )}
                 </div>
               </button>
 
               {/* Expanded */}
               {isExpanded && (
-                <div className="border-t border-neutral-800">
+                <div className="border-t border-navy-700">
                   {/* Tab Bar */}
-                  <div className="flex border-b border-neutral-800">
+                  <div className="flex border-b border-navy-700">
                     {(
                       [
                         { key: "overview", label: "Overview", icon: Brain },
@@ -208,8 +208,8 @@ export default function ActorsPage() {
                         onClick={() => setTab(profile.base.id, key)}
                         className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-mono transition-colors ${
                           tab === key
-                            ? "text-cyan-400 border-b border-cyan-400"
-                            : "text-neutral-500 hover:text-neutral-300"
+                            ? "text-accent-cyan border-b border-accent-cyan"
+                            : "text-navy-500 hover:text-navy-300"
                         }`}
                       >
                         <Icon className="w-3.5 h-3.5" />
@@ -224,7 +224,7 @@ export default function ActorsPage() {
                       <div className="space-y-4">
                         {/* Type Distribution */}
                         <div>
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                             Behavioral Type Distribution
                           </span>
                           <div className="mt-2 grid grid-cols-3 gap-3">
@@ -233,27 +233,27 @@ export default function ActorsPage() {
                             ).map(([type, prob]) => (
                               <div
                                 key={type}
-                                className="rounded border border-neutral-800 p-3"
+                                className="rounded border border-navy-700 p-3"
                               >
                                 <div
                                   className={`text-xs font-mono uppercase ${typeColor(type)}`}
                                 >
                                   {type}
                                 </div>
-                                <div className="text-lg font-mono text-neutral-200 mt-1">
+                                <div className="text-lg font-mono text-navy-200 mt-1">
                                   {(prob * 100).toFixed(0)}%
                                 </div>
-                                <div className="h-1 bg-neutral-800 rounded-full mt-2 overflow-hidden">
+                                <div className="h-1 bg-navy-800 rounded-full mt-2 overflow-hidden">
                                   <div
                                     className="h-full rounded-full"
                                     style={{
                                       width: `${prob * 100}%`,
                                       backgroundColor:
                                         type === "hawkish"
-                                          ? "#f87171"
+                                          ? "var(--color-accent-rose)"
                                           : type === "cooperative"
-                                            ? "#34d399"
-                                            : "#fbbf24",
+                                            ? "var(--color-accent-emerald)"
+                                            : "var(--color-accent-amber)",
                                     }}
                                   />
                                 </div>
@@ -264,7 +264,7 @@ export default function ActorsPage() {
 
                         {/* Action Probabilities */}
                         <div>
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                             Base Weekly Action Probabilities
                           </span>
                           <div className="mt-2 space-y-2">
@@ -275,16 +275,16 @@ export default function ActorsPage() {
                                 key={action}
                                 className="flex items-center gap-3"
                               >
-                                <span className="text-xs text-neutral-400 w-40">
+                                <span className="text-xs text-navy-400 w-40">
                                   {action.replace(/_/g, " ")}
                                 </span>
-                                <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                                <div className="flex-1 h-1.5 bg-navy-800 rounded-full overflow-hidden">
                                   <div
-                                    className="h-full bg-cyan-500/60 rounded-full"
+                                    className="h-full bg-accent-cyan/60 rounded-full"
                                     style={{ width: `${prob * 100 * 3}%` }}
                                   />
                                 </div>
-                                <span className="text-xs font-mono text-neutral-500 w-12 text-right">
+                                <span className="text-xs font-mono text-navy-500 w-12 text-right">
                                   {(prob * 100).toFixed(1)}%
                                 </span>
                               </div>
@@ -294,20 +294,20 @@ export default function ActorsPage() {
 
                         {/* Belief Framework */}
                         <div>
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                             Belief Framework
                           </span>
-                          <p className="text-sm text-neutral-300 mt-1 leading-relaxed">
+                          <p className="text-sm text-navy-300 mt-1 leading-relaxed">
                             {profile.beliefFramework}
                           </p>
                         </div>
 
                         {/* Decision Pattern */}
                         <div>
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                             Decision Pattern
                           </span>
-                          <p className="text-sm text-neutral-300 mt-1 leading-relaxed">
+                          <p className="text-sm text-navy-300 mt-1 leading-relaxed">
                             {profile.decisionPattern}
                           </p>
                         </div>
@@ -315,25 +315,25 @@ export default function ActorsPage() {
                         {/* Scripture References */}
                         {profile.scriptureReferences.length > 0 && (
                           <div>
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                               Scripture / Doctrinal References
                             </span>
                             <div className="mt-2 space-y-2">
                               {profile.scriptureReferences.map((ref, i) => (
                                 <div
                                   key={i}
-                                  className="rounded border border-neutral-800 p-3"
+                                  className="rounded border border-navy-700 p-3"
                                 >
                                   <div className="flex items-center gap-2 mb-1">
-                                    <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-                                    <span className="text-xs font-mono text-amber-400">
+                                    <BookOpen className="w-3.5 h-3.5 text-accent-amber" />
+                                    <span className="text-xs font-mono text-accent-amber">
                                       {ref.source}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-neutral-400 italic">
+                                  <p className="text-xs text-navy-400 italic">
                                     &ldquo;{ref.text}&rdquo;
                                   </p>
-                                  <p className="text-xs text-neutral-500 mt-1">
+                                  <p className="text-xs text-navy-500 mt-1">
                                     {ref.relevance}
                                   </p>
                                 </div>
@@ -348,7 +348,7 @@ export default function ActorsPage() {
                     {tab === "calendar" && (
                       <div className="space-y-3">
                         {profile.calendarModifiers.length === 0 ? (
-                          <p className="text-sm text-neutral-500">
+                          <p className="text-sm text-navy-500">
                             No calendar modifiers for this actor.
                           </p>
                         ) : (
@@ -357,33 +357,33 @@ export default function ActorsPage() {
                             return (
                               <div
                                 key={i}
-                                className="rounded border border-neutral-800 p-3"
+                                className="rounded border border-navy-700 p-3"
                               >
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
-                                    <Calendar className="w-3.5 h-3.5 text-neutral-500" />
-                                    <span className="text-xs font-mono text-cyan-400">
+                                    <Calendar className="w-3.5 h-3.5 text-navy-500" />
+                                    <span className="text-xs font-mono text-accent-cyan">
                                       {mod.calendarEvent.replace(/_/g, " ")}
                                     </span>
-                                    <span className="text-[10px] font-mono text-neutral-600">
+                                    <span className="text-[10px] font-mono text-navy-600">
                                       ({mod.calendarSystem})
                                     </span>
                                   </div>
                                   <span
-                                    className={`text-xs font-mono ${isElevated ? "text-red-400" : "text-emerald-400"}`}
+                                    className={`text-xs font-mono ${isElevated ? "text-accent-rose" : "text-accent-emerald"}`}
                                   >
                                     {mod.posteriorMultiplier.toFixed(1)}x{" "}
                                     {mod.actionType.replace(/_/g, " ")}
                                   </span>
                                 </div>
-                                <p className="text-xs text-neutral-400">
+                                <p className="text-xs text-navy-400">
                                   {mod.historicalBasis}
                                 </p>
                                 <div className="flex items-center gap-3 mt-2">
-                                  <span className="text-[10px] font-mono text-neutral-600">
+                                  <span className="text-[10px] font-mono text-navy-600">
                                     n={mod.sampleSize}
                                   </span>
-                                  <span className="text-[10px] font-mono text-neutral-600">
+                                  <span className="text-[10px] font-mono text-navy-600">
                                     confidence:{" "}
                                     {(mod.confidence * 100).toFixed(0)}%
                                   </span>
@@ -399,7 +399,7 @@ export default function ActorsPage() {
                     {tab === "statements" && (
                       <div className="space-y-3">
                         {profile.publicStatements.length === 0 ? (
-                          <p className="text-sm text-neutral-500">
+                          <p className="text-sm text-navy-500">
                             No public statements recorded.
                           </p>
                         ) : (
@@ -409,7 +409,7 @@ export default function ActorsPage() {
                               className={`rounded border p-3 ${significanceColor(stmt.significance)}`}
                             >
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-[10px] font-mono text-neutral-500">
+                                <span className="text-[10px] font-mono text-navy-500">
                                   {stmt.date}
                                 </span>
                                 <span className="text-[10px] font-mono uppercase tracking-wider">
@@ -420,10 +420,10 @@ export default function ActorsPage() {
                                 &ldquo;{stmt.quote}&rdquo;
                               </p>
                               <div className="flex items-center justify-between mt-2">
-                                <span className="text-[10px] text-neutral-500">
+                                <span className="text-[10px] text-navy-500">
                                   {stmt.context}
                                 </span>
-                                <span className="text-[10px] text-neutral-600">
+                                <span className="text-[10px] text-navy-600">
                                   {stmt.source}
                                 </span>
                               </div>
@@ -437,38 +437,38 @@ export default function ActorsPage() {
                     {tab === "decisions" && (
                       <div className="space-y-3">
                         {profile.pastDecisions.length === 0 ? (
-                          <p className="text-sm text-neutral-500">
+                          <p className="text-sm text-navy-500">
                             No past decisions recorded.
                           </p>
                         ) : (
                           profile.pastDecisions.map((dec, i) => (
                             <div
                               key={i}
-                              className="rounded border border-neutral-800 p-3"
+                              className="rounded border border-navy-700 p-3"
                             >
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-medium text-neutral-200">
+                                <span className="text-xs font-medium text-navy-200">
                                   {dec.action}
                                 </span>
-                                <span className="text-[10px] font-mono text-neutral-500">
+                                <span className="text-[10px] font-mono text-navy-500">
                                   {dec.date}
                                 </span>
                               </div>
-                              <p className="text-xs text-neutral-400 mb-2">
+                              <p className="text-xs text-navy-400 mb-2">
                                 {dec.context}
                               </p>
-                              <div className="rounded bg-neutral-800/50 p-2">
-                                <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                              <div className="rounded bg-navy-800/50 p-2">
+                                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                                   Outcome
                                 </span>
-                                <p className="text-xs text-neutral-300 mt-0.5">
+                                <p className="text-xs text-navy-300 mt-0.5">
                                   {dec.outcome}
                                 </p>
                               </div>
                               {dec.calendarProximity && (
                                 <div className="flex items-center gap-1.5 mt-2">
-                                  <Calendar className="w-3 h-3 text-amber-500" />
-                                  <span className="text-[10px] font-mono text-amber-400">
+                                  <Calendar className="w-3 h-3 text-accent-amber" />
+                                  <span className="text-[10px] font-mono text-accent-amber">
                                     Near {dec.calendarProximity.replace(/_/g, " ")}
                                   </span>
                                 </div>

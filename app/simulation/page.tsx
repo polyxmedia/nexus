@@ -356,7 +356,7 @@ export default function SimulationPage() {
           {result && (
             <>
               {/* Blended Stats */}
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 {[
                   { label: "Expected Return", value: `${(result.blended.expectedReturn * 100).toFixed(1)}%`, color: result.blended.expectedReturn >= 0 ? "text-accent-emerald" : "text-accent-rose" },
                   { label: "Prob of Profit", value: `${(result.blended.probabilityOfProfit * 100).toFixed(0)}%`, color: result.blended.probabilityOfProfit >= 0.5 ? "text-accent-emerald" : "text-accent-rose" },
@@ -475,7 +475,7 @@ export default function SimulationPage() {
               </div>
 
               {/* Percentile Table */}
-              <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+              <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4 overflow-x-auto">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Percentile Comparison</div>
                 <table className="w-full text-left">
                   <thead>

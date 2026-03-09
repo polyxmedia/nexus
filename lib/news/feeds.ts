@@ -15,23 +15,30 @@ export interface NewsArticle {
 const cache = new Map<string, { data: NewsArticle[]; expiry: number }>();
 const CACHE_TTL_MS = 600_000; // 10 minutes
 
-// ── RSS Feeds (verified working as of 2025) ──
+// ── RSS Feeds (verified working March 2026) ──
 
 const RSS_FEEDS = [
   // Wire / Center
   { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC World" },
   { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC Business" },
   { url: "https://rss.dw.com/rdf/rss-en-all", source: "Deutsche Welle" },
-  { url: "https://www.france24.com/en/rss", source: "France 24" },
   // Center-left
   { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
   { url: "https://www.theguardian.com/business/economics/rss", source: "Guardian Economics" },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
+  { url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", source: "New York Times" },
+  { url: "http://rss.cnn.com/rss/edition_world.rss", source: "CNN" },
+  { url: "https://feeds.npr.org/1001/rss.xml", source: "NPR" },
+  { url: "https://feeds.nbcnews.com/nbcnews/public/world", source: "NBC News" },
   // Markets / Business
   { url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", source: "CNBC" },
   { url: "https://feeds.content.dowjones.io/public/rss/mw_bulletins", source: "MarketWatch" },
-  // Center-right
+  { url: "https://feeds.bloomberg.com/politics/news.rss", source: "Bloomberg" },
+  // Center-right / Right (political diversity)
   { url: "https://feeds.skynews.com/feeds/rss/world.xml", source: "Sky News" },
+  { url: "https://moxie.foxnews.com/google-publisher/world.xml", source: "Fox News" },
+  // Wire aggregators
+  { url: "https://feedx.net/rss/ap.xml", source: "AP News" },
   // Specialist: energy
   { url: "https://oilprice.com/rss/main", source: "OilPrice" },
   // Specialist: Middle East
@@ -191,20 +198,46 @@ function extractGoogleNewsSource(itemXml: string): string | null {
 
 // ── RSS parsing ──
 
+function extractImageUrl(itemXml: string, description?: string): string | undefined {
+  // 1. media:content or media:thumbnail with url attribute
+  const mediaMatch = itemXml.match(/(?:media:content|media:thumbnail)[^>]*url="([^"]+)"/i);
+  if (mediaMatch) return mediaMatch[1];
+
+  // 2. enclosure with image type
+  const enclosureMatch = itemXml.match(/<enclosure[^>]*url="([^"]+)"[^>]*type="image/i);
+  if (enclosureMatch) return enclosureMatch[1];
+
+  // 3. enclosure with image URL (type attr may come before url)
+  const enclosureAlt = itemXml.match(/<enclosure[^>]*type="image[^"]*"[^>]*url="([^"]+)"/i);
+  if (enclosureAlt) return enclosureAlt[1];
+
+  // 4. media:group > media:content
+  const mediaGroup = itemXml.match(/media:content[^>]*url="([^"]+)"/i);
+  if (mediaGroup) return mediaGroup[1];
+
+  // 5. img tag inside description/content (common in RSS)
+  const imgMatch = (description || itemXml).match(/<img[^>]*src="([^"]+)"/i);
+  if (imgMatch) return imgMatch[1];
+
+  return undefined;
+}
+
 function parseRssItems(xml: string, feedSource: string): NewsArticle[] {
   const articles: NewsArticle[] = [];
-  const itemRegex = /<item[\s>]([\s\S]*?)<\/item>/gi;
+  // Match both <item> and <item rdf:about="..."> (RDF format used by DW)
+  const itemRegex = /<item[\s>][\s\S]*?<\/item>/gi;
   let match: RegExpExecArray | null;
 
   const isGoogleNews = feedSource.startsWith("Google News");
 
   while ((match = itemRegex.exec(xml)) !== null) {
-    const itemXml = match[1];
+    const itemXml = match[0];
 
     const title = extractTag(itemXml, "title");
     const link = extractTag(itemXml, "link");
-    const pubDate = extractTag(itemXml, "pubDate");
-    const description = extractTag(itemXml, "description");
+    // Support both <pubDate> (RSS 2.0) and <dc:date> (RDF/Dublin Core)
+    const pubDate = extractTag(itemXml, "pubDate") || extractTag(itemXml, "dc:date") || extractTag(itemXml, "published");
+    const description = extractTag(itemXml, "description") || extractTag(itemXml, "content:encoded");
 
     if (!title || !link) continue;
 
@@ -212,21 +245,7 @@ function parseRssItems(xml: string, feedSource: string): NewsArticle[] {
     const realSource = isGoogleNews ? extractGoogleNewsSource(itemXml) : null;
     const source = realSource || feedSource;
 
-    // Try to find image URL from media:content, media:thumbnail, enclosure, or og:image in description
-    let imageUrl: string | undefined;
-    const mediaMatch = itemXml.match(/(?:media:content|media:thumbnail)[^>]*url="([^"]+)"/i);
-    if (mediaMatch) {
-      imageUrl = mediaMatch[1];
-    } else {
-      const enclosureMatch = itemXml.match(/<enclosure[^>]*url="([^"]+)"[^>]*type="image/i);
-      if (enclosureMatch) {
-        imageUrl = enclosureMatch[1];
-      } else {
-        // Try img tag inside description (common in RSS)
-        const imgMatch = (description || "").match(/<img[^>]*src="([^"]+)"/i);
-        if (imgMatch) imageUrl = imgMatch[1];
-      }
-    }
+    const imageUrl = extractImageUrl(itemXml, description);
 
     const cleanTitle = stripCdata(stripHtml(title)).trim();
     const cleanLink = stripCdata(link).trim();
@@ -411,6 +430,8 @@ function prettifyDomain(domain: string): string {
     "rt.com": "RT",
     "breitbart.com": "Breitbart",
     "newsmax.com": "Newsmax",
+    "feedx.net": "AP News",
+    "moxie.foxnews.com": "Fox News",
   };
   const clean = domain.replace(/^www\./, "");
   return map[clean] || clean;

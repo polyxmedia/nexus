@@ -17,6 +17,46 @@ export interface ChangePoint {
   postMean: number;
 }
 
+export interface RegimeSegment {
+  startDate: string;
+  endDate: string;
+  duration: number; // days
+  mean: number;
+  std: number;
+  trend: number; // slope, positive = upward
+  minVal: number;
+  maxVal: number;
+  label: string; // human-readable: "high-vol uptrend", "stable range", etc.
+}
+
+export interface PredictiveBounds {
+  mean: number;
+  std: number;
+  upper1Sigma: number;
+  lower1Sigma: number;
+  upper2Sigma: number;
+  lower2Sigma: number;
+}
+
+export interface RunLengthDist {
+  runLengths: number[];
+  probabilities: number[];
+  mapRunLength: number;
+  stabilityScore: number; // 0-1, how concentrated the posterior is
+}
+
+export interface Coincidence {
+  date: string; // center date
+  streams: string[];
+  changePoints: ChangePoint[];
+  severity: "moderate" | "significant" | "critical"; // 2 streams, 3 streams, 4+ streams
+}
+
+export interface Sparkline {
+  dates: string[];
+  values: number[];
+}
+
 export interface BOCPDState {
   stream: string;
   label: string;
@@ -24,11 +64,17 @@ export interface BOCPDState {
   currentRunLength: number;
   lastChangePoint: ChangePoint | null;
   changePoints: ChangePoint[];
+  regimeSegments: RegimeSegment[];
+  predictive: PredictiveBounds | null;
+  runLengthDist: RunLengthDist | null;
+  sparkline: Sparkline;
+  error?: string; // set when data fetch failed (rate limit, network, etc.)
 }
 
 export interface BOCPDSnapshot {
   streams: BOCPDState[];
   recentChangePoints: ChangePoint[];
+  coincidences: Coincidence[];
   activeRegimes: number;
   generatedAt: string;
 }
@@ -122,6 +168,8 @@ function logGamma(x: number): number {
 export interface BOCPDResult {
   changePoints: ChangePoint[];
   finalRunLength: number;
+  runLengthDist: RunLengthDist;
+  predictive: PredictiveBounds | null;
 }
 
 export function runBOCPD(
@@ -133,7 +181,12 @@ export function runBOCPD(
 ): BOCPDResult {
   const n = dataPoints.length;
   if (n === 0) {
-    return { changePoints: [], finalRunLength: 0 };
+    return {
+      changePoints: [],
+      finalRunLength: 0,
+      runLengthDist: { runLengths: [], probabilities: [], mapRunLength: 0, stabilityScore: 0 },
+      predictive: null,
+    };
   }
 
   const H = 1 / hazardRate; // constant hazard
@@ -251,7 +304,50 @@ export function runBOCPD(
     }
   }
 
-  return { changePoints, finalRunLength: mapRunLength };
+  // Build run-length distribution (top 50 entries for compactness)
+  const rlDist: { rl: number; p: number }[] = [];
+  for (let r = 0; r < R.length; r++) {
+    if (R[r] > 1e-6) rlDist.push({ rl: r, p: R[r] });
+  }
+  rlDist.sort((a, b) => b.p - a.p);
+  const topRL = rlDist.slice(0, 50);
+
+  // Stability score: how concentrated is the posterior? Shannon entropy based.
+  let entropy = 0;
+  for (let r = 0; r < R.length; r++) {
+    if (R[r] > 1e-12) entropy -= R[r] * Math.log(R[r]);
+  }
+  const maxEntropy = Math.log(Math.max(R.length, 2));
+  const stabilityScore = maxEntropy > 0 ? Math.max(0, 1 - entropy / maxEntropy) : 1;
+
+  const runLengthDist: RunLengthDist = {
+    runLengths: topRL.map((d) => d.rl),
+    probabilities: topRL.map((d) => Math.round(d.p * 10000) / 10000),
+    mapRunLength,
+    stabilityScore: Math.round(stabilityScore * 1000) / 1000,
+  };
+
+  // Predictive bounds from the MAP run-length's sufficient statistics
+  let predictive: PredictiveBounds | null = null;
+  if (suffStats.length > 0) {
+    // Find the stats corresponding to the MAP run length
+    const mapStats = mapRunLength < suffStats.length ? suffStats[mapRunLength] : suffStats[suffStats.length - 1];
+    if (mapStats && mapStats.count >= 3) {
+      const mu = mapStats.mean;
+      const sigma2 = mapStats.var / (mapStats.count - 1);
+      const sigma = Math.sqrt(sigma2 * (1 + 1 / mapStats.count));
+      predictive = {
+        mean: Math.round(mu * 100) / 100,
+        std: Math.round(sigma * 100) / 100,
+        upper1Sigma: Math.round((mu + sigma) * 100) / 100,
+        lower1Sigma: Math.round((mu - sigma) * 100) / 100,
+        upper2Sigma: Math.round((mu + 2 * sigma) * 100) / 100,
+        lower2Sigma: Math.round((mu - 2 * sigma) * 100) / 100,
+      };
+    }
+  }
+
+  return { changePoints, finalRunLength: mapRunLength, runLengthDist, predictive };
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +373,7 @@ const STREAM_CONFIGS: StreamConfig[] = [
 async function fetchStreamData(
   config: StreamConfig,
   apiKey: string
-): Promise<{ values: number[]; dates: string[]; currentValue: number | null }> {
+): Promise<{ values: number[]; dates: string[]; currentValue: number | null; error?: string }> {
   if (config.type === "signal") {
     return fetchSignalIntensity();
   }
@@ -293,8 +389,10 @@ async function fetchStreamData(
     const currentValue = values[values.length - 1] ?? null;
 
     return { values, dates, currentValue };
-  } catch {
-    return { values: [], dates: [], currentValue: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error(`[BOCPD] Failed to fetch ${config.key} (${config.symbol}): ${msg}`);
+    return { values: [], dates: [], currentValue: null, error: msg };
   }
 }
 
@@ -346,7 +444,11 @@ async function fetchSignalIntensity(): Promise<{
 // ---------------------------------------------------------------------------
 
 let snapshotCache: { data: BOCPDSnapshot; expiry: number } | null = null;
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours - daily data doesn't change frequently
+
+// Alpha Vantage daily data cache is 5min in the AV module.
+// We fetch all streams in parallel and let AV cache + our 4hr BOCPD cache handle rate limits.
+// Streams that get rate-limited show error state rather than blocking everything.
 
 // ---------------------------------------------------------------------------
 // Main entry point
@@ -365,23 +467,31 @@ export async function getBOCPDSnapshot(
     ? STREAM_CONFIGS.filter((c) => c.key === streamFilter)
     : STREAM_CONFIGS;
 
-  const streams: BOCPDState[] = [];
   const allChangePoints: ChangePoint[] = [];
 
-  // Process streams sequentially to respect API rate limits
-  for (const config of configs) {
-    const { values, dates, currentValue } = await fetchStreamData(config, apiKey);
+  // Fetch all streams in parallel - AV cache handles dedup, failures show error state
+  const fetchResults = await Promise.all(
+    configs.map(async (config) => {
+      const { values, dates, currentValue, error } = await fetchStreamData(config, apiKey);
+      return { config, values, dates, currentValue, error };
+    })
+  );
 
+  const streams: BOCPDState[] = fetchResults.map(({ config, values, dates, currentValue, error }) => {
     if (values.length < 10) {
-      streams.push({
+      return {
         stream: config.key,
         label: config.label,
         currentValue,
         currentRunLength: 0,
         lastChangePoint: null,
         changePoints: [],
-      });
-      continue;
+        regimeSegments: [],
+        predictive: null,
+        runLengthDist: null,
+        sparkline: { dates: [], values: [] },
+        error: error || (values.length === 0 ? "No data available" : undefined),
+      };
     }
 
     const result = runBOCPD(values, dates, config.key);
@@ -391,26 +501,42 @@ export async function getBOCPDSnapshot(
         ? result.changePoints[result.changePoints.length - 1]
         : null;
 
-    streams.push({
+    const regimeSegments = buildRegimeSegments(result.changePoints, values, dates);
+
+    const sparklineLen = Math.min(90, values.length);
+    const sparkline: Sparkline = {
+      dates: dates.slice(-sparklineLen),
+      values: values.slice(-sparklineLen),
+    };
+
+    allChangePoints.push(...result.changePoints);
+
+    return {
       stream: config.key,
       label: config.label,
       currentValue,
       currentRunLength: result.finalRunLength,
       lastChangePoint: lastCP,
       changePoints: result.changePoints,
-    });
-
-    allChangePoints.push(...result.changePoints);
-  }
+      regimeSegments,
+      predictive: result.predictive,
+      runLengthDist: result.runLengthDist,
+      sparkline,
+    };
+  });
 
   // Sort recent change-points by date descending
   const recentChangePoints = allChangePoints
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 50);
 
+  // Detect cross-stream coincidences (CPs within 5-day windows)
+  const coincidences = detectCoincidences(allChangePoints, 5);
+
   const snapshot: BOCPDSnapshot = {
     streams,
     recentChangePoints,
+    coincidences,
     activeRegimes: streams.filter((s) => s.changePoints.length > 0).length,
     generatedAt: new Date().toISOString(),
   };
@@ -421,4 +547,126 @@ export async function getBOCPDSnapshot(
   }
 
   return snapshot;
+}
+
+// ---------------------------------------------------------------------------
+// Regime segment builder
+// ---------------------------------------------------------------------------
+
+function buildRegimeSegments(
+  changePoints: ChangePoint[],
+  values: number[],
+  dates: string[]
+): RegimeSegment[] {
+  if (values.length === 0 || dates.length === 0) return [];
+
+  // Build date-to-index map
+  const dateIndex = new Map<string, number>();
+  for (let i = 0; i < dates.length; i++) dateIndex.set(dates[i], i);
+
+  // Segment boundaries: [0, cp1, cp2, ..., end]
+  const boundaries: number[] = [0];
+  for (const cp of changePoints) {
+    const idx = dateIndex.get(cp.date);
+    if (idx !== undefined && idx > boundaries[boundaries.length - 1]) {
+      boundaries.push(idx);
+    }
+  }
+  boundaries.push(values.length);
+
+  const segments: RegimeSegment[] = [];
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    const start = boundaries[i];
+    const end = boundaries[i + 1];
+    if (end - start < 2) continue;
+
+    const segValues = values.slice(start, end);
+    const mean = segValues.reduce((a, b) => a + b, 0) / segValues.length;
+    const variance = segValues.reduce((a, v) => a + (v - mean) ** 2, 0) / segValues.length;
+    const std = Math.sqrt(variance);
+    const minVal = Math.min(...segValues);
+    const maxVal = Math.max(...segValues);
+
+    // Linear regression slope for trend
+    const n = segValues.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    for (let j = 0; j < n; j++) {
+      sumX += j;
+      sumY += segValues[j];
+      sumXY += j * segValues[j];
+      sumX2 += j * j;
+    }
+    const denom = n * sumX2 - sumX * sumX;
+    const trend = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+
+    // Classify regime
+    const volLevel = std / Math.abs(mean || 1);
+    const trendStr = Math.abs(trend) < std * 0.05 ? "sideways" : trend > 0 ? "uptrend" : "downtrend";
+    const volStr = volLevel > 0.03 ? "high-vol" : volLevel > 0.01 ? "moderate-vol" : "low-vol";
+    const label = `${volStr} ${trendStr}`;
+
+    segments.push({
+      startDate: dates[start],
+      endDate: dates[Math.min(end - 1, dates.length - 1)],
+      duration: end - start,
+      mean: Math.round(mean * 100) / 100,
+      std: Math.round(std * 100) / 100,
+      trend: Math.round(trend * 10000) / 10000,
+      minVal: Math.round(minVal * 100) / 100,
+      maxVal: Math.round(maxVal * 100) / 100,
+      label,
+    });
+  }
+
+  return segments;
+}
+
+// ---------------------------------------------------------------------------
+// Cross-stream coincidence detection
+// ---------------------------------------------------------------------------
+
+function detectCoincidences(allCPs: ChangePoint[], windowDays: number): Coincidence[] {
+  if (allCPs.length === 0) return [];
+
+  // Sort by date
+  const sorted = [...allCPs].sort((a, b) => a.date.localeCompare(b.date));
+
+  const coincidences: Coincidence[] = [];
+  const used = new Set<number>();
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (used.has(i)) continue;
+
+    const cluster: ChangePoint[] = [sorted[i]];
+    const clusterStreams = new Set<string>([sorted[i].dataStream]);
+
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (used.has(j)) continue;
+      const dayDiff = Math.abs(
+        (new Date(sorted[j].date).getTime() - new Date(sorted[i].date).getTime()) / 86400000
+      );
+      if (dayDiff <= windowDays && !clusterStreams.has(sorted[j].dataStream)) {
+        cluster.push(sorted[j]);
+        clusterStreams.add(sorted[j].dataStream);
+        used.add(j);
+      }
+    }
+
+    if (clusterStreams.size >= 2) {
+      used.add(i);
+      const severity: Coincidence["severity"] =
+        clusterStreams.size >= 4 ? "critical" :
+        clusterStreams.size >= 3 ? "significant" :
+        "moderate";
+
+      coincidences.push({
+        date: sorted[i].date,
+        streams: Array.from(clusterStreams),
+        changePoints: cluster,
+        severity,
+      });
+    }
+  }
+
+  return coincidences.sort((a, b) => b.date.localeCompare(a.date));
 }

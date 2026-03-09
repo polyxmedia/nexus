@@ -22,6 +22,7 @@ import {
   ExternalLink,
   AlertTriangle,
 } from "lucide-react";
+import { CommentSection } from "@/components/social/comment-section";
 
 interface Prediction {
   id: number;
@@ -303,7 +304,7 @@ export default function PredictionDetailPage() {
 
         {/* Scoring Details */}
         {isResolved && prediction.score != null && (
-          <div className="grid grid-cols-3 gap-3 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
             <div className="border border-navy-700/30 rounded p-3 bg-navy-950/40">
               <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block mb-1">AI Score</span>
               <span className={`text-lg font-bold font-mono ${prediction.score >= 0.7 ? "text-accent-emerald" : prediction.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
@@ -403,7 +404,7 @@ export default function PredictionDetailPage() {
           <div className="p-5 space-y-4">
             <p className="text-sm text-navy-200 font-sans leading-relaxed">{analysis.summary}</p>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="border border-navy-700/30 rounded p-3 bg-navy-950/40">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block mb-1">Analysis Confidence</span>
                 <span className="text-sm font-bold font-mono text-navy-100">{(analysis.confidence * 100).toFixed(0)}%</span>
@@ -518,6 +519,9 @@ export default function PredictionDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Discussion */}
+      {prediction && <CommentSection targetType="prediction" targetId={prediction.id} />}
     </PageContainer>
   );
 }

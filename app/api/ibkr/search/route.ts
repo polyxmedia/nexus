@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q");
 
-    if (!query) {
-      return NextResponse.json({ error: "q query parameter is required" }, { status: 400 });
+    if (!query || query.length > 100) {
+      return NextResponse.json({ error: "q query parameter is required (max 100 chars)" }, { status: 400 });
     }
 
     const ibkr = await getIBKRClient();

@@ -4,10 +4,13 @@ import { desc, eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { HAIKU_MODEL } from "@/lib/ai/model";
 import { requireTier } from "@/lib/auth/require-tier";
+import { creditGate } from "@/lib/credits/gate";
 
 export async function GET() {
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
+  const gate = await creditGate();
+  if (gate.response) return gate.response;
   try {
     // Gather current signals (active + upcoming, intensity >= 2)
     const allSignals = await db
@@ -97,6 +100,8 @@ Respond with ONLY the JSON array, no markdown fencing.`,
         },
       ],
     });
+
+    await gate.debit(HAIKU_MODEL, response.usage.input_tokens, response.usage.output_tokens, "alert_suggestions");
 
     const text =
       response.content[0].type === "text" ? response.content[0].text : "";

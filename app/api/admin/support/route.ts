@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { supportTickets, supportMessages, settings } from "@/lib/db/schema";
 import { eq, desc, asc } from "drizzle-orm";
+import { sendEmail, getUserEmail } from "@/lib/email";
+import { ticketReplyEmail, ticketClosedEmail } from "@/lib/email/templates";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -57,6 +59,25 @@ export async function PATCH(req: NextRequest) {
       .set(updates)
       .where(eq(supportTickets.id, ticketId));
 
+    // Send closed email if status changed to resolved or closed
+    if (status === "resolved" || status === "closed") {
+      const [ticket] = await db
+        .select()
+        .from(supportTickets)
+        .where(eq(supportTickets.id, ticketId));
+      if (ticket) {
+        const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+        const email = await getUserEmail(ticket.userId);
+        if (email) {
+          const username = ticket.userId.replace("user:", "");
+          const tpl = ticketClosedEmail(username, ticket.id, ticket.title, `${baseUrl}/support/${ticket.uuid}`);
+          sendEmail({ to: email, ...tpl, type: "ticket_closed" }).catch((err) =>
+            console.error("Ticket closed email failed:", err)
+          );
+        }
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Admin support PATCH error:", error);
@@ -97,6 +118,23 @@ export async function POST(req: NextRequest) {
         assignedTo: session.user.name,
       })
       .where(eq(supportTickets.id, ticketId));
+
+    // Send email notification to ticket owner
+    const [ticket] = await db
+      .select()
+      .from(supportTickets)
+      .where(eq(supportTickets.id, ticketId));
+    if (ticket) {
+      const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const email = await getUserEmail(ticket.userId);
+      if (email) {
+        const username = ticket.userId.replace("user:", "");
+        const tpl = ticketReplyEmail(username, ticket.id, ticket.title, content.trim(), `${baseUrl}/support/${ticket.uuid}`);
+        sendEmail({ to: email, ...tpl, type: "ticket_reply" }).catch((err) =>
+          console.error("Ticket reply email failed:", err)
+        );
+      }
+    }
 
     return NextResponse.json({ message });
   } catch (error) {

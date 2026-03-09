@@ -66,6 +66,7 @@ export const predictions = pgTable("predictions", {
   referenceSymbol: text("reference_symbol"),
   directionCorrect: integer("direction_correct"), // 0 | 1 at resolution
   levelCorrect: integer("level_correct"), // 0 | 1 at resolution
+  createdBy: text("created_by"), // username of creator (null = system-generated)
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -140,7 +141,11 @@ export const chatProjects = pgTable("chat_projects", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   color: text("color").notNull().default("#06b6d4"),
+  userId: text("user_id"),
+  instructions: text("instructions"),
+  context: text("context"), // JSON: pinned knowledge IDs, symbols, etc.
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
 });
 
 export const chatSessions = pgTable("chat_sessions", {
@@ -346,10 +351,11 @@ export const subscriptions = pgTable("subscriptions", {
 export const referralCodes = pgTable("referral_codes", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(), // the referrer (user:{username})
-  code: text("code").notNull().unique(), // short unique code e.g. "andre-7x3k"
+  code: text("code").notNull().unique(), // UUID referral code
   commissionRate: doublePrecision("commission_rate").notNull().default(0.20), // 20% default
   isActive: integer("is_active").notNull().default(1),
   clicks: integer("clicks").notNull().default(0),
+  stripeConnectId: text("stripe_connect_id"), // Stripe Connect Express account for auto-payouts
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -406,6 +412,16 @@ export const supportMessages = pgTable("support_messages", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Password Resets ──
+
+export const passwordResets = pgTable("password_resets", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // ── Analytics ──
 
 export const analyticsEvents = pgTable("analytics_events", {
@@ -415,8 +431,45 @@ export const analyticsEvents = pgTable("analytics_events", {
   referrer: text("referrer"),
   sessionHash: text("session_hash"),
   userAgentHash: text("user_agent_hash"),
+  visitorHash: text("visitor_hash"),
   country: text("country"),
+  city: text("city"),
+  region: text("region"),
   deviceType: text("device_type"),
+  browser: text("browser"),
+  os: text("os"),
+  screenWidth: integer("screen_width"),
+  screenHeight: integer("screen_height"),
+  duration: integer("duration"), // seconds on page (sent on next navigation)
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Analyst Memory ──
+
+export const analystMemory = pgTable("analyst_memory", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  category: text("category").notNull().default("preference"), // preference | thesis | portfolio | context | instruction
+  key: text("key").notNull(),
+  value: text("value").notNull(),
+  lastUsed: text("last_used"),
+  useCount: integer("use_count").notNull().default(0),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+// ── Documents ──
+
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: integer("session_id").references(() => chatSessions.id),
+  name: text("name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  extractedText: text("extracted_text"),
+  knowledgeId: integer("knowledge_id").references(() => knowledge.id),
+  metadata: text("metadata"), // JSON
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -445,7 +498,46 @@ export const creditBalances = pgTable("credit_balances", {
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// ── API Keys ──
+
+export const apiKeys = pgTable("api_keys", {
+  id: serial("id").primaryKey(),
+  keyHash: text("key_hash").notNull().unique(),
+  keyPrefix: text("key_prefix").notNull(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull().default("Default"),
+  scopes: text("scopes"), // JSON array of scope strings, null = all
+  lastUsedAt: text("last_used_at"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  revokedAt: text("revoked_at"),
+});
+
+// ── Social: Comments ──
+
+export const comments = pgTable("comments", {
+  id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
+  userId: text("user_id").notNull(),
+  targetType: text("target_type").notNull(), // signal | prediction | thesis
+  targetId: integer("target_id").notNull(),
+  content: text("content").notNull(),
+  parentId: integer("parent_id"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+// ── Social: Analyst Follows ──
+
+export const analystFollows = pgTable("analyst_follows", {
+  id: serial("id").primaryKey(),
+  followerId: text("follower_id").notNull(),
+  followingId: text("following_id").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // Type exports
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
 export type Signal = typeof signals.$inferSelect;
 export type NewSignal = typeof signals.$inferInsert;
 export type Analysis = typeof analyses.$inferSelect;
@@ -501,3 +593,11 @@ export type SupportTicket = typeof supportTickets.$inferSelect;
 export type NewSupportTicket = typeof supportTickets.$inferInsert;
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type NewSupportMessage = typeof supportMessages.$inferInsert;
+export type AnalystMemoryEntry = typeof analystMemory.$inferSelect;
+export type NewAnalystMemoryEntry = typeof analystMemory.$inferInsert;
+export type Document = typeof documents.$inferSelect;
+export type NewDocument = typeof documents.$inferInsert;
+export type Comment = typeof comments.$inferSelect;
+export type NewComment = typeof comments.$inferInsert;
+export type AnalystFollow = typeof analystFollows.$inferSelect;
+export type NewAnalystFollow = typeof analystFollows.$inferInsert;

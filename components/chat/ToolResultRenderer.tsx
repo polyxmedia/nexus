@@ -43,6 +43,9 @@ import { GammaExposureWidget } from "./widgets/GammaExposureWidget";
 import { BayesianWidget } from "./widgets/BayesianWidget";
 import { ParallelsWidget } from "./widgets/ParallelsWidget";
 import { ActorProfileWidget } from "./widgets/ActorProfileWidget";
+import { ArtifactWidget } from "./widgets/ArtifactWidget";
+import { MemoryWidget } from "./widgets/MemoryWidget";
+import { DocumentWidget } from "./widgets/DocumentWidget";
 import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
 
 interface ToolResultRendererProps {
@@ -56,6 +59,7 @@ const SELF_COLLAPSIBLE = new Set([
   "get_price_history",
   "monte_carlo_simulation",
   "get_market_snapshot",
+  "create_artifact",
 ]);
 
 // Tiny status widgets that shouldn't be collapsible
@@ -63,6 +67,10 @@ const SKIP_COLLAPSE = new Set([
   "get_operator_context",
   "save_to_knowledge",
   "add_knowledge",
+  "recall_memory",
+  "save_memory",
+  "delete_memory",
+  "save_document_to_knowledge",
 ]);
 
 // Human-readable labels for tool names
@@ -106,6 +114,12 @@ const TOOL_LABELS: Record<string, string> = {
   run_bayesian_analysis: "Bayesian Analysis",
   search_historical_parallels: "Historical Parallels",
   get_actor_profile: "Actor Profile",
+  recall_memory: "Memory",
+  save_memory: "Memory",
+  delete_memory: "Memory",
+  create_artifact: "Artifact",
+  save_document_to_knowledge: "Document",
+  generate_narrative_report: "Narrative Report",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -245,6 +259,17 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "get_actor_profile":
       widget = <ActorProfileWidget data={data} />;
+      break;
+    case "recall_memory":
+    case "save_memory":
+    case "delete_memory":
+      widget = <MemoryWidget result={data} />;
+      break;
+    case "create_artifact":
+      widget = <ArtifactWidget result={data} />;
+      break;
+    case "save_document_to_knowledge":
+      widget = <DocumentWidget result={data} />;
       break;
     case "get_operator_context":
       return (

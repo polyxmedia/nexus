@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import { useEffect, useState } from "react";
 
 export default function GlobalError({
@@ -10,6 +11,10 @@ export default function GlobalError({
   reset: () => void;
 }) {
   const [glitchText, setGlitchText] = useState("SYSTEM FAULT");
+
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
 
   useEffect(() => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*";

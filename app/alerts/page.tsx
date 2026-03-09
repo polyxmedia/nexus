@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Bell,
@@ -97,6 +97,14 @@ function safeParse(json: string | null): Record<string, unknown> {
 }
 
 export default function AlertsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AlertsPageInner />
+    </Suspense>
+  );
+}
+
+function AlertsPageInner() {
   const searchParams = useSearchParams();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [history, setHistory] = useState<AlertHistoryItem[]>([]);
@@ -266,7 +274,7 @@ export default function AlertsPage() {
     switch (newType) {
       case "price_threshold":
         return (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-[10px] text-navy-500 uppercase tracking-wider">Ticker</label>
               <input
@@ -358,7 +366,7 @@ export default function AlertsPage() {
   }
 
   return (
-    <div className="ml-48 min-h-screen bg-navy-950">
+    <div className="ml-0 md:ml-48 min-h-screen bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="Alert configuration">
       {/* Header */}
       <div className="border-b border-navy-700 px-6 h-16 flex items-center justify-between">

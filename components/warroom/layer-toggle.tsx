@@ -103,7 +103,7 @@ export function LayerToggle({
 
   return (
     <div className="absolute top-3 right-[19rem] z-30 pointer-events-auto">
-      <div className="flex bg-[#0a0a0a]/95 backdrop-blur-md border border-[#1a1a1a] rounded overflow-hidden">
+      <div className="flex bg-navy-900/95 backdrop-blur-md border border-navy-700 rounded overflow-hidden">
         {LAYERS.map((layer, i) => {
           const active = visibility[layer.key];
           const count = getCount(layer.key);
@@ -116,10 +116,10 @@ export function LayerToggle({
               onClick={() => onToggle(layer.key)}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-mono font-medium uppercase tracking-[0.1em] transition-all relative",
-                i > 0 && "border-l border-[#1a1a1a]",
+                i > 0 && "border-l border-navy-700",
                 active
                   ? `${layer.activeBg} ${layer.activeColor} ${layer.activeBorder}`
-                  : "text-navy-600 hover:text-navy-400 hover:bg-[#111]"
+                  : "text-navy-600 hover:text-navy-400 hover:bg-navy-800"
               )}
             >
               <IconComponent className="h-3 w-3" />

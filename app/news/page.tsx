@@ -63,26 +63,39 @@ const BIAS_CONFIG: Record<PoliticalBias, { label: string; short: string; color: 
   "unknown":      { label: "Unknown",      short: "?",  color: "text-navy-600",        position: 3 },
 };
 
-function BiasIndicator({ bias }: { bias: PoliticalBias }) {
+function BiasIndicator({ bias, compact }: { bias: PoliticalBias; compact?: boolean }) {
   const cfg = BIAS_CONFIG[bias];
   if (bias === "unknown") return null;
 
-  // 7 dots representing the spectrum, highlight the active position
+  const bgColor = bias === "far-left" || bias === "left"
+    ? "bg-blue-500/15"
+    : bias === "center-left"
+    ? "bg-sky-500/15"
+    : bias === "center"
+    ? "bg-navy-500/15"
+    : bias === "center-right"
+    ? "bg-orange-500/15"
+    : "bg-red-500/15";
+
   return (
-    <span className="inline-flex items-center gap-0.5 group/bias relative" title={cfg.label}>
-      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-        <span
-          key={i}
-          className={`h-1 rounded-full transition-all ${
-            i === cfg.position
-              ? `w-2.5 ${i <= 1 ? "bg-blue-400" : i <= 2 ? "bg-sky-400" : i === 3 ? "bg-navy-400" : i <= 4 ? "bg-orange-400" : "bg-red-400"}`
-              : "w-1 bg-navy-700/60"
-          }`}
-        />
-      ))}
-      <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] font-mono text-navy-400 bg-navy-900 px-1.5 py-0.5 rounded opacity-0 group-hover/bias:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-        {cfg.label}
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded ${bgColor}`}>
+      <span className="inline-flex items-center gap-[2px]">
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <span
+            key={i}
+            className={`rounded-full transition-all ${
+              i === cfg.position
+                ? `${compact ? "h-[5px] w-[5px]" : "h-1 w-2"} ${i <= 1 ? "bg-blue-400" : i <= 2 ? "bg-sky-400" : i === 3 ? "bg-navy-400" : i <= 4 ? "bg-orange-400" : "bg-red-400"}`
+                : `${compact ? "h-[3px] w-[3px]" : "h-1 w-0.5"} bg-navy-700/40`
+            }`}
+          />
+        ))}
       </span>
+      {!compact && (
+        <span className={`text-[8px] font-mono uppercase tracking-wider ${cfg.color}`}>
+          {cfg.label}
+        </span>
+      )}
     </span>
   );
 }
@@ -296,12 +309,12 @@ export default function NewsPage() {
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <span className={`text-[9px] font-mono uppercase tracking-[0.15em] ${CATEGORY_COLORS[article.category]}`}>
                           {article.category}
                         </span>
-                        <span className="text-[9px] font-mono text-navy-500">{article.source}</span>
-                        <BiasIndicator bias={article.bias} />
+                        <span className="text-[9px] font-mono text-navy-400">{article.source}</span>
+                        <BiasIndicator bias={article.bias} compact />
                         <span className="text-[9px] font-mono text-navy-600 ml-auto">{timeAgo(article.date)}</span>
                       </div>
                       <h3 className={`font-sans font-medium text-navy-100 group-hover:text-white transition-colors leading-snug ${
@@ -343,9 +356,9 @@ export default function NewsPage() {
                         {article.description}
                       </p>
                     )}
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[9px] font-mono text-navy-600">{article.source}</span>
-                      <BiasIndicator bias={article.bias} />
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="text-[9px] font-mono text-navy-500">{article.source}</span>
+                      <BiasIndicator bias={article.bias} compact />
                       <span className="text-navy-800">·</span>
                       <span className="text-[9px] font-mono text-navy-600">{timeAgo(article.date)}</span>
                     </div>

@@ -4,11 +4,14 @@ import { getIslamicCalendarEvents, getHijriDateInfo } from "@/lib/signals/islami
 import { getEconomicCalendarEvents } from "@/lib/signals/economic-calendar";
 import { getEsotericReading } from "@/lib/signals/numerology";
 import { HDate } from "@hebcal/core";
-import { requireTier } from "@/lib/auth/require-tier";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
 
 export async function GET() {
-  const tierCheck = await requireTier("analyst");
-  if ("response" in tierCheck) return tierCheck.response;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const now = new Date();
     const year = now.getFullYear();

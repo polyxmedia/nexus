@@ -233,7 +233,7 @@ export default function GraphPage() {
   const hasData = rawNodes.length > 0;
 
   return (
-    <div className="ml-48 h-screen flex flex-col bg-navy-950">
+    <div className="ml-0 md:ml-48 h-screen flex flex-col bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="Entity relationship graph">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-navy-800/40 px-4 h-12 shrink-0">

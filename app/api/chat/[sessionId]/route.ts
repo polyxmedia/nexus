@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth/auth";
+import { getEffectiveUsername } from "@/lib/auth/effective-user";
 import { db, schema } from "@/lib/db";
 import { and, eq, gt, sql as drizzleSql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
-import { TOOL_DEFINITIONS, executeTool } from "@/lib/chat/tools";
+import { TOOL_DEFINITIONS, executeTool, type ToolContext } from "@/lib/chat/tools";
 import { TOOL_TIERS } from "@/lib/auth/tier-config";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
 import { getUserTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
 import { hasCredits, debitCredits, calculateCredits } from "@/lib/credits";
+import { buildMemoryContext, touchMemories } from "@/lib/memory/engine";
 
 // ── Conversation compression ──
 // When a session exceeds COMPRESS_THRESHOLD messages, older messages are
@@ -36,8 +36,8 @@ Instead, focus entirely on:
 
 When using tools, still gather data, but interpret it through the narrative/belief lens rather than the quantitative convergence framework.`;
 
-async function getSystemPromptWithMode(): Promise<string> {
-  const basePrompt = await loadPrompt("chat_system");
+async function getSystemPromptWithMode(username?: string, projectId?: number | null): Promise<string> {
+  let prompt = await loadPrompt("chat_system");
 
   try {
     const jiangRow = await db
@@ -45,13 +45,43 @@ async function getSystemPromptWithMode(): Promise<string> {
       .from(schema.settings)
       .where(eq(schema.settings.key, "jiang_mode"));
     if (jiangRow[0]?.value === "true") {
-      return basePrompt + JIANG_MODE_ADDENDUM;
+      prompt += JIANG_MODE_ADDENDUM;
     }
   } catch {
     // Settings not available, use base prompt
   }
 
-  return basePrompt;
+  // Inject user memory context
+  if (username) {
+    try {
+      const { context: memoryContext, memoryIds } = await buildMemoryContext(username);
+      if (memoryContext) {
+        prompt += "\n\n" + memoryContext;
+        // Touch memories in background (don't block)
+        touchMemories(memoryIds).catch(() => {});
+      }
+    } catch {
+      // Memory not critical
+    }
+  }
+
+  // Inject project instructions if session belongs to a project
+  if (projectId) {
+    try {
+      const projectRows = await db
+        .select()
+        .from(schema.chatProjects)
+        .where(eq(schema.chatProjects.id, projectId));
+      const project = projectRows[0];
+      if (project?.instructions) {
+        prompt += `\n\n## Project Instructions: ${project.name}\n\n${project.instructions}`;
+      }
+    } catch {
+      // Project instructions not critical
+    }
+  }
+
+  return prompt;
 }
 
 async function maybeCompressSession(
@@ -124,17 +154,15 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const authSession = await getServerSession(authOptions);
-  if (!authSession?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const username = authSession.user.name;
+  const username = await getEffectiveUsername();
+  if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { sessionId } = await params;
   try {
     const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.uuid, sessionId));
     const chatSession = sessionRows[0];
     if (!chatSession) return NextResponse.json({ error: "Session not found" }, { status: 404 });
-    // Allow access to own sessions or legacy sessions (before user scoping was added)
-    if (chatSession.userId !== username && chatSession.userId !== "legacy") {
+    if (chatSession.userId !== username) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const messages = await db.select().from(schema.chatMessages).where(eq(schema.chatMessages.sessionId, chatSession.id)).orderBy(schema.chatMessages.createdAt);
@@ -149,9 +177,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const authSession = await getServerSession(authOptions);
-  if (!authSession?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const username = authSession.user.name;
+  const username = await getEffectiveUsername();
+  if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Tier-based message rate limiting
   const tierInfo = await getUserTier();
@@ -202,7 +229,7 @@ export async function POST(
   const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.uuid, sessionId));
   const session = sessionRows[0];
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
-  if (session.userId !== username && session.userId !== "legacy") {
+  if (session.userId !== username) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const id = session.id;
@@ -278,7 +305,7 @@ export async function POST(
   const creditCheck = await hasCredits(username, tierInfo.isAdmin ? "institution" : tierInfo.tier, tierInfo.isAdmin);
   if (!creditCheck.allowed) {
     return NextResponse.json(
-      { error: "Monthly credits exhausted. Upgrade your plan for more.", upgrade: true, creditsRemaining: 0 },
+      { error: "Monthly credits exhausted. Upgrade your plan or buy more credits to continue.", upgrade: true, topup: true, creditsRemaining: 0 },
       { status: 429 }
     );
   }
@@ -304,7 +331,7 @@ export async function POST(
           const response = await client.messages.create({
             model: chatModel,
             max_tokens: 4096,
-            system: await getSystemPromptWithMode(),
+            system: await getSystemPromptWithMode(username, session.projectId),
             tools: filteredTools,
             messages,
             stream: true,
@@ -369,7 +396,8 @@ export async function POST(
                 toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(blocked) });
                 continue;
               }
-              const toolResult = await executeTool(tool.name, parsedInput);
+              const toolCtx: ToolContext = { username, sessionId: id, projectId: session.projectId };
+              const toolResult = await executeTool(tool.name, parsedInput, toolCtx);
               allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: toolResult });
               sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: toolResult });
               toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(toolResult) });
@@ -429,7 +457,8 @@ export async function POST(
           totalInputTokens,
           totalOutputTokens,
           totalCreditsUsed: totalCredits,
-          creditsRemaining: debitResult?.balance.creditsRemaining ?? -1,
+          creditsRemaining: debitResult?.balance.unlimited ? -1 : (debitResult?.balance.creditsRemaining ?? -1),
+          unlimited: debitResult?.balance.unlimited ?? false,
           model: chatModel,
           elapsedMs: Date.now() - requestStartTime,
         });

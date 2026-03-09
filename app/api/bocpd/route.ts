@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
       {
         streams: [],
         recentChangePoints: [],
+        coincidences: [],
         activeRegimes: 0,
         generatedAt: new Date().toISOString(),
       },

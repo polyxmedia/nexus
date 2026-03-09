@@ -349,7 +349,7 @@ export default function ThesisPage() {
               </div>
 
               {/* Metrics Row */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="border border-navy-700 rounded px-4">
                   <Metric label="Market Regime" value={activeThesis.marketRegime.replace("_", " ")} />
                 </div>

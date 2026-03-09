@@ -5,6 +5,8 @@ import { NotificationProvider } from "@/components/notifications/notification-pr
 import { NotificationToast } from "@/components/notifications/notification-toast";
 import { AuthProvider } from "@/components/providers/session-provider";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
+import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
+import { TrialBanner } from "@/components/subscription/trial-banner";
 import { SubscriptionProvider } from "@/lib/hooks/useSubscription";
 import { OrganizationJsonLd, WebSiteJsonLd, SoftwareApplicationJsonLd } from "@/components/seo/json-ld";
 
@@ -70,11 +72,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('nexus-theme');if(t==='light'){document.documentElement.classList.add('light');}else{document.documentElement.classList.remove('light');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('nexus-theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dim';}document.documentElement.classList.remove('light','dim','soft');if(t==='light'||t==='dim'||t==='soft')document.documentElement.classList.add(t);}catch(e){}})();`,
           }}
         />
         <OrganizationJsonLd />
@@ -85,6 +87,8 @@ export default function RootLayout({
         <AuthProvider>
           <NotificationProvider>
             <SubscriptionProvider>
+              <ImpersonationBanner />
+              <TrialBanner />
               <Sidebar />
               {children}
               <NotificationToast />

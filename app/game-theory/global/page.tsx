@@ -528,7 +528,7 @@ export default function GlobalScenarioPage() {
 
 function BalanceTab({ balance }: { balance: AnalysisResult["powerBalance"] }) {
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div>
         <div className="text-[10px] font-mono uppercase tracking-wider text-accent-cyan mb-2">Blue Advantages</div>
         {balance.blueAdvantages.length === 0 ? (
@@ -782,7 +782,7 @@ function IntelTab({ intelligence }: { intelligence: NonNullable<AnalysisResult["
       {hasRisk && intelligence.systemicRisk && (
         <div>
           <div className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-2">Market Regime</div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="border border-navy-700/30 rounded p-2.5">
               <div className="text-[9px] font-mono text-navy-600 mb-1">REGIME</div>
               <div className={`text-[13px] font-mono font-bold uppercase ${REGIME_COLORS[intelligence.systemicRisk.regime] || "text-navy-300"}`}>

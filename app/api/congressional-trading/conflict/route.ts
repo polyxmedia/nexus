@@ -4,6 +4,7 @@ import { getTradingSnapshot } from "@/lib/congressional-trading";
 import { HAIKU_MODEL } from "@/lib/ai/model";
 import { db, schema } from "@/lib/db";
 import { eq, desc, and, like } from "drizzle-orm";
+import { creditGate } from "@/lib/credits/gate";
 
 async function getApiKey(): Promise<string | null> {
   try {
@@ -20,6 +21,8 @@ async function getApiKey(): Promise<string | null> {
 
 export async function GET(req: NextRequest) {
   try {
+    const gate = await creditGate();
+    if (gate.response) return gate.response;
     const memberName = req.nextUrl.searchParams.get("member");
     if (!memberName) {
       return NextResponse.json({ error: "Member name required" }, { status: 400 });
@@ -119,6 +122,8 @@ Be thorough but fair. Flag genuine patterns, not speculative connections.`;
       max_tokens: 1000,
       messages: [{ role: "user", content: prompt }],
     });
+
+    await gate.debit(HAIKU_MODEL, response.usage.input_tokens, response.usage.output_tokens, "conflict_analysis");
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);

@@ -451,7 +451,7 @@ export default function CalendarPage() {
     return (
       <PageContainer title="Intelligence Calendar" subtitle="Multi-system convergence calendar">
         <div className="space-y-4">
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 rounded" />)}
           </div>
           <Skeleton className="h-16 rounded" />
@@ -493,7 +493,7 @@ export default function CalendarPage() {
       </div>
 
       {/* ── Header Cards ── */}
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
         {/* Hebrew Date */}
         <div className="rounded-lg px-4 py-3 bg-navy-800/60 border border-navy-700/40">
           <div className="flex items-center gap-2 mb-1">
@@ -648,9 +648,9 @@ export default function CalendarPage() {
       </div>
 
       {/* ── Main Grid: Calendar + Sidebar ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* ── Calendar Grid ── */}
-        <div className="col-span-2 space-y-4">
+        <div className="md:col-span-2 space-y-4">
           <div className="border border-navy-700/40 rounded-lg bg-navy-800/40 p-5">
             {/* Month Nav */}
             <div className="flex items-center justify-between mb-4">

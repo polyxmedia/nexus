@@ -12,7 +12,7 @@ function getResend() {
   return _resend;
 }
 
-const FROM_ADDRESS = process.env.EMAIL_FROM || "Nexus <noreply@nexushq.xyz>";
+const FROM_ADDRESS = process.env.EMAIL_FROM || "Nexus <noreply@email.nexushq.xyz>";
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -114,6 +114,21 @@ export async function sendEmail({ to, subject, html, text, replyTo, type }: Send
   }
 }
 
+/** Look up a user's email from the settings table. userId is "user:{username}" */
+export async function getUserEmail(userId: string): Promise<string | null> {
+  try {
+    const rows = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, userId));
+    if (rows.length === 0) return null;
+    const data = JSON.parse(rows[0].value);
+    return data.email || null;
+  } catch {
+    return null;
+  }
+}
+
 function inferType(subject: string): string {
   const s = subject.toLowerCase();
   if (s.includes("welcome")) return "welcome";
@@ -121,6 +136,10 @@ function inferType(subject: string): string {
   if (s.includes("canceled") || s.includes("cancelled")) return "subscription_canceled";
   if (s.includes("payment failed")) return "payment_failed";
   if (s.startsWith("[l")) return "signal_alert";
+  if (s.includes("support ticket") && s.includes("received")) return "ticket_opened";
+  if (s.startsWith("re: nexus support")) return "ticket_reply";
+  if (s.includes("support ticket") && s.includes("closed")) return "ticket_closed";
+  if (s.includes("password reset")) return "password_reset";
   return "other";
 }
 

@@ -62,6 +62,7 @@ export async function runAlertChain(
         direction: "down", // high-intensity signals typically signal risk
         regimeAtCreation: "transitional",
         preEvent: 1,
+        createdBy: "system",
       });
       result.predictionsCreated = 1;
     } catch (err) {
@@ -101,6 +102,8 @@ export async function runAlertChain(
   }
 
   // ── Step 3: Email notification for intensity 4+ ──
+  // Respects: blocked users are skipped, only users with email addresses are notified.
+  // Also dispatches Telegram alerts to subscribers of signal_convergence.
   if (intensity >= 4) {
     try {
       // Get all user emails from settings
@@ -113,6 +116,8 @@ export async function runAlertChain(
       for (const row of userSettings) {
         try {
           const userData = JSON.parse(row.value);
+          // Skip blocked users
+          if (userData.blocked) continue;
           if (userData.email && typeof userData.email === "string") {
             emails.push(userData.email);
           }
@@ -146,6 +151,16 @@ export async function runAlertChain(
             // Individual send failure
           }
         }
+      }
+
+      // Dispatch Telegram alert to signal_convergence subscribers
+      try {
+        const { broadcastAlert, formatSignalAlert } = await import("../telegram/alerts");
+        const layers = marketSectors ? JSON.parse(marketSectors) : [category];
+        const telegramMsg = formatSignalAlert({ title: signalTitle, intensity, layers, category });
+        await broadcastAlert("signal_convergence", telegramMsg);
+      } catch {
+        // Telegram not configured or failed, non-critical
       }
     } catch (err) {
       console.error("[alert-chain] Email delivery failed:", err);

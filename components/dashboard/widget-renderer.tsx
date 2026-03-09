@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { X, ArrowRight, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, Target, Shield, Sun, Moon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { X, ArrowRight, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, Target, Shield, Sun, Moon, Send, MessageSquare } from "lucide-react";
 import { Metric } from "@/components/ui/metric";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
@@ -1549,6 +1550,46 @@ function AIProgressionWidget() {
   );
 }
 
+// ── Quick Chat Widget ──
+
+function QuickChatWidget() {
+  const [input, setInput] = useState("");
+  const router = useRouter();
+
+  function handleSend() {
+    const msg = input.trim();
+    if (!msg) return;
+    const sessionId = crypto.randomUUID();
+    router.push(`/chat/${sessionId}?prompt=${encodeURIComponent(msg)}`);
+  }
+
+  return (
+    <div className="flex flex-col h-full justify-between gap-3">
+      <div className="flex items-center gap-2 text-navy-500">
+        <MessageSquare className="h-3.5 w-3.5" />
+        <span className="text-[10px] font-mono uppercase tracking-wider">Ask the analyst anything</span>
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          placeholder="Signals firing now, portfolio risk, game theory..."
+          className="flex-1 px-3 py-2 rounded-md border border-navy-700/40 bg-navy-800/40 text-xs text-navy-100 font-mono placeholder:text-navy-600 focus:outline-none focus:border-accent-cyan/40 transition-colors"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim()}
+          className="px-3 py-2 rounded-md bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/20 hover:bg-accent-cyan/25 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <Send className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Renderer ──
 
 export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
@@ -1606,6 +1647,8 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <PredictionMarketsWidget />;
       case "congressional_trading":
         return <CongressionalTradingWidget />;
+      case "quick_chat":
+        return <QuickChatWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1647,4 +1690,5 @@ export const AVAILABLE_WIDGETS = [
   { type: "ai_progression", name: "AI Progression", description: "Remote Labor Index, AI 2027 timeline, sector automation risk", defaultWidth: 2, defaultConfig: {} },
   { type: "prediction_markets", name: "Prediction Markets", description: "Polymarket + Kalshi probability pricing", defaultWidth: 2, defaultConfig: {} },
   { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider cluster buys", defaultWidth: 2, defaultConfig: {} },
+  { type: "quick_chat", name: "Quick Chat", description: "Start a conversation with the AI analyst", defaultWidth: 2, defaultConfig: {} },
 ];

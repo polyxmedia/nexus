@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, asc } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/auth";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
@@ -24,6 +26,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { claim, timeframe, deadline, confidence, category, signalId, analysisId, metrics, direction, priceTarget, referenceSymbol } = body;
     if (!claim || !timeframe || !deadline || confidence === undefined || !category) return NextResponse.json({ error: "claim, timeframe, deadline, confidence, and category are required" }, { status: 400 });
+    const session = await getServerSession(authOptions);
+    const createdBy = session?.user?.name || null;
     const rows = await db.insert(schema.predictions).values({
       claim, timeframe, deadline, confidence, category,
       signalId: signalId || null, analysisId: analysisId || null,
@@ -31,6 +35,7 @@ export async function POST(request: NextRequest) {
       direction: direction || null,
       priceTarget: priceTarget || null,
       referenceSymbol: referenceSymbol || null,
+      createdBy,
     }).returning();
     return NextResponse.json(rows[0]);
   } catch (error) { const message = error instanceof Error ? error.message : "Unknown error"; return NextResponse.json({ error: message }, { status: 500 }); }

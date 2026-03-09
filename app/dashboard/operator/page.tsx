@@ -101,21 +101,50 @@ const THREAT_BG = [
   "bg-accent-rose/10 border-accent-rose/30",
 ];
 
-function RegimeBanner({ regime, threatLevel }: { regime: OperatorData["regime"]; threatLevel: number }) {
+function LiveCountdown({ since }: { since: string }) {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    function tick() {
+      const diff = Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 1000));
+      const m = Math.floor(diff / 60);
+      const s = diff % 60;
+      setElapsed(m > 0 ? `${m}m ${s.toString().padStart(2, "0")}s` : `${s}s`);
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [since]);
+
+  return <span>{elapsed}</span>;
+}
+
+function RegimeBanner({ regime, threatLevel, timestamp }: { regime: OperatorData["regime"]; threatLevel: number; timestamp: string }) {
   const idx = Math.max(0, Math.min(4, threatLevel - 1));
+  const dateStr = new Date(timestamp).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", year: "numeric",
+  });
+  const timeStr = new Date(timestamp).toLocaleTimeString("en-US", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+
   return (
-    <div className={cn("rounded-md border p-3", THREAT_BG[idx])}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Shield className={cn("h-5 w-5", THREAT_COLORS[idx])} />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className={cn("text-xs font-mono font-bold uppercase tracking-wider", THREAT_COLORS[idx])}>
+    <div className={cn("rounded-md border p-3 overflow-hidden", THREAT_BG[idx])}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <Shield className={cn("h-5 w-5 shrink-0", THREAT_COLORS[idx])} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className={cn("text-xs font-mono font-bold uppercase tracking-wider whitespace-nowrap", THREAT_COLORS[idx])}>
                 DEFCON {5 - idx} &mdash; {THREAT_LABELS[idx]}
+              </span>
+              <span className="text-[10px] font-mono text-navy-500 whitespace-nowrap">{dateStr} {timeStr}</span>
+              <span className="text-[10px] font-mono text-navy-600 whitespace-nowrap">
+                <LiveCountdown since={timestamp} /> ago
               </span>
             </div>
             {regime && (
-              <div className="mt-1 flex items-center gap-4 text-[10px] font-mono uppercase tracking-wider text-navy-400">
+              <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] font-mono uppercase tracking-wider text-navy-400">
                 <span>Regime: <span className="text-navy-200">{regime.market.replace("_", " ")}</span></span>
                 <span>Vol: <span className="text-navy-200">{regime.volatility}</span></span>
                 <span>Convergence: <span className="text-navy-200">{(regime.convergence * 100).toFixed(0)}%</span></span>
@@ -124,7 +153,7 @@ function RegimeBanner({ regime, threatLevel }: { regime: OperatorData["regime"];
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
@@ -319,10 +348,10 @@ export default function OperatorDashboard() {
       ) : data ? (
         <div className="space-y-4">
           {/* Regime Banner */}
-          <RegimeBanner regime={data.regime} threatLevel={data.threatLevel} />
+          <RegimeBanner regime={data.regime} threatLevel={data.threatLevel} timestamp={data.timestamp} />
 
           {/* Stats Row */}
-          <div className="grid grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             <StatCard
               label="Threat Level"
               value={data.threatLevel > 0 ? THREAT_LABELS[data.threatLevel - 1] : "NONE"}
@@ -363,7 +392,7 @@ export default function OperatorDashboard() {
           </div>
 
           {/* Main Grid */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Signals Panel */}
             <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
               <div className="flex items-center justify-between mb-2">
@@ -420,9 +449,9 @@ export default function OperatorDashboard() {
           </div>
 
           {/* Bottom Row */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Active Theses */}
-            <div className="col-span-2 rounded-md border border-navy-700/40 bg-navy-950 p-3">
+            <div className="md:col-span-2 rounded-md border border-navy-700/40 bg-navy-950 p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Active Theses</span>
               </div>

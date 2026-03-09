@@ -7,11 +7,17 @@ const PUBLIC_API_PATHS = [
   "/api/telegram/webhook",
 ];
 
+// API v1 uses its own Bearer token auth (withApiAuth HOF), not session auth
+const isApiV1 = (pathname: string) => pathname.startsWith("/api/v1/");
+
 export default withAuth({
   callbacks: {
     authorized({ req, token }) {
       // Allow public API paths without auth
       if (PUBLIC_API_PATHS.some((p) => req.nextUrl.pathname === p)) return true;
+
+      // API v1 handles its own auth via Bearer tokens
+      if (isApiV1(req.nextUrl.pathname)) return true;
 
       // Allow internal scheduler calls with CRON_SECRET
       const cronSecret = process.env.CRON_SECRET;
@@ -36,6 +42,7 @@ export const config = {
     "/api/trading212/:path*",
     "/api/coinbase/:path*",
     "/api/ibkr/:path*",
+    "/api/ig/:path*",
     "/api/settings/:path*",
     "/api/knowledge/:path*",
     "/api/warroom/:path*",
@@ -58,6 +65,7 @@ export const config = {
     "/api/timeline/:path*",
     "/api/watchlists/:path*",
     "/api/admin/:path*",
+    "/api/v1/:path*",
     "/api/referrals/:path*",
     "/api/telegram/:path*",
     // Protect app pages

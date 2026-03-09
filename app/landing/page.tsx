@@ -891,7 +891,7 @@ export default function LandingPage() {
               Pick what fits
             </h2>
             <p className="text-sm text-navy-400 max-w-md mx-auto mb-8">
-              2-day free trial on everything. No credit card, no commitment. Just try it.
+              2-day free trial on everything. Cancel anytime before you're charged.
             </p>
             <div className="flex items-center justify-center gap-3">
               <span className={`text-xs font-medium transition-colors ${!billingAnnual ? "text-navy-100" : "text-navy-500"}`}>Monthly</span>

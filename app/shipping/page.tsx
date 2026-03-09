@@ -698,7 +698,7 @@ export default function ShippingPage() {
             {snapshot.anomalies.length === 0 ? (
               <p className="text-[11px] font-mono text-navy-700 py-4 px-3">No anomalies detected</p>
             ) : (
-              <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-hidden">
+              <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-navy-800/40">
@@ -742,7 +742,7 @@ export default function ShippingPage() {
             {snapshot.darkFleetAlerts.length === 0 ? (
               <p className="text-[11px] font-mono text-navy-700 py-4 px-3">No dark fleet activity detected</p>
             ) : (
-              <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-hidden">
+              <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-navy-800/40">

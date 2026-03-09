@@ -329,7 +329,7 @@ export default function NarrativePage() {
     >
       <UpgradeGate minTier="operator" feature="Narrative and sentiment tracking" blur>
       {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <div className="border border-navy-800/60 rounded-lg p-3">
           <div className="flex items-center gap-2 mb-1">
             <Activity className="h-3 w-3 text-navy-500 opacity-70" />

@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { generateNarrativeReport } from "@/lib/reports/narrative";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { creditGate } from "@/lib/credits/gate";
 
 export async function POST(request: Request) {
   try {
+    const gate = await creditGate();
+    if (gate.response) return gate.response;
     const body = await request.json();
     const topic = body.topic || null;
 

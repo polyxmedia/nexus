@@ -30,6 +30,21 @@ export async function POST(request: Request) {
     const stripe = getStripe();
     const userId = session.user.name;
 
+    // Get user's real email from settings
+    let userEmail: string | undefined;
+    try {
+      const userRows = await db
+        .select()
+        .from(schema.settings)
+        .where(eq(schema.settings.key, `user:${userId}`));
+      if (userRows[0]?.value) {
+        const userData = JSON.parse(userRows[0].value);
+        if (userData.email) userEmail = userData.email;
+      }
+    } catch {
+      // Fall through
+    }
+
     // Check for existing Stripe customer
     const existingSubs = await db
       .select()
@@ -43,11 +58,21 @@ export async function POST(request: Request) {
 
     const origin = request.headers.get("origin") || "http://localhost:3000";
 
+    // Check if user has ever had a subscription (no trial for returning users)
+    const hadSub = existingSubs.length > 0 && existingSubs[0].stripeCustomerId;
+
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      customer_email: customerId ? undefined : `${userId}@nexus`,
+      customer_email: customerId ? undefined : userEmail,
       line_items: [{ price: tier.stripePriceId, quantity: 1 }],
+      // 2-day free trial, payment details collected upfront
+      ...(!hadSub && {
+        subscription_data: {
+          trial_period_days: 2,
+        },
+      }),
+      payment_method_collection: "always",
       ...(embedded
         ? {
             ui_mode: "embedded",

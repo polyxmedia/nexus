@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Radar, ArrowRight, ArrowUpRight, Lock } from "lucide-react";
+import { Radar, ArrowRight, ArrowUpRight } from "lucide-react";
 
 // ── Grid background (matches homepage) ──
 function GridBackground() {
@@ -141,7 +141,12 @@ export default function LoginPage() {
                   <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-navy-500">
                     Password
                   </span>
-                  <Lock className="w-3 h-3 text-navy-700" />
+                  <Link
+                    href="/forgot-password"
+                    className="text-[9px] font-mono uppercase tracking-wider text-navy-600 hover:text-navy-400 transition-colors"
+                  >
+                    Forgot?
+                  </Link>
                 </label>
                 <input
                   type="password"

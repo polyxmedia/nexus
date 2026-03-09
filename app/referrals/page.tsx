@@ -6,6 +6,8 @@ import {
   Check,
   Copy,
   DollarSign,
+  ExternalLink,
+  Loader2,
   MousePointerClick,
   Percent,
   RefreshCw,
@@ -13,6 +15,7 @@ import {
   UserPlus,
   Users,
   Wallet,
+  Zap,
 } from "lucide-react";
 
 interface ReferralData {
@@ -86,6 +89,14 @@ function formatMoney(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+interface ConnectStatus {
+  status: "active" | "incomplete" | "created" | "none";
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  onboardingUrl?: string;
+  accountId?: string;
+}
+
 export default function ReferralsPage() {
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +107,8 @@ export default function ReferralsPage() {
   const [showPayoutForm, setShowPayoutForm] = useState(false);
   const [payoutMethod, setPayoutMethod] = useState("paypal");
   const [payoutDetails, setPayoutDetails] = useState("");
+  const [connect, setConnect] = useState<ConnectStatus | null>(null);
+  const [connectLoading, setConnectLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -109,13 +122,29 @@ export default function ReferralsPage() {
     setLoading(false);
   }, []);
 
+  const fetchConnect = useCallback(async () => {
+    try {
+      const res = await fetch("/api/referrals/connect");
+      if (res.ok) {
+        setConnect(await res.json());
+      } else {
+        const err = await res.json().catch(() => null);
+        console.warn("Connect status fetch failed:", err?.error || res.status);
+        setConnect({ status: "none", payoutsEnabled: false, detailsSubmitted: false });
+      }
+    } catch {
+      setConnect({ status: "none", payoutsEnabled: false, detailsSubmitted: false });
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchConnect();
+  }, [fetchData, fetchConnect]);
 
   function getReferralLink() {
     if (!data) return "";
-    return `${window.location.origin}/api/referrals/click?code=${data.code.code}`;
+    return `${window.location.origin}/r/${data.code.code}`;
   }
 
   async function copyLink() {
@@ -236,31 +265,109 @@ export default function ReferralsPage() {
         <StatCard icon={DollarSign} label="Total Earned" value={formatMoney(stats.totalEarned)} sub="all time" />
       </div>
 
-      {/* Payout Request */}
-      {stats.pendingEarnings > 0 && (
-        <div className="border border-accent-cyan/20 rounded-lg p-5 bg-accent-cyan/[0.03] mb-6">
-          {!showPayoutForm ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block">Available for Payout</span>
-                <span className="text-lg font-mono font-bold text-navy-100">{formatMoney(stats.pendingEarnings)}</span>
-              </div>
+      {/* Payout Setup - Stripe Connect */}
+      <div className={`border rounded-lg p-5 mb-6 ${connect?.payoutsEnabled ? "border-accent-emerald/20 bg-accent-emerald/[0.03]" : "border-accent-cyan/20 bg-accent-cyan/[0.03]"}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Wallet className="h-4 w-4 text-navy-400" />
+              <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Automatic Payouts</span>
+            </div>
+            {connect?.payoutsEnabled ? (
+              <>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="h-2 w-2 rounded-full bg-accent-emerald animate-pulse" />
+                  <span className="text-sm text-navy-200">Payouts active</span>
+                </div>
+                <p className="text-[11px] text-navy-400 mt-1">
+                  Commissions are automatically sent to your bank every time a referred user pays. No action needed.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-navy-200 mt-1">Connect your bank to receive automatic payouts</p>
+                <p className="text-[11px] text-navy-500 mt-0.5">
+                  Every month your referred users pay, {Math.round(code.commissionRate * 100)}% is transferred directly to your account via Stripe.
+                </p>
+              </>
+            )}
+          </div>
+          <div className="shrink-0">
+            {connect?.payoutsEnabled ? (
+              <button
+                onClick={async () => {
+                  const res = await fetch("/api/referrals/connect", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "dashboard" }),
+                  });
+                  const data = await res.json();
+                  if (data.url) window.open(data.url, "_blank");
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded border border-navy-700/40 text-[10px] font-mono uppercase tracking-wider text-navy-400 hover:text-navy-200 hover:border-navy-600/60 transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Stripe Dashboard
+              </button>
+            ) : (
+              <button
+                disabled={connectLoading}
+                onClick={async () => {
+                  setConnectLoading(true);
+                  try {
+                    // Use already-fetched onboarding URL if available
+                    if (connect?.onboardingUrl) {
+                      window.location.href = connect.onboardingUrl;
+                      return;
+                    }
+                    // Otherwise fetch a fresh one
+                    const res = await fetch("/api/referrals/connect");
+                    const data = await res.json();
+                    if (data.onboardingUrl) {
+                      window.location.href = data.onboardingUrl;
+                    } else if (data.error) {
+                      setPayoutMessage(`Connect error: ${data.error}`);
+                      setConnectLoading(false);
+                    } else {
+                      await fetchConnect();
+                      setConnectLoading(false);
+                    }
+                  } catch {
+                    setPayoutMessage("Failed to connect bank account. Please try again.");
+                    setConnectLoading(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-cyan/10 text-accent-cyan text-[11px] font-mono uppercase tracking-wider hover:bg-accent-cyan/20 transition-colors border border-accent-cyan/20 disabled:opacity-50"
+              >
+                {connectLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                Connect Bank Account
+              </button>
+            )}
+          </div>
+        </div>
+        {payoutMessage && (
+          <div className="mt-2 text-[11px] text-navy-300 font-sans">{payoutMessage}</div>
+        )}
+      </div>
+
+      {/* Manual payout fallback for pending earnings without Connect */}
+      {stats.pendingEarnings > 0 && !connect?.payoutsEnabled && (
+        <div className="border border-navy-700/30 rounded-lg p-5 bg-navy-900/20 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block">Pending Earnings</span>
+              <span className="text-lg font-mono font-bold text-navy-100">{formatMoney(stats.pendingEarnings)}</span>
+              <p className="text-[10px] text-navy-500 mt-0.5">Connect your bank above to receive these automatically</p>
+            </div>
+            {!showPayoutForm ? (
               <button
                 onClick={() => setShowPayoutForm(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded bg-accent-cyan/10 text-accent-cyan text-[10px] font-mono uppercase tracking-wider hover:bg-accent-cyan/20 transition-colors border border-accent-cyan/20"
+                className="flex items-center gap-1.5 px-3 py-2 rounded border border-navy-700/40 text-[10px] font-mono uppercase tracking-wider text-navy-400 hover:text-navy-200 transition-colors"
               >
-                <Wallet className="h-3.5 w-3.5" />
-                Request Payout
+                <Wallet className="h-3 w-3" />
+                Manual Payout
               </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
-                  Request Payout: {formatMoney(stats.pendingEarnings)}
-                </span>
-                <button onClick={() => setShowPayoutForm(false)} className="text-[10px] text-navy-500 hover:text-navy-300">Cancel</button>
-              </div>
+            ) : (
               <div className="flex gap-2">
                 <select
                   value={payoutMethod}
@@ -275,23 +382,21 @@ export default function ReferralsPage() {
                   type="text"
                   value={payoutDetails}
                   onChange={(e) => setPayoutDetails(e.target.value)}
-                  placeholder={payoutMethod === "paypal" ? "PayPal email..." : payoutMethod === "bank_transfer" ? "IBAN or account details..." : "Wallet address..."}
-                  className="flex-1 bg-navy-950/60 border border-navy-700/30 rounded px-3 py-2 text-xs text-navy-200 font-mono placeholder:text-navy-600 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30"
+                  placeholder={payoutMethod === "paypal" ? "PayPal email..." : payoutMethod === "bank_transfer" ? "IBAN or account..." : "Wallet address..."}
+                  className="bg-navy-950/60 border border-navy-700/30 rounded px-3 py-2 text-xs text-navy-200 font-mono placeholder:text-navy-600 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30"
                 />
                 <button
                   onClick={requestPayout}
                   disabled={requestingPayout || !payoutDetails.trim()}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-accent-emerald/10 text-accent-emerald text-[10px] font-mono uppercase tracking-wider hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded bg-accent-emerald/10 text-accent-emerald text-[10px] font-mono uppercase tracking-wider hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50"
                 >
                   {requestingPayout ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                   Submit
                 </button>
+                <button onClick={() => setShowPayoutForm(false)} className="text-[10px] text-navy-500 hover:text-navy-300 px-2">Cancel</button>
               </div>
-            </div>
-          )}
-          {payoutMessage && (
-            <div className="mt-2 text-[11px] text-navy-300 font-sans">{payoutMessage}</div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
@@ -305,20 +410,20 @@ export default function ReferralsPage() {
             <h3 className="text-sm font-semibold text-navy-100 mb-1">Commission Plan</h3>
             <p className="text-xs text-navy-400 font-sans leading-relaxed mb-3">
               Earn <span className="text-accent-emerald font-mono font-bold">{Math.round(code.commissionRate * 100)}% recurring</span> commission
-              on every subscription payment made by users you refer. Commission is calculated monthly and paid out on approval.
+              on every subscription payment made by users you refer. As long as they keep paying, you keep earning. Paid automatically each billing cycle.
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="border border-navy-700/30 rounded p-3 bg-navy-950/40">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-1">Step 1</div>
                 <div className="text-xs text-navy-300 font-sans">Share your referral link</div>
               </div>
               <div className="border border-navy-700/30 rounded p-3 bg-navy-950/40">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-1">Step 2</div>
-                <div className="text-xs text-navy-300 font-sans">User signs up and subscribes</div>
+                <div className="text-xs text-navy-300 font-sans">User signs up and pays</div>
               </div>
               <div className="border border-navy-700/30 rounded p-3 bg-navy-950/40">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-1">Step 3</div>
-                <div className="text-xs text-navy-300 font-sans">You earn {Math.round(code.commissionRate * 100)}% of their payments</div>
+                <div className="text-xs text-navy-300 font-sans">{Math.round(code.commissionRate * 100)}% hits your bank automatically</div>
               </div>
             </div>
           </div>

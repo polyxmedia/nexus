@@ -43,17 +43,17 @@ export function MapTypeSelector({
 }: MapTypeSelectorProps) {
   return (
     <div className="absolute bottom-3 left-[25rem] z-20 pointer-events-auto">
-      <div className="flex bg-[#0a0a0a]/95 backdrop-blur-md border border-[#1a1a1a] rounded overflow-hidden font-mono">
+      <div className="flex bg-navy-900/95 backdrop-blur-md border border-navy-700 rounded overflow-hidden font-mono">
         {TILE_KEYS.map((type, idx) => (
           <button
             key={type}
             onClick={() => onTypeChange(type)}
             className={cn(
               "px-2.5 py-1.5 text-[9px] font-medium uppercase tracking-[0.1em] transition-colors",
-              idx > 0 && "border-l border-[#1a1a1a]",
+              idx > 0 && "border-l border-navy-700",
               activeType === type
-                ? "bg-[#1a1a1a] text-navy-200"
-                : "text-navy-600 hover:text-navy-400 hover:bg-[#111]"
+                ? "bg-navy-700 text-navy-200"
+                : "text-navy-600 hover:text-navy-400 hover:bg-navy-800"
             )}
           >
             {MAP_TILES[type].label}

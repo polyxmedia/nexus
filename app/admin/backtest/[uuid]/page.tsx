@@ -543,8 +543,8 @@ function ResultsDashboard({ run }: { run: BacktestRun }) {
                   Trade Log ({r.portfolio.tradeLog.length} trades)
                 </h2>
               </div>
-              <div className="border border-navy-700/30 rounded-lg bg-navy-900/40 overflow-hidden max-h-[400px] overflow-y-auto">
-                <table className="w-full">
+              <div className="border border-navy-700/30 rounded-lg bg-navy-900/40 overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table className="w-full min-w-[640px]">
                   <thead className="sticky top-0 bg-navy-900/90 backdrop-blur-sm">
                     <tr className="font-mono text-[9px] uppercase tracking-widest text-navy-500 border-b border-navy-700/20">
                       <th className="text-left px-4 py-2">Date</th>
@@ -1090,7 +1090,7 @@ export default function BacktestDetailPage() {
   }, [id]);
 
   return (
-    <main className="min-h-screen p-6 ml-48">
+    <main className="min-h-screen p-4 pt-14 md:p-6 ml-0 md:ml-48">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <Link

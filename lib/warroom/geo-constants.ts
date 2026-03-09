@@ -91,6 +91,144 @@ export interface StrategicLocation {
   coords: { lat: number; lng: number };
 }
 
+export interface ChokepointIntel {
+  id: string;
+  name: string;
+  coords: { lat: number; lng: number };
+  widthKm: number;
+  depthM: number;
+  dailyTraffic: string;
+  oilFlowMbpd: number;
+  globalTradeShare: string;
+  controlledBy: string[];
+  contestedBy: string[];
+  threats: string[];
+  commodities: string[];
+  alternatives: string;
+  recentEvents: string[];
+  significance: string;
+  threatLevel: 1 | 2 | 3 | 4 | 5;
+}
+
+export const CHOKEPOINT_INTEL: Record<string, ChokepointIntel> = {
+  "hormuz-choke": {
+    id: "hormuz-choke",
+    name: "Strait of Hormuz",
+    coords: { lat: 26.5667, lng: 56.25 },
+    widthKm: 33,
+    depthM: 60,
+    dailyTraffic: "~80 vessels/day",
+    oilFlowMbpd: 21,
+    globalTradeShare: "~21% of global oil consumption",
+    controlledBy: ["Iran", "Oman"],
+    contestedBy: ["Iran (IRGCN)", "US Fifth Fleet"],
+    threats: [
+      "Iranian mine-laying capability via fast attack craft",
+      "IRGC naval swarm tactics and anti-ship cruise missiles",
+      "Periodic seizure of commercial tankers by IRGCN",
+      "Proximity to Iranian Bandar Abbas naval base (30km)",
+      "Drone and UAV surveillance from Iranian islands",
+    ],
+    commodities: ["Crude oil", "LNG", "Refined petroleum products", "Petrochemicals"],
+    alternatives: "Saudi East-West Pipeline (5 mbpd capacity), UAE Habshan-Fujairah (1.5 mbpd). Neither replaces full strait volume.",
+    recentEvents: [
+      "IRGC seized commercial tankers in 2023-2024",
+      "US-Iran naval standoffs recurrent since 2019",
+      "Increased drone surveillance from Abu Musa and Tunb islands",
+      "Houthi attacks in adjacent Gulf of Oman corridor",
+    ],
+    significance: "The world's most critical oil chokepoint. Closure would remove ~21 mbpd from global supply, triggering immediate oil price spikes above $150/bbl. No combination of alternatives can replace this throughput. US Fifth Fleet maintains permanent carrier presence in response.",
+    threatLevel: 4,
+  },
+  "malacca-choke": {
+    id: "malacca-choke",
+    name: "Strait of Malacca",
+    coords: { lat: 2.5, lng: 101.8 },
+    widthKm: 2.8,
+    depthM: 25,
+    dailyTraffic: "~200 vessels/day",
+    oilFlowMbpd: 16,
+    globalTradeShare: "~25-30% of global maritime trade",
+    controlledBy: ["Malaysia", "Indonesia", "Singapore"],
+    contestedBy: ["China (claims influence)", "US Navy (FON operations)"],
+    threats: [
+      "Narrowest navigable point only 2.8km at Phillips Channel",
+      "Piracy remains persistent despite trilateral patrols",
+      "Collision risk from extreme traffic density",
+      "Chinese naval expansion in South China Sea approaches",
+      "Potential blockade scenario in Taiwan contingency",
+    ],
+    commodities: ["Crude oil", "LNG", "Container goods", "Electronics", "Raw materials"],
+    alternatives: "Lombok Strait adds 2-3 days transit. Sunda Strait has depth limits. Neither handles VLCC traffic efficiently.",
+    recentEvents: [
+      "Piracy incidents continue at ~50/year despite MSTC patrols",
+      "Chinese naval assets increasingly transiting to Indian Ocean",
+      "Singapore expanding Changi Naval Base capacity",
+      "Traffic density hitting physical capacity limits",
+    ],
+    significance: "The busiest maritime chokepoint on Earth. Connects the Indian and Pacific Oceans, carrying the bulk of East Asian energy imports and manufactured exports. A blockade during a Taiwan crisis would cripple Japanese, Korean, and Chinese economies within weeks.",
+    threatLevel: 3,
+  },
+  "suez-choke": {
+    id: "suez-choke",
+    name: "Suez Canal",
+    coords: { lat: 30.4574, lng: 32.3498 },
+    widthKm: 0.205,
+    depthM: 24,
+    dailyTraffic: "~70 vessels/day",
+    oilFlowMbpd: 5.5,
+    globalTradeShare: "~12-15% of global trade, ~30% of container traffic",
+    controlledBy: ["Egypt (Suez Canal Authority)"],
+    contestedBy: [],
+    threats: [
+      "Single-point failure: one grounding blocks global trade (cf. Ever Given 2021)",
+      "Houthi attacks in Red Sea forcing rerouting via Cape of Good Hope",
+      "Egyptian political instability could affect operations",
+      "Capacity constrained despite 2015 expansion",
+      "Terrorist targeting risk (Sinai insurgency proximity)",
+    ],
+    commodities: ["Container goods", "Crude oil", "LNG", "Grain", "Manufactured goods"],
+    alternatives: "Cape of Good Hope adds 10-14 days and $1M+ per transit in fuel costs. No realistic alternative for time-sensitive cargo.",
+    recentEvents: [
+      "Houthi Red Sea campaign (2023-present) diverted 60%+ of traffic",
+      "Ever Given grounding (2021) blocked canal for 6 days, $9.6B daily trade impact",
+      "Egypt raised transit fees multiple times since 2022",
+      "Insurance premiums for Red Sea transit surged 10x",
+    ],
+    significance: "The gateway between Europe and Asia. Houthi attacks have already demonstrated how disruption cascades globally: container rates surged 300%, European supply chains stretched, and Egyptian revenue dropped sharply. Permanent closure would restructure global trade routes.",
+    threatLevel: 5,
+  },
+  "bab-el-mandeb": {
+    id: "bab-el-mandeb",
+    name: "Bab el-Mandeb",
+    coords: { lat: 12.583, lng: 43.333 },
+    widthKm: 26,
+    depthM: 310,
+    dailyTraffic: "~60 vessels/day",
+    oilFlowMbpd: 6.2,
+    globalTradeShare: "~10% of global seaborne oil trade",
+    controlledBy: ["Djibouti", "Yemen", "Eritrea"],
+    contestedBy: ["Houthi forces (Ansar Allah)", "US/UK naval coalition", "Iran (proxy influence)"],
+    threats: [
+      "Active Houthi anti-ship missile and drone campaign",
+      "Iranian-supplied cruise missiles and UAVs targeting transits",
+      "Proximity to Yemeni coastline (within ASCM range)",
+      "Multiple foreign military bases in Djibouti create friction",
+      "Piracy spillover from Somali coast",
+    ],
+    commodities: ["Crude oil", "LNG", "Container goods", "Grain"],
+    alternatives: "Cape of Good Hope bypass adds 10+ days. Rerouting negates Suez Canal value entirely.",
+    recentEvents: [
+      "Houthi campaign hit 100+ commercial vessels since late 2023",
+      "US/UK Operation Prosperity Guardian ongoing",
+      "Multiple cargo and tanker vessels struck by missiles/drones",
+      "Insurance war-risk premiums at historic highs for Red Sea transit",
+    ],
+    significance: "The southern gate to the Suez Canal. Currently the most actively contested chokepoint on Earth. Houthi attacks have effectively weaponized commercial shipping lanes, forcing the largest rerouting of global trade since WWII. Control of Bab el-Mandeb is control of Europe-Asia connectivity.",
+    threatLevel: 5,
+  },
+};
+
 export const STRATEGIC_LOCATIONS: StrategicLocation[] = [
   { id: "un-hq", name: "UN HQ", type: "institution", coords: { lat: 40.7489, lng: -73.968 } },
   { id: "opec-vienna", name: "OPEC Vienna", type: "institution", coords: { lat: 48.2082, lng: 16.3738 } },

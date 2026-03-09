@@ -3,9 +3,13 @@ import { db, schema } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
 import { analyzeSignal } from "@/lib/analysis/claude";
 import { runRedTeamAssessment } from "@/lib/analysis/red-team";
+import { creditGate } from "@/lib/credits/gate";
 
 export async function POST(request: NextRequest) {
   try {
+    const gate = await creditGate();
+    if (gate.response) return gate.response;
+
     const body = await request.json();
     const { signalId } = body;
 

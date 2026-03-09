@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { supportTickets, supportMessages } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { sendEmail, getUserEmail } from "@/lib/email";
+import { ticketOpenedEmail } from "@/lib/email/templates";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -57,6 +59,16 @@ export async function POST(req: NextRequest) {
       isStaff: 0,
       createdAt: now,
     });
+
+    // Send confirmation email
+    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const email = await getUserEmail(`user:${session.user.name}`);
+    if (email) {
+      const tpl = ticketOpenedEmail(session.user.name, ticket.id, ticket.title, `${baseUrl}/support/${ticket.uuid}`);
+      sendEmail({ to: email, ...tpl, type: "ticket_opened" }).catch((err) =>
+        console.error("Ticket opened email failed:", err)
+      );
+    }
 
     return NextResponse.json({ ticket });
   } catch (error) {

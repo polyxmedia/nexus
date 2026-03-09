@@ -2,32 +2,46 @@
 
 import { useEffect, useState } from "react";
 
-type Theme = "dark" | "light";
+export type Theme = "dark" | "dim" | "soft" | "light";
+
+const ALL_THEMES: Theme[] = ["dark", "dim", "soft", "light"];
+
+const THEME_CLASSES: Record<Theme, string> = {
+  dark: "",
+  dim: "dim",
+  soft: "soft",
+  light: "light",
+};
+
+function applyTheme(theme: Theme) {
+  const el = document.documentElement;
+  el.classList.remove("light", "dim", "soft");
+  const cls = THEME_CLASSES[theme];
+  if (cls) el.classList.add(cls);
+}
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("dim");
 
   useEffect(() => {
     const stored = localStorage.getItem("nexus-theme") as Theme | null;
-    const initial = stored || "dark";
-    setTheme(initial);
-    if (initial === "light") {
-      document.documentElement.classList.add("light");
+    let initial: Theme;
+    if (stored && ALL_THEMES.includes(stored)) {
+      initial = stored;
     } else {
-      document.documentElement.classList.remove("light");
+      // Respect OS preference: light OS → soft, dark OS → dim
+      const prefersLight = window.matchMedia?.("(prefers-color-scheme: light)").matches;
+      initial = prefersLight ? "light" : "dim";
     }
+    setTheme(initial);
+    applyTheme(initial);
   }, []);
 
-  function toggle() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
+  function setAndPersist(next: Theme) {
     setTheme(next);
     localStorage.setItem("nexus-theme", next);
-    if (next === "light") {
-      document.documentElement.classList.add("light");
-    } else {
-      document.documentElement.classList.remove("light");
-    }
+    applyTheme(next);
   }
 
-  return { theme, toggle };
+  return { theme, setTheme: setAndPersist };
 }

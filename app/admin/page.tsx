@@ -822,7 +822,7 @@ function EmailPanel() {
   return (
     <div className="space-y-6">
       {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
           <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Total Sent</div>
@@ -890,7 +890,7 @@ function EmailPanel() {
       <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/20 to-transparent" />
         <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Email Templates</h3>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
           {EMAIL_TEMPLATES.map((t) => {
             const color = EMAIL_TYPE_COLORS[t.id] || EMAIL_TYPE_COLORS.other;
             const count = typeCounts[t.id] || 0;
@@ -1729,7 +1729,7 @@ function AnalyticsPanel({
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         {[
           { label: "Pageviews", value: analytics.totalViews.toLocaleString(), icon: MousePointer, color: "text-accent-cyan" },
           { label: "Visitors", value: (analytics.uniqueVisitors || analytics.uniqueSessions).toLocaleString(), icon: Users, color: "text-accent-emerald" },
@@ -1916,7 +1916,7 @@ function AnalyticsPanel({
       </div>
 
       {/* Tech breakdown: Devices, Browsers, OS */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         {/* Devices */}
         <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
           <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Devices</div>
@@ -2571,64 +2571,62 @@ export default function AdminPage() {
         {/* Tiers Tab */}
         <Tabs.Content value="tiers">
           <div className="space-y-4 max-w-3xl">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] text-navy-400">
-                Manage subscription tiers. Connect each tier to a Stripe Price ID for checkout.
-              </p>
-              <div className="flex items-center gap-2">
-                {syncAllResult && (
-                  <span className={`text-[10px] font-mono ${syncAllResult.includes("Failed") ? "text-accent-rose" : "text-accent-emerald"}`}>
-                    {syncAllResult}
-                  </span>
-                )}
-                {tiers.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={syncingAll}
-                    onClick={async () => {
-                      setSyncingAll(true);
-                      setSyncAllResult(null);
-                      let ok = 0;
-                      let fail = 0;
-                      for (const t of tiers) {
-                        try {
-                          const res = await fetch("/api/admin/tiers/stripe-sync", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ tierId: t.id }),
-                          });
-                          if (res.ok) ok++;
-                          else fail++;
-                        } catch { fail++; }
-                      }
-                      setSyncAllResult(fail > 0 ? `${ok} synced, ${fail} failed` : `${ok} tiers synced`);
-                      setSyncingAll(false);
-                      // Refresh tiers to get updated Stripe IDs
-                      fetch("/api/admin/tiers").then(r => r.json()).then(data => { if (Array.isArray(data)) setTiers(data); });
-                      setTimeout(() => setSyncAllResult(null), 5000);
-                    }}
-                  >
-                    {syncingAll ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CreditCard className="h-3 w-3 mr-1" />}
-                    Sync All to Stripe
-                  </Button>
-                )}
-                {tiers.length === 0 && (
-                  <Button variant="outline" size="sm" onClick={seedTiers} disabled={seeding}>
-                    {seeding ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
-                    Seed Default Tiers
-                  </Button>
-                )}
+            <p className="text-[11px] text-navy-400">
+              Manage subscription tiers. Connect each tier to a Stripe Price ID for checkout.
+            </p>
+            <div className="flex items-center gap-2">
+              {syncAllResult && (
+                <span className={`text-[10px] font-mono ${syncAllResult.includes("Failed") ? "text-accent-rose" : "text-accent-emerald"}`}>
+                  {syncAllResult}
+                </span>
+              )}
+              {tiers.length > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowNewTier(true)}
-                  disabled={showNewTier}
+                  disabled={syncingAll}
+                  onClick={async () => {
+                    setSyncingAll(true);
+                    setSyncAllResult(null);
+                    let ok = 0;
+                    let fail = 0;
+                    for (const t of tiers) {
+                      try {
+                        const res = await fetch("/api/admin/tiers/stripe-sync", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ tierId: t.id }),
+                        });
+                        if (res.ok) ok++;
+                        else fail++;
+                      } catch { fail++; }
+                    }
+                    setSyncAllResult(fail > 0 ? `${ok} synced, ${fail} failed` : `${ok} tiers synced`);
+                    setSyncingAll(false);
+                    // Refresh tiers to get updated Stripe IDs
+                    fetch("/api/admin/tiers").then(r => r.json()).then(data => { if (Array.isArray(data)) setTiers(data); });
+                    setTimeout(() => setSyncAllResult(null), 5000);
+                  }}
                 >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add Tier
+                  {syncingAll ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CreditCard className="h-3 w-3 mr-1" />}
+                  Sync All to Stripe
                 </Button>
-              </div>
+              )}
+              {tiers.length === 0 && (
+                <Button variant="outline" size="sm" onClick={seedTiers} disabled={seeding}>
+                  {seeding ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
+                  Seed Default Tiers
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNewTier(true)}
+                disabled={showNewTier}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add Tier
+              </Button>
             </div>
 
             {showNewTier && (
@@ -2814,17 +2812,26 @@ export default function AdminPage() {
                                   sideOffset={4}
                                   align="end"
                                 >
-                                  {/* Impersonate */}
-                                  {user.username !== session?.user?.name && user.role !== "admin" && !user.blocked && (
-                                    <DropdownMenu.Item
-                                      className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-accent-cyan cursor-pointer outline-none hover:bg-accent-cyan/10 transition-colors"
-                                      onSelect={() => impersonateUser(user.username)}
-                                      disabled={impersonating === user.username}
-                                    >
-                                      <UserCheck className="h-3 w-3" />
-                                      {impersonating === user.username ? "Impersonating..." : "Impersonate"}
-                                    </DropdownMenu.Item>
-                                  )}
+                                  {/* Impersonate - always show for other users, disabled for admins/blocked */}
+                                  {user.username !== session?.user?.name && (() => {
+                                    const canImpersonate = user.role !== "admin" && !user.blocked;
+                                    const reason = user.role === "admin" ? "Cannot impersonate admins" : user.blocked ? "Cannot impersonate blocked users" : "";
+                                    return (
+                                      <DropdownMenu.Item
+                                        className={`flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono outline-none transition-colors ${
+                                          canImpersonate
+                                            ? "text-accent-cyan cursor-pointer hover:bg-accent-cyan/10"
+                                            : "text-navy-700 cursor-not-allowed line-through"
+                                        }`}
+                                        onSelect={canImpersonate ? () => impersonateUser(user.username) : undefined}
+                                        disabled={!canImpersonate || impersonating === user.username}
+                                        title={reason}
+                                      >
+                                        <UserCheck className="h-3 w-3" />
+                                        {impersonating === user.username ? "Impersonating..." : "Impersonate"}
+                                      </DropdownMenu.Item>
+                                    );
+                                  })()}
 
                                   {/* Role toggle */}
                                   {user.role !== "admin" ? (

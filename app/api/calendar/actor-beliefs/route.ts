@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireTier } from "@/lib/auth/require-tier";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
 import {
   getCalendarActorInsights,
   ACTOR_PROFILES,
@@ -13,8 +14,10 @@ import {
  * Maps calendar events on that date to actor behavioral modifiers.
  */
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("analyst");
-  if ("response" in tierCheck) return tierCheck.response;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const dateParam = request.nextUrl.searchParams.get("date");
   if (!dateParam) {

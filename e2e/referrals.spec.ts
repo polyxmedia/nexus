@@ -80,10 +80,9 @@ test.describe.serial("Referral System", () => {
 
   // ── 3. Click tracking redirects to register with ref param ──
 
-  test("click tracking endpoint redirects to register with ref code", async () => {
-    // Use authenticated context since the API route may be behind middleware
-    const page = await referrerContext.newPage();
-    const response = await page.request.get(`/api/referrals/click?code=${referralCode}`, {
+  test("clean referral URL redirects to register with ref code", async ({ page }) => {
+    // /r/:code is public — no auth needed
+    const response = await page.request.get(`/r/${referralCode}`, {
       maxRedirects: 0,
     });
 
@@ -92,7 +91,6 @@ test.describe.serial("Referral System", () => {
     const location = response.headers()["location"];
     expect(location).toContain("/register");
     expect(location).toContain(`ref=${referralCode}`);
-    await page.close();
   });
 
   // ── 4. Referred user registers via referral link ──
@@ -265,18 +263,15 @@ test.describe.serial("Referral System", () => {
 
   // ── 12. Click tracking without code redirects to register ──
 
-  test("click endpoint without code still redirects to register", async () => {
-    const page = await referrerContext.newPage();
-    const response = await page.request.get("/api/referrals/click", {
+  test("referral URL with invalid code still redirects to register", async ({ page }) => {
+    const response = await page.request.get("/r/nonexistent-code", {
       maxRedirects: 0,
     });
 
     expect([301, 302, 307, 308]).toContain(response.status());
     const location = response.headers()["location"];
     expect(location).toContain("/register");
-    // No ref param when no code
-    expect(location).not.toContain("ref=");
-    await page.close();
+    expect(location).toContain("ref=nonexistent-code");
   });
 
   // ── 13. Commission plan shows 20% rate ──

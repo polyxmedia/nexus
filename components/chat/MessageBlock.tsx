@@ -185,13 +185,20 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBl
           <span>
             {(turn.tokenUsage.elapsedMs / 1000).toFixed(1)}s
           </span>
-          {turn.tokenUsage.creditsRemaining != null && turn.tokenUsage.creditsRemaining >= 0 && !isStreaming && (
-            <>
-              <span className="text-navy-700">|</span>
-              <span className={turn.tokenUsage.creditsRemaining < 5000 ? "text-accent-amber" : ""}>
-                {turn.tokenUsage.creditsRemaining.toLocaleString()} remaining
-              </span>
-            </>
+          {!isStreaming && (
+            turn.tokenUsage.unlimited ? (
+              <>
+                <span className="text-navy-700">|</span>
+                <span className="text-accent-cyan">unlimited</span>
+              </>
+            ) : turn.tokenUsage.creditsRemaining != null && turn.tokenUsage.creditsRemaining >= 0 ? (
+              <>
+                <span className="text-navy-700">|</span>
+                <span className={turn.tokenUsage.creditsRemaining < 5000 ? "text-accent-amber" : ""}>
+                  {turn.tokenUsage.creditsRemaining.toLocaleString()} remaining
+                </span>
+              </>
+            ) : null
           )}
         </div>
       )}

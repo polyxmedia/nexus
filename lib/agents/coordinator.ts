@@ -311,6 +311,7 @@ export async function runIntelligenceCycle(): Promise<CycleResult> {
           category: "geopolitical",
           timeframe: action.urgency === "immediate" ? "7 days" : "30 days",
           deadline: new Date(Date.now() + (action.urgency === "immediate" ? 7 : 30) * 86400000).toISOString().split("T")[0],
+          createdBy: "system",
         });
       } catch {
         // prediction may already exist, continue

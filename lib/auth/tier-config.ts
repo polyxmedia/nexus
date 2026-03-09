@@ -116,6 +116,13 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "save_to_knowledge": "operator",
   "add_knowledge": "operator",
   "get_operator_context": "operator",
+
+  // Memory & artifacts (all tiers)
+  "recall_memory": "analyst",
+  "save_memory": "analyst",
+  "delete_memory": "analyst",
+  "create_artifact": "analyst",
+  "save_document_to_knowledge": "operator",
 };
 
 // ── Page → Minimum Tier (for client-side UpgradeGate) ──

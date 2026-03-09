@@ -303,7 +303,7 @@ function ConfigForm({
             <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">
               Portfolio Simulation
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-1">
                   Initial Capital ($)
@@ -427,7 +427,7 @@ export default function BacktestPage() {
   };
 
   return (
-    <main className="min-h-screen p-6 ml-48">
+    <main className="min-h-screen p-4 pt-14 md:p-6 ml-0 md:ml-48">
       {/* Header */}
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center gap-3 mb-6">

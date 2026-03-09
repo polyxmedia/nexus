@@ -53,6 +53,9 @@ function altBand(m: number): { label: string; opacity: number } {
 
 const iconCache = new Map<string, L.DivIcon>();
 
+// Plane silhouette SVG path (top-down view, pointing up in a 24x24 viewBox)
+const PLANE_PATH = "M12,2 L12,8 L4,14 L4,16 L12,13 L12,18 L9,20 L9,22 L12,21 L15,22 L15,20 L12,18 L12,13 L20,16 L20,14 L12,8 Z";
+
 function getIcon(heading: number, isMilitary: boolean, altMeters: number): L.DivIcon {
   const hBucket = Math.round(heading / 5) * 5;
   const { opacity } = altBand(altMeters);
@@ -64,22 +67,17 @@ function getIcon(heading: number, isMilitary: boolean, altMeters: number): L.Div
 
   const color = isMilitary ? "#f43f5e" : "#94a3b8";
   const glow = isMilitary
-    ? "filter:drop-shadow(0 0 4px rgba(244,63,94,0.5));"
+    ? "filter:drop-shadow(0 0 5px rgba(244,63,94,0.6));"
     : "";
-  const size = isMilitary ? 22 : 16;
+  const size = isMilitary ? 30 : 24;
   const half = size / 2;
   const op = oBucket / 10;
 
-  // Clean minimal aircraft chevron
-  const svg = isMilitary
-    ? `<polygon points="12,2 20,14 12,11 4,14" fill="${color}" opacity="${op}"/>`
-    : `<polygon points="12,3 18,14 12,12 6,14" fill="${color}" opacity="${op}"/>`;
-
   icon = L.divIcon({
-    html: `<svg viewBox="0 0 24 16" width="${size}" height="${Math.round(size * 0.67)}" style="transform:rotate(${hBucket}deg);${glow}">${svg}</svg>`,
+    html: `<div style="width:${size}px;height:${size}px;cursor:pointer;padding:2px"><svg viewBox="0 0 24 24" width="${size}" height="${size}" style="transform:rotate(${hBucket}deg);${glow}"><path d="${PLANE_PATH}" fill="${color}" opacity="${op}" stroke="${isMilitary ? "rgba(244,63,94,0.4)" : "rgba(148,163,184,0.3)"}" stroke-width="0.5"/></svg></div>`,
     className: "",
-    iconSize: [size, Math.round(size * 0.67)],
-    iconAnchor: [half, Math.round(size * 0.67 / 2)],
+    iconSize: [size + 4, size + 4],
+    iconAnchor: [half + 2, half + 2],
   });
 
   iconCache.set(key, icon);
@@ -264,7 +262,7 @@ export function AircraftLayer({ aircraft, onAircraftClick }: AircraftLayerProps)
         if (!tooltipBound) {
           marker.bindTooltip(buildTooltipHtml(ac), {
             direction: "top",
-            offset: [0, -8],
+            offset: [0, -12],
             className: "warroom-tooltip",
           });
           tooltipBound = true;

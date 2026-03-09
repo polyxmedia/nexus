@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import { Metric } from "@/components/ui/metric";
@@ -25,6 +25,13 @@ import {
   ChevronRight,
   TrendingUp,
   TrendingDown,
+  Shield,
+  Crosshair,
+  Activity,
+  Zap,
+  Eye,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import {
@@ -40,7 +47,16 @@ import {
   LineChart,
   Line,
   CartesianGrid,
+  ScatterChart,
+  Scatter,
+  ReferenceLine,
+  Area,
+  AreaChart,
 } from "recharts";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface Prediction {
   id: number;
@@ -56,6 +72,21 @@ interface Prediction {
   metrics: string | null;
   createdAt: string;
   resolvedAt: string | null;
+  direction: string | null;
+  priceTarget: number | null;
+  referenceSymbol: string | null;
+  directionCorrect: number | null;
+  levelCorrect: number | null;
+  regimeAtCreation: string | null;
+  referencePrices: string | null;
+  regimeInvalidated: number | null;
+  preEvent: number | null;
+}
+
+interface BeliefUpdate {
+  date: string;
+  confidence: number;
+  reason?: string;
 }
 
 const CATEGORY_CONFIG: Record<string, {
@@ -120,9 +151,63 @@ interface FeedbackReport {
   timeframeAccuracy: Record<string, { count: number; brierScore: number; binaryAccuracy: number; reliable: boolean }>;
   recentTrend: { recentBrier: number; priorBrier: number; improving: boolean; windowSize: number } | null;
   resolutionBias: { avgLlmScore: number; binaryAccuracy: number; partialRate: number; biasDirection: string; biasWarning: string | null };
+  directionLevel: { totalWithDirection: number; directionCorrectRate: number; totalWithLevel: number; levelCorrectRate: number; partialRate: number };
+  regimeInvalidatedCount: number;
+  postEventCount: number;
+  bin: {
+    bias: number;
+    biasDirection: string;
+    noise: number;
+    information: number;
+    brierScore: number;
+    interpretation: string;
+    recommendation: string;
+    byCategory: Array<{ category: string; bias: number; noise: number; information: number }>;
+  } | null;
 }
 
 const POLL_INTERVAL = 30_000;
+
+// ---------------------------------------------------------------------------
+// Helper: parse belief history from metrics JSON
+// ---------------------------------------------------------------------------
+function parseBeliefHistory(metrics: string | null): BeliefUpdate[] {
+  if (!metrics) return [];
+  try {
+    const parsed = JSON.parse(metrics);
+    return Array.isArray(parsed.beliefHistory) ? parsed.beliefHistory : [];
+  } catch { return []; }
+}
+
+function parseGrounding(metrics: string | null): string | null {
+  if (!metrics) return null;
+  try { return JSON.parse(metrics).grounding || null; } catch { return null; }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: compute Brier score for a single prediction
+// ---------------------------------------------------------------------------
+function singleBrier(confidence: number, outcome: string | null): number {
+  const o = outcome === "confirmed" ? 1 : outcome === "partial" ? 0.5 : 0;
+  return (confidence - o) ** 2;
+}
+
+// ---------------------------------------------------------------------------
+// Section Header component
+// ---------------------------------------------------------------------------
+function SectionHeader({ label, icon, badge }: { label: string; icon?: React.ReactNode; badge?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-navy-700/20">
+      {icon}
+      <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">{label}</h3>
+      {badge}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function PredictionsPage() {
   const router = useRouter();
@@ -133,7 +218,7 @@ export default function PredictionsPage() {
   const [generating, setGenerating] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [activeOutcome, setActiveOutcome] = useState<string | null>(null); // null=all, "pending", "confirmed", "denied", "partial", "expired"
+  const [activeOutcome, setActiveOutcome] = useState<string | null>(null);
   const [confidenceRange, setConfidenceRange] = useState<[number, number]>([0, 1]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"deadline" | "confidence" | "created">("deadline");
@@ -143,6 +228,7 @@ export default function PredictionsPage() {
 
   const [feedbackReport, setFeedbackReport] = useState<FeedbackReport | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(true);
 
   const [claim, setClaim] = useState("");
   const [timeframe, setTimeframe] = useState("30 days");
@@ -250,7 +336,7 @@ export default function PredictionsPage() {
     finally { setResolving(false); }
   };
 
-  // Derived data
+  // ── Derived data ──
   const today = new Date().toISOString().split("T")[0];
   const resolved = predictions.filter((p) => p.outcome);
   const pending = predictions.filter((p) => !p.outcome);
@@ -302,7 +388,216 @@ export default function PredictionsPage() {
     accuracyOverTime.push({ date, accuracy: Math.round((cumHits / cumTotal) * 100), cumHits, cumTotal });
   }
 
-  // Filtered predictions for display
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW ANALYTICS COMPUTATIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 1. Sharpness distribution - histogram of confidence values
+  const sharpnessData = useMemo(() => {
+    const buckets = Array.from({ length: 10 }, (_, i) => ({
+      range: `${i * 10}-${(i + 1) * 10}%`,
+      min: i * 0.1,
+      max: (i + 1) * 0.1,
+      count: 0,
+      pending: 0,
+      resolved: 0,
+    }));
+    for (const p of predictions) {
+      const idx = Math.min(Math.floor(p.confidence * 10), 9);
+      buckets[idx].count++;
+      if (p.outcome) buckets[idx].resolved++;
+      else buckets[idx].pending++;
+    }
+    return buckets;
+  }, [predictions]);
+
+  // 2. Calibration curve data (scatter points for reliability diagram)
+  const calibrationCurveData = useMemo(() => {
+    if (!feedbackReport?.calibration) return [];
+    return feedbackReport.calibration
+      .filter((b) => b.count >= 1)
+      .map((b) => ({
+        predicted: Math.round(b.midpoint * 100),
+        observed: Math.round(b.confirmedRate * 100),
+        count: b.count,
+        reliable: b.reliable,
+      }));
+  }, [feedbackReport]);
+
+  // 3. Paper portfolio simulation
+  const portfolioData = useMemo(() => {
+    const sorted = [...resolved]
+      .filter((p) => p.outcome && p.outcome !== "expired")
+      .sort((a, b) => (a.resolvedAt || a.deadline).localeCompare(b.resolvedAt || b.deadline));
+
+    if (sorted.length < 2) return null;
+
+    let equity = 1000; // start with $1000
+    let peak = equity;
+    let maxDrawdown = 0;
+    let wins = 0;
+    let losses = 0;
+    const returns: number[] = [];
+    const curve: Array<{ date: string; equity: number; drawdown: number }> = [
+      { date: sorted[0]?.createdAt?.split("T")[0] || "", equity: 1000, drawdown: 0 },
+    ];
+
+    for (const p of sorted) {
+      // Position size: Kelly-inspired, scaled by confidence
+      const size = Math.min(p.confidence * 0.3, 0.15) * equity; // max 15% of equity per trade
+      const isWin = p.outcome === "confirmed";
+      const isPartial = p.outcome === "partial";
+
+      let pnl: number;
+      if (isWin) {
+        pnl = size * (0.5 + p.confidence * 0.5); // higher confidence wins pay more
+        wins++;
+      } else if (isPartial) {
+        pnl = size * 0.1; // small gain on partials
+        wins++;
+      } else {
+        pnl = -size * 0.8; // losses are sized down (stop loss)
+        losses++;
+      }
+
+      const ret = pnl / equity;
+      returns.push(ret);
+      equity += pnl;
+      peak = Math.max(peak, equity);
+      const dd = (peak - equity) / peak;
+      maxDrawdown = Math.max(maxDrawdown, dd);
+
+      curve.push({
+        date: (p.resolvedAt || p.deadline).split("T")[0],
+        equity: Math.round(equity * 100) / 100,
+        drawdown: Math.round(dd * 10000) / 100,
+      });
+    }
+
+    // Sharpe ratio (annualized, assuming ~252 trading days)
+    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((a, r) => a + (r - avgReturn) ** 2, 0) / returns.length;
+    const stdReturn = Math.sqrt(variance);
+    const sharpe = stdReturn > 0 ? (avgReturn / stdReturn) * Math.sqrt(252) : 0;
+
+    const totalReturn = (equity - 1000) / 1000;
+
+    return {
+      curve,
+      sharpe: Math.round(sharpe * 100) / 100,
+      maxDrawdown: Math.round(maxDrawdown * 10000) / 100,
+      totalReturn: Math.round(totalReturn * 10000) / 100,
+      winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0,
+      finalEquity: Math.round(equity * 100) / 100,
+      tradeCount: sorted.length,
+    };
+  }, [resolved]);
+
+  // 4. Forecast horizon decay
+  const horizonData = useMemo(() => {
+    return resolved
+      .filter((p) => p.outcome && p.outcome !== "expired" && p.createdAt)
+      .map((p) => {
+        const created = new Date(p.createdAt);
+        const dead = new Date(p.deadline);
+        const horizonDays = Math.max(1, Math.ceil((dead.getTime() - created.getTime()) / 86400000));
+        const brier = singleBrier(p.confidence, p.outcome);
+        return {
+          horizon: horizonDays,
+          brier: Math.round(brier * 1000) / 1000,
+          outcome: p.outcome,
+          category: p.category,
+        };
+      });
+  }, [resolved]);
+
+  // 5. Regime-conditional performance
+  const regimePerformance = useMemo(() => {
+    const regimes: Record<string, { total: number; hits: number; brierSum: number }> = {};
+    for (const p of resolved) {
+      if (!p.outcome || p.outcome === "expired") continue;
+      const regime = p.regimeAtCreation || "unknown";
+      if (!regimes[regime]) regimes[regime] = { total: 0, hits: 0, brierSum: 0 };
+      regimes[regime].total++;
+      if (p.outcome === "confirmed") regimes[regime].hits++;
+      regimes[regime].brierSum += singleBrier(p.confidence, p.outcome);
+    }
+    return Object.entries(regimes).map(([regime, data]) => ({
+      regime,
+      total: data.total,
+      accuracy: data.total > 0 ? Math.round((data.hits / data.total) * 100) : 0,
+      brier: data.total > 0 ? Math.round((data.brierSum / data.total) * 1000) / 1000 : 0,
+    }));
+  }, [resolved]);
+
+  // 6. Rolling Brier (model health / kill switch)
+  const rollingBrierData = useMemo(() => {
+    const windowSize = 10;
+    const sorted = [...resolved]
+      .filter((p) => p.outcome && p.outcome !== "expired")
+      .sort((a, b) => (a.resolvedAt || a.deadline).localeCompare(b.resolvedAt || b.deadline));
+
+    if (sorted.length < windowSize) return [];
+
+    const points: Array<{ index: number; brier: number; date: string }> = [];
+    for (let i = windowSize - 1; i < sorted.length; i++) {
+      const window = sorted.slice(i - windowSize + 1, i + 1);
+      const avgBrier = window.reduce((sum, p) => sum + singleBrier(p.confidence, p.outcome), 0) / windowSize;
+      points.push({
+        index: i + 1,
+        brier: Math.round(avgBrier * 1000) / 1000,
+        date: (sorted[i].resolvedAt || sorted[i].deadline).split("T")[0],
+      });
+    }
+    return points;
+  }, [resolved]);
+
+  // 7. Belief revision trails (predictions with history)
+  const beliefTrails = useMemo(() => {
+    return predictions
+      .map((p) => ({
+        ...p,
+        history: parseBeliefHistory(p.metrics),
+      }))
+      .filter((p) => p.history.length > 0)
+      .sort((a, b) => b.history.length - a.history.length)
+      .slice(0, 8);
+  }, [predictions]);
+
+  // 8. Tail risk monitor
+  const tailRisks = useMemo(() => {
+    return pending
+      .filter((p) => {
+        // Low probability but potentially high impact
+        const isLowProb = p.confidence <= 0.3;
+        const isGeopolitical = p.category === "geopolitical";
+        const hasDirection = !!p.direction;
+        return isLowProb || (isGeopolitical && p.confidence <= 0.4) || (hasDirection && p.confidence <= 0.35);
+      })
+      .sort((a, b) => a.confidence - b.confidence)
+      .slice(0, 6);
+  }, [pending]);
+
+  // 9. Direction accuracy breakdown
+  const directionStats = useMemo(() => {
+    const withDir = resolved.filter((p) => p.direction && p.directionCorrect !== null);
+    const correct = withDir.filter((p) => p.directionCorrect === 1);
+    const withLevel = resolved.filter((p) => p.priceTarget && p.levelCorrect !== null);
+    const levelCorrect = withLevel.filter((p) => p.levelCorrect === 1);
+    return {
+      total: withDir.length,
+      correct: correct.length,
+      rate: withDir.length > 0 ? Math.round((correct.length / withDir.length) * 100) : 0,
+      levelTotal: withLevel.length,
+      levelCorrect: levelCorrect.length,
+      levelRate: withLevel.length > 0 ? Math.round((levelCorrect.length / withLevel.length) * 100) : 0,
+    };
+  }, [resolved]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FILTERING
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const filterPredictions = (list: Prediction[]) => {
     let filtered = list;
     if (activeCategory) filtered = filtered.filter((p) => p.category === activeCategory);
@@ -324,11 +619,10 @@ export default function PredictionsPage() {
     return [...list].sort((a, b) => {
       if (sortBy === "confidence") return b.confidence - a.confidence;
       if (sortBy === "created") return b.createdAt.localeCompare(a.createdAt);
-      return a.deadline.localeCompare(b.deadline); // deadline (default)
+      return a.deadline.localeCompare(b.deadline);
     });
   };
 
-  const allFiltered = filterPredictions(predictions);
   const displayPending = activeOutcome === null || activeOutcome === "pending"
     ? sortPredictions(filterPredictions(pending))
     : [];
@@ -364,20 +658,20 @@ export default function PredictionsPage() {
     </div>
   );
 
-  const getGrounding = (p: Prediction): string | null => {
-    if (!p.metrics) return null;
-    try { return JSON.parse(p.metrics).grounding || null; } catch { return null; }
-  };
-
   const chartTooltipStyle = {
     contentStyle: { background: "#0a0e1a", border: "1px solid #1e293b", borderRadius: "6px", fontSize: "11px" },
     labelStyle: { color: "#94a3b8" },
   };
 
+  // Model health status
+  const latestRollingBrier = rollingBrierData.length > 0 ? rollingBrierData[rollingBrierData.length - 1].brier : null;
+  const modelDegraded = latestRollingBrier !== null && latestRollingBrier > 0.35;
+  const modelWarning = latestRollingBrier !== null && latestRollingBrier > 0.28;
+
   return (
     <PageContainer
       title="Predictions"
-      subtitle="AI-generated falsifiable claims with auto-resolution"
+      subtitle="AI-generated falsifiable claims with auto-resolution and forecasting analytics"
       actions={
         <div className="flex items-center gap-2">
           <Button variant="primary" size="sm" onClick={aiGenerate} disabled={generating}>
@@ -405,6 +699,21 @@ export default function PredictionsPage() {
           : "border-accent-cyan/30 bg-accent-cyan/5 text-accent-cyan"
         }`}>
           {statusMessage.text}
+        </div>
+      )}
+
+      {/* ── Model Health Kill Switch ── */}
+      {modelDegraded && (
+        <div className="mb-4 rounded-md border border-signal-5/40 bg-signal-5/[0.06] px-4 py-3">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle className="h-4 w-4 text-signal-5" />
+            <span className="text-[10px] font-mono uppercase tracking-widest text-signal-5 font-bold">Model Degradation Detected</span>
+          </div>
+          <p className="text-xs text-navy-300">
+            Rolling Brier score ({latestRollingBrier?.toFixed(3)}) exceeds 0.35 threshold.
+            Recent predictions are performing worse than historical baseline.
+            Consider reducing position sizing and reviewing generation parameters.
+          </p>
         </div>
       )}
 
@@ -536,6 +845,593 @@ export default function PredictionsPage() {
         </div>
       )}
 
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* RESEARCH ANALYTICS SECTION                                        */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {!loading && resolved.length >= 3 && (
+        <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6">
+          <button
+            onClick={() => setAnalyticsOpen(!analyticsOpen)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-navy-800/30 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="h-3.5 w-3.5 text-accent-cyan" />
+              <span className="text-[10px] font-medium uppercase tracking-widest text-navy-400">
+                Research Analytics
+              </span>
+              <span className="text-[9px] text-navy-600 font-mono">
+                {resolved.length} resolved / {predictions.length} total
+              </span>
+            </div>
+            {analyticsOpen ? <ChevronDown className="h-3.5 w-3.5 text-navy-500" /> : <ChevronRight className="h-3.5 w-3.5 text-navy-500" />}
+          </button>
+
+          {analyticsOpen && (
+            <div className="px-4 pb-4 space-y-6">
+
+              {/* ── Row 1: Calibration Curve + Sharpness ── */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Calibration Curve (Reliability Diagram) */}
+                <div>
+                  <SectionHeader
+                    label="Calibration Curve"
+                    icon={<Crosshair className="h-3 w-3 text-accent-cyan" />}
+                    badge={<span className="text-[8px] text-navy-600 font-mono">Brier 1950 / Murphy 1973</span>}
+                  />
+                  {calibrationCurveData.length >= 2 ? (
+                    <div className="h-56 rounded bg-navy-950/60 p-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                          <XAxis
+                            type="number"
+                            dataKey="predicted"
+                            domain={[0, 100]}
+                            tick={{ fontSize: 9, fill: "#64748b" }}
+                            axisLine={false}
+                            tickLine={false}
+                            label={{ value: "Predicted (%)", position: "bottom", fontSize: 9, fill: "#475569", offset: 5 }}
+                          />
+                          <YAxis
+                            type="number"
+                            dataKey="observed"
+                            domain={[0, 100]}
+                            tick={{ fontSize: 9, fill: "#64748b" }}
+                            axisLine={false}
+                            tickLine={false}
+                            label={{ value: "Observed (%)", angle: -90, position: "insideLeft", fontSize: 9, fill: "#475569" }}
+                          />
+                          {/* Perfect calibration line */}
+                          <ReferenceLine
+                            segment={[{ x: 0, y: 0 }, { x: 100, y: 100 }]}
+                            stroke="#475569"
+                            strokeDasharray="4 4"
+                            strokeWidth={1}
+                          />
+                          <Tooltip
+                            {...chartTooltipStyle}
+                            formatter={(v: number, name: string) => [`${v}%`, name === "observed" ? "Observed" : "Predicted"]}
+                          />
+                          <Scatter
+                            data={calibrationCurveData}
+                            fill="#22d3ee"
+                            fillOpacity={0.8}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            shape={((props: any) => {
+                              const { cx, cy, payload } = props;
+                              const r = Math.max(4, Math.min(10, payload.count * 1.5));
+                              return (
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={r}
+                                  fill={payload.reliable ? "#22d3ee" : "#475569"}
+                                  fillOpacity={payload.reliable ? 0.8 : 0.4}
+                                  stroke={payload.reliable ? "#22d3ee" : "#475569"}
+                                  strokeWidth={1}
+                                />
+                              );
+                            })}
+                          />
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-56 rounded bg-navy-950/60 flex items-center justify-center text-navy-600 text-xs font-mono">
+                      Need 2+ calibration buckets with data
+                    </div>
+                  )}
+                  <p className="text-[9px] text-navy-600 mt-1.5">
+                    Points on the diagonal = perfect calibration. Above = underconfident. Below = overconfident. Size = sample count.
+                  </p>
+                </div>
+
+                {/* Sharpness Distribution */}
+                <div>
+                  <SectionHeader
+                    label="Sharpness Distribution"
+                    icon={<Zap className="h-3 w-3 text-accent-amber" />}
+                    badge={<span className="text-[8px] text-navy-600 font-mono">Confidence histogram</span>}
+                  />
+                  <div className="h-56 rounded bg-navy-950/60 p-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={sharpnessData} margin={{ top: 10, right: 10, bottom: 20, left: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis
+                          dataKey="range"
+                          tick={{ fontSize: 8, fill: "#64748b" }}
+                          axisLine={false}
+                          tickLine={false}
+                          label={{ value: "Confidence Range", position: "bottom", fontSize: 9, fill: "#475569", offset: 5 }}
+                        />
+                        <YAxis tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                        <Tooltip {...chartTooltipStyle} />
+                        <Bar dataKey="resolved" stackId="a" fill="#22d3ee" fillOpacity={0.6} name="Resolved" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="pending" stackId="a" fill="#f59e0b" fillOpacity={0.4} name="Pending" radius={[2, 2, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-[9px] text-navy-600 mt-1.5">
+                    A well-calibrated forecaster issues extreme probabilities (near 0% or 100%) and is right about them.
+                    A flat histogram at 50% means no discriminating power.
+                  </p>
+                </div>
+              </div>
+
+              {/* ── Row 2: Paper Portfolio + Model Health ── */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* Paper Portfolio */}
+                <div className="col-span-2">
+                  <SectionHeader
+                    label="Paper Portfolio Simulation"
+                    icon={<TrendingUp className="h-3 w-3 text-accent-emerald" />}
+                    badge={<span className="text-[8px] text-navy-600 font-mono">Kelly-sized, 15% max position</span>}
+                  />
+                  {portfolioData ? (
+                    <>
+                      <div className="grid grid-cols-5 gap-2 mb-3">
+                        <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
+                          <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Total Return</span>
+                          <span className={`text-sm font-bold font-mono ${portfolioData.totalReturn >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                            {portfolioData.totalReturn >= 0 ? "+" : ""}{portfolioData.totalReturn}%
+                          </span>
+                        </div>
+                        <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
+                          <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Sharpe</span>
+                          <span className={`text-sm font-bold font-mono ${portfolioData.sharpe >= 1 ? "text-accent-emerald" : portfolioData.sharpe >= 0.5 ? "text-accent-amber" : "text-accent-rose"}`}>
+                            {portfolioData.sharpe}
+                          </span>
+                        </div>
+                        <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
+                          <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Max DD</span>
+                          <span className="text-sm font-bold font-mono text-accent-rose">
+                            -{portfolioData.maxDrawdown}%
+                          </span>
+                        </div>
+                        <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
+                          <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Win Rate</span>
+                          <span className="text-sm font-bold font-mono text-navy-100">
+                            {portfolioData.winRate}%
+                          </span>
+                        </div>
+                        <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
+                          <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Trades</span>
+                          <span className="text-sm font-bold font-mono text-navy-100">
+                            {portfolioData.tradeCount}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-44 rounded bg-navy-950/60 p-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={portfolioData.curve} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                            <XAxis dataKey="date" tick={{ fontSize: 8, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                            <Tooltip {...chartTooltipStyle} formatter={(v: number) => [`$${v}`, "Equity"]} />
+                            <ReferenceLine y={1000} stroke="#475569" strokeDasharray="4 4" />
+                            <Area
+                              type="monotone"
+                              dataKey="equity"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              fill="#10b981"
+                              fillOpacity={0.08}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-56 rounded bg-navy-950/60 flex items-center justify-center text-navy-600 text-xs font-mono">
+                      Need 2+ non-expired resolved predictions with outcomes
+                    </div>
+                  )}
+                </div>
+
+                {/* Model Health / Kill Switch */}
+                <div>
+                  <SectionHeader
+                    label="Model Health"
+                    icon={<Shield className="h-3 w-3" style={{ color: modelDegraded ? "#ef4444" : modelWarning ? "#f59e0b" : "#10b981" }} />}
+                    badge={
+                      <span className={`text-[8px] font-mono font-bold ${modelDegraded ? "text-signal-5" : modelWarning ? "text-accent-amber" : "text-accent-emerald"}`}>
+                        {modelDegraded ? "DEGRADED" : modelWarning ? "WARNING" : "HEALTHY"}
+                      </span>
+                    }
+                  />
+                  {rollingBrierData.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
+                          <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Rolling Brier</span>
+                          <span className={`text-sm font-bold font-mono ${latestRollingBrier! < 0.2 ? "text-accent-emerald" : latestRollingBrier! < 0.28 ? "text-accent-amber" : "text-accent-rose"}`}>
+                            {latestRollingBrier?.toFixed(3)}
+                          </span>
+                        </div>
+                        <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
+                          <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Window</span>
+                          <span className="text-sm font-bold font-mono text-navy-100">10</span>
+                        </div>
+                      </div>
+                      <div className="h-36 rounded bg-navy-950/60 p-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={rollingBrierData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                            <XAxis dataKey="index" tick={{ fontSize: 8, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 0.5]} tick={{ fontSize: 8, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                            <Tooltip {...chartTooltipStyle} formatter={(v: number) => [v.toFixed(3), "Brier"]} />
+                            {/* Degradation threshold */}
+                            <ReferenceLine y={0.35} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} />
+                            {/* Warning threshold */}
+                            <ReferenceLine y={0.28} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} />
+                            {/* Good threshold */}
+                            <ReferenceLine y={0.2} stroke="#10b981" strokeDasharray="4 4" strokeWidth={1} />
+                            <Line type="monotone" dataKey="brier" stroke="#22d3ee" strokeWidth={2} dot={{ r: 2, fill: "#22d3ee" }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2">
+                        <div className="flex items-center gap-1">
+                          <span className="inline-block w-3 h-px bg-accent-emerald" />
+                          <span className="text-[8px] text-navy-600">&lt;0.20 good</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="inline-block w-3 h-px bg-accent-amber" />
+                          <span className="text-[8px] text-navy-600">0.28 warning</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="inline-block w-3 h-px bg-accent-rose" />
+                          <span className="text-[8px] text-navy-600">0.35 kill switch</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-56 rounded bg-navy-950/60 flex items-center justify-center text-navy-600 text-xs font-mono">
+                      Need 10+ resolved predictions
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Row 3: Forecast Horizon + Regime Performance + Direction Stats ── */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* Forecast Horizon Decay */}
+                <div>
+                  <SectionHeader
+                    label="Horizon Decay"
+                    icon={<Clock className="h-3 w-3 text-accent-cyan" />}
+                    badge={<span className="text-[8px] text-navy-600 font-mono">Brier vs forecast window</span>}
+                  />
+                  {horizonData.length >= 3 ? (
+                    <div className="h-48 rounded bg-navy-950/60 p-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                          <XAxis
+                            type="number"
+                            dataKey="horizon"
+                            tick={{ fontSize: 9, fill: "#64748b" }}
+                            axisLine={false}
+                            tickLine={false}
+                            label={{ value: "Horizon (days)", position: "bottom", fontSize: 9, fill: "#475569", offset: 5 }}
+                          />
+                          <YAxis
+                            type="number"
+                            dataKey="brier"
+                            domain={[0, 1]}
+                            tick={{ fontSize: 9, fill: "#64748b" }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            {...chartTooltipStyle}
+                            formatter={(v: number, name: string) => [name === "brier" ? v.toFixed(3) : v, name === "brier" ? "Brier" : name]}
+                          />
+                          <ReferenceLine y={0.25} stroke="#475569" strokeDasharray="4 4" />
+                          <Scatter
+                            data={horizonData}
+                            fill="#22d3ee"
+                            fillOpacity={0.6}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            shape={((props: any) => {
+                              const color = props.payload.outcome === "confirmed" ? "#10b981" : props.payload.outcome === "partial" ? "#f59e0b" : "#f43f5e";
+                              return <circle cx={props.cx} cy={props.cy} r={3} fill={color} fillOpacity={0.7} />;
+                            })}
+                          />
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-48 rounded bg-navy-950/60 flex items-center justify-center text-navy-600 text-xs font-mono">
+                      Need 3+ resolved predictions
+                    </div>
+                  )}
+                  <div className="flex gap-3 mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-accent-emerald" />
+                      <span className="text-[8px] text-navy-600">Hit</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-accent-amber" />
+                      <span className="text-[8px] text-navy-600">Partial</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-accent-rose" />
+                      <span className="text-[8px] text-navy-600">Miss</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Regime-Conditional Performance */}
+                <div>
+                  <SectionHeader
+                    label="Regime Performance"
+                    icon={<Shield className="h-3 w-3 text-accent-emerald" />}
+                    badge={<span className="text-[8px] text-navy-600 font-mono">Accuracy by market regime</span>}
+                  />
+                  {regimePerformance.length > 0 ? (
+                    <div className="space-y-3">
+                      {regimePerformance.map((r) => {
+                        const regimeColor = r.regime === "wartime" ? "#ef4444" : r.regime === "transitional" ? "#f59e0b" : r.regime === "peacetime" ? "#10b981" : "#64748b";
+                        return (
+                          <div key={r.regime} className="rounded bg-navy-950/60 px-3 py-2.5">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-mono font-bold uppercase tracking-wider" style={{ color: regimeColor }}>
+                                {r.regime}
+                              </span>
+                              <span className="text-[9px] text-navy-500 font-mono">n={r.total}</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div>
+                                <span className="text-[8px] text-navy-600 block">Accuracy</span>
+                                <span className={`text-lg font-bold font-mono ${r.accuracy >= 60 ? "text-accent-emerald" : r.accuracy >= 40 ? "text-accent-amber" : "text-accent-rose"}`}>
+                                  {r.accuracy}%
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[8px] text-navy-600 block">Brier</span>
+                                <span className={`text-lg font-bold font-mono ${r.brier < 0.2 ? "text-accent-emerald" : r.brier < 0.3 ? "text-accent-amber" : "text-accent-rose"}`}>
+                                  {r.brier}
+                                </span>
+                              </div>
+                              <div className="flex-1">
+                                <div className="h-2 rounded-full bg-navy-700/50 overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${r.accuracy}%`, backgroundColor: regimeColor, opacity: 0.7 }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-48 rounded bg-navy-950/60 flex items-center justify-center text-navy-600 text-xs font-mono">
+                      No regime data available
+                    </div>
+                  )}
+                </div>
+
+                {/* Direction vs Level Stats */}
+                <div>
+                  <SectionHeader
+                    label="Direction vs Level"
+                    icon={<ArrowUpRight className="h-3 w-3 text-accent-cyan" />}
+                    badge={<span className="text-[8px] text-navy-600 font-mono">Split scoring</span>}
+                  />
+                  <div className="space-y-3">
+                    {/* Direction accuracy */}
+                    <div className="rounded bg-navy-950/60 px-3 py-2.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Direction Calls</span>
+                        <span className="text-[9px] text-navy-500 font-mono">n={directionStats.total}</span>
+                      </div>
+                      {directionStats.total > 0 ? (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-2xl font-bold font-mono ${directionStats.rate >= 60 ? "text-accent-emerald" : directionStats.rate >= 50 ? "text-accent-amber" : "text-accent-rose"}`}>
+                              {directionStats.rate}%
+                            </span>
+                            <span className="text-[10px] text-navy-500">{directionStats.correct}/{directionStats.total} correct</span>
+                          </div>
+                          <div className="mt-2 h-2 rounded-full bg-navy-700/50 overflow-hidden">
+                            <div className={`h-full rounded-full ${directionStats.rate >= 60 ? "bg-accent-emerald" : directionStats.rate >= 50 ? "bg-accent-amber" : "bg-accent-rose"}`} style={{ width: `${directionStats.rate}%`, opacity: 0.7 }} />
+                          </div>
+                          <div className="flex items-center gap-1 mt-1.5">
+                            {directionStats.rate >= 55 ? (
+                              <ArrowUpRight className="h-3 w-3 text-accent-emerald" />
+                            ) : (
+                              <ArrowDownRight className="h-3 w-3 text-accent-rose" />
+                            )}
+                            <span className="text-[9px] text-navy-500">
+                              {directionStats.rate >= 55 ? "Edge detected in directional calls" : "Below random on direction (needs work)"}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-navy-600">No directional predictions resolved yet</span>
+                      )}
+                    </div>
+
+                    {/* Level accuracy */}
+                    <div className="rounded bg-navy-950/60 px-3 py-2.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Price Level Calls</span>
+                        <span className="text-[9px] text-navy-500 font-mono">n={directionStats.levelTotal}</span>
+                      </div>
+                      {directionStats.levelTotal > 0 ? (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-2xl font-bold font-mono ${directionStats.levelRate >= 50 ? "text-accent-emerald" : directionStats.levelRate >= 30 ? "text-accent-amber" : "text-accent-rose"}`}>
+                              {directionStats.levelRate}%
+                            </span>
+                            <span className="text-[10px] text-navy-500">{directionStats.levelCorrect}/{directionStats.levelTotal} correct</span>
+                          </div>
+                          <div className="mt-2 h-2 rounded-full bg-navy-700/50 overflow-hidden">
+                            <div className={`h-full rounded-full ${directionStats.levelRate >= 50 ? "bg-accent-emerald" : directionStats.levelRate >= 30 ? "bg-accent-amber" : "bg-accent-rose"}`} style={{ width: `${directionStats.levelRate}%`, opacity: 0.7 }} />
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-navy-600">No price target predictions resolved yet</span>
+                      )}
+                    </div>
+
+                    {/* BIN decomposition summary */}
+                    {feedbackReport?.bin && (
+                      <div className="rounded bg-navy-950/60 px-3 py-2.5">
+                        <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider block mb-2">BIN Decomposition</span>
+                        <div className="space-y-1.5">
+                          {[
+                            { label: "Bias", value: feedbackReport.bin.bias, note: feedbackReport.bin.biasDirection, color: "#f43f5e" },
+                            { label: "Information", value: feedbackReport.bin.information, note: "signal extraction", color: "#10b981" },
+                            { label: "Noise", value: feedbackReport.bin.noise, note: "random scatter", color: "#f59e0b" },
+                          ].map((item) => (
+                            <div key={item.label} className="flex items-center gap-2">
+                              <span className="text-[9px] text-navy-500 w-16">{item.label}</span>
+                              <div className="flex-1 h-1.5 rounded-full bg-navy-700/50 overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${Math.min(item.value * 400, 100)}%`, backgroundColor: item.color, opacity: 0.7 }} />
+                              </div>
+                              <span className="text-[9px] text-navy-400 font-mono w-12 text-right">{item.value.toFixed(3)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[8px] text-navy-600 mt-1.5">{feedbackReport.bin.recommendation}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Row 4: Belief Revision Trail ── */}
+              {beliefTrails.length > 0 && (
+                <div>
+                  <SectionHeader
+                    label="Belief Revision Trail"
+                    icon={<Eye className="h-3 w-3 text-accent-amber" />}
+                    badge={<span className="text-[8px] text-navy-600 font-mono">Tetlock incremental updating</span>}
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    {beliefTrails.map((p) => {
+                      const catConfig = CATEGORY_CONFIG[p.category];
+                      const history = p.history;
+                      const initialConf = p.confidence;
+                      const latestConf = history.length > 0 ? history[history.length - 1].confidence : initialConf;
+                      const shift = latestConf - initialConf;
+
+                      // SVG sparkline for belief history
+                      const allConfs = [initialConf, ...history.map((h) => h.confidence)];
+                      const minC = Math.min(...allConfs) - 0.05;
+                      const maxC = Math.max(...allConfs) + 0.05;
+                      const range = maxC - minC || 0.1;
+                      const w = 160;
+                      const h = 28;
+                      const points = allConfs.map((c, i) => {
+                        const x = (i / (allConfs.length - 1 || 1)) * w;
+                        const y = h - ((c - minC) / range) * h;
+                        return `${x},${y}`;
+                      }).join(" ");
+
+                      return (
+                        <div key={p.id} className="rounded bg-navy-950/60 px-3 py-2.5 flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-navy-300 leading-snug truncate">{p.claim}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-[8px] font-mono uppercase ${catConfig?.color || "text-navy-400"}`}>{p.category}</span>
+                              <span className="text-[8px] text-navy-600 font-mono">{history.length} updates</span>
+                              <span className={`text-[8px] font-mono font-bold ${shift > 0 ? "text-accent-emerald" : shift < 0 ? "text-accent-rose" : "text-navy-400"}`}>
+                                {shift > 0 ? "+" : ""}{(shift * 100).toFixed(1)}pp
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
+                              <polyline points={points} fill="none" stroke={shift >= 0 ? "#10b981" : "#f43f5e"} strokeWidth="1.5" strokeLinejoin="round" opacity="0.7" />
+                              {allConfs.map((c, i) => (
+                                <circle
+                                  key={i}
+                                  cx={(i / (allConfs.length - 1 || 1)) * w}
+                                  cy={h - ((c - minC) / range) * h}
+                                  r={i === 0 ? 2.5 : i === allConfs.length - 1 ? 2.5 : 1.5}
+                                  fill={i === 0 ? "#64748b" : i === allConfs.length - 1 ? (shift >= 0 ? "#10b981" : "#f43f5e") : "#475569"}
+                                />
+                              ))}
+                            </svg>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Row 5: Tail Risk Monitor ── */}
+              {tailRisks.length > 0 && (
+                <div>
+                  <SectionHeader
+                    label="Tail Risk Monitor"
+                    icon={<AlertTriangle className="h-3 w-3 text-accent-rose" />}
+                    badge={
+                      <span className="text-[8px] text-signal-5 font-mono font-bold px-1.5 py-0.5 rounded bg-signal-5/10 border border-signal-5/20">
+                        {tailRisks.length} ACTIVE
+                      </span>
+                    }
+                  />
+                  <p className="text-[9px] text-navy-600 mb-2">
+                    Low-probability, high-impact pending predictions. These are the scenarios that blow up portfolios.
+                  </p>
+                  <div className="space-y-1.5">
+                    {tailRisks.map((p) => {
+                      const catConfig = CATEGORY_CONFIG[p.category];
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => router.push(`/predictions/${p.uuid}`)}
+                          className="flex items-center gap-3 rounded bg-navy-950/60 px-3 py-2 cursor-pointer hover:bg-navy-900/60 transition-colors border border-transparent hover:border-navy-700/30"
+                        >
+                          <div className="w-12 flex-shrink-0">
+                            <div className="h-2 rounded-full bg-navy-700/50 overflow-hidden">
+                              <div className="h-full rounded-full bg-accent-rose" style={{ width: `${p.confidence * 100}%`, opacity: 0.8 }} />
+                            </div>
+                            <span className="text-[9px] text-accent-rose font-mono font-bold block text-center mt-0.5">
+                              {(p.confidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-navy-300 truncate">{p.claim}</p>
+                          </div>
+                          <span className={`text-[8px] font-mono uppercase ${catConfig?.color || "text-navy-400"}`}>{p.category}</span>
+                          <span className="text-[9px] text-navy-500 font-mono flex-shrink-0">{daysUntil(p.deadline)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Self-Learning Feedback ── */}
       {!loading && feedbackReport && (
         <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6">
@@ -611,7 +1507,6 @@ export default function PredictionsPage() {
                         <div key={bucket.range} className={`flex items-center gap-3 ${!bucket.reliable ? "opacity-50" : ""}`}>
                           <span className="text-[10px] text-navy-400 w-32 font-mono">{bucket.range}</span>
                           <div className="flex-1 h-2 rounded-full bg-navy-700/50 overflow-hidden relative">
-                            {/* Ideal marker */}
                             <div className="absolute h-full w-px bg-navy-400/40" style={{ left: `${bucket.midpoint * 100}%` }} />
                             <div
                               className={`h-full rounded-full ${bucket.confirmedRate >= 0.6 ? "bg-accent-emerald" : bucket.confirmedRate >= 0.3 ? "bg-accent-amber" : "bg-accent-rose"}`}
@@ -779,7 +1674,6 @@ export default function PredictionsPage() {
       {!loading && predictions.length > 0 && (
         <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6 px-4 py-3">
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Search */}
             <div className="w-52">
               <Input
                 placeholder="Search predictions..."
@@ -789,7 +1683,6 @@ export default function PredictionsPage() {
               />
             </div>
 
-            {/* Outcome filter */}
             <div className="flex h-7 rounded-md border border-navy-700/30 overflow-hidden">
               <button
                 onClick={() => setActiveOutcome(null)}
@@ -823,7 +1716,6 @@ export default function PredictionsPage() {
               })}
             </div>
 
-            {/* Confidence range */}
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] text-navy-500 uppercase tracking-wider">Conf:</span>
               <select
@@ -847,7 +1739,6 @@ export default function PredictionsPage() {
               </select>
             </div>
 
-            {/* Sort */}
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] text-navy-500 uppercase tracking-wider">Sort:</span>
               <select
@@ -863,7 +1754,6 @@ export default function PredictionsPage() {
 
             <div className="flex-1" />
 
-            {/* Filter count + clear */}
             <span className="text-[9px] text-navy-600 font-mono">
               {displayPending.length + displayResolved.length}/{predictions.length} shown
             </span>
@@ -940,7 +1830,7 @@ export default function PredictionsPage() {
               <div className="space-y-2">
                 {displayPending.map((p) => {
                   const overdue = p.deadline <= today;
-                  const grounding = getGrounding(p);
+                  const grounding = parseGrounding(p.metrics);
                   const catConfig = CATEGORY_CONFIG[p.category];
                   const CatIcon = catConfig?.icon || Globe;
                   return (
@@ -958,6 +1848,15 @@ export default function PredictionsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
+                          {p.direction && (
+                            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                              p.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" :
+                              p.direction === "down" ? "bg-accent-rose/10 text-accent-rose border border-accent-rose/20" :
+                              "bg-navy-800/40 text-navy-400 border border-navy-700/20"
+                            }`}>
+                              {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                            </span>
+                          )}
                           {confidenceBar(p.confidence)}
                           <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
                             {p.category}
@@ -973,6 +1872,15 @@ export default function PredictionsPage() {
                           {daysUntil(p.deadline)}
                         </span>
                         <span className="text-[10px] text-navy-600 font-mono">{p.timeframe}</span>
+                        {p.regimeAtCreation && (
+                          <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
+                            p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
+                            p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
+                            "bg-accent-emerald/10 text-accent-emerald"
+                          }`}>
+                            {p.regimeAtCreation}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -992,7 +1900,7 @@ export default function PredictionsPage() {
                 {displayResolved.map((p) => {
                   const config = OUTCOME_CONFIG[p.outcome || "expired"] || OUTCOME_CONFIG.expired;
                   const Icon = config.icon;
-                  const grounding = getGrounding(p);
+                  const grounding = parseGrounding(p.metrics);
                   const catConfig = CATEGORY_CONFIG[p.category];
                   const isHit = p.outcome === "confirmed";
                   const isMiss = p.outcome === "denied";
@@ -1003,7 +1911,6 @@ export default function PredictionsPage() {
                       className={`border rounded-md overflow-hidden cursor-pointer hover:border-navy-600/60 transition-colors ${config.border} ${config.bg}`}
                     >
                       <div className="flex">
-                        {/* Prominent outcome strip */}
                         <div className={`w-14 flex-shrink-0 flex flex-col items-center justify-center gap-1 ${
                           isHit ? "bg-accent-emerald/15" : isMiss ? "bg-accent-rose/15" : p.outcome === "partial" ? "bg-accent-amber/15" : "bg-navy-800/30"
                         }`}>
@@ -1018,7 +1925,6 @@ export default function PredictionsPage() {
                           )}
                         </div>
 
-                        {/* Content */}
                         <div className="flex-1 p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -1027,6 +1933,20 @@ export default function PredictionsPage() {
                               {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
+                              {p.direction && (
+                                <div className="flex items-center gap-1">
+                                  <span className={`text-[9px] font-mono font-bold ${
+                                    p.direction === "up" ? "text-accent-emerald" : p.direction === "down" ? "text-accent-rose" : "text-navy-400"
+                                  }`}>
+                                    {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                                  </span>
+                                  {p.directionCorrect !== null && (
+                                    <span className={`text-[8px] font-mono ${p.directionCorrect === 1 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                                      {p.directionCorrect === 1 ? "OK" : "WRONG"}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {confidenceBar(p.confidence)}
                               <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
                                 {p.category}
@@ -1036,6 +1956,18 @@ export default function PredictionsPage() {
                           <div className="flex items-center gap-4 mt-2.5">
                             <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                             {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
+                            {p.regimeAtCreation && (
+                              <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
+                                p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
+                                p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
+                                "bg-accent-emerald/10 text-accent-emerald"
+                              }`}>
+                                {p.regimeAtCreation}
+                              </span>
+                            )}
+                            {p.regimeInvalidated === 1 && (
+                              <span className="text-[9px] font-mono text-navy-500 px-1 py-0.5 rounded bg-navy-800/40">regime invalidated</span>
+                            )}
                           </div>
                         </div>
                       </div>

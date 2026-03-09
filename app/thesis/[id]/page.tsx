@@ -133,7 +133,7 @@ export default function ThesisDetailPage() {
       }
     >
       {/* Metrics Row */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
         <div className="border border-navy-700 rounded px-4">
           <Metric label="Regime" value={thesis.marketRegime.replace("_", " ")} />
         </div>
@@ -252,7 +252,7 @@ export default function ThesisDetailPage() {
       )}
 
       {/* Layer Inputs Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {thesis.layerInputs.celestial.activeEvents.length > 0 && (
           <div className="border border-navy-700 rounded p-4">
             <h4 className="text-[10px] uppercase tracking-wider text-navy-500 mb-2">Celestial Events</h4>

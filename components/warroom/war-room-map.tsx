@@ -23,6 +23,7 @@ import { VesselLayer } from "./vessel-layer";
 import { OsintMarkersLayer } from "./osint-markers-layer";
 import { ConflictHeatmapLayer } from "./conflict-heatmap-layer";
 import { MapTileUpdater } from "./map-tile-updater";
+import { CountryClickLayer } from "./country-click-layer";
 
 interface WarRoomMapProps {
   actors: ActorWithGeo[];
@@ -45,6 +46,8 @@ interface WarRoomMapProps {
   onOsintEventClick: (event: OsintEvent) => void;
   onAircraftClick?: (aircraft: AircraftState) => void;
   onVesselClick?: (vessel: VesselState) => void;
+  onCountryClick?: (code: string) => void;
+  onChokepointClick?: (id: string) => void;
 }
 
 const ESCALATION_COLORS: Record<number, string> = {
@@ -65,14 +68,33 @@ const ESCALATION_FILL: Record<number, string> = {
 
 function strategicIcon(type: string) {
   const isChokepoint = type === "chokepoint";
+
+  if (isChokepoint) {
+    // Anchor-style icon with pulsing ring for chokepoints
+    const size = 22;
+    const svg = `<svg viewBox="0 0 22 22" width="${size}" height="${size}">
+      <circle cx="11" cy="11" r="10" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.3">
+        <animate attributeName="r" values="7;10;7" dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.4;0.1;0.4" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="11" cy="11" r="5" fill="#f59e0b" opacity="0.15"/>
+      <circle cx="11" cy="11" r="2" fill="#f59e0b" opacity="0.9"/>
+      <line x1="11" y1="5" x2="11" y2="3" stroke="#f59e0b" stroke-width="1.2" opacity="0.7"/>
+      <line x1="11" y1="17" x2="11" y2="19" stroke="#f59e0b" stroke-width="1.2" opacity="0.7"/>
+      <line x1="5" y1="11" x2="3" y2="11" stroke="#f59e0b" stroke-width="1.2" opacity="0.7"/>
+      <line x1="17" y1="11" x2="19" y2="11" stroke="#f59e0b" stroke-width="1.2" opacity="0.7"/>
+    </svg>`;
+    return L.divIcon({
+      html: svg,
+      className: "chokepoint-marker",
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
+  }
+
+  // Institutions: small square
   const size = 14;
-  const color = isChokepoint ? "#f59e0b" : "#94a3b8";
-
-  // Chokepoints: small circle, bases: small square
-  const svg = isChokepoint
-    ? `<svg viewBox="0 0 14 14" width="${size}" height="${size}"><circle cx="7" cy="7" r="4" fill="${color}" opacity="0.6"/></svg>`
-    : `<svg viewBox="0 0 14 14" width="${size}" height="${size}"><rect x="3" y="3" width="8" height="8" fill="${color}" opacity="0.5"/></svg>`;
-
+  const svg = `<svg viewBox="0 0 14 14" width="${size}" height="${size}"><rect x="3" y="3" width="8" height="8" fill="#94a3b8" opacity="0.5"/></svg>`;
   return L.divIcon({
     html: svg,
     className: "",
@@ -110,6 +132,8 @@ export default function WarRoomMap({
   onOsintEventClick,
   onAircraftClick,
   onVesselClick,
+  onCountryClick,
+  onChokepointClick,
 }: WarRoomMapProps) {
   const activeActorId = hoveredActorId || selectedActorId;
 
@@ -132,9 +156,12 @@ export default function WarRoomMap({
       className="h-full w-full"
       zoomControl={true}
       attributionControl={false}
-      style={{ background: "#050505" }}
+      style={{ background: "var(--color-navy-950)" }}
     >
       <MapTileUpdater tileUrl={tileUrl} attribution={tileAttribution} />
+
+      {/* Country click detection */}
+      {onCountryClick && <CountryClickLayer onCountryClick={onCountryClick} />}
 
       {selectedZone && (
         <FlyToZone
@@ -299,6 +326,9 @@ export default function WarRoomMap({
           key={loc.id}
           position={[loc.coords.lat, loc.coords.lng]}
           icon={strategicIcon(loc.type)}
+          eventHandlers={loc.type === "chokepoint" && onChokepointClick ? {
+            click: () => onChokepointClick(loc.id),
+          } : undefined}
         >
           <Tooltip direction="top" className="warroom-tooltip">
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px" }}>
@@ -308,6 +338,9 @@ export default function WarRoomMap({
                 </span>
               </div>
               <span style={{ fontWeight: 600, color: "#e5e5e5" }}>{loc.name}</span>
+              {loc.type === "chokepoint" && (
+                <div style={{ fontSize: "8px", color: "#737373", marginTop: "2px" }}>Click for intel</div>
+              )}
             </div>
           </Tooltip>
         </Marker>

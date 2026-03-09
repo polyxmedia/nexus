@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowUpRight, ArrowDownRight, ExternalLink } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, ExternalLink, Crosshair, Wallet } from "lucide-react";
+import { BetModal } from "@/components/prediction-markets/bet-modal";
 
 // ── Types ──
 
@@ -22,6 +23,7 @@ interface Market {
   url: string;
   priceChange24h: number;
   priceChange7d: number;
+  clobTokenIds?: string;
 }
 
 interface Snapshot {
@@ -61,12 +63,25 @@ interface DivergenceData {
 
 // ── Tabs ──
 
+interface KalshiPortfolio {
+  configured: boolean;
+  balance: { available_balance: number; portfolio_value: number } | null;
+  positions: Array<{
+    ticker: string;
+    market_exposure: number;
+    resting_orders_count: number;
+    total_traded: number;
+    realized_pnl: number;
+  }>;
+}
+
 const TABS = [
   { key: "overview", label: "Overview" },
   { key: "geopolitical", label: "Geopolitical" },
   { key: "economic", label: "Economic" },
   { key: "political", label: "Political" },
   { key: "divergences", label: "Divergences" },
+  { key: "portfolio", label: "Portfolio" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -97,7 +112,7 @@ function formatPct(v: number): string {
 
 // ── Market Table Row ──
 
-function MarketRow({ market }: { market: Market }) {
+function MarketRow({ market, onBet }: { market: Market; onBet?: (m: Market) => void }) {
   const probPct = (market.probability * 100).toFixed(0);
 
   return (
@@ -184,17 +199,27 @@ function MarketRow({ market }: { market: Market }) {
         </span>
       </td>
 
-      {/* Link */}
+      {/* Bet + Link */}
       <td className="py-2.5 px-3 text-right">
-        <a
-          href={market.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-navy-600 hover:text-navy-400 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ExternalLink className="h-3 w-3" />
-        </a>
+        <div className="flex items-center justify-end gap-1.5">
+          {onBet && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onBet(market); }}
+              className="text-[8px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-navy-700/40 text-navy-400 hover:text-navy-200 hover:border-navy-600/40 transition-colors"
+            >
+              <Crosshair className="h-3 w-3" />
+            </button>
+          )}
+          <a
+            href={market.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-navy-600 hover:text-navy-400 transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
       </td>
     </tr>
   );
@@ -202,7 +227,7 @@ function MarketRow({ market }: { market: Market }) {
 
 // ── Market Table ──
 
-function MarketTable({ markets }: { markets: Market[] }) {
+function MarketTable({ markets, onBet }: { markets: Market[]; onBet?: (m: Market) => void }) {
   if (markets.length === 0) {
     return (
       <div className="border border-navy-800/60 rounded bg-navy-950/80 p-8 text-center">
@@ -237,12 +262,12 @@ function MarketTable({ markets }: { markets: Market[] }) {
             <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">
               Ends
             </th>
-            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5 w-8" />
+            <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5 w-12" />
           </tr>
         </thead>
         <tbody>
           {markets.map((m) => (
-            <MarketRow key={m.id} market={m} />
+            <MarketRow key={m.id} market={m} onBet={onBet} />
           ))}
         </tbody>
       </table>
@@ -287,6 +312,9 @@ export default function PredictionMarketsPage() {
   const [divLoading, setDivLoading] = useState(false);
   const [tab, setTab] = useState<TabKey>("overview");
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const [betMarket, setBetMarket] = useState<Market | null>(null);
+  const [portfolio, setPortfolio] = useState<KalshiPortfolio | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
 
   // Fetch market data
   useEffect(() => {
@@ -307,6 +335,17 @@ export default function PredictionMarketsPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // Fetch portfolio when tab activates
+  useEffect(() => {
+    if (tab !== "portfolio" || portfolio) return;
+    setPortfolioLoading(true);
+    fetch("/api/prediction-markets/portfolio")
+      .then((r) => r.json())
+      .then((d) => setPortfolio(d))
+      .catch(() => setPortfolio(null))
+      .finally(() => setPortfolioLoading(false));
+  }, [tab, portfolio]);
 
   // Fetch divergences when tab activates
   useEffect(() => {
@@ -392,7 +431,7 @@ export default function PredictionMarketsPage() {
       {tab === "overview" && (
         <div className="space-y-8">
           {/* Summary Stats */}
-          <div className="grid grid-cols-3 gap-px bg-navy-800/30 rounded overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-navy-800/30 rounded overflow-hidden">
             <StatCard
               label="Total Markets"
               value={String(data.totalMarkets)}
@@ -418,7 +457,7 @@ export default function PredictionMarketsPage() {
               <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600 block mb-3">
                 Top Movers (24h)
               </span>
-              <MarketTable markets={data.topMovers} />
+              <MarketTable markets={data.topMovers} onBet={setBetMarket} />
             </div>
           )}
 
@@ -427,7 +466,7 @@ export default function PredictionMarketsPage() {
             <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600 block mb-3">
               All Markets by Volume
             </span>
-            <MarketTable markets={data.markets} />
+            <MarketTable markets={data.markets} onBet={setBetMarket} />
           </div>
         </div>
       )}
@@ -443,7 +482,7 @@ export default function PredictionMarketsPage() {
               {data.geopolitical.length} markets
             </span>
           </div>
-          <MarketTable markets={data.geopolitical} />
+          <MarketTable markets={data.geopolitical} onBet={setBetMarket} />
         </div>
       )}
 
@@ -458,7 +497,7 @@ export default function PredictionMarketsPage() {
               {data.economic.length} markets
             </span>
           </div>
-          <MarketTable markets={data.economic} />
+          <MarketTable markets={data.economic} onBet={setBetMarket} />
         </div>
       )}
 
@@ -473,7 +512,7 @@ export default function PredictionMarketsPage() {
               {data.political.length} markets
             </span>
           </div>
-          <MarketTable markets={data.political} />
+          <MarketTable markets={data.political} onBet={setBetMarket} />
         </div>
       )}
 
@@ -489,7 +528,7 @@ export default function PredictionMarketsPage() {
           ) : divData ? (
             <>
               {/* Divergence Stats */}
-              <div className="grid grid-cols-4 gap-px bg-navy-800/30 rounded overflow-hidden">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-navy-800/30 rounded overflow-hidden">
                 <StatCard
                   label="Divergences Found"
                   value={String(divData.stats.count)}
@@ -672,6 +711,94 @@ export default function PredictionMarketsPage() {
             </div>
           )}
         </div>
+      )}
+      {/* ── Portfolio Tab ── */}
+      {tab === "portfolio" && (
+        <div className="space-y-6">
+          {portfolioLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded" />
+              ))}
+            </div>
+          ) : portfolio && portfolio.configured ? (
+            <>
+              {/* Balance */}
+              {portfolio.balance && (
+                <div className="grid grid-cols-2 gap-px bg-navy-800/30 rounded overflow-hidden">
+                  <StatCard
+                    label="Available Balance"
+                    value={`$${(portfolio.balance.available_balance / 100).toFixed(2)}`}
+                    sub="Kalshi account"
+                  />
+                  <StatCard
+                    label="Portfolio Value"
+                    value={`$${(portfolio.balance.portfolio_value / 100).toFixed(2)}`}
+                  />
+                </div>
+              )}
+
+              {/* Positions */}
+              {portfolio.positions.length > 0 ? (
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600 block mb-3">
+                    Open Positions
+                  </span>
+                  <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
+                      <thead>
+                        <tr className="border-b border-navy-800/40">
+                          <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5">Ticker</th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">Exposure</th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">Traded</th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">Realized P&L</th>
+                          <th className="text-right text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-3 py-2.5">Orders</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {portfolio.positions.map((p) => (
+                          <tr key={p.ticker} className="border-b border-navy-800/20 last:border-0">
+                            <td className="py-2 px-4 text-[11px] font-mono text-navy-200">{p.ticker}</td>
+                            <td className="py-2 px-3 text-right text-[11px] font-mono text-navy-300">${(p.market_exposure / 100).toFixed(2)}</td>
+                            <td className="py-2 px-3 text-right text-[11px] font-mono text-navy-400">${(p.total_traded / 100).toFixed(2)}</td>
+                            <td className={`py-2 px-3 text-right text-[11px] font-mono ${p.realized_pnl >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                              {p.realized_pnl >= 0 ? "+" : ""}${(p.realized_pnl / 100).toFixed(2)}
+                            </td>
+                            <td className="py-2 px-3 text-right text-[11px] font-mono text-navy-500">{p.resting_orders_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="border border-navy-800/60 rounded bg-navy-950/80 p-8 text-center">
+                  <Wallet className="h-5 w-5 text-navy-600 mx-auto mb-2" />
+                  <p className="text-sm text-navy-500">No open positions.</p>
+                  <p className="text-[11px] text-navy-600 mt-1">Place a bet from any market tab to get started.</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="border border-navy-800/60 rounded bg-navy-950/80 p-8 text-center">
+              <Wallet className="h-5 w-5 text-navy-600 mx-auto mb-2" />
+              <p className="text-sm text-navy-400 mb-1">Kalshi not connected</p>
+              <p className="text-[11px] text-navy-600">
+                Add your Kalshi API Key ID and Private Key in Settings to enable trading.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Bet Modal ── */}
+      {betMarket && (
+        <BetModal
+          market={betMarket}
+          open={!!betMarket}
+          onClose={() => setBetMarket(null)}
+          onSuccess={() => setPortfolio(null)}
+        />
       )}
       </UpgradeGate>
     </PageContainer>

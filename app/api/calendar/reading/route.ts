@@ -7,10 +7,13 @@ import { getEsotericReading } from "@/lib/signals/numerology";
 import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getModel } from "@/lib/ai/model";
 import { requireTier } from "@/lib/auth/require-tier";
+import { creditGate } from "@/lib/credits/gate";
 
 export async function POST(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
+  const gate = await creditGate();
+  if (gate.response) return gate.response;
   try {
     const { date } = await request.json();
     if (!date) {
@@ -167,6 +170,8 @@ Provide the score as a single number and a one-line justification.`;
       system: "You are a geopolitical-spiritual market intelligence analyst specializing in the intersection of sacred calendars (Hebrew, Chinese, celestial), numerological systems (Chinese, Pythagorean, Gann), cyclical models (Kondratieff, Armstrong ECM, lunar), and financial markets. You draw on kabbalistic tradition, Torah scholarship, Chinese metaphysics (Five Elements, Flying Stars, Ba Zi), and quantitative market history. You understand that these systems are not superstition but cultural decision-making frameworks used by state actors: Israel times military operations around Hebrew holidays, China schedules major announcements on numerologically auspicious dates (08/08/08 Olympics, IPO pricing with 8s), and institutional traders use Gann and Fibonacci. Be specific with dates, scripture references, cycle positions, and market data. Avoid vague platitudes. Write with the precision of an intelligence briefing.",
       messages: [{ role: "user", content: prompt }],
     });
+
+    await gate.debit(await getModel(), response.usage.input_tokens, response.usage.output_tokens, "calendar_reading");
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
 

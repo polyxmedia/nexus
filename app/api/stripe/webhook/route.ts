@@ -7,7 +7,13 @@ import { sendEmail } from "@/lib/email";
 import {
   subscriptionActiveEmail,
   subscriptionCanceledEmail,
+  subscriptionPausedEmail,
+  subscriptionResumedEmail,
+  trialEndingEmail,
   paymentFailedEmail,
+  paymentActionRequiredEmail,
+  invoiceUpcomingEmail,
+  invoiceOverdueEmail,
 } from "@/lib/email/templates";
 
 // ── Helpers ──
@@ -18,10 +24,29 @@ async function getUserEmail(userId: string): Promise<string | null> {
   if (rows.length === 0) return null;
   try {
     const data = JSON.parse(rows[0].value);
+    // Skip blocked users — they should not receive any emails
+    if (data.blocked) return null;
     return data.email || null;
   } catch {
     return null;
   }
+}
+
+// ── Tier helpers ──
+
+async function setUserTier(userId: string, tierName: string) {
+  const key = userId.startsWith("user:") ? userId : `user:${userId}`;
+  const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
+  if (rows.length > 0) {
+    const data = JSON.parse(rows[0].value);
+    data.tier = tierName;
+    await db.update(schema.settings).set({ value: JSON.stringify(data) }).where(eq(schema.settings.key, key));
+  }
+}
+
+async function getTierNameById(tierId: number): Promise<string | null> {
+  const tiers = await db.select().from(schema.subscriptionTiers).where(eq(schema.subscriptionTiers.id, tierId));
+  return tiers.length > 0 ? tiers[0].name : null;
 }
 
 // ── Referral Commission Logic ──
@@ -71,12 +96,50 @@ async function handleReferralOnSubscription(userId: string, tierId: number, amou
     const periodStart = now.toISOString();
     const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
 
+    const referrerCode = codeRows[0];
+    let commissionStatus = "pending";
+    let paymentMethod: string | null = null;
+    let paymentReference: string | null = null;
+    let paidAt: string | null = null;
+
+    // Auto-payout via Stripe Connect if referrer has a connected account
+    if (referrerCode.stripeConnectId && commissionAmount > 0) {
+      try {
+        const stripe = getStripe();
+        // Verify the connected account can receive payouts
+        const account = await stripe.accounts.retrieve(referrerCode.stripeConnectId);
+        if (account.payouts_enabled) {
+          const transfer = await stripe.transfers.create({
+            amount: commissionAmount,
+            currency: "usd",
+            destination: referrerCode.stripeConnectId,
+            description: `Referral commission: ${referral.referredUserId.replace("user:", "")} subscription`,
+            metadata: {
+              referralId: String(referral.id),
+              referrerId: referral.referrerId,
+              period: periodStart,
+            },
+          });
+          commissionStatus = "paid";
+          paymentMethod = "stripe_connect";
+          paymentReference = transfer.id;
+          paidAt = now.toISOString();
+        }
+      } catch (transferErr) {
+        console.error("Stripe Connect auto-payout failed, commission stays pending:", transferErr);
+        // Falls back to pending - referrer can request manual payout
+      }
+    }
+
     await db.insert(schema.commissions).values({
       referralId: referral.id,
       referrerId: referral.referrerId,
       amount: commissionAmount,
       currency: "usd",
-      status: "pending",
+      status: commissionStatus,
+      paymentMethod,
+      paymentReference,
+      paidAt,
       periodStart,
       periodEnd,
     });
@@ -136,6 +199,50 @@ export async function POST(request: Request) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
+
+        // Handle credit top-up (one-time payment)
+        if (session.metadata?.type === "credit_topup" && userId) {
+          const credits = parseInt(session.metadata.credits || "0");
+          if (credits > 0) {
+            const period = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
+            const balRows = await db
+              .select()
+              .from(schema.creditBalances)
+              .where(eq(schema.creditBalances.userId, userId));
+
+            if (balRows.length > 0) {
+              await db
+                .update(schema.creditBalances)
+                .set({
+                  creditsGranted: balRows[0].creditsGranted + credits,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(schema.creditBalances.userId, userId));
+            } else {
+              await db.insert(schema.creditBalances).values({
+                userId,
+                period,
+                creditsGranted: credits,
+                creditsUsed: 0,
+              });
+            }
+
+            // Log in ledger as positive entry
+            await db.insert(schema.creditLedger).values({
+              userId,
+              amount: credits,
+              balanceAfter: (balRows.length > 0 ? balRows[0].creditsGranted - balRows[0].creditsUsed : 0) + credits,
+              reason: "topup",
+              model: "stripe",
+              inputTokens: 0,
+              outputTokens: 0,
+              sessionId: session.id,
+              period,
+            });
+          }
+          break;
+        }
+
         const tierId = session.metadata?.tierId;
 
         if (!userId || !tierId) break;
@@ -320,6 +427,316 @@ export async function POST(request: Request) {
           }
         }
 
+        break;
+      }
+
+      // ── Subscription lifecycle events ──
+
+      case "customer.subscription.created": {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+
+        // Check if we already have this subscription (checkout.session.completed usually handles it)
+        const createdExisting = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (createdExisting.length === 0) {
+          // Subscription created outside checkout flow, sync it
+          const metadata = sub.metadata || {};
+          const userId = metadata.userId;
+          const tierId = metadata.tierId;
+          if (userId && tierId) {
+            await db.insert(schema.subscriptions).values({
+              userId,
+              tierId: parseInt(tierId),
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: sub.id,
+              status: sub.status,
+            });
+            const tierName = await getTierNameById(parseInt(tierId));
+            if (tierName) await setUserTier(userId, tierName.toLowerCase());
+          }
+        }
+        break;
+      }
+
+      case "customer.subscription.resumed": {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+
+        const resumedSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (resumedSubs.length > 0) {
+          await db
+            .update(schema.subscriptions)
+            .set({
+              status: "active",
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+          // Restore user tier
+          const tierName = await getTierNameById(resumedSubs[0].tierId);
+          if (tierName) {
+            await setUserTier(resumedSubs[0].userId, tierName.toLowerCase());
+          }
+
+          // Send resumed email
+          const resumedEmail = await getUserEmail(resumedSubs[0].userId);
+          if (resumedEmail && tierName) {
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+            const template = subscriptionResumedEmail(
+              resumedSubs[0].userId.replace("user:", ""),
+              tierName,
+              `${baseUrl}/dashboard`
+            );
+            sendEmail({ to: resumedEmail, ...template }).catch((err) =>
+              console.error("Resumed email failed:", err)
+            );
+          }
+        }
+        break;
+      }
+
+      case "customer.subscription.paused": {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+
+        const pausedSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (pausedSubs.length > 0) {
+          await db
+            .update(schema.subscriptions)
+            .set({
+              status: "paused",
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+          // Downgrade to free while paused
+          await setUserTier(pausedSubs[0].userId, "free");
+
+          // Send paused email
+          const pausedEmail = await getUserEmail(pausedSubs[0].userId);
+          if (pausedEmail) {
+            const template = subscriptionPausedEmail(pausedSubs[0].userId.replace("user:", ""));
+            sendEmail({ to: pausedEmail, ...template }).catch((err) =>
+              console.error("Paused email failed:", err)
+            );
+          }
+        }
+        break;
+      }
+
+      case "customer.subscription.pending_update_applied": {
+        // Plan change was applied (e.g. upgrade/downgrade took effect)
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+
+        const updateSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (updateSubs.length > 0) {
+          // Sync the latest status
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const subAny = sub as any;
+          await db
+            .update(schema.subscriptions)
+            .set({
+              status: sub.status,
+              currentPeriodStart: new Date((subAny.current_period_start || 0) * 1000).toISOString(),
+              currentPeriodEnd: new Date((subAny.current_period_end || 0) * 1000).toISOString(),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+        }
+        break;
+      }
+
+      case "customer.subscription.pending_update_expired": {
+        // Pending plan change expired without being applied, just log
+        console.log("Subscription pending update expired:", (event.data.object as Stripe.Subscription).id);
+        break;
+      }
+
+      case "customer.subscription.trial_will_end": {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+
+        const trialSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (trialSubs.length > 0) {
+          const trialEmail = await getUserEmail(trialSubs[0].userId);
+          const tierName = await getTierNameById(trialSubs[0].tierId);
+          if (trialEmail && tierName) {
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+            const template = trialEndingEmail(
+              trialSubs[0].userId.replace("user:", ""),
+              tierName,
+              `${baseUrl}/settings`
+            );
+            sendEmail({ to: trialEmail, ...template }).catch((err) =>
+              console.error("Trial ending email failed:", err)
+            );
+          }
+        }
+        break;
+      }
+
+      // ── Invoice events ──
+
+      case "invoice.payment_succeeded": {
+        // Payment went through, ensure subscription is active
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+
+        if (invoice.amount_paid > 0) {
+          await db
+            .update(schema.subscriptions)
+            .set({
+              status: "active",
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+        }
+        break;
+      }
+
+      case "invoice.payment_action_required": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+
+        const actionSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (actionSubs.length > 0) {
+          const actionEmail = await getUserEmail(actionSubs[0].userId);
+          if (actionEmail) {
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+            const template = paymentActionRequiredEmail(
+              actionSubs[0].userId.replace("user:", ""),
+              `${baseUrl}/settings`
+            );
+            sendEmail({ to: actionEmail, ...template }).catch((err) =>
+              console.error("Payment action required email failed:", err)
+            );
+          }
+        }
+        break;
+      }
+
+      case "invoice.payment_attempt_required": {
+        // Similar to payment_action_required, notify user
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+
+        const attemptSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (attemptSubs.length > 0) {
+          const attemptEmail = await getUserEmail(attemptSubs[0].userId);
+          if (attemptEmail) {
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+            const template = paymentActionRequiredEmail(
+              attemptSubs[0].userId.replace("user:", ""),
+              `${baseUrl}/settings`
+            );
+            sendEmail({ to: attemptEmail, ...template }).catch((err) =>
+              console.error("Payment attempt required email failed:", err)
+            );
+          }
+        }
+        break;
+      }
+
+      case "invoice.overdue": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+
+        await db
+          .update(schema.subscriptions)
+          .set({
+            status: "past_due",
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        const overdueSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (overdueSubs.length > 0) {
+          const overdueEmail = await getUserEmail(overdueSubs[0].userId);
+          if (overdueEmail) {
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+            const template = invoiceOverdueEmail(
+              overdueSubs[0].userId.replace("user:", ""),
+              `${baseUrl}/settings`
+            );
+            sendEmail({ to: overdueEmail, ...template }).catch((err) =>
+              console.error("Overdue email failed:", err)
+            );
+          }
+        }
+        break;
+      }
+
+      case "invoice.upcoming": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+
+        const upcomingSubs = await db
+          .select()
+          .from(schema.subscriptions)
+          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+        if (upcomingSubs.length > 0) {
+          const upcomingEmail = await getUserEmail(upcomingSubs[0].userId);
+          if (upcomingEmail) {
+            const amount = invoice.amount_due
+              ? `$${(invoice.amount_due / 100).toFixed(2)}`
+              : "your subscription fee";
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+            const template = invoiceUpcomingEmail(
+              upcomingSubs[0].userId.replace("user:", ""),
+              amount,
+              `${baseUrl}/settings`
+            );
+            sendEmail({ to: upcomingEmail, ...template }).catch((err) =>
+              console.error("Upcoming invoice email failed:", err)
+            );
+          }
+        }
+        break;
+      }
+
+      // Informational invoice events, acknowledge without action
+      case "invoice.created":
+      case "invoice.deleted":
+      case "invoice.finalized":
+      case "invoice.sent":
+      case "invoice.updated":
+      case "invoice.voided":
+      case "invoice.overpaid": {
+        console.log(`Invoice event ${event.type}:`, (event.data.object as Stripe.Invoice).id);
         break;
       }
     }

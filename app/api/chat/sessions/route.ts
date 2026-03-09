@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth/auth";
+import { getEffectiveUsername } from "@/lib/auth/effective-user";
 import { db, schema } from "@/lib/db";
-import { desc, eq, like, or } from "drizzle-orm";
-
-async function getUsername(): Promise<string | null> {
-  const session = await getServerSession(authOptions);
-  return session?.user?.name ?? null;
-}
+import { desc, eq, like } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
-  const username = await getUsername();
+  const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
@@ -20,7 +14,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
 
     let sessions = await db.select().from(schema.chatSessions)
-      .where(or(eq(schema.chatSessions.userId, username), eq(schema.chatSessions.userId, "legacy")))
+      .where(eq(schema.chatSessions.userId, username))
       .orderBy(desc(schema.chatSessions.updatedAt));
 
     if (projectId) {
@@ -53,7 +47,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const username = await getUsername();
+  const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
@@ -75,7 +69,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const username = await getUsername();
+  const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
@@ -85,7 +79,7 @@ export async function PATCH(req: NextRequest) {
     // Verify ownership
     const [existing] = await db.select().from(schema.chatSessions)
       .where(eq(schema.chatSessions.id, id));
-    if (!existing || (existing.userId !== username && existing.userId !== "legacy")) {
+    if (!existing || (existing.userId !== username)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -103,7 +97,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const username = await getUsername();
+  const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
@@ -113,7 +107,7 @@ export async function DELETE(req: NextRequest) {
     // Verify ownership
     const [existing] = await db.select().from(schema.chatSessions)
       .where(eq(schema.chatSessions.id, id));
-    if (!existing || (existing.userId !== username && existing.userId !== "legacy")) {
+    if (!existing || (existing.userId !== username)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

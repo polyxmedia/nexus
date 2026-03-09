@@ -1,7 +1,7 @@
 // Geopolitical Risk Index Engine
 // Data: Official GPR daily index (Caldara & Iacoviello) + GDELT regional proxies
 
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export interface GPRReading {
   date: string;
@@ -76,64 +76,61 @@ const REGIONS: {
 
 // --- XLS Parser ---
 
-function parseGPRXLS(buffer: ArrayBuffer): GPRReading[] {
+async function parseGPRXLS(buffer: ArrayBuffer): Promise<GPRReading[]> {
   try {
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return [];
+    const workbook = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await workbook.xlsx.load(Buffer.from(buffer) as any);
+    const sheet = workbook.worksheets[0];
+    if (!sheet || sheet.rowCount === 0) return [];
 
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
-    if (rows.length === 0) return [];
+    // Read header row to find column indices
+    const headerRow = sheet.getRow(1);
+    const headers: Record<string, number> = {};
+    headerRow.eachCell((cell, colNumber) => {
+      const val = String(cell.value || "").trim();
+      headers[val.toLowerCase()] = colNumber;
+    });
 
-    // Find column names (case-insensitive)
-    const firstRow = rows[0];
-    const keys = Object.keys(firstRow);
+    const dateCol = headers["date"];
+    const compositeCol = headers["gprd"] ?? headers["gpr_daily"];
+    const threatsCol = headers["gprd_threats"] ?? headers["gpr_daily_threats"] ??
+      Object.entries(headers).find(([k]) => k.includes("threat"))?.[1];
+    const actsCol = headers["gprd_acts"] ?? headers["gpr_daily_acts"] ??
+      Object.entries(headers).find(([k]) => k.includes("act"))?.[1];
 
-    const dateKey = keys.find((k) => k.toLowerCase() === "date");
-    const compositeKey = keys.find(
-      (k) => k.toLowerCase() === "gprd" || k.toLowerCase() === "gpr_daily"
-    );
-    const threatsKey = keys.find(
-      (k) =>
-        k.toLowerCase() === "gprd_threats" ||
-        k.toLowerCase() === "gpr_daily_threats" ||
-        k.toLowerCase().includes("threat")
-    );
-    const actsKey = keys.find(
-      (k) =>
-        k.toLowerCase() === "gprd_acts" ||
-        k.toLowerCase() === "gpr_daily_acts" ||
-        k.toLowerCase().includes("act")
-    );
-
-    if (!dateKey || !compositeKey) {
-      console.error("[GPR] Missing required columns. Available:", keys);
+    if (!dateCol || !compositeCol) {
+      console.error("[GPR] Missing required columns. Available:", Object.keys(headers));
       return [];
     }
 
     const readings: GPRReading[] = [];
 
-    for (const row of rows) {
-      const dateRaw = row[dateKey];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // skip header
+
+      const dateRaw = row.getCell(dateCol).value;
       let dateStr: string;
 
-      if (typeof dateRaw === "number") {
-        // Excel serial date number
-        const excelDate = XLSX.SSF.parse_date_code(dateRaw);
-        dateStr = `${excelDate.y}-${String(excelDate.m).padStart(2, "0")}-${String(excelDate.d).padStart(2, "0")}`;
+      if (dateRaw instanceof Date) {
+        dateStr = dateRaw.toISOString().split("T")[0];
+      } else if (typeof dateRaw === "number") {
+        // Excel serial date: days since 1900-01-01 (with off-by-one for Lotus bug)
+        const epoch = new Date(1899, 11, 30);
+        const d = new Date(epoch.getTime() + dateRaw * 86400000);
+        dateStr = d.toISOString().split("T")[0];
       } else if (typeof dateRaw === "string") {
         const d = new Date(dateRaw);
         dateStr = !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : dateRaw;
       } else {
-        continue;
+        return;
       }
 
-      const composite = Number(row[compositeKey]);
-      if (isNaN(composite)) continue;
+      const composite = Number(row.getCell(compositeCol).value);
+      if (isNaN(composite)) return;
 
-      const threats = threatsKey ? Number(row[threatsKey]) || 0 : 0;
-      const acts = actsKey ? Number(row[actsKey]) || 0 : 0;
+      const threats = threatsCol ? Number(row.getCell(threatsCol).value) || 0 : 0;
+      const acts = actsCol ? Number(row.getCell(actsCol).value) || 0 : 0;
       const ratio = acts > 0 ? threats / acts : threats > 0 ? 999 : 1;
 
       readings.push({
@@ -143,7 +140,7 @@ function parseGPRXLS(buffer: ArrayBuffer): GPRReading[] {
         acts: Math.round(acts * 100) / 100,
         threatsToActsRatio: Math.round(ratio * 100) / 100,
       });
-    }
+    });
 
     return readings;
   } catch (err) {
@@ -162,7 +159,7 @@ async function fetchGPRDaily(): Promise<GPRReading[]> {
     );
     if (!res.ok) throw new Error(`GPR XLS fetch failed: ${res.status}`);
     const buffer = await res.arrayBuffer();
-    return parseGPRXLS(buffer);
+    return await parseGPRXLS(buffer);
   } catch (err) {
     console.error("[GPR] Failed to fetch daily XLS:", err);
     return [];

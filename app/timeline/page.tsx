@@ -381,7 +381,7 @@ export default function TimelinePage() {
   };
 
   return (
-    <div className="ml-48 min-h-screen bg-navy-950">
+    <div className="ml-0 md:ml-48 min-h-screen bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="Event timeline">
       {/* Header */}
       <div className="sticky top-0 z-10 border-b border-navy-700 bg-navy-950/95 backdrop-blur-md">

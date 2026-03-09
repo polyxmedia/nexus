@@ -4,6 +4,7 @@ import { getTradingSnapshot } from "@/lib/congressional-trading";
 import { HAIKU_MODEL } from "@/lib/ai/model";
 import { db, schema } from "@/lib/db";
 import { eq, desc, and, like } from "drizzle-orm";
+import { creditGate } from "@/lib/credits/gate";
 
 async function getApiKey(): Promise<string | null> {
   try {
@@ -20,6 +21,8 @@ async function getApiKey(): Promise<string | null> {
 
 export async function GET() {
   try {
+    const gate = await creditGate();
+    if (gate.response) return gate.response;
     // Check for recent saved analysis first (within last 6h)
     try {
       const saved = await db
@@ -158,6 +161,8 @@ Be direct, analytical, and flag anything that looks unusual. Focus on patterns, 
       max_tokens: 800,
       messages: [{ role: "user", content: prompt }],
     });
+
+    await gate.debit(HAIKU_MODEL, response.usage.input_tokens, response.usage.output_tokens, "congressional_analysis");
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);

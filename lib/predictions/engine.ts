@@ -697,6 +697,7 @@ Output a brief devil's advocate summary.`;
         direction: direction || null,
         priceTarget: priceTarget || null,
         referenceSymbol: referenceSymbol || null,
+        createdBy: "system",
       })
       .returning();
 

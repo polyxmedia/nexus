@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     await db.insert(schema.settings).values({
       key: `user:${username}`,
       value: JSON.stringify(userPayload),
+      updatedAt: new Date().toISOString(),
     });
 
     // Create referral record if valid code
@@ -110,7 +111,8 @@ export async function POST(request: Request) {
     );
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("[register] error:", err);
     return NextResponse.json(
       { error: "Registration failed" },
       { status: 500 }

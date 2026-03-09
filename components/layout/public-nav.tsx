@@ -15,7 +15,7 @@ export function PublicNav() {
           </span>
         </Link>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 md:gap-6">
           <Link href="/research/methodology" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             METHODOLOGY
           </Link>
@@ -37,10 +37,10 @@ export function PublicNav() {
           >
             SIGN IN
           </Link>
-          <ThemeToggle className="p-1.5 text-navy-400 hover:text-navy-200 transition-colors" />
+          <ThemeToggle className="p-1.5 text-navy-400 hover:text-navy-200 transition-colors" dropdownDirection="down" />
           <Link
             href="/register"
-            className="px-4 py-1.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
+            className="px-3 md:px-4 py-1.5 text-[10px] md:text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all whitespace-nowrap"
           >
             Request Access
           </Link>

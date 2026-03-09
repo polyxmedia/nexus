@@ -260,7 +260,7 @@ function AnalysisPanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {/* Risk Flags */}
             {analysis.riskFlags.length > 0 && (
               <div>
@@ -365,7 +365,7 @@ function ConflictPanel({ memberName, onClose }: { memberName: string; onClose: (
       {analysis && (
         <div className="space-y-4">
           {/* Header Stats */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-navy-800/40 rounded-md p-2.5">
               <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block">Risk Score</span>
               <span className={`text-xl font-mono font-bold ${
@@ -548,12 +548,12 @@ export default function CongressionalTradingPage() {
       title="Congressional Trading"
       subtitle="STOCK Act disclosures and SEC Form 4 insider filings"
     >
-      <UpgradeGate minTier="operator" feature="Congressional trading signals" blur>
+      <UpgradeGate minTier="analyst" feature="Congressional trading signals" blur>
       {/* AI Analysis */}
       <AnalysisPanel />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
         <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
           <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block">Senate Filings</span>
           <span className="text-xl font-mono font-bold text-navy-100">{senateCount}</span>

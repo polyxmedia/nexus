@@ -13,6 +13,7 @@ import {
   Cpu,
   GripVertical,
   Layers,
+  Lock,
   Pencil,
   Plus,
   RotateCcw,
@@ -22,8 +23,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 // ── Types ──
+
+type MinTier = "analyst" | "operator" | "institution";
 
 interface Widget {
   id: number;
@@ -45,7 +49,21 @@ interface StoreItem {
   defaultWidth: number;
   defaultConfig: Record<string, unknown>;
   accent: "cyan" | "amber" | "emerald" | "rose";
+  minTier: MinTier;
 }
+
+const TIER_LEVELS: Record<string, number> = {
+  free: 0,
+  analyst: 1,
+  operator: 2,
+  institution: 3,
+};
+
+const TIER_LABELS: Record<string, string> = {
+  analyst: "Analyst",
+  operator: "Operator",
+  institution: "Institution",
+};
 
 const STORE_CATEGORIES = [
   { id: "all", label: "All", icon: Layers, count: 0 },
@@ -58,38 +76,39 @@ const STORE_CATEGORIES = [
 
 const STORE_ITEMS: StoreItem[] = [
   // Intelligence
-  { type: "metric", name: "Threat Level", description: "Geopolitical escalation indicator", category: "intelligence", defaultWidth: 1, defaultConfig: { metric: "threat_level" }, accent: "rose" },
-  { type: "thesis", name: "Active Thesis", description: "AI-generated market thesis with regime and confidence", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "cyan" },
-  { type: "signals", name: "Signal Feed", description: "Filtered intelligence signals by intensity", category: "intelligence", defaultWidth: 1, defaultConfig: { minIntensity: 4 }, accent: "amber" },
-  { type: "predictions", name: "Prediction Scorecard", description: "Accuracy tracking with Brier scoring", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "amber" },
-  { type: "calendar", name: "Calendar", description: "Hebrew, Islamic & economic calendar events", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "emerald" },
-  { type: "prediction_markets", name: "Prediction Markets", description: "Polymarket & Kalshi probability pricing", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "amber" },
-  { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider clusters", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "rose" },
+  { type: "metric", name: "Threat Level", description: "Geopolitical escalation indicator", category: "intelligence", defaultWidth: 1, defaultConfig: { metric: "threat_level" }, accent: "rose", minTier: "analyst" },
+  { type: "thesis", name: "Active Thesis", description: "AI-generated market thesis with regime and confidence", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "analyst" },
+  { type: "signals", name: "Signal Feed", description: "Filtered intelligence signals by intensity", category: "intelligence", defaultWidth: 1, defaultConfig: { minIntensity: 4 }, accent: "amber", minTier: "analyst" },
+  { type: "predictions", name: "Prediction Scorecard", description: "Accuracy tracking with Brier scoring", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "analyst" },
+  { type: "calendar", name: "Calendar", description: "Hebrew, Islamic & economic calendar events", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "analyst" },
+  { type: "prediction_markets", name: "Prediction Markets", description: "Polymarket & Kalshi probability pricing", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "amber", minTier: "operator" },
+  { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider clusters", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "rose", minTier: "operator" },
   // Markets
-  { type: "metric", name: "Market Regime", description: "Risk-on/risk-off classification", category: "markets", defaultWidth: 1, defaultConfig: { metric: "market_regime" }, accent: "cyan" },
-  { type: "metric", name: "VIX Gauge", description: "CBOE Volatility Index level", category: "markets", defaultWidth: 1, defaultConfig: { metric: "vix" }, accent: "rose" },
-  { type: "chart", name: "Price Chart", description: "Candlestick chart for any ticker symbol", category: "markets", defaultWidth: 2, defaultConfig: { symbol: "SPY", range: "3m" }, accent: "cyan" },
-  { type: "macro", name: "Macro Dashboard", description: "Key economic indicators from FRED", category: "markets", defaultWidth: 2, defaultConfig: { series: ["UNRATE", "ICSA", "CPIAUCSL", "VIXCLS", "GOLDAMGBD228NLBM", "DCOILWTICO"] }, accent: "emerald" },
-  { type: "options", name: "Put/Call Ratio", description: "CBOE equity options sentiment", category: "markets", defaultWidth: 1, defaultConfig: { view: "pcr" }, accent: "amber" },
-  { type: "currency_stress", name: "Currency Stress", description: "Dollar index, EUR, JPY, CNY trends", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "cyan" },
-  { type: "commodities", name: "Commodity Complex", description: "Gold, WTI, Brent, Natural Gas", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "amber" },
+  { type: "metric", name: "Market Regime", description: "Risk-on/risk-off classification", category: "markets", defaultWidth: 1, defaultConfig: { metric: "market_regime" }, accent: "cyan", minTier: "analyst" },
+  { type: "metric", name: "VIX Gauge", description: "CBOE Volatility Index level", category: "markets", defaultWidth: 1, defaultConfig: { metric: "vix" }, accent: "rose", minTier: "analyst" },
+  { type: "chart", name: "Price Chart", description: "Candlestick chart for any ticker symbol", category: "markets", defaultWidth: 2, defaultConfig: { symbol: "SPY", range: "3m" }, accent: "cyan", minTier: "analyst" },
+  { type: "macro", name: "Macro Dashboard", description: "Key economic indicators from FRED", category: "markets", defaultWidth: 2, defaultConfig: { series: ["UNRATE", "ICSA", "CPIAUCSL", "VIXCLS", "GOLDAMGBD228NLBM", "DCOILWTICO"] }, accent: "emerald", minTier: "operator" },
+  { type: "options", name: "Put/Call Ratio", description: "CBOE equity options sentiment", category: "markets", defaultWidth: 1, defaultConfig: { view: "pcr" }, accent: "amber", minTier: "operator" },
+  { type: "currency_stress", name: "Currency Stress", description: "Dollar index, EUR, JPY, CNY trends", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
+  { type: "commodities", name: "Commodity Complex", description: "Gold, WTI, Brent, Natural Gas", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "operator" },
   // Analytics
-  { type: "metric", name: "Portfolio Value", description: "Live portfolio value with P&L", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "portfolio_value" }, accent: "emerald" },
-  { type: "metric", name: "Thesis Confidence", description: "Active thesis confidence level", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "thesis_confidence" }, accent: "cyan" },
-  { type: "metric", name: "Prediction Accuracy", description: "Overall prediction accuracy rate", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "prediction_accuracy" }, accent: "amber" },
-  { type: "metric", name: "Convergence Density", description: "Multi-layer signal convergence", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "convergence_density" }, accent: "cyan" },
-  { type: "risk", name: "Portfolio Risk", description: "VaR, Sharpe ratio, and drawdown", category: "analytics", defaultWidth: 1, defaultConfig: { view: "var" }, accent: "rose" },
-  { type: "credit_stress", name: "Credit Stress Monitor", description: "HY & IG OAS spreads with stress regime", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "rose" },
-  { type: "liquidity", name: "Dollar Liquidity Index", description: "Fed balance sheet net liquidity", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "cyan" },
-  { type: "inflation_pulse", name: "Inflation Pulse", description: "Breakeven inflation rates and trends", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "amber" },
-  { type: "vol_term", name: "Volatility Regime", description: "VIX fear gauge with regime label", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "rose" },
-  { type: "labor_market", name: "Labor Market Pulse", description: "Claims, unemployment, payrolls", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "emerald" },
-  { type: "housing_consumer", name: "Housing & Consumer", description: "Housing starts, sentiment, retail sales", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "emerald" },
-  { type: "gdp_nowcast", name: "GDP Nowcast", description: "Real GDP growth with regime classification", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "cyan" },
+  { type: "metric", name: "Portfolio Value", description: "Live portfolio value with P&L", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "portfolio_value" }, accent: "emerald", minTier: "operator" },
+  { type: "metric", name: "Thesis Confidence", description: "Active thesis confidence level", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "thesis_confidence" }, accent: "cyan", minTier: "analyst" },
+  { type: "metric", name: "Prediction Accuracy", description: "Overall prediction accuracy rate", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "prediction_accuracy" }, accent: "amber", minTier: "analyst" },
+  { type: "metric", name: "Convergence Density", description: "Multi-layer signal convergence", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "convergence_density" }, accent: "cyan", minTier: "analyst" },
+  { type: "risk", name: "Portfolio Risk", description: "VaR, Sharpe ratio, and drawdown", category: "analytics", defaultWidth: 1, defaultConfig: { view: "var" }, accent: "rose", minTier: "operator" },
+  { type: "credit_stress", name: "Credit Stress Monitor", description: "HY & IG OAS spreads with stress regime", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "rose", minTier: "operator" },
+  { type: "liquidity", name: "Dollar Liquidity Index", description: "Fed balance sheet net liquidity", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
+  { type: "inflation_pulse", name: "Inflation Pulse", description: "Breakeven inflation rates and trends", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "operator" },
+  { type: "vol_term", name: "Volatility Regime", description: "VIX fear gauge with regime label", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "rose", minTier: "operator" },
+  { type: "labor_market", name: "Labor Market Pulse", description: "Claims, unemployment, payrolls", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "operator" },
+  { type: "housing_consumer", name: "Housing & Consumer", description: "Housing starts, sentiment, retail sales", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "operator" },
+  { type: "gdp_nowcast", name: "GDP Nowcast", description: "Real GDP growth with regime classification", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
   // Data Feeds
-  { type: "news", name: "News Feed", description: "Reuters, BBC, Al Jazeera aggregated feed", category: "data", defaultWidth: 2, defaultConfig: { category: "all", maxItems: 15 }, accent: "cyan" },
+  { type: "news", name: "News Feed", description: "Reuters, BBC, Al Jazeera aggregated feed", category: "data", defaultWidth: 2, defaultConfig: { category: "all", maxItems: 15 }, accent: "cyan", minTier: "analyst" },
   // AI
-  { type: "ai_progression", name: "AI Progression Tracker", description: "Remote Labor Index, AI 2027 timeline, sector risk", category: "ai", defaultWidth: 2, defaultConfig: {}, accent: "cyan" },
+  { type: "ai_progression", name: "AI Progression Tracker", description: "Remote Labor Index, AI 2027 timeline, sector risk", category: "ai", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "operator" },
+  { type: "quick_chat", name: "Quick Chat", description: "Start a conversation with the AI analyst", category: "ai", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "analyst" },
 ];
 
 // Compute category counts
@@ -115,6 +134,7 @@ export default function DashboardPage() {
   const [storeOpen, setStoreOpen] = useState(false);
   const [chartSymbol, setChartSymbol] = useState("SPY");
   const [chartPickerFor, setChartPickerFor] = useState<StoreItem | null>(null);
+  const { tier, isAdmin } = useSubscription();
 
   // ── Drag state ──
   const dragItem = useRef<number | null>(null);
@@ -147,7 +167,7 @@ export default function DashboardPage() {
     title: string,
     config: Record<string, unknown>,
     width: number,
-  ) {
+  ): Promise<{ ok: boolean; error?: string }> {
     try {
       const res = await fetch("/api/dashboard/widgets", {
         method: "POST",
@@ -155,8 +175,14 @@ export default function DashboardPage() {
         body: JSON.stringify({ action: "add", widgetType, title, config, width }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data.error || "Failed to add widget" };
+      }
       if (data.id) await fetchWidgets();
-    } catch { /* silent */ }
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Network error" };
+    }
   }
 
   async function removeWidget(id: number) {
@@ -232,19 +258,19 @@ export default function DashboardPage() {
 
   // ── Store install handler ──
 
-  function handleInstall(item: StoreItem) {
+  async function handleInstall(item: StoreItem): Promise<{ ok: boolean; error?: string }> {
     if (item.type === "chart") {
       setChartPickerFor(item);
       setChartSymbol("SPY");
-      return;
+      return { ok: true };
     }
-    addWidget(item.type, item.name, item.defaultConfig, item.defaultWidth);
+    return addWidget(item.type, item.name, item.defaultConfig, item.defaultWidth);
   }
 
-  function handleChartConfirm() {
+  async function handleChartConfirm() {
     if (!chartPickerFor) return;
     const sym = chartSymbol.trim().toUpperCase() || "SPY";
-    addWidget("chart", sym, { symbol: sym, range: "3m" }, 2);
+    await addWidget("chart", sym, { symbol: sym, range: "3m" }, 2);
     setChartPickerFor(null);
   }
 
@@ -275,11 +301,11 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <PageContainer title="Dashboard" subtitle="Intelligence overview">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="h-32 w-full rounded" />
           ))}
-          <Skeleton className="h-48 col-span-2 rounded" />
+          <Skeleton className="h-48 sm:col-span-2 rounded" />
           <Skeleton className="h-48 rounded" />
         </div>
       </PageContainer>
@@ -329,13 +355,13 @@ export default function DashboardPage() {
     >
       <UpgradeGate minTier="analyst" feature="Intelligence dashboard" blur>
       {/* Widget Grid */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {widgets.map((widget, idx) => {
           const colSpan =
             widget.width === 3
-              ? "col-span-3"
+              ? "col-span-1 sm:col-span-2 md:col-span-3"
               : widget.width === 2
-              ? "col-span-2"
+              ? "col-span-1 sm:col-span-2"
               : "col-span-1";
 
           const isDragging = dragIdx === idx;
@@ -422,6 +448,8 @@ export default function DashboardPage() {
           setChartSymbol={setChartSymbol}
           onChartConfirm={handleChartConfirm}
           onChartCancel={() => setChartPickerFor(null)}
+          userTier={tier || "free"}
+          isAdmin={isAdmin}
         />
       )}
       </UpgradeGate>
@@ -440,19 +468,31 @@ function WidgetStore({
   setChartSymbol,
   onChartConfirm,
   onChartCancel,
+  userTier,
+  isAdmin,
 }: {
   onClose: () => void;
-  onInstall: (item: StoreItem) => void;
+  onInstall: (item: StoreItem) => Promise<{ ok: boolean; error?: string }>;
   isInstalled: (item: StoreItem) => boolean;
   chartPickerFor: StoreItem | null;
   chartSymbol: string;
   setChartSymbol: (s: string) => void;
   onChartConfirm: () => void;
   onChartCancel: () => void;
+  userTier: string;
+  isAdmin: boolean;
 }) {
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const userLevel = isAdmin ? 3 : (TIER_LEVELS[userTier] ?? 0);
+
+  function canAccessWidget(item: StoreItem): boolean {
+    if (isAdmin) return true;
+    return userLevel >= (TIER_LEVELS[item.minTier] ?? 1);
+  }
 
   const filtered = STORE_ITEMS.filter((item) => {
     const matchesCategory = activeCategory === "all" || item.category === activeCategory;
@@ -460,13 +500,25 @@ function WidgetStore({
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.description.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
+  }).sort((a, b) => {
+    // Accessible widgets first, locked widgets after
+    const aLocked = !canAccessWidget(a) ? 1 : 0;
+    const bLocked = !canAccessWidget(b) ? 1 : 0;
+    return aLocked - bLocked;
   });
 
-  function handleAdd(item: StoreItem) {
-    onInstall(item);
-    const key = `${item.type}:${item.name}`;
-    setJustAdded(key);
-    setTimeout(() => setJustAdded(null), 1500);
+  async function handleAdd(item: StoreItem) {
+    if (!canAccessWidget(item)) return;
+    setAddError(null);
+    const result = await onInstall(item);
+    if (result.ok) {
+      const key = `${item.type}:${item.name}`;
+      setJustAdded(key);
+      setTimeout(() => setJustAdded(null), 1500);
+    } else {
+      setAddError(result.error || "Failed to add widget");
+      setTimeout(() => setAddError(null), 3000);
+    }
   }
 
   return (
@@ -602,6 +654,13 @@ function WidgetStore({
           {/* Widget grid */}
           {!chartPickerFor && (
             <div className="flex-1 overflow-y-auto p-5">
+              {/* Error banner */}
+              {addError && (
+                <div className="mb-4 px-3 py-2 rounded-md border border-accent-rose/30 bg-accent-rose/5 text-[11px] font-mono text-accent-rose">
+                  {addError}
+                </div>
+              )}
+
               {/* Category header */}
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -618,34 +677,43 @@ function WidgetStore({
                   const installed = isInstalled(item);
                   const wasJustAdded = justAdded === `${item.type}:${item.name}`;
                   const ac = ACCENT_CLASSES[item.accent];
+                  const locked = !canAccessWidget(item);
 
                   return (
                     <div
                       key={`${item.type}-${item.name}`}
                       className={cn(
                         "group relative rounded-lg border bg-navy-900/40 transition-all duration-200",
-                        installed
+                        locked
+                          ? "border-navy-700/15 opacity-50"
+                          : installed
                           ? "border-navy-700/20 opacity-60"
                           : "border-navy-700/30 hover:border-navy-600/50 hover:bg-navy-900/70"
                       )}
                     >
                       {/* Accent top bar */}
-                      <div className={cn("h-0.5 rounded-t-lg", ac.dot)} />
+                      <div className={cn("h-0.5 rounded-t-lg", locked ? "bg-navy-700/30" : ac.dot)} />
 
                       <div className="p-3.5">
                         {/* Header row */}
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <h4 className="text-[12px] font-semibold text-navy-100 truncate">{item.name}</h4>
+                              <h4 className={cn("text-[12px] font-semibold truncate", locked ? "text-navy-500" : "text-navy-100")}>{item.name}</h4>
                               <span className={cn(
                                 "shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider rounded",
-                                ac.bg, ac.text
+                                locked ? "bg-navy-800/50 text-navy-600" : cn(ac.bg, ac.text)
                               )}>
                                 {SIZE_LABELS[item.defaultWidth] || "sm"}
                               </span>
+                              {locked && (
+                                <span className="shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider rounded bg-navy-800/50 text-navy-500 flex items-center gap-1">
+                                  <Lock className="h-2.5 w-2.5" />
+                                  {TIER_LABELS[item.minTier] || item.minTier}
+                                </span>
+                              )}
                             </div>
-                            <p className="text-[10px] text-navy-400 mt-0.5 line-clamp-2 leading-relaxed">
+                            <p className={cn("text-[10px] mt-0.5 line-clamp-2 leading-relaxed", locked ? "text-navy-600" : "text-navy-400")}>
                               {item.description}
                             </p>
                           </div>
@@ -657,7 +725,12 @@ function WidgetStore({
                             {item.category}
                           </span>
 
-                          {wasJustAdded ? (
+                          {locked ? (
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-navy-600">
+                              <Lock className="h-2.5 w-2.5" />
+                              Upgrade
+                            </span>
+                          ) : wasJustAdded ? (
                             <span className="flex items-center gap-1 text-[10px] font-mono text-accent-emerald">
                               <Check className="h-3 w-3" />
                               Added

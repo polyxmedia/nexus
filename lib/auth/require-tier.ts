@@ -134,7 +134,7 @@ export async function requireTier(
       .from(schema.subscriptions)
       .where(eq(schema.subscriptions.userId, username));
 
-    if (subs.length > 0 && subs[0].status === "active") {
+    if (subs.length > 0 && (subs[0].status === "active" || subs[0].status === "trialing")) {
       // Check if comped subscription has expired
       const isComped = !subs[0].stripeSubscriptionId || subs[0].stripeSubscriptionId?.startsWith("comped_");
       if (isComped && subs[0].currentPeriodEnd) {
@@ -279,7 +279,7 @@ export async function getUserTier(): Promise<{
     .from(schema.subscriptions)
     .where(eq(schema.subscriptions.userId, username));
 
-  if (subs.length > 0 && subs[0].status === "active") {
+  if (subs.length > 0 && (subs[0].status === "active" || subs[0].status === "trialing")) {
     const tiers = await db
       .select()
       .from(schema.subscriptionTiers)

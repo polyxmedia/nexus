@@ -695,7 +695,7 @@ export default function LandingPage() {
             >
               SIGN IN
             </Link>
-            <ThemeToggle className="p-1.5 text-navy-400 hover:text-navy-200 transition-colors" />
+            <ThemeToggle className="p-1.5 text-navy-400 hover:text-navy-200 transition-colors" dropdownDirection="down" />
             <Link
               href="/register"
               className="px-4 py-1.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
@@ -858,7 +858,7 @@ export default function LandingPage() {
               Pick what fits
             </h2>
             <p className="text-sm text-navy-400 max-w-md mx-auto mb-8">
-              2-day free trial on everything. No credit card, no commitment. Just try it.
+              2-day free trial on everything. Cancel anytime before you're charged.
             </p>
             <div className="flex items-center justify-center gap-3">
               <span className={`text-xs font-medium transition-colors ${!billingAnnual ? "text-navy-100" : "text-navy-500"}`}>Monthly</span>

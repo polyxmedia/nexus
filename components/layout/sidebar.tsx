@@ -31,6 +31,7 @@ import {
   Network,
   Radar,
   Scale,
+  Trophy,
   Settings,
   Share2,
   Shield,
@@ -68,6 +69,7 @@ const intelligenceNav: NavItem[] = [
 ];
 
 const toolsNav: NavItem[] = [
+  { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
   { name: "Timeline", href: "/timeline", icon: Clock },
   { name: "Graph", href: "/graph", icon: Network },
   { name: "Calendar", href: "/calendar", icon: Calendar },
@@ -178,10 +180,10 @@ function CreditMeter() {
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { meetsMinTier } = useSubscription();
+  const { meetsMinTier, isAdmin } = useSubscription();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const publicPages = ["/", "/landing", "/register", "/login", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
+  const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
   if (publicPages.includes(pathname) || pathname.startsWith("/research")) return null;
 
   const isOperator = meetsMinTier("operator");
@@ -234,18 +236,20 @@ export function Sidebar() {
           <Share2 className="h-4 w-4 shrink-0 opacity-70" />
           Referrals
         </Link>
-        <Link
-          href="/admin"
-          className={cn(
-            "mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
-            pathname.startsWith("/admin")
-              ? "bg-navy-800/80 text-navy-100"
-              : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
-          )}
-        >
-          <Lock className="h-4 w-4 shrink-0 opacity-70" />
-          Admin
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className={cn(
+              "mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
+              pathname.startsWith("/admin")
+                ? "bg-navy-800/80 text-navy-100"
+                : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
+            )}
+          >
+            <Lock className="h-4 w-4 shrink-0 opacity-70" />
+            Admin
+          </Link>
+        )}
         <Link
           href="/settings"
           className={cn(
@@ -286,7 +290,8 @@ export function Sidebar() {
       {/* Mobile hamburger button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-50 md:hidden p-2 rounded-md bg-navy-900/90 border border-navy-700/50 text-navy-300 hover:text-navy-100"
+        className="fixed left-3 z-50 md:hidden p-2 rounded-md bg-navy-900/90 border border-navy-700/50 text-navy-300 hover:text-navy-100"
+        style={{ top: "calc(0.75rem + var(--impersonation-banner-h, 0px))" }}
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -300,11 +305,17 @@ export function Sidebar() {
       )}
 
       {/* Sidebar */}
-      <aside className={cn(
-        "fixed left-0 top-0 z-50 h-screen w-48 border-r border-navy-700/50 bg-navy-950 transition-transform duration-200",
-        "md:translate-x-0 md:z-40",
-        mobileOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
+      <aside
+        className={cn(
+          "fixed left-0 z-50 w-48 border-r border-navy-700/50 bg-navy-950 transition-transform duration-200",
+          "md:translate-x-0 md:z-40",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{
+          top: "var(--impersonation-banner-h, 0px)",
+          height: "calc(100vh - var(--impersonation-banner-h, 0px))",
+        }}
+      >
         {sidebarContent}
       </aside>
     </>

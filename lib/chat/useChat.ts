@@ -17,6 +17,7 @@ export interface TokenUsage {
   outputTokens: number;
   creditsUsed: number;
   creditsRemaining?: number;
+  unlimited?: boolean;
   model: string;
   elapsedMs: number;
 }
@@ -45,6 +46,7 @@ export interface ChatMessage {
 export function useChat(sessionId: string) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [upgradeRequired, setUpgradeRequired] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const loadHistory = useCallback(async () => {
@@ -102,6 +104,9 @@ export function useChat(sessionId: string) {
           try {
             const errData = await res.json();
             errorMsg = errData.error || errorMsg;
+            if (errData.upgrade) {
+              setUpgradeRequired(true);
+            }
           } catch {
             // not JSON, use status code
           }
@@ -192,6 +197,7 @@ export function useChat(sessionId: string) {
                         outputTokens: event.outputTokens ?? event.totalOutputTokens ?? 0,
                         creditsUsed: event.creditsUsed ?? event.totalCreditsUsed ?? 0,
                         creditsRemaining: event.creditsRemaining,
+                        unlimited: event.unlimited ?? false,
                         model: event.model ?? "",
                         elapsedMs: event.elapsedMs ?? 0,
                       },
@@ -260,7 +266,7 @@ export function useChat(sessionId: string) {
     abortRef.current?.abort();
   }, []);
 
-  return { turns, isStreaming, sendMessage, stop, loadHistory };
+  return { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired };
 }
 
 function dbMessagesToTurns(messages: ChatMessage[]): ChatTurn[] {

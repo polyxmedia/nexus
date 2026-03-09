@@ -6,17 +6,11 @@ import { requireTier } from "@/lib/auth/require-tier";
 const DEFAULT_WIDGETS = [
   { widgetType: "metric", title: "Threat Level", config: JSON.stringify({ metric: "threat_level" }), position: 0, width: 1 },
   { widgetType: "metric", title: "Market Regime", config: JSON.stringify({ metric: "market_regime" }), position: 1, width: 1 },
-  { widgetType: "metric", title: "Portfolio", config: JSON.stringify({ metric: "portfolio_value" }), position: 2, width: 1 },
-  { widgetType: "macro", title: "Yield Curve", config: JSON.stringify({ view: "yield_curve" }), position: 3, width: 1 },
-  { widgetType: "macro", title: "Key Rates", config: JSON.stringify({ series: ["FEDFUNDS", "DGS2", "DGS10", "T10Y2Y"] }), position: 4, width: 1 },
-  { widgetType: "options", title: "Put/Call Ratio", config: JSON.stringify({ view: "pcr" }), position: 5, width: 1 },
-  { widgetType: "thesis", title: "Active Thesis", config: JSON.stringify({}), position: 6, width: 2 },
-  { widgetType: "predictions", title: "Prediction Scorecard", config: JSON.stringify({}), position: 7, width: 1 },
-  { widgetType: "chart", title: "S&P 500", config: JSON.stringify({ symbol: "SPY", range: "3m" }), position: 8, width: 2 },
-  { widgetType: "risk", title: "Portfolio Risk", config: JSON.stringify({ view: "var" }), position: 9, width: 1 },
-  { widgetType: "signals", title: "High Intensity Signals", config: JSON.stringify({ minIntensity: 4 }), position: 10, width: 1 },
-  { widgetType: "calendar", title: "Calendar", config: JSON.stringify({}), position: 11, width: 1 },
-  { widgetType: "macro", title: "Macro Dashboard", config: JSON.stringify({ series: ["UNRATE", "ICSA", "CPIAUCSL", "VIXCLS", "GOLDAMGBD228NLBM", "DCOILWTICO"] }), position: 12, width: 2 },
+  { widgetType: "signals", title: "High Intensity Signals", config: JSON.stringify({ minIntensity: 4 }), position: 2, width: 1 },
+  { widgetType: "thesis", title: "Active Thesis", config: JSON.stringify({}), position: 3, width: 2 },
+  { widgetType: "predictions", title: "Prediction Scorecard", config: JSON.stringify({}), position: 4, width: 1 },
+  { widgetType: "quick_chat", title: "Quick Chat", config: JSON.stringify({}), position: 5, width: 2 },
+  { widgetType: "chart", title: "S&P 500", config: JSON.stringify({ symbol: "SPY", range: "3m" }), position: 6, width: 2 },
 ];
 
 export async function GET() {

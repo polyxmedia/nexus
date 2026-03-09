@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, createContext, useContext, useRef } from "react";
 import React from "react";
 
 interface TierLimits {
@@ -17,8 +17,11 @@ interface SubscriptionState {
   limits: TierLimits | null;
   loading: boolean;
   isAdmin: boolean;
+  status: string | null;
+  currentPeriodEnd: string | null;
   canAccess: (feature: keyof TierLimits) => boolean;
   meetsMinTier: (minTier: "analyst" | "operator" | "institution") => boolean;
+  refresh: () => Promise<void>;
 }
 
 const TIER_LEVELS: Record<string, number> = {
@@ -34,8 +37,11 @@ const SubscriptionContext = createContext<SubscriptionState>({
   limits: null,
   loading: true,
   isAdmin: false,
+  status: null,
+  currentPeriodEnd: null,
   canAccess: () => false,
   meetsMinTier: () => false,
+  refresh: async () => {},
 });
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
@@ -44,46 +50,55 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [limits, setLimits] = useState<TierLimits | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
+
+  const fetchSubscription = useCallback(async () => {
+    try {
+      const r = await fetch("/api/subscription");
+      if (r.status === 401) {
+        setTier(null);
+        setLoading(false);
+        return;
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      if (!data) return;
+
+      if (data.isAdmin) {
+        setIsAdmin(true);
+        setTier("institution");
+        setTierName("Institution");
+      }
+      if (data.subscription) {
+        setStatus(data.subscription.status || null);
+        setCurrentPeriodEnd(data.subscription.currentPeriodEnd || null);
+      }
+      if (data.tier) {
+        setTierName(data.tier.name);
+        setTier(data.tier.name?.toLowerCase() || "free");
+        try {
+          setLimits(JSON.parse(data.tier.limits));
+        } catch {
+          // no limits
+        }
+      } else if (!data.isAdmin) {
+        setTier("free");
+      }
+      setLoading(false);
+    } catch {
+      setTier("free");
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch("/api/subscription")
-      .then((r) => {
-        if (r.status === 401) {
-          // Not authenticated - don't default to free, just stop loading
-          // Pages will redirect to login if needed
-          setTier(null);
-          setLoading(false);
-          return null;
-        }
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (!data) return;
-        if (data.isAdmin) {
-          setIsAdmin(true);
-          // Admin gets full access regardless of subscription state
-          setTier("institution");
-          setTierName("Institution");
-        }
-        if (data.tier) {
-          setTierName(data.tier.name);
-          setTier(data.tier.name?.toLowerCase() || "free");
-          try {
-            setLimits(JSON.parse(data.tier.limits));
-          } catch {
-            // no limits
-          }
-        } else if (!data.isAdmin) {
-          setTier("free");
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setTier("free");
-        setLoading(false);
-      });
-  }, []);
+    if (!fetchedRef.current) {
+      fetchedRef.current = true;
+      fetchSubscription();
+    }
+  }, [fetchSubscription]);
 
   const canAccess = useCallback(
     (feature: keyof TierLimits): boolean => {
@@ -110,7 +125,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   return React.createElement(
     SubscriptionContext.Provider,
-    { value: { tier, tierName, limits, loading, isAdmin, canAccess, meetsMinTier } },
+    { value: { tier, tierName, limits, loading, isAdmin, status, currentPeriodEnd, canAccess, meetsMinTier, refresh: fetchSubscription } },
     children
   );
 }

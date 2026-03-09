@@ -513,7 +513,7 @@ export default function GlobeView({
   );
 
   return (
-    <div ref={containerRef} className="w-full h-full" style={{ background: "#000008" }}>
+    <div ref={containerRef} className="w-full h-full" style={{ background: "var(--color-navy-950)" }}>
       <Globe
         ref={globeRef}
         width={dimensions.width}

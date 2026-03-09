@@ -28,6 +28,7 @@ import {
 } from "@/components/signals/trade-recommendation-card";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { SignalLineagePanel } from "@/components/signals/signal-lineage-panel";
+import { CommentSection } from "@/components/social/comment-section";
 import {
   LineChart,
   Line,
@@ -97,9 +98,9 @@ interface BacktestData {
   series: BacktestSeries[];
 }
 
-const CHART_COLORS = ["#06b6d4", "#10b981", "#f59e0b"];
+const CHART_COLORS = ["#6b7280", "#9ca3af", "#a1a1aa"];
 
-const INTENSITY_COLORS = ["#3b82f6", "#06b6d4", "#f59e0b", "#f97316", "#ef4444"];
+const INTENSITY_COLORS = ["#4a5568", "#5a6577", "#8b8b6e", "#9a7b6a", "#8b5c5c"];
 const INTENSITY_LABELS = ["Low", "Moderate", "Elevated", "High", "Critical"];
 
 const LAYER_ICONS: Record<string, typeof Globe> = {
@@ -196,7 +197,7 @@ export default function SignalDetailPage() {
     return (
       <PageContainer title="Signal Detail" subtitle="Loading...">
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
           </div>
           <Skeleton className="h-32 w-full" />
@@ -269,9 +270,8 @@ export default function SignalDetailPage() {
     >
       <UpgradeGate minTier="analyst" feature="Signal detection and monitoring" blur>
       {/* Intensity + Metadata Row */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${intensityColor}30, transparent)` }} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
           <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-1">Intensity</div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-mono font-bold tabular-nums" style={{ color: intensityColor }}>{signal.intensity}</span>
@@ -288,13 +288,11 @@ export default function SignalDetailPage() {
           </div>
           <div className="text-[9px] font-mono mt-0.5" style={{ color: `${intensityColor}99` }}>{INTENSITY_LABELS[signal.intensity - 1]}</div>
         </div>
-        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
           <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-1">Category</div>
           <div className="text-sm font-mono text-navy-200 capitalize">{signal.category}</div>
         </div>
-        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-emerald/20 to-transparent" />
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
           <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-1">Layers</div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {layers.map((l) => {
@@ -308,8 +306,7 @@ export default function SignalDetailPage() {
             })}
           </div>
         </div>
-        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/20 to-transparent" />
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
           <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-1">Sectors</div>
           <div className="text-[11px] font-mono text-navy-300">{sectors.length > 0 ? sectors.join(", ") : "N/A"}</div>
         </div>
@@ -325,20 +322,18 @@ export default function SignalDetailPage() {
       {/* Layer Details */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         {signal.celestialType && (
-          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
+          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Star className="h-3 w-3 text-accent-cyan/60" />
+              <Star className="h-3 w-3 text-navy-500" />
               <h4 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Celestial</h4>
             </div>
             <p className="text-sm text-navy-200 capitalize">{signal.celestialType.replace(/_/g, " ")}</p>
           </div>
         )}
         {signal.hebrewHoliday && (
-          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/20 to-transparent" />
+          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
             <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="h-3 w-3 text-accent-amber/60" />
+              <BookOpen className="h-3 w-3 text-navy-500" />
               <h4 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Hebrew Calendar</h4>
             </div>
             <p className="text-sm text-navy-200">{signal.hebrewHoliday}</p>
@@ -348,20 +343,18 @@ export default function SignalDetailPage() {
           </div>
         )}
         {signal.geopoliticalContext && (
-          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-rose/20 to-transparent" />
+          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Globe className="h-3 w-3 text-accent-rose/60" />
+              <Globe className="h-3 w-3 text-navy-500" />
               <h4 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Geopolitical</h4>
             </div>
             <p className="text-sm text-navy-200">{signal.geopoliticalContext}</p>
           </div>
         )}
         {signal.historicalPrecedent && (
-          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-navy-500/20 to-transparent" />
+          <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
             <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="h-3 w-3 text-navy-500/60" />
+              <BookOpen className="h-3 w-3 text-navy-500" />
               <h4 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Historical Precedent</h4>
             </div>
             <p className="text-sm text-navy-200">{signal.historicalPrecedent}</p>
@@ -370,8 +363,7 @@ export default function SignalDetailPage() {
       </div>
 
       {/* AI Analysis */}
-      <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-5 relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/20 to-transparent" />
+      <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
             AI Analysis
@@ -404,7 +396,7 @@ export default function SignalDetailPage() {
               {analysis.summary}
             </p>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="border border-navy-700/30 rounded-lg bg-navy-900/30 px-4 py-3">
                 <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-1">Confidence</div>
                 <div className="flex items-end gap-1">
@@ -415,7 +407,7 @@ export default function SignalDetailPage() {
                 </div>
                 <div className="mt-1.5 h-1 bg-navy-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all duration-500 bg-accent-cyan"
+                    className="h-full rounded-full transition-all duration-500 bg-navy-400"
                     style={{ width: `${analysis.confidence * 100}%` }}
                   />
                 </div>
@@ -424,18 +416,14 @@ export default function SignalDetailPage() {
                 <div className="border border-navy-700/30 rounded-lg bg-navy-900/30 px-4 py-3">
                   <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-1">Escalation</div>
                   <div className="flex items-end gap-1">
-                    <span className={`text-xl font-mono font-bold tabular-nums leading-tight ${
-                      analysis.escalationProbability > 0.6 ? "text-accent-rose" : analysis.escalationProbability > 0.3 ? "text-accent-amber" : "text-navy-100"
-                    }`}>
+                    <span className="text-xl font-mono font-bold tabular-nums leading-tight text-navy-100">
                       {(analysis.escalationProbability * 100).toFixed(0)}
                     </span>
                     <span className="text-[10px] font-mono text-navy-500 mb-0.5">%</span>
                   </div>
                   <div className="mt-1.5 h-1 bg-navy-800 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        analysis.escalationProbability > 0.6 ? "bg-accent-rose" : analysis.escalationProbability > 0.3 ? "bg-accent-amber" : "bg-accent-emerald"
-                      }`}
+                      className="h-full rounded-full transition-all duration-500 bg-navy-400"
                       style={{ width: `${analysis.escalationProbability * 100}%` }}
                     />
                   </div>
@@ -445,13 +433,11 @@ export default function SignalDetailPage() {
                 <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-1">Direction</div>
                 <div className="flex items-center gap-2">
                   {marketImpact.direction === "bearish" ? (
-                    <TrendingDown className="h-4 w-4 text-accent-rose" />
+                    <TrendingDown className="h-4 w-4 text-navy-400" />
                   ) : marketImpact.direction === "bullish" ? (
-                    <TrendingUp className="h-4 w-4 text-accent-emerald" />
+                    <TrendingUp className="h-4 w-4 text-navy-400" />
                   ) : null}
-                  <span className={`text-lg font-mono font-bold uppercase leading-tight ${
-                    marketImpact.direction === "bearish" ? "text-accent-rose" : marketImpact.direction === "bullish" ? "text-accent-emerald" : "text-navy-300"
-                  }`}>
+                  <span className="text-lg font-mono font-bold uppercase leading-tight text-navy-200">
                     {marketImpact.direction || "N/A"}
                   </span>
                 </div>
@@ -480,7 +466,7 @@ export default function SignalDetailPage() {
             {riskFactors.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <Shield className="h-3 w-3 text-accent-rose/50" />
+                  <Shield className="h-3 w-3 text-navy-500" />
                   <h4 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
                     Risk Factors
                   </h4>
@@ -488,7 +474,7 @@ export default function SignalDetailPage() {
                 <div className="space-y-1.5">
                   {riskFactors.map((risk, i) => (
                     <div key={i} className="flex items-start gap-2.5 px-3 py-2 rounded bg-navy-900/30 border border-navy-800/50">
-                      <AlertTriangle className="h-3 w-3 text-accent-rose/50 mt-0.5 shrink-0" />
+                      <AlertTriangle className="h-3 w-3 text-navy-500 mt-0.5 shrink-0" />
                       <span className="text-xs text-navy-300">{risk}</span>
                     </div>
                   ))}
@@ -497,9 +483,9 @@ export default function SignalDetailPage() {
             )}
             {/* Red Team Challenge */}
             {redTeam && (
-              <div className="border border-accent-rose/20 rounded-lg bg-accent-rose/5 p-4 space-y-3">
+              <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-[10px] font-medium uppercase tracking-widest text-accent-rose">
+                  <h4 className="text-[10px] font-medium uppercase tracking-widest text-navy-400">
                     Red Team Challenge
                   </h4>
                   <div className="flex items-center gap-1.5">
@@ -511,13 +497,7 @@ export default function SignalDetailPage() {
                         <div
                           key={n}
                           className={`h-2 w-2 rounded-full ${
-                            n <= redTeam.biasScore
-                              ? redTeam.biasScore >= 4
-                                ? "bg-accent-rose"
-                                : redTeam.biasScore >= 3
-                                  ? "bg-accent-amber"
-                                  : "bg-accent-emerald"
-                              : "bg-navy-700"
+                            n <= redTeam.biasScore ? "bg-navy-400" : "bg-navy-700"
                           }`}
                         />
                       ))}
@@ -544,11 +524,7 @@ export default function SignalDetailPage() {
                     <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider block">
                       Red Team Suggests
                     </span>
-                    <span className={`text-sm font-mono ${
-                      redTeam.suggestedConfidence < analysis.confidence
-                        ? "text-accent-rose"
-                        : "text-accent-emerald"
-                    }`}>
+                    <span className="text-sm font-mono text-navy-200">
                       {(redTeam.suggestedConfidence * 100).toFixed(0)}%
                     </span>
                   </div>
@@ -560,13 +536,13 @@ export default function SignalDetailPage() {
                 {/* Kill Conditions */}
                 {redTeam.killConditions.length > 0 && (
                   <div>
-                    <span className="text-[9px] font-mono text-accent-rose/70 uppercase tracking-wider block mb-1.5">
+                    <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider block mb-1.5">
                       Kill Conditions
                     </span>
                     <ul className="space-y-1">
                       {redTeam.killConditions.map((kc, i) => (
                         <li key={i} className="text-xs text-navy-300 flex items-start gap-2">
-                          <span className="text-accent-rose mt-0.5 shrink-0">x</span>
+                          <span className="text-navy-500 mt-0.5 shrink-0">x</span>
                           {kc}
                         </li>
                       ))}
@@ -577,7 +553,7 @@ export default function SignalDetailPage() {
                 {/* Alternative Scenarios */}
                 {redTeam.alternativeScenarios.length > 0 && (
                   <div>
-                    <span className="text-[9px] font-mono text-accent-amber/70 uppercase tracking-wider block mb-1.5">
+                    <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider block mb-1.5">
                       Alternative Scenarios
                     </span>
                     <div className="space-y-2">
@@ -585,13 +561,13 @@ export default function SignalDetailPage() {
                         <div key={i} className="bg-navy-900/40 rounded p-2.5">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-navy-200">{alt.scenario}</span>
-                            <span className="text-[10px] font-mono text-accent-amber tabular-nums">
+                            <span className="text-[10px] font-mono text-navy-300 tabular-nums">
                               {(alt.probability * 100).toFixed(0)}%
                             </span>
                           </div>
                           <div className="h-1 bg-navy-800 rounded-full overflow-hidden mb-1.5">
                             <div
-                              className="h-full bg-accent-amber/40 rounded-full"
+                              className="h-full bg-navy-500/40 rounded-full"
                               style={{ width: `${alt.probability * 100}%` }}
                             />
                           </div>
@@ -626,14 +602,13 @@ export default function SignalDetailPage() {
       )}
 
       {backtest && backtest.series.length > 0 && (
-        <div className="mt-6 border border-navy-700/30 rounded-lg bg-navy-900/20 p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-emerald/20 to-transparent" />
+        <div className="mt-6 border border-navy-700/30 rounded-lg bg-navy-900/20 p-5">
           <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-4">
             Market Impact Backtest
           </h3>
 
           {/* Change Metrics */}
-          <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
             {backtest.series.map((s, i) => (
               <div key={s.ticker} className="border border-navy-700/30 rounded-lg bg-navy-900/30 p-3">
                 <div className="text-[10px] text-navy-500 uppercase tracking-wider font-mono mb-2">
@@ -654,8 +629,8 @@ export default function SignalDetailPage() {
                           c.value === null
                             ? "text-navy-500"
                             : c.value >= 0
-                              ? "text-accent-emerald"
-                              : "text-accent-rose"
+                              ? "text-navy-300"
+                              : "text-navy-400"
                         }`}
                       >
                         {c.value !== null
@@ -709,13 +684,13 @@ export default function SignalDetailPage() {
                 />
                 <ReferenceLine
                   x={backtest.signalDate}
-                  stroke="#f43f5e"
+                  stroke="#9ca3af"
                   strokeDasharray="4 4"
-                  strokeWidth={1.5}
+                  strokeWidth={1}
                   label={{
                     value: "SIGNAL",
                     position: "top",
-                    fill: "#f43f5e",
+                    fill: "#9ca3af",
                     fontSize: 9,
                   }}
                 />
@@ -742,6 +717,9 @@ export default function SignalDetailPage() {
 
       {/* Decision Lineage */}
       {lineage && <SignalLineagePanel data={lineage} />}
+
+      {/* Discussion */}
+      {signal && <CommentSection targetType="signal" targetId={signal.id} />}
       </UpgradeGate>
     </PageContainer>
   );

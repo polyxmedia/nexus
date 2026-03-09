@@ -194,7 +194,7 @@ function ScenarioDetail({ item }: { item: ScenarioAnalysis }) {
         </div>
 
         {/* Quick stats */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="border border-navy-700/30 rounded px-3 py-2 bg-navy-950/40">
             <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block">Actors</span>
             <span className="text-xs text-navy-200">{scenario.actors.map(a => a.shortName).join(" vs ")}</span>
@@ -655,7 +655,7 @@ export default function GameTheoryPage() {
   useEffect(() => { fetchScenarios(); }, [fetchScenarios]);
 
   return (
-    <div className="ml-48 h-screen flex flex-col bg-navy-950">
+    <div className="ml-0 md:ml-48 h-screen flex flex-col bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="Game theory analysis" blur>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-navy-700/50 px-6 h-14 shrink-0">

@@ -29,6 +29,9 @@ const SENSITIVE_KEYS = new Set([
   "voyage_api_key",
   "trading212_api_key",
   "trading212_api_secret",
+  "polymarket_private_key",
+  "kalshi_api_key_id",
+  "kalshi_private_key",
 ]);
 
 function maskValue(key: string, rawValue: string): string {

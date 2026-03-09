@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
-import { requireTier } from "@/lib/auth/require-tier";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
 
 const yf = new YahooFinance();
 
@@ -14,8 +15,10 @@ const SYMBOLS: Record<string, string> = {
 };
 
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("analyst");
-  if ("response" in tierCheck) return tierCheck.response;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");

@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { findHistoricalParallels } from "@/lib/parallels/engine";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { creditGate } from "@/lib/credits/gate";
 
 export async function POST(request: Request) {
   try {
+    const gate = await creditGate();
+    if (gate.response) return gate.response;
     const { query } = await request.json();
     if (!query || typeof query !== "string") {
       return NextResponse.json(

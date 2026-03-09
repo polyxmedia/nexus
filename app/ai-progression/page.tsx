@@ -105,7 +105,7 @@ export default function AIProgressionPage() {
   if (loading) {
     return (
       <PageContainer title="AI Progression" subtitle="Capability tracking and labor displacement analysis">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-32 rounded" />)}
         </div>
       </PageContainer>
@@ -146,7 +146,7 @@ export default function AIProgressionPage() {
 
       {/* ── Key Displacement Figures ── */}
       {data.displacement && (
-        <div className="grid grid-cols-3 gap-px bg-navy-800/30 rounded overflow-hidden mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-navy-800/30 rounded overflow-hidden mb-8">
           {[
             { label: "Enterprise Adoption", value: `${data.displacement.enterpriseAdoption}%`, delta: "up" },
             { label: "Replacing Workers", value: `${data.displacement.aiReplacementRate}%`, delta: "up" },
@@ -177,7 +177,7 @@ export default function AIProgressionPage() {
               Source <ExternalLink className="h-2.5 w-2.5" />
             </a>
           </div>
-          <div className="grid grid-cols-4 gap-px bg-navy-800/30 rounded overflow-hidden">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-navy-800/30 rounded overflow-hidden">
             {[
               {
                 label: "Unemployment",

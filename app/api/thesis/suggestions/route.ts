@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
 import { eq, desc, gte } from "drizzle-orm";
+import { creditGate } from "@/lib/credits/gate";
 
 export interface ThesisSuggestion {
   title: string;
@@ -12,6 +13,9 @@ export interface ThesisSuggestion {
 
 export async function GET() {
   try {
+    const gate = await creditGate();
+    if (gate.response) return gate.response;
+
     const anthropicKeyRows = await db
       .select()
       .from(schema.settings)
@@ -96,6 +100,8 @@ Rules:
         },
       ],
     });
+
+    await gate.debit("claude-haiku-4-5-20251001", response.usage.input_tokens, response.usage.output_tokens, "thesis_suggestions");
 
     const raw = response.content[0].type === "text" ? response.content[0].text : "";
     const jsonMatch = raw.match(/\[[\s\S]*\]/);

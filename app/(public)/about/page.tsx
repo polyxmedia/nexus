@@ -674,7 +674,7 @@ export default function AboutPage() {
             </div>
 
             <h2 className="font-sans text-2xl md:text-3xl font-light text-navy-100 mb-4 leading-tight">
-              2 days free. Full access. No credit card.
+              2 days free. Full access. Cancel before you're charged.
             </h2>
 
             <p className="font-sans text-[15px] text-navy-400 mb-10 max-w-lg mx-auto leading-relaxed">

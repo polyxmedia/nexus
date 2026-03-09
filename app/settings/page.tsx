@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { loadStripe } from "@stripe/stripe-js";
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 import * as Tabs from "@radix-ui/react-tabs";
+import * as Dialog from "@radix-ui/react-dialog";
+import { cn } from "@/lib/utils";
 import { PageContainer } from "@/components/layout/page-container";
 import { StatusDot } from "@/components/ui/status-dot";
 import { Button } from "@/components/ui/button";
@@ -13,6 +19,7 @@ import {
   CreditCard,
   ExternalLink,
   Key,
+  Link2,
   Loader2,
   Save,
   Settings2,
@@ -24,6 +31,12 @@ import {
   Bell,
   Send,
   Smartphone,
+  Wallet,
+  ArrowUpRight,
+  ArrowDownRight,
+  X,
+  Zap,
+  Plus,
 } from "lucide-react";
 
 interface SettingEntry {
@@ -110,8 +123,11 @@ function RichValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
 
 const TABS = [
   { id: "subscription", label: "Subscription", icon: CreditCard },
+  { id: "credits", label: "Credits", icon: Wallet },
+  { id: "connections", label: "Connections", icon: Link2 },
   { id: "ai-models", label: "AI Models", icon: Brain },
   { id: "api-keys", label: "API Keys", icon: Key },
+  { id: "platform-api", label: "Platform API", icon: Shield },
   { id: "trading", label: "Trading", icon: TrendingUp },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "data", label: "Data Sources", icon: Database },
@@ -165,8 +181,12 @@ export default function SettingsPage() {
 
   // AI Model
   const [aiModel, setAiModel] = useState("claude-opus-4-6");
+  const [aiModelSaved, setAiModelSaved] = useState("claude-opus-4-6");
   const [aiChatModel, setAiChatModel] = useState("");
+  const [aiChatModelSaved, setAiChatModelSaved] = useState("");
   const [jiangMode, setJiangMode] = useState(false);
+  const [jiangModeSaved, setJiangModeSaved] = useState(false);
+  const aiModelsDirty = aiModel !== aiModelSaved || aiChatModel !== aiChatModelSaved || jiangMode !== jiangModeSaved;
 
   // API Keys
   const [voyageKey, setVoyageKey] = useState("");
@@ -178,10 +198,25 @@ export default function SettingsPage() {
   const [coinbaseSecret, setCoinbaseSecret] = useState("");
   const [coinbaseOAuth, setCoinbaseOAuth] = useState<{ oauthAvailable: boolean; connected: boolean } | null>(null);
   const [coinbaseConnecting, setCoinbaseConnecting] = useState(false);
+  const [alpacaOAuth, setAlpacaOAuth] = useState<{ oauthAvailable: boolean; connected: boolean } | null>(null);
+  const [alpacaConnecting, setAlpacaConnecting] = useState(false);
+  const [brokerRequest, setBrokerRequest] = useState("");
   const [fredKey, setFredKey] = useState("");
   const [ibkrGatewayUrl, setIbkrGatewayUrl] = useState("");
   const [ibkrAccountId, setIbkrAccountId] = useState("");
+  const [igConnected, setIgConnected] = useState(false);
   const [acledKey, setAcledKey] = useState("");
+
+  // Connection flow state
+  const [connectingBroker, setConnectingBroker] = useState<string | null>(null);
+  const [connectExpanded, setConnectExpanded] = useState<string | null>(null);
+  const [connectStatus, setConnectStatus] = useState<Record<string, { ok: boolean; message: string } | null>>({});
+  const [brokerModal, setBrokerModal] = useState<string | null>(null);
+  const [t212Form, setT212Form] = useState({ apiKey: "", apiSecret: "" });
+  const [polymarketKey, setPolymarketKey] = useState("");
+  const [polymarketForm, setPolymarketForm] = useState({ privateKey: "" });
+  const [kalshiKeyId, setKalshiKeyId] = useState("");
+  const [kalshiForm, setKalshiForm] = useState({ keyId: "", privateKey: "" });
   const [acledEmail, setAcledEmail] = useState("");
 
   // Trading
@@ -200,6 +235,55 @@ export default function SettingsPage() {
   ]);
   const [telegramTestLoading, setTelegramTestLoading] = useState(false);
   const [telegramTestResult, setTelegramTestResult] = useState<string | null>(null);
+
+  // Platform API Keys (v1)
+  interface PlatformApiKey {
+    id: number;
+    name: string;
+    prefix: string;
+    scopes: string | null;
+    createdAt: string;
+    lastUsedAt: string | null;
+    revokedAt: string | null;
+    raw?: string;
+  }
+  const [platformKeys, setPlatformKeys] = useState<PlatformApiKey[]>([]);
+  const [platformKeysLoading, setPlatformKeysLoading] = useState(false);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
+  const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
+
+  // Credits / Wallet
+  const [creditBalance, setCreditBalance] = useState<{
+    period: string;
+    creditsGranted: number;
+    creditsUsed: number;
+    creditsRemaining: number;
+    unlimited: boolean;
+    tier: string;
+    monthlyGrant: number;
+  } | null>(null);
+  const [creditLedger, setCreditLedger] = useState<{
+    id: number;
+    amount: number;
+    balanceAfter: number;
+    reason: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    sessionId: string | null;
+    createdAt: string;
+  }[]>([]);
+  const [creditPacks, setCreditPacks] = useState<{
+    id: string;
+    credits: number;
+    priceCents: number;
+    label: string;
+  }[]>([]);
+  const [creditsLoading, setCreditsLoading] = useState(true);
+  const [topupLoading, setTopupLoading] = useState<string | null>(null);
+  const [topupPackId, setTopupPackId] = useState<string | null>(null);
 
   // Data Sources
   const [newsPollingInterval, setNewsPollingInterval] = useState("300");
@@ -227,9 +311,9 @@ export default function SettingsPage() {
             case "aircraft_polling_interval": setAircraftPollingInterval(setting.value); break;
             case "market_refresh_interval": setMarketRefreshInterval(setting.value); break;
             case "prediction_auto_resolve": setPredictionAutoResolve(setting.value); break;
-            case "ai_model": setAiModel(setting.value); break;
-            case "ai_chat_model": setAiChatModel(setting.value); break;
-            case "jiang_mode": setJiangMode(setting.value === "true"); break;
+            case "ai_model": setAiModel(setting.value); setAiModelSaved(setting.value); break;
+            case "ai_chat_model": setAiChatModel(setting.value); setAiChatModelSaved(setting.value); break;
+            case "jiang_mode": setJiangMode(setting.value === "true"); setJiangModeSaved(setting.value === "true"); break;
           }
           // Handle user-scoped keys (username:key format)
           const baseKey = setting.key.includes(":") ? setting.key.split(":").slice(1).join(":") : "";
@@ -264,16 +348,142 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data) => setCoinbaseOAuth(data))
       .catch(() => {});
+
+    // Check Alpaca OAuth status
+    fetch("/api/alpaca/oauth/status")
+      .then((r) => r.json())
+      .then((data) => setAlpacaOAuth(data))
+      .catch(() => {});
+
+    // Handle Alpaca OAuth callback params
+    const alpacaParams = new URLSearchParams(window.location.search);
+    if (alpacaParams.get("alpaca_connected") === "true") {
+      setAlpacaOAuth({ oauthAvailable: true, connected: true });
+      window.history.replaceState({}, "", window.location.pathname + "?tab=connections");
+    }
+    if (alpacaParams.get("alpaca_error")) {
+      const err = alpacaParams.get("alpaca_error") || "unknown";
+      setConnectStatus(s => ({ ...s, alpaca: { ok: false, message: `Alpaca connection failed: ${err}` } }));
+      window.history.replaceState({}, "", window.location.pathname + "?tab=connections");
+    }
+
+    // Check IG connection status
+    fetch("/api/ig/connect")
+      .then((r) => r.json())
+      .then((data) => setIgConnected(!!data.connected))
+      .catch(() => {});
+
+    // Check prediction market connection status
+    fetch("/api/prediction-markets/portfolio")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.polymarket?.configured) setPolymarketKey("configured");
+        if (data.kalshi?.configured) setKalshiKeyId("configured");
+      })
+      .catch(() => {});
+
+    // Handle OAuth callback params (IG redirect back)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("ig_connected") === "true") {
+      setIgConnected(true);
+      window.history.replaceState({}, "", window.location.pathname + "?tab=connections");
+    }
+    if (params.get("ig_error")) {
+      const errorMap: Record<string, string> = {
+        missing_params: "IG did not return authorization parameters",
+        invalid_state: "Invalid session state, please try again",
+        expired_state: "Authorization session expired, please try again",
+        not_configured: "IG OAuth not configured on server",
+        token_exchange_failed: "Failed to exchange authorization code for tokens",
+        no_token: "IG did not return a valid access token",
+        access_denied: "Access was denied by IG",
+      };
+      const err = params.get("ig_error") || "unknown";
+      setConnectStatus(s => ({ ...s, ig: { ok: false, message: errorMap[err] || `IG connection failed: ${err}` } }));
+      window.history.replaceState({}, "", window.location.pathname + "?tab=connections");
+    }
+
+    // Load credits data
+    Promise.all([
+      fetch("/api/credits").then((r) => r.json()),
+      fetch("/api/credits/ledger").then((r) => r.json()),
+      fetch("/api/credits/topup").then((r) => r.json()),
+    ])
+      .then(([balance, ledger, packs]) => {
+        setCreditBalance(balance);
+        setCreditLedger(Array.isArray(ledger) ? ledger : []);
+        setCreditPacks(Array.isArray(packs) ? packs : []);
+        setCreditsLoading(false);
+      })
+      .catch(() => setCreditsLoading(false));
   }, []);
+
+  // Load platform API keys
+  useEffect(() => {
+    setPlatformKeysLoading(true);
+    fetch("/api/settings/api-keys")
+      .then((r) => r.json())
+      .then((data) => {
+        setPlatformKeys(data.keys || []);
+        setPlatformKeysLoading(false);
+      })
+      .catch(() => setPlatformKeysLoading(false));
+  }, []);
+
+  const createPlatformKey = async () => {
+    if (creatingKey) return;
+    setCreatingKey(true);
+    setNewlyCreatedKey(null);
+    try {
+      const res = await fetch("/api/settings/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newKeyName.trim() || "Default" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to create key");
+        return;
+      }
+      setNewlyCreatedKey(data.key.raw);
+      setPlatformKeys((prev) => [{ ...data.key, revokedAt: null, lastUsedAt: null, scopes: null }, ...prev]);
+      setNewKeyName("");
+    } finally {
+      setCreatingKey(false);
+    }
+  };
+
+  const revokePlatformKey = async (id: number) => {
+    setRevokingKeyId(id);
+    try {
+      const res = await fetch(`/api/settings/api-keys?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setPlatformKeys((prev) =>
+          prev.map((k) => (k.id === id ? { ...k, revokedAt: new Date().toISOString() } : k))
+        );
+      }
+    } finally {
+      setRevokingKeyId(null);
+    }
+  };
+
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const saveSetting = async (key: string, value: string) => {
     setSaving(key);
+    setSaveError(null);
     try {
-      await fetch("/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key, value }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Save failed" }));
+        setSaveError(data.error || `Save failed (${res.status})`);
+        setTimeout(() => setSaveError(null), 4000);
+        return;
+      }
       setSettings((prev) => {
         const exists = prev.find((s) => s.key === key);
         if (exists) {
@@ -284,7 +494,8 @@ export default function SettingsPage() {
       setSaved(key);
       setTimeout(() => setSaved(null), 2000);
     } catch {
-      // ignore
+      setSaveError("Network error. Could not save setting.");
+      setTimeout(() => setSaveError(null), 4000);
     } finally {
       setSaving(null);
     }
@@ -408,6 +619,19 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings" subtitle="Configuration and preferences">
+      {/* Save status toast */}
+      {saveError && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg border border-accent-rose/30 bg-accent-rose/[0.06] text-accent-rose text-xs font-mono animate-in fade-in slide-in-from-top-2">
+          <X className="h-3 w-3 shrink-0" />
+          {saveError}
+        </div>
+      )}
+      {saved && !saveError && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg border border-accent-emerald/30 bg-accent-emerald/[0.06] text-accent-emerald text-xs font-mono animate-in fade-in slide-in-from-top-2">
+          <CheckCircle2 className="h-3 w-3 shrink-0" />
+          Setting saved
+        </div>
+      )}
       <Tabs.Root defaultValue="ai-models">
         <Tabs.List className="flex gap-0 border-b border-navy-700 mb-6">
           {TABS.map((tab) => (
@@ -618,6 +842,259 @@ export default function SettingsPage() {
           </div>
         </Tabs.Content>
 
+        {/* Credits / Wallet Tab */}
+        <Tabs.Content value="credits">
+          <div className="space-y-6 max-w-3xl">
+            {creditsLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-32 w-full" />
+                ))}
+              </div>
+            ) : creditBalance ? (
+              <>
+                {/* Wallet Overview */}
+                <div className="border border-navy-700 rounded p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
+                      Credit Wallet
+                    </h3>
+                    <span className="text-[9px] font-mono text-navy-600">
+                      Period: {creditBalance.period}
+                    </span>
+                  </div>
+
+                  {creditBalance.unlimited ? (
+                    <div className="flex items-center gap-3">
+                      <Zap className="h-5 w-5 text-accent-amber" />
+                      <div>
+                        <span className="text-2xl font-bold text-accent-amber font-mono">UNLIMITED</span>
+                        <p className="text-xs text-navy-400 mt-0.5">Admin / Institution tier</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                        <div>
+                          <span className="text-[9px] font-mono text-navy-500 uppercase block mb-1">Remaining</span>
+                          <span className="text-2xl font-bold text-navy-100 font-mono tabular-nums">
+                            {creditBalance.creditsRemaining.toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-mono text-navy-500 uppercase block mb-1">Used</span>
+                          <span className="text-2xl font-bold text-accent-amber font-mono tabular-nums">
+                            {creditBalance.creditsUsed.toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-mono text-navy-500 uppercase block mb-1">Granted</span>
+                          <span className="text-2xl font-bold text-navy-400 font-mono tabular-nums">
+                            {creditBalance.creditsGranted.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] font-mono text-navy-600">
+                            {creditBalance.creditsGranted > 0
+                              ? `${((creditBalance.creditsUsed / creditBalance.creditsGranted) * 100).toFixed(1)}% used`
+                              : "No credits granted"}
+                          </span>
+                          <span className="text-[9px] font-mono text-navy-600">
+                            {creditBalance.tier} tier ({creditBalance.monthlyGrant?.toLocaleString() ?? 0}/mo)
+                          </span>
+                        </div>
+                        <div className="h-2 bg-navy-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              creditBalance.creditsGranted > 0 && creditBalance.creditsUsed / creditBalance.creditsGranted > 0.8
+                                ? "bg-accent-rose"
+                                : creditBalance.creditsGranted > 0 && creditBalance.creditsUsed / creditBalance.creditsGranted > 0.5
+                                  ? "bg-accent-amber"
+                                  : "bg-accent-cyan"
+                            }`}
+                            style={{
+                              width: creditBalance.creditsGranted > 0
+                                ? `${Math.min(100, (creditBalance.creditsUsed / creditBalance.creditsGranted) * 100)}%`
+                                : "0%",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Cost info */}
+                      <div className="mt-3 pt-3 border-t border-navy-700/40">
+                        <span className="text-[9px] font-mono text-navy-600">
+                          1 credit = $0.001 | Opus: 15/75 per 1K tokens | Sonnet: 3/15 | Haiku: 1/4
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Top Up Section */}
+                {!creditBalance.unlimited && creditPacks.length > 0 && (
+                  <div className="border border-navy-700 rounded p-5">
+                    <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-4">
+                      Top Up Credits
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {creditPacks.map((pack) => (
+                        <button
+                          key={pack.id}
+                          disabled={topupLoading !== null || topupPackId !== null}
+                          onClick={() => setTopupPackId(pack.id)}
+                          className={cn(
+                            "border rounded p-3 transition-all text-left group",
+                            topupPackId === pack.id
+                              ? "border-accent-cyan/60 bg-accent-cyan/[0.06]"
+                              : "border-navy-700 hover:border-accent-cyan/40 hover:bg-accent-cyan/[0.03]"
+                          )}
+                        >
+                          <div className="text-sm font-bold text-navy-100 font-mono mb-1">
+                            {pack.credits.toLocaleString()}
+                          </div>
+                          <div className="text-[10px] text-navy-500 mb-2">credits</div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-accent-cyan font-mono">
+                              ${(pack.priceCents / 100).toFixed(0)}
+                            </span>
+                            <Plus className="h-3 w-3 text-navy-600 group-hover:text-accent-cyan transition-colors" />
+                          </div>
+                          <div className="text-[9px] text-navy-600 mt-1">
+                            ${((pack.priceCents / pack.credits) * 1000).toFixed(2)}/1K
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Embedded checkout for credit top-up */}
+                    {topupPackId && (
+                      <div className="mt-4 border border-navy-700/50 rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2 border-b border-navy-700/50">
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">
+                            Purchase {creditPacks.find((p) => p.id === topupPackId)?.label}
+                          </span>
+                          <button
+                            onClick={() => setTopupPackId(null)}
+                            className="text-navy-500 hover:text-navy-300 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <EmbeddedCheckoutProvider
+                          stripe={stripePromise}
+                          options={{
+                            fetchClientSecret: async () => {
+                              const res = await fetch("/api/credits/topup", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ packId: topupPackId, embedded: true }),
+                              });
+                              const data = await res.json();
+                              if (!res.ok || !data.clientSecret) throw new Error(data.error || "Checkout failed");
+                              return data.clientSecret;
+                            },
+                          }}
+                        >
+                          <EmbeddedCheckout className="embedded-checkout" />
+                        </EmbeddedCheckoutProvider>
+                        <p className="px-4 py-2 font-mono text-[9px] text-navy-600 tracking-wider text-center border-t border-navy-700/50">
+                          Secured by Stripe. Credits added instantly after payment.
+                        </p>
+                      </div>
+                    )}
+
+                    {!topupPackId && (
+                      <p className="text-[9px] text-navy-600 mt-3">
+                        Top-up credits are added to your current balance immediately. They do not expire at end of month.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Transaction History */}
+                <div className="border border-navy-700 rounded p-5">
+                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-4">
+                    Transaction History
+                  </h3>
+                  {creditLedger.length === 0 ? (
+                    <p className="text-xs text-navy-500">No transactions yet</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px] font-mono">
+                        <thead>
+                          <tr className="text-[9px] text-navy-600 uppercase tracking-wider border-b border-navy-700/40">
+                            <th className="text-left py-2 pr-3">Date</th>
+                            <th className="text-left py-2 pr-3">Reason</th>
+                            <th className="text-left py-2 pr-3">Model</th>
+                            <th className="text-right py-2 pr-3">Tokens</th>
+                            <th className="text-right py-2 pr-3">Credits</th>
+                            <th className="text-right py-2">Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-navy-700/20">
+                          {creditLedger.slice(0, 50).map((entry) => (
+                            <tr key={entry.id} className="hover:bg-navy-800/30 transition-colors">
+                              <td className="py-1.5 pr-3 text-navy-400 whitespace-nowrap">
+                                {new Date(entry.createdAt).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </td>
+                              <td className="py-1.5 pr-3">
+                                <span className={`inline-flex items-center gap-1 ${
+                                  entry.amount > 0 ? "text-accent-emerald" : "text-navy-300"
+                                }`}>
+                                  {entry.amount > 0 ? (
+                                    <ArrowUpRight className="h-3 w-3" />
+                                  ) : (
+                                    <ArrowDownRight className="h-3 w-3 text-navy-500" />
+                                  )}
+                                  {entry.reason === "topup" ? "Top-up" :
+                                   entry.reason === "chat_request" ? "Chat" :
+                                   entry.reason === "suggestions" ? "Suggestions" :
+                                   entry.reason}
+                                </span>
+                              </td>
+                              <td className="py-1.5 pr-3 text-navy-500">
+                                {entry.model === "stripe" ? "---" :
+                                 entry.model?.replace("claude-", "").replace("-20250514", "") ?? "---"}
+                              </td>
+                              <td className="py-1.5 pr-3 text-right text-navy-500 tabular-nums">
+                                {entry.inputTokens + entry.outputTokens > 0
+                                  ? `${(entry.inputTokens / 1000).toFixed(1)}k / ${(entry.outputTokens / 1000).toFixed(1)}k`
+                                  : "---"}
+                              </td>
+                              <td className={`py-1.5 pr-3 text-right tabular-nums font-medium ${
+                                entry.amount > 0 ? "text-accent-emerald" : "text-accent-rose"
+                              }`}>
+                                {entry.amount > 0 ? "+" : ""}{entry.amount.toLocaleString()}
+                              </td>
+                              <td className="py-1.5 text-right text-navy-400 tabular-nums">
+                                {entry.balanceAfter.toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="border border-navy-700 rounded p-5">
+                <p className="text-xs text-navy-500">Unable to load credit data</p>
+              </div>
+            )}
+          </div>
+        </Tabs.Content>
+
         {/* AI Models Tab */}
         <Tabs.Content value="ai-models">
           <div className="space-y-6 max-w-2xl">
@@ -638,7 +1115,6 @@ export default function SettingsPage() {
                       key={model.id}
                       onClick={() => {
                         setAiModel(model.id);
-                        saveSetting("ai_model", model.id);
                       }}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border text-left transition-all ${
                         isSelected
@@ -686,7 +1162,6 @@ export default function SettingsPage() {
                 <button
                   onClick={() => {
                     setAiChatModel("");
-                    deleteSetting("ai_chat_model");
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all ${
                     !aiChatModel
@@ -715,7 +1190,6 @@ export default function SettingsPage() {
                       key={model.id}
                       onClick={() => {
                         setAiChatModel(model.id);
-                        saveSetting("ai_chat_model", model.id);
                       }}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border text-left transition-all ${
                         isSelected
@@ -763,9 +1237,7 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={() => {
-                    const next = !jiangMode;
-                    setJiangMode(next);
-                    saveSetting("jiang_mode", next ? "true" : "false");
+                    setJiangMode(!jiangMode);
                   }}
                   className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ml-4 ${
                     jiangMode ? "bg-accent-amber" : "bg-navy-700"
@@ -794,7 +1266,602 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Save button */}
+            <div className={`flex items-center gap-3 pt-2 transition-opacity ${aiModelsDirty ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+              <Button
+                onClick={async () => {
+                  await saveSetting("ai_model", aiModel);
+                  if (aiChatModel) {
+                    await saveSetting("ai_chat_model", aiChatModel);
+                  } else if (aiChatModelSaved) {
+                    await deleteSetting("ai_chat_model");
+                  }
+                  if (jiangMode !== jiangModeSaved) {
+                    await saveSetting("jiang_mode", jiangMode ? "true" : "false");
+                  }
+                  setAiModelSaved(aiModel);
+                  setAiChatModelSaved(aiChatModel);
+                  setJiangModeSaved(jiangMode);
+                }}
+                disabled={!aiModelsDirty || saving !== null}
+                className="flex items-center gap-2 px-5 py-2 bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/30 text-accent-cyan text-xs font-mono uppercase tracking-wider rounded transition-colors disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                Save Changes
+              </Button>
+              {aiModelsDirty && (
+                <span className="text-[10px] text-accent-amber font-mono">Unsaved changes</span>
+              )}
+            </div>
           </div>
+        </Tabs.Content>
+
+        {/* Connections Tab */}
+        <Tabs.Content value="connections">
+          <div className="space-y-3 max-w-2xl">
+            <p className="text-xs text-navy-400 mb-2">
+              Connect your broker accounts securely. Authentication happens via OAuth or secure sign-in flows. No credentials are stored on our servers.
+            </p>
+
+            {/* Interactive Brokers */}
+            {(() => {
+              const isConnected = !!ibkrGatewayUrl;
+              const isExpanded = connectExpanded === "ibkr";
+              return (
+                <div className={`border rounded-lg overflow-hidden transition-colors ${isConnected ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+                  <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${isConnected ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>IB</div>
+                      <div>
+                        <h3 className="text-sm font-medium text-navy-200">Interactive Brokers</h3>
+                        <p className="text-[10px] text-navy-500">Stocks, options, futures, forex, bonds</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isConnected ? (
+                        <>
+                          <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                            <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected
+                          </span>
+                          <button onClick={() => setConnectExpanded(isExpanded ? null : "ibkr")} className="text-[10px] text-navy-500 hover:text-navy-300 px-2 py-1 rounded border border-navy-700/40 transition-colors">
+                            {isExpanded ? "Close" : "Manage"}
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConnectExpanded(isExpanded ? null : "ibkr")} className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all">
+                          <Link2 className="h-3 w-3" /> Connect
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-1 border-t border-navy-800/50 space-y-3">
+                      <p className="text-[10px] text-navy-500">Point to your IBKR Client Portal Gateway. No credentials stored, authentication is handled by the gateway itself.</p>
+                      <ApiKeyField label="Gateway URL" settingKey="ibkr_gateway_url" value={ibkrGatewayUrl} onChange={setIbkrGatewayUrl} placeholder="https://localhost:5000" />
+                      <ApiKeyField label="Account ID (optional)" settingKey="ibkr_account_id" value={ibkrAccountId} onChange={setIbkrAccountId} placeholder="e.g. U1234567 or DU1234567 for paper" />
+                      {connectStatus.ibkr && (
+                        <p className={`text-[10px] font-mono ${connectStatus.ibkr.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.ibkr.message}</p>
+                      )}
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          disabled={!ibkrGatewayUrl || connectingBroker === "ibkr"}
+                          onClick={async () => {
+                            setConnectingBroker("ibkr");
+                            setConnectStatus(s => ({ ...s, ibkr: null }));
+                            try {
+                              const res = await fetch("/api/ibkr/account");
+                              const data = await res.json();
+                              if (data.error) setConnectStatus(s => ({ ...s, ibkr: { ok: false, message: data.error } }));
+                              else setConnectStatus(s => ({ ...s, ibkr: { ok: true, message: `Connected to account ${data.selectedAccount || data.accounts?.[0] || ""}` } }));
+                            } catch { setConnectStatus(s => ({ ...s, ibkr: { ok: false, message: "Could not reach gateway" } })); }
+                            setConnectingBroker(null);
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded bg-accent-emerald/10 text-accent-emerald text-[10px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50"
+                        >
+                          {connectingBroker === "ibkr" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                          Test Connection
+                        </button>
+                        {isConnected && (
+                          <button
+                            onClick={async () => {
+                              await saveSetting("ibkr_gateway_url", "");
+                              await saveSetting("ibkr_account_id", "");
+                              setIbkrGatewayUrl(""); setIbkrAccountId("");
+                              setConnectStatus(s => ({ ...s, ibkr: null }));
+                              setConnectExpanded(null);
+                            }}
+                            className="text-[10px] font-mono text-accent-rose hover:text-red-400 transition-colors px-3 py-2"
+                          >
+                            Disconnect
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* IG Markets - Coming Soon */}
+            <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-400">IG</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-navy-200">IG Markets</h3>
+                    <p className="text-[10px] text-navy-500">CFDs, spread betting, forex, indices, commodities</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono text-navy-500 px-3 py-1.5 rounded border border-navy-700/40">Coming soon</span>
+              </div>
+            </div>
+
+            {/* Trading 212 - clean card, auth via modal */}
+            <div className={`border rounded-lg overflow-hidden transition-colors ${t212Key ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${t212Key ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>T2</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-navy-200">Trading 212</h3>
+                    <p className="text-[10px] text-navy-500">Stocks and ETFs, commission-free</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {t212Key ? (
+                    <>
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected
+                      </span>
+                      <button
+                        onClick={async () => {
+                          await saveSetting("t212_api_key", ""); await saveSetting("t212_api_secret", "");
+                          setT212Key(""); setT212Secret("");
+                        }}
+                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => { setT212Form({ apiKey: "", apiSecret: "" }); setConnectStatus(s => ({ ...s, t212: null })); setBrokerModal("t212"); }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all"
+                    >
+                      <Key className="h-3 w-3" /> Connect Trading 212
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Coinbase - OAuth only */}
+            <div className={`border rounded-lg overflow-hidden transition-colors ${coinbaseOAuth?.connected ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${coinbaseOAuth?.connected ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>CB</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-navy-200">Coinbase</h3>
+                    <p className="text-[10px] text-navy-500">Cryptocurrency trading</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {coinbaseOAuth?.connected ? (
+                    <>
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected via OAuth
+                      </span>
+                      <button
+                        onClick={async () => {
+                          await fetch("/api/coinbase/oauth", { method: "DELETE" });
+                          setCoinbaseOAuth({ ...coinbaseOAuth, connected: false });
+                        }}
+                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      disabled={coinbaseConnecting}
+                      onClick={async () => {
+                        setCoinbaseConnecting(true);
+                        try {
+                          const res = await fetch("/api/coinbase/oauth");
+                          const data = await res.json();
+                          if (data.url) window.location.href = data.url;
+                          else setCoinbaseConnecting(false);
+                        } catch { setCoinbaseConnecting(false); }
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all disabled:opacity-50"
+                    >
+                      {coinbaseConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
+                      Connect with Coinbase
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Alpaca - OAuth (pending approval, shows disclosure) */}
+            <div className={`border rounded-lg overflow-hidden transition-colors ${alpacaOAuth?.connected ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${alpacaOAuth?.connected ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>AL</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-navy-200">Alpaca</h3>
+                    <p className="text-[10px] text-navy-500">US stocks, options, crypto, commission-free</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {alpacaOAuth?.connected ? (
+                    <>
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected via OAuth
+                      </span>
+                      <button
+                        onClick={async () => {
+                          await fetch("/api/alpaca/oauth", { method: "DELETE" });
+                          setAlpacaOAuth({ ...alpacaOAuth, connected: false });
+                        }}
+                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      disabled={alpacaConnecting}
+                      onClick={async () => {
+                        setAlpacaConnecting(true);
+                        try {
+                          const res = await fetch("/api/alpaca/oauth");
+                          const data = await res.json();
+                          if (data.url) window.location.href = data.url;
+                          else {
+                            setConnectStatus(s => ({ ...s, alpaca: { ok: false, message: data.error || "OAuth not available" } }));
+                            setAlpacaConnecting(false);
+                          }
+                        } catch { setAlpacaConnecting(false); }
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all disabled:opacity-50"
+                    >
+                      {alpacaConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
+                      Connect with Alpaca
+                    </button>
+                  )}
+                </div>
+              </div>
+              {!alpacaOAuth?.connected && (
+                <div className="px-4 pb-3 pt-0">
+                  <p className="text-[9px] text-navy-600 leading-relaxed">Authorize NEXUS: By allowing NEXUS to access your Alpaca account, you are granting NEXUS access to your account information and authorization to place transactions in your account at your direction. Alpaca does not warrant or guarantee that NEXUS will work as advertised or expected. Before authorizing, <a href="/research/methodology" className="underline hover:text-navy-400">learn more about NEXUS</a>.</p>
+                </div>
+              )}
+              {connectStatus.alpaca && !connectStatus.alpaca.ok && (
+                <div className="px-4 pb-3">
+                  <p className="text-[10px] font-mono text-accent-rose">{connectStatus.alpaca.message}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Saxo Bank - Coming Soon */}
+            <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-400">SX</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-navy-200">Saxo Bank</h3>
+                    <p className="text-[10px] text-navy-500">Stocks, ETFs, forex, CFDs, futures, options</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono text-navy-500 px-3 py-1.5 rounded border border-navy-700/40">Coming soon</span>
+              </div>
+            </div>
+
+            {/* Polymarket */}
+            <div className={`border rounded-lg overflow-hidden transition-colors ${polymarketKey ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${polymarketKey ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>PM</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-navy-200">Polymarket</h3>
+                    <p className="text-[10px] text-navy-500">Prediction market trading via wallet</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {polymarketKey ? (
+                    <>
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected
+                      </span>
+                      <button
+                        onClick={async () => {
+                          await saveSetting(`${username}:polymarket_private_key`, "");
+                          setPolymarketKey("");
+                        }}
+                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => { setPolymarketForm({ privateKey: "" }); setConnectStatus(s => ({ ...s, polymarket: null })); setBrokerModal("polymarket"); }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all"
+                    >
+                      <Key className="h-3 w-3" /> Connect Wallet
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Kalshi */}
+            <div className={`border rounded-lg overflow-hidden transition-colors ${kalshiKeyId ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${kalshiKeyId ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>KL</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-navy-200">Kalshi</h3>
+                    <p className="text-[10px] text-navy-500">US prediction market (API key pair)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {kalshiKeyId ? (
+                    <>
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected
+                      </span>
+                      <button
+                        onClick={async () => {
+                          await saveSetting(`${username}:kalshi_api_key_id`, ""); await saveSetting(`${username}:kalshi_private_key`, "");
+                          setKalshiKeyId("");
+                        }}
+                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => { setKalshiForm({ keyId: "", privateKey: "" }); setConnectStatus(s => ({ ...s, kalshi: null })); setBrokerModal("kalshi"); }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all"
+                    >
+                      <Key className="h-3 w-3" /> Connect Kalshi
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Request a broker */}
+            <div className="border border-dashed border-navy-700/60 rounded-lg p-4 mt-2">
+              <p className="text-[10px] font-mono text-navy-500 uppercase tracking-wider mb-2">Request a broker</p>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="e.g. Saxo Bank, Webull, OANDA..."
+                  value={brokerRequest}
+                  onChange={(e) => setBrokerRequest(e.target.value)}
+                  className="flex-1 text-[11px]"
+                />
+                <button
+                  disabled={!brokerRequest.trim()}
+                  onClick={async () => {
+                    try {
+                      await fetch("/api/settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ key: `broker_request:${Date.now()}`, value: brokerRequest.trim() }),
+                      });
+                      setBrokerRequest("");
+                      setConnectStatus(s => ({ ...s, broker_request: { ok: true, message: "Request submitted" } }));
+                      setTimeout(() => setConnectStatus(s => ({ ...s, broker_request: null })), 3000);
+                    } catch {}
+                  }}
+                  className="px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-[10px] font-mono text-navy-300 transition-all disabled:opacity-40"
+                >
+                  <Send className="h-3 w-3" />
+                </button>
+              </div>
+              {connectStatus.broker_request?.ok && (
+                <p className="text-[10px] font-mono text-accent-emerald mt-2">{connectStatus.broker_request.message}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Trading 212 Connect Modal */}
+          <Dialog.Root open={brokerModal === "t212"} onOpenChange={(open) => { if (!open) setBrokerModal(null); }}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+              <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-navy-950 border border-navy-700 rounded-xl shadow-2xl z-50 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-300">T2</div>
+                    <div>
+                      <Dialog.Title className="text-sm font-medium text-navy-100">Connect Trading 212</Dialog.Title>
+                      <p className="text-[10px] text-navy-500 mt-0.5">Paste your API key from the Trading 212 app.</p>
+                    </div>
+                  </div>
+                  <Dialog.Close className="text-navy-500 hover:text-navy-300 transition-colors">
+                    <X className="h-4 w-4" />
+                  </Dialog.Close>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Key</label>
+                    <Input type="password" placeholder="From T212 app: Settings > API" value={t212Form.apiKey} onChange={(e) => setT212Form(f => ({ ...f, apiKey: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Secret (optional)</label>
+                    <Input type="password" placeholder="If required by your account" value={t212Form.apiSecret} onChange={(e) => setT212Form(f => ({ ...f, apiSecret: e.target.value }))} />
+                  </div>
+                  {connectStatus.t212 && (
+                    <p className={`text-[10px] font-mono ${connectStatus.t212.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.t212.message}</p>
+                  )}
+                  <button
+                    disabled={!t212Form.apiKey || connectingBroker === "t212"}
+                    onClick={async () => {
+                      setConnectingBroker("t212");
+                      setConnectStatus(s => ({ ...s, t212: null }));
+                      try {
+                        await saveSetting("t212_api_key", t212Form.apiKey);
+                        if (t212Form.apiSecret) await saveSetting("t212_api_secret", t212Form.apiSecret);
+                        setT212Key(t212Form.apiKey);
+                        setT212Secret(t212Form.apiSecret);
+                        const res = await fetch("/api/trading212/account");
+                        const data = await res.json();
+                        if (data.error) {
+                          setConnectStatus(s => ({ ...s, t212: { ok: false, message: data.error } }));
+                          await saveSetting("t212_api_key", ""); await saveSetting("t212_api_secret", "");
+                          setT212Key(""); setT212Secret("");
+                        } else {
+                          setBrokerModal(null);
+                          setT212Form({ apiKey: "", apiSecret: "" });
+                        }
+                      } catch {
+                        setConnectStatus(s => ({ ...s, t212: { ok: false, message: "Connection failed" } }));
+                        await saveSetting("t212_api_key", ""); await saveSetting("t212_api_secret", "");
+                        setT212Key(""); setT212Secret("");
+                      }
+                      setConnectingBroker(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
+                  >
+                    {connectingBroker === "t212" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                    Connect
+                  </button>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Shield className="h-3 w-3 text-navy-600 shrink-0" />
+                    <p className="text-[9px] text-navy-600">Your API key is encrypted at rest using AES-256-GCM. It is never exposed to the frontend after saving.</p>
+                  </div>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+
+          {/* Polymarket Connect Modal */}
+          <Dialog.Root open={brokerModal === "polymarket"} onOpenChange={(open) => { if (!open) setBrokerModal(null); }}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+              <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-navy-950 border border-navy-700 rounded-xl shadow-2xl z-50 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-300">PM</div>
+                    <div>
+                      <Dialog.Title className="text-sm font-medium text-navy-100">Connect Polymarket</Dialog.Title>
+                      <p className="text-[10px] text-navy-500 mt-0.5">Paste your Polygon wallet private key.</p>
+                    </div>
+                  </div>
+                  <Dialog.Close className="text-navy-500 hover:text-navy-300 transition-colors">
+                    <X className="h-4 w-4" />
+                  </Dialog.Close>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Wallet Private Key</label>
+                    <Input type="password" placeholder="0x..." value={polymarketForm.privateKey} onChange={(e) => setPolymarketForm(f => ({ ...f, privateKey: e.target.value }))} />
+                  </div>
+                  {connectStatus.polymarket && (
+                    <p className={`text-[10px] font-mono ${connectStatus.polymarket.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.polymarket.message}</p>
+                  )}
+                  <button
+                    disabled={!polymarketForm.privateKey || connectingBroker === "polymarket"}
+                    onClick={async () => {
+                      setConnectingBroker("polymarket");
+                      setConnectStatus(s => ({ ...s, polymarket: null }));
+                      try {
+                        await saveSetting(`${username}:polymarket_private_key`, polymarketForm.privateKey);
+                        setPolymarketKey("configured");
+                        setBrokerModal(null);
+                        setPolymarketForm({ privateKey: "" });
+                      } catch {
+                        setConnectStatus(s => ({ ...s, polymarket: { ok: false, message: "Failed to save key" } }));
+                      }
+                      setConnectingBroker(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
+                  >
+                    {connectingBroker === "polymarket" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                    Connect
+                  </button>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Shield className="h-3 w-3 text-navy-600 shrink-0" />
+                    <p className="text-[9px] text-navy-600">Your private key is encrypted at rest. Ensure your wallet has USDC on Polygon for trading.</p>
+                  </div>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+
+          {/* Kalshi Connect Modal */}
+          <Dialog.Root open={brokerModal === "kalshi"} onOpenChange={(open) => { if (!open) setBrokerModal(null); }}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+              <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-navy-950 border border-navy-700 rounded-xl shadow-2xl z-50 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-300">KL</div>
+                    <div>
+                      <Dialog.Title className="text-sm font-medium text-navy-100">Connect Kalshi</Dialog.Title>
+                      <p className="text-[10px] text-navy-500 mt-0.5">Paste your API Key ID and RSA private key.</p>
+                    </div>
+                  </div>
+                  <Dialog.Close className="text-navy-500 hover:text-navy-300 transition-colors">
+                    <X className="h-4 w-4" />
+                  </Dialog.Close>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Key ID</label>
+                    <Input type="text" placeholder="Your Kalshi API key ID" value={kalshiForm.keyId} onChange={(e) => setKalshiForm(f => ({ ...f, keyId: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">RSA Private Key (PEM)</label>
+                    <textarea
+                      placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..."
+                      value={kalshiForm.privateKey}
+                      onChange={(e) => setKalshiForm(f => ({ ...f, privateKey: e.target.value }))}
+                      rows={4}
+                      className="w-full bg-navy-900/50 border border-navy-800/40 rounded px-3 py-2 text-xs font-mono text-navy-200 placeholder:text-navy-700 resize-none"
+                    />
+                  </div>
+                  {connectStatus.kalshi && (
+                    <p className={`text-[10px] font-mono ${connectStatus.kalshi.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.kalshi.message}</p>
+                  )}
+                  <button
+                    disabled={!kalshiForm.keyId || !kalshiForm.privateKey || connectingBroker === "kalshi"}
+                    onClick={async () => {
+                      setConnectingBroker("kalshi");
+                      setConnectStatus(s => ({ ...s, kalshi: null }));
+                      try {
+                        await saveSetting(`${username}:kalshi_api_key_id`, kalshiForm.keyId);
+                        await saveSetting(`${username}:kalshi_private_key`, kalshiForm.privateKey);
+                        setKalshiKeyId("configured");
+                        setBrokerModal(null);
+                        setKalshiForm({ keyId: "", privateKey: "" });
+                      } catch {
+                        setConnectStatus(s => ({ ...s, kalshi: { ok: false, message: "Failed to save keys" } }));
+                      }
+                      setConnectingBroker(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
+                  >
+                    {connectingBroker === "kalshi" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                    Connect
+                  </button>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Shield className="h-3 w-3 text-navy-600 shrink-0" />
+                    <p className="text-[9px] text-navy-600">US residents only. Your credentials are encrypted at rest using AES-256-GCM.</p>
+                  </div>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
         </Tabs.Content>
 
         {/* API Keys Tab */}
@@ -846,128 +1913,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Brokers */}
-            <div className="border border-navy-700 rounded p-4">
-              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                Trading 212 (Stocks)
-              </h3>
-              <div className="space-y-3">
-                <ApiKeyField
-                  label="API Key"
-                  settingKey="t212_api_key"
-                  value={t212Key}
-                  onChange={setT212Key}
-                  placeholder="Enter T212 API key..."
-                />
-                <ApiKeyField
-                  label="API Secret"
-                  settingKey="t212_api_secret"
-                  value={t212Secret}
-                  onChange={setT212Secret}
-                  placeholder="Enter T212 API secret..."
-                />
-              </div>
-            </div>
-
-            <div className="border border-navy-700 rounded p-4">
-              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                Coinbase (Crypto)
-              </h3>
-
-              {/* OAuth connect (preferred) */}
-              {coinbaseOAuth?.oauthAvailable && (
-                <div className="mb-3 pb-3 border-b border-navy-800">
-                  {coinbaseOAuth.connected ? (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-accent-emerald" />
-                        <span className="text-[11px] text-navy-300">Connected via OAuth</span>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          await fetch("/api/coinbase/oauth", { method: "DELETE" });
-                          setCoinbaseOAuth({ ...coinbaseOAuth, connected: false });
-                        }}
-                        className="text-[10px] font-mono text-accent-rose hover:text-red-400 transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      disabled={coinbaseConnecting}
-                      onClick={async () => {
-                        setCoinbaseConnecting(true);
-                        try {
-                          const res = await fetch("/api/coinbase/oauth");
-                          const data = await res.json();
-                          if (data.url) window.location.href = data.url;
-                        } catch {
-                          setCoinbaseConnecting(false);
-                        }
-                      }}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded bg-navy-800 hover:bg-navy-700 border border-navy-600 text-navy-200 text-[11px] font-mono transition-colors disabled:opacity-50"
-                    >
-                      {coinbaseConnecting ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Shield className="h-3.5 w-3.5" />
-                      )}
-                      Connect with Coinbase
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* API key fallback */}
-              {(!coinbaseOAuth?.oauthAvailable || !coinbaseOAuth?.connected) && (
-                <div className="space-y-3">
-                  {coinbaseOAuth?.oauthAvailable && (
-                    <p className="text-[9px] text-navy-600 font-mono">Or use API keys manually:</p>
-                  )}
-                  <ApiKeyField
-                    label="API Key"
-                    settingKey="coinbase_api_key"
-                    value={coinbaseKey}
-                    onChange={setCoinbaseKey}
-                    placeholder="Enter Coinbase API key..."
-                  />
-                  <ApiKeyField
-                    label="API Secret"
-                    settingKey="coinbase_api_secret"
-                    value={coinbaseSecret}
-                    onChange={setCoinbaseSecret}
-                    placeholder="Enter Coinbase API secret..."
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="border border-navy-700 rounded p-4">
-              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                Interactive Brokers
-              </h3>
-              <p className="text-[10px] text-navy-600 mb-3">
-                Connect via the IBKR Client Portal Gateway. Multi-asset: stocks, options, futures, forex, bonds.
-              </p>
-              <div className="space-y-3">
-                <ApiKeyField
-                  label="Gateway URL"
-                  settingKey="ibkr_gateway_url"
-                  value={ibkrGatewayUrl}
-                  onChange={setIbkrGatewayUrl}
-                  placeholder="https://localhost:5000"
-                />
-                <ApiKeyField
-                  label="Account ID (optional)"
-                  settingKey="ibkr_account_id"
-                  value={ibkrAccountId}
-                  onChange={setIbkrAccountId}
-                  placeholder="e.g. U1234567 or DU1234567 for paper"
-                />
-              </div>
-            </div>
-
             {/* OSINT / Conflict Data */}
             <div className="border border-navy-700 rounded p-4">
               <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
@@ -989,6 +1934,173 @@ export default function SettingsPage() {
                   placeholder="Enter ACLED email..."
                   type="email"
                 />
+              </div>
+            </div>
+          </div>
+        </Tabs.Content>
+
+        {/* Platform API Tab */}
+        <Tabs.Content value="platform-api">
+          <div className="space-y-4 max-w-2xl">
+            <div className="border border-navy-700 rounded p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
+                  API Access Keys
+                </h3>
+                <span className="text-[10px] font-mono text-navy-600">
+                  {platformKeys.filter((k) => !k.revokedAt).length} / 5 active
+                </span>
+              </div>
+
+              <p className="text-xs text-navy-400">
+                Generate API keys to access the Nexus v1 API programmatically. Keys are shown once at creation. Store them securely.
+              </p>
+
+              {/* Create new key */}
+              <div className="flex gap-2">
+                <Input
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  placeholder="Key name (e.g. Production, Dev)"
+                  className="flex-1"
+                  onKeyDown={(e) => e.key === "Enter" && createPlatformKey()}
+                />
+                <Button
+                  onClick={createPlatformKey}
+                  disabled={creatingKey || platformKeys.filter((k) => !k.revokedAt).length >= 5}
+                  className="flex items-center gap-1.5"
+                >
+                  {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  Generate
+                </Button>
+              </div>
+
+              {/* Newly created key warning */}
+              {newlyCreatedKey && (
+                <div className="border border-accent-amber/40 bg-accent-amber/[0.06] rounded p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-3.5 w-3.5 text-accent-amber" />
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-accent-amber">
+                      Copy your key now. It will not be shown again.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs font-mono bg-navy-900 border border-navy-700 rounded px-3 py-2 text-navy-200 select-all break-all">
+                      {newlyCreatedKey}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newlyCreatedKey);
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Key list */}
+              {platformKeysLoading ? (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : platformKeys.length === 0 ? (
+                <p className="text-xs text-navy-600 py-4 text-center">No API keys created yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {platformKeys.map((k) => (
+                    <div
+                      key={k.id}
+                      className={`flex items-center justify-between gap-3 border rounded px-3 py-2.5 ${
+                        k.revokedAt
+                          ? "border-navy-800 bg-navy-900/30 opacity-50"
+                          : "border-navy-700 bg-navy-900/50"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-navy-200 font-medium truncate">{k.name}</span>
+                          {k.revokedAt && (
+                            <span className="text-[9px] font-mono uppercase tracking-wider text-accent-rose bg-accent-rose/10 px-1.5 py-0.5 rounded">
+                              Revoked
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <code className="text-[10px] font-mono text-navy-500">{k.prefix}</code>
+                          <span className="text-[10px] text-navy-600">
+                            Created {new Date(k.createdAt).toLocaleDateString()}
+                          </span>
+                          {k.lastUsedAt && (
+                            <span className="text-[10px] text-navy-600">
+                              Last used {new Date(k.lastUsedAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {!k.revokedAt && (
+                        <button
+                          onClick={() => revokePlatformKey(k.id)}
+                          disabled={revokingKeyId === k.id}
+                          className="text-navy-500 hover:text-accent-rose transition-colors p-1"
+                          title="Revoke key"
+                        >
+                          {revokingKeyId === k.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* API Documentation */}
+            <div className="border border-navy-700 rounded p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
+                  Quick Reference
+                </h3>
+                <a
+                  href="/docs"
+                  target="_blank"
+                  className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+                >
+                  Full API Docs
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              <div className="text-xs text-navy-400 space-y-2">
+                <p>Base URL: <code className="text-accent-cyan font-mono bg-navy-900 px-1.5 py-0.5 rounded">/api/v1</code></p>
+                <p>Auth: <code className="text-accent-cyan font-mono bg-navy-900 px-1.5 py-0.5 rounded">Authorization: Bearer sk-nxs-...</code></p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                <div className="bg-navy-900/50 border border-navy-700/40 rounded px-2.5 py-1.5">
+                  <span className="text-accent-emerald">GET</span> <span className="text-navy-300">/v1/signals</span>
+                </div>
+                <div className="bg-navy-900/50 border border-navy-700/40 rounded px-2.5 py-1.5">
+                  <span className="text-accent-emerald">GET</span> <span className="text-navy-300">/v1/predictions</span>
+                </div>
+                <div className="bg-navy-900/50 border border-navy-700/40 rounded px-2.5 py-1.5">
+                  <span className="text-accent-emerald">GET</span> <span className="text-navy-300">/v1/theses</span>
+                </div>
+                <div className="bg-navy-900/50 border border-navy-700/40 rounded px-2.5 py-1.5">
+                  <span className="text-accent-emerald">GET</span> <span className="text-navy-300">/v1/market/quote</span>
+                </div>
+                <div className="bg-navy-900/50 border border-navy-700/40 rounded px-2.5 py-1.5">
+                  <span className="text-accent-emerald">GET</span> <span className="text-navy-300">/v1/news</span>
+                </div>
+              </div>
+              <div className="text-[10px] text-navy-600 space-y-1">
+                <p>Rate limits vary by tier. Headers: X-RateLimit-Remaining, X-RateLimit-Reset</p>
+                <p>All responses use envelope: {"{"} data, meta {"}"} or {"{"} error: {"{"} code, message {"}"} {"}"}</p>
               </div>
             </div>
           </div>

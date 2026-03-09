@@ -9,7 +9,11 @@ import { ActorDetailModal } from "@/components/warroom/actor-detail-modal";
 import { OsintEventModal } from "@/components/warroom/osint-event-modal";
 import { AircraftDetailModal } from "@/components/warroom/aircraft-detail-modal";
 import { VesselDetailModal } from "@/components/warroom/vessel-detail-modal";
+import { ChokepointDetailModal } from "@/components/warroom/chokepoint-detail-modal";
+import { CHOKEPOINT_INTEL } from "@/lib/warroom/geo-constants";
+import { CountryDetailPanel } from "@/components/warroom/country-detail-panel";
 import { WatchlistPanel } from "@/components/warroom/watchlist-panel";
+import { SourcesPanel } from "@/components/warroom/sources-panel";
 import type { WatchlistItem } from "@/components/warroom/watchlist-panel";
 import { LayerToggle } from "@/components/warroom/layer-toggle";
 import { MapTypeSelector, MAP_TILES } from "@/components/warroom/map-type-selector";
@@ -17,6 +21,7 @@ import type { MapTileType } from "@/components/warroom/map-type-selector";
 import { ViewModeToggle } from "@/components/warroom/view-mode-toggle";
 import type { ViewMode } from "@/components/warroom/view-mode-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTheme } from "@/lib/hooks/useTheme";
 import { useAircraftData } from "@/lib/warroom/use-aircraft-data";
 import { useVesselData } from "@/lib/warroom/use-vessel-data";
 import { useOsintData } from "@/lib/warroom/use-osint-data";
@@ -46,9 +51,22 @@ export default function WarRoomPage() {
   const [selectedAircraft, setSelectedAircraft] = useState<AircraftState | null>(null);
   const [selectedVessel, setSelectedVessel] = useState<VesselState | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
+  const [selectedChokepointId, setSelectedChokepointId] = useState<string | null>(null);
+  const [newsArticles, setNewsArticles] = useState<{ title: string; url: string; source: string; date: string }[]>([]);
 
+  const { theme } = useTheme();
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
   const [mapTileType, setMapTileType] = useState<MapTileType>("dark");
+
+  // Sync default map tile with theme
+  useEffect(() => {
+    if (theme === "light" || theme === "soft") {
+      setMapTileType("hybrid");
+    } else {
+      setMapTileType("dark");
+    }
+  }, [theme]);
 
   const [layerVisibility, setLayerVisibility] = useState<WarRoomLayerVisibility>({
     aircraft: false,
@@ -77,6 +95,20 @@ export default function WarRoomPage() {
         console.error("War room fetch error:", err);
         setLoading(false);
       });
+  }, []);
+
+  // Fetch news once for the country panel
+  useEffect(() => {
+    fetch("/api/news?limit=100")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => {
+        if (Array.isArray(data)) setNewsArticles(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleCountryClick = useCallback((code: string) => {
+    setSelectedCountryCode((prev) => (prev === code ? null : code));
   }, []);
 
   const handleActorClick = (id: string) => {
@@ -114,6 +146,10 @@ export default function WarRoomPage() {
     setSelectedVessel(v);
   }, []);
 
+  const handleChokepointClick = useCallback((id: string) => {
+    setSelectedChokepointId((prev) => (prev === id ? null : id));
+  }, []);
+
   const handleWatchAircraft = useCallback((ac: AircraftState) => {
     setWatchlist((prev) => {
       const exists = prev.find((w) => w.id === ac.icao24);
@@ -136,10 +172,11 @@ export default function WarRoomPage() {
 
   if (loading || !data) {
     return (
-      <div className="ml-48 h-screen flex flex-col overflow-hidden bg-[#050505]">
-        <div className="h-9 border-b border-[#1a1a1a] bg-[#080808]/95 flex items-center px-3 gap-0 font-mono">
+      <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
+        <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
+        <div className="h-9 border-b border-navy-700 bg-navy-900/95 flex items-center px-3 gap-0 font-mono">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+            <div key={i} className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
               <Skeleton className="h-3 w-8 rounded-sm" />
               <Skeleton className="h-3 w-6 rounded-sm" />
             </div>
@@ -159,6 +196,7 @@ export default function WarRoomPage() {
             </span>
           </div>
         </div>
+        </UpgradeGate>
       </div>
     );
   }
@@ -166,12 +204,12 @@ export default function WarRoomPage() {
   const { metrics } = data;
 
   return (
-    <div className="ml-48 h-screen flex flex-col overflow-hidden bg-[#050505]">
+    <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
       {/* Top Bar - COP Status */}
-      <div className="h-9 border-b border-[#1a1a1a] bg-[#080808]/95 backdrop-blur-sm flex items-center px-3 gap-0 shrink-0 z-20 font-mono">
+      <div className="h-9 border-b border-navy-700 bg-navy-900/95 backdrop-blur-sm flex items-center px-3 gap-0 shrink-0 z-20 font-mono">
         {/* Threat Level */}
-        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+        <div className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
           <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">THREAT</span>
           <span className={`text-[10px] font-bold tabular-nums ${
             metrics.maxEscalation >= 4 ? "text-signal-5" :
@@ -183,7 +221,7 @@ export default function WarRoomPage() {
         </div>
 
         {/* Regime */}
-        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+        <div className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
           <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">REGIME</span>
           <div className="flex items-center gap-1.5">
             <div className={`h-1.5 w-1.5 rounded-full ${
@@ -202,7 +240,7 @@ export default function WarRoomPage() {
         </div>
 
         {/* Convergence */}
-        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+        <div className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
           <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">CONV</span>
           <span className="text-[10px] text-navy-300 font-medium tabular-nums">
             {metrics.convergenceDensity.toFixed(1)}
@@ -210,7 +248,7 @@ export default function WarRoomPage() {
         </div>
 
         {/* Volatility */}
-        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+        <div className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
           <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">VOL</span>
           <span className="text-[10px] text-navy-300 font-medium uppercase">
             {metrics.volatilityOutlook}
@@ -218,7 +256,7 @@ export default function WarRoomPage() {
         </div>
 
         {/* Signals */}
-        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+        <div className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
           <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">SIG</span>
           <span className="text-[10px] text-navy-300 font-medium tabular-nums">
             {metrics.activeSignalCount}
@@ -226,7 +264,7 @@ export default function WarRoomPage() {
         </div>
 
         {/* High Intensity */}
-        <div className="flex items-center gap-2 px-3 h-full border-r border-[#1a1a1a]">
+        <div className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
           <span className="text-[8px] text-navy-600 uppercase tracking-[0.15em]">HIGH</span>
           <span className="text-[10px] text-accent-rose font-bold tabular-nums">
             {metrics.highIntensityCount}
@@ -279,6 +317,8 @@ export default function WarRoomPage() {
               onOsintEventClick={handleOsintEventClick}
               onAircraftClick={handleAircraftClick}
               onVesselClick={handleVesselClick}
+              onCountryClick={handleCountryClick}
+              onChokepointClick={handleChokepointClick}
             />
           ) : (
             <GlobeView
@@ -362,6 +402,22 @@ export default function WarRoomPage() {
           isWatched={!!selectedVessel && watchlist.some((w) => w.id === selectedVessel.mmsi)}
         />
 
+        {/* Chokepoint Detail Modal */}
+        <ChokepointDetailModal
+          chokepoint={selectedChokepointId ? CHOKEPOINT_INTEL[selectedChokepointId] || null : null}
+          onClose={() => setSelectedChokepointId(null)}
+        />
+
+        {/* Country Detail Panel */}
+        <CountryDetailPanel
+          countryCode={selectedCountryCode}
+          onClose={() => setSelectedCountryCode(null)}
+          osintEvents={osintData?.events ?? []}
+          aircraft={aircraftData?.aircraft ?? []}
+          vessels={vesselData?.vessels ?? []}
+          newsArticles={newsArticles}
+        />
+
         {/* Watchlist Panel */}
         <WatchlistPanel
           items={watchlist}
@@ -371,6 +427,9 @@ export default function WarRoomPage() {
           onSelectAircraft={handleAircraftClick}
           onSelectVessel={handleVesselClick}
         />
+
+        {/* Sources Panel (bottom) */}
+        <SourcesPanel />
       </div>
       </UpgradeGate>
     </div>

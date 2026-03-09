@@ -1,8 +1,8 @@
 "use client";
 
 import { useSubscription } from "@/lib/hooks/useSubscription";
-import { useState, useEffect, useCallback } from "react";
-import { Lock, ArrowRight, Zap, Activity, TrendingUp, Shield, X } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Lock, ArrowRight, Zap, Activity, TrendingUp, Shield, Loader2, X } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   EmbeddedCheckoutProvider,
@@ -22,7 +22,7 @@ const TIER_LABELS: Record<string, string> = {
 const TIER_PERKS: Record<string, string[]> = {
   analyst: [
     "Signal detection across 6 intelligence layers",
-    "AI analyst, 100 messages per day",
+    "AI analyst with memory and artifacts",
     "Prediction tracking with Brier scores",
     "Daily thesis generation",
     "Economic and calendar convergence",
@@ -52,12 +52,6 @@ const LIVE_STATS = [
   { icon: TrendingUp, text: "73% prediction accuracy over 90 days", color: "text-accent-cyan" },
 ];
 
-const TIER_IDS: Record<string, number> = {
-  analyst: 1,
-  operator: 2,
-  institution: 3,
-};
-
 interface UpgradeGateProps {
   minTier: "analyst" | "operator" | "institution";
   feature: string;
@@ -66,11 +60,16 @@ interface UpgradeGateProps {
 }
 
 export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGateProps) {
-  const { meetsMinTier, loading, tier } = useSubscription();
+  const { meetsMinTier, loading, tier, refresh } = useSubscription();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [statIndex, setStatIndex] = useState(0);
   const [statVisible, setStatVisible] = useState(true);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [tierPrice, setTierPrice] = useState<number | null>(null);
+  const [matchedTierId, setMatchedTierId] = useState<number | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
 
+  // Rotate live stats
   useEffect(() => {
     const interval = setInterval(() => {
       setStatVisible(false);
@@ -82,15 +81,80 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
     return () => clearInterval(interval);
   }, []);
 
-  const fetchClientSecret = useCallback(() => {
-    return fetch("/api/stripe/checkout", {
+  // Fetch tier data
+  useEffect(() => {
+    fetch("/api/subscription/tiers")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data?.tiers) return;
+        const match = data.tiers.find((t: { name: string }) =>
+          t.name.toLowerCase() === minTier
+        );
+        if (match) {
+          if (match.price) setTierPrice(match.price);
+          setMatchedTierId(match.id);
+        }
+      })
+      .catch(() => {});
+  }, [minTier]);
+
+  // Poll for subscription activation after checkout opens
+  // Stripe webhook may take a few seconds to process
+  function startPolling() {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      await refresh();
+    }, 2000);
+  }
+
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, []);
+
+  // If tier changes while checkout is open, subscription activated
+  useEffect(() => {
+    if (showCheckout && meetsMinTier(minTier)) {
+      stopPolling();
+      setShowCheckout(false);
+    }
+  }, [tier, showCheckout, minTier, meetsMinTier]);
+
+  // Embedded checkout: fetch clientSecret from our API
+  const fetchClientSecret = useCallback(async () => {
+    if (!matchedTierId) throw new Error("Plan not available");
+
+    const res = await fetch("/api/stripe/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tierId: TIER_IDS[minTier], embedded: true }),
-    })
-      .then((r) => r.json())
-      .then((data) => data.clientSecret);
-  }, [minTier]);
+      body: JSON.stringify({ tierId: matchedTierId, embedded: true }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Checkout failed");
+    if (!data.clientSecret) throw new Error("No client secret returned");
+
+    // Start polling once checkout is ready
+    startPolling();
+
+    return data.clientSecret;
+  }, [matchedTierId]);
+
+  function handleSubscribe() {
+    if (!matchedTierId) {
+      setCheckoutError("Plan not available. Please try again.");
+      return;
+    }
+    setCheckoutError(null);
+    setShowCheckout(true);
+  }
 
   if (loading) {
     return (
@@ -104,7 +168,7 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
     return <>{children}</>;
   }
 
-  // If not authenticated (tier is null), redirect to login instead of showing paywall
+  // Not authenticated - redirect to login
   if (tier === null && !loading) {
     if (typeof window !== "undefined") {
       window.location.href = "/login";
@@ -119,47 +183,45 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
   const perks = TIER_PERKS[minTier] || TIER_PERKS.analyst;
   const stat = LIVE_STATS[statIndex];
   const StatIcon = stat.icon;
+  const priceDisplay = tierPrice ? `$${(tierPrice / 100).toFixed(0)}/mo` : null;
 
-  // Embedded checkout view
+  // Show embedded checkout
   if (showCheckout) {
     return (
       <div className="relative min-h-[70vh] flex items-center justify-center">
-        <div className="w-full max-w-lg mx-auto py-12 px-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-accent-cyan/60">
-              <Lock className="w-3.5 h-3.5 text-navy-600" />
+        <div className="w-full max-w-lg mx-auto px-4">
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">
               Subscribe to {TIER_LABELS[minTier]}
-            </div>
+              {priceDisplay && <span className="text-navy-500 ml-2">{priceDisplay}</span>}
+            </span>
             <button
               onClick={() => setShowCheckout(false)}
-              className="p-1.5 text-navy-500 hover:text-navy-300 transition-colors"
+              className="text-navy-500 hover:text-navy-300 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-
-          <div className="rounded-xl border border-navy-700/40 overflow-hidden bg-navy-900/40">
+          <div className="rounded-lg overflow-hidden border border-navy-700/50">
             <EmbeddedCheckoutProvider
               stripe={stripePromise}
               options={{ fetchClientSecret }}
             >
-              <EmbeddedCheckout className="stripe-embedded-checkout" />
+              <EmbeddedCheckout className="embedded-checkout" />
             </EmbeddedCheckoutProvider>
           </div>
-
-          <p className="mt-4 text-center font-mono text-[9px] text-navy-600 tracking-wider">
-            Secured by Stripe. Cancel anytime.
+          <p className="mt-3 font-mono text-[9px] text-navy-600 tracking-wider text-center">
+            2 days free, full access. Cancel anytime before you're charged.
           </p>
         </div>
       </div>
     );
   }
 
-  // Sales pitch view
   return (
     <div className="relative min-h-[70vh]">
       {blur && (
-        <div className="pointer-events-none select-none blur-md opacity-15">
+        <div className="pointer-events-none select-none blur-md opacity-15 min-h-[60vh]">
           {children}
         </div>
       )}
@@ -183,6 +245,9 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
           <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-accent-cyan/60 mb-3">
             <Lock className="w-3.5 h-3.5 text-navy-600" />
             {TIER_LABELS[minTier]} tier
+            {priceDisplay && (
+              <span className="text-navy-500 normal-case tracking-normal ml-1">{priceDisplay}</span>
+            )}
           </div>
 
           <h3 className="font-sans text-xl font-semibold text-navy-100 mb-2.5">
@@ -203,17 +268,32 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
             ))}
           </div>
 
+          {/* Error message */}
+          {checkoutError && (
+            <p className="mb-4 font-mono text-[11px] text-accent-rose">{checkoutError}</p>
+          )}
+
           {/* CTA */}
           <button
-            onClick={() => setShowCheckout(true)}
-            className="group inline-flex items-center gap-2.5 px-8 py-3 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 hover:bg-white rounded-lg transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.08)]"
+            onClick={handleSubscribe}
+            disabled={!matchedTierId}
+            className="group inline-flex items-center gap-2.5 px-8 py-3 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 hover:bg-white rounded-lg transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Start free trial
-            <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+            {!matchedTierId ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Loading
+              </>
+            ) : (
+              <>
+                Start free trial
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+              </>
+            )}
           </button>
 
           <p className="mt-4 font-mono text-[9px] text-navy-600 tracking-wider">
-            2 days free, full access, no credit card
+            2 days free, full access. Cancel anytime before you're charged.
           </p>
         </div>
       </div>

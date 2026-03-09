@@ -20,6 +20,7 @@ export interface PredictionMarket {
   url: string;
   priceChange24h: number;
   priceChange7d: number;
+  clobTokenIds?: string; // Polymarket: JSON string "[yesTokenId, noTokenId]"
 }
 
 export interface PredictionMarketsSnapshot {
@@ -57,6 +58,7 @@ interface PolymarketEvent {
     id: string;
     question: string;
     outcomePrices: string;
+    clobTokenIds: string; // JSON string "[yesTokenId, noTokenId]"
     volume: string;
     volumeNum: number;
     volume24hr: number;
@@ -119,6 +121,7 @@ async function fetchPolymarketEvents(): Promise<PredictionMarket[]> {
           url: `https://polymarket.com/event/${event.slug}`,
           priceChange24h: market.oneDayPriceChange || 0,
           priceChange7d: market.oneWeekPriceChange || 0,
+          clobTokenIds: market.clobTokenIds || undefined,
         });
       }
     }

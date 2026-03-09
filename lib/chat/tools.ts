@@ -39,6 +39,7 @@ import { initializeBeliefs, runBayesianAnalysis, createSignalFromOSINT } from "@
 import { N_PLAYER_SCENARIOS } from "@/lib/game-theory/scenarios-nplayer";
 import { getExtendedActorProfile, getAllExtendedProfiles } from "@/lib/actors/profiles";
 import { generateNarrativeReport } from "@/lib/reports/narrative";
+import { recallMemories, saveMemory, deleteMemory } from "@/lib/memory/engine";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Tool Definitions (Anthropic format) ──
@@ -582,13 +583,133 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: [],
     },
   },
+  // ── Memory Tools ──
+  {
+    name: "recall_memory",
+    description: "Recall stored memories about this user (preferences, active theses, portfolio positions, standing instructions). ALWAYS call this at the start of a conversation to personalise your responses. You can filter by category: preference, thesis, portfolio, context, instruction.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["preference", "thesis", "portfolio", "context", "instruction"],
+          description: "Optional category filter. Omit to recall all memories.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "save_memory",
+    description: "Save a persistent memory about this user that will be recalled in future conversations. Use this when the user states a preference, updates their thesis, describes their portfolio, gives a standing instruction, or shares context they want you to always remember. Categories: preference (risk tolerance, sectors, style), thesis (active investment theses), portfolio (positions, allocations), context (background info), instruction (standing orders like 'always check oil before answering').",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["preference", "thesis", "portfolio", "context", "instruction"],
+          description: "Memory category.",
+        },
+        key: {
+          type: "string",
+          description: "Short label for this memory (e.g. 'risk_tolerance', 'long_energy', 'always_check_vix'). Use snake_case.",
+        },
+        value: {
+          type: "string",
+          description: "The memory content. Be specific and factual.",
+        },
+      },
+      required: ["category", "key", "value"],
+    },
+  },
+  {
+    name: "delete_memory",
+    description: "Delete a specific memory by ID. Use when the user says to forget something or a memory is outdated.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        memory_id: {
+          type: "number",
+          description: "The memory ID to delete.",
+        },
+      },
+      required: ["memory_id"],
+    },
+  },
+  // ── Artifact Tool ──
+  {
+    name: "create_artifact",
+    description: "Create a rich visual artifact displayed inline in the chat. Use this to present data as interactive charts, formatted tables, structured briefing documents, or code blocks instead of plain text. Types: chart (bar chart with labels/datasets), table (headers + rows), document (structured markdown), code (syntax-highlighted code), briefing (formatted intelligence briefing).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["chart", "table", "document", "code", "briefing"],
+          description: "Artifact type.",
+        },
+        title: {
+          type: "string",
+          description: "Artifact title displayed in the header.",
+        },
+        content: {
+          description: "Artifact content. For chart: { labels: string[], datasets: [{ label, data: number[], color? }] }. For table: { headers: string[], rows: string[][] }. For document/briefing: markdown string. For code: code string.",
+        },
+        language: {
+          type: "string",
+          description: "Programming language for code artifacts (e.g. 'python', 'sql', 'typescript').",
+        },
+      },
+      required: ["type", "title", "content"],
+    },
+  },
+  // ── Document Analysis Tool ──
+  {
+    name: "save_document_to_knowledge",
+    description: "Save an uploaded document's content to the knowledge bank for permanent storage and future retrieval via semantic search. Use when the user uploads a document and you want to preserve its analysis. The document text is extracted and stored as a knowledge entry with embeddings.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "Title for the knowledge entry.",
+        },
+        content: {
+          type: "string",
+          description: "The extracted/summarised document content to store.",
+        },
+        category: {
+          type: "string",
+          enum: ["thesis", "model", "event", "actor", "market", "geopolitical", "technical"],
+          description: "Knowledge category.",
+        },
+        source: {
+          type: "string",
+          description: "Source description (e.g. 'Uploaded: earnings_q3.pdf').",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Tags for filtering.",
+        },
+      },
+      required: ["title", "content", "category"],
+    },
+  },
 ];
 
 // ── Tool Execution ──
 
+export interface ToolContext {
+  username: string;
+  sessionId?: number;
+  projectId?: number | null;
+}
+
 export async function executeTool(
   toolName: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  context?: ToolContext
 ): Promise<unknown> {
   switch (toolName) {
     case "get_signals":
@@ -683,6 +804,64 @@ export async function executeTool(
       return executeGenerateReport(input);
     case "run_bayesian_analysis":
       return executeRunBayesianAnalysis(input);
+
+    // ── Memory Tools ──
+    case "recall_memory": {
+      if (!context?.username) return { error: "No user context available" };
+      const category = input.category as string | undefined;
+      const memories = await recallMemories(context.username, category);
+      if (memories.length === 0) return { action: "recalled", memories: [], message: "No memories stored yet." };
+      return { action: "recalled", memories };
+    }
+    case "save_memory": {
+      if (!context?.username) return { error: "No user context available" };
+      const result = await saveMemory(
+        context.username,
+        input.category as string,
+        input.key as string,
+        input.value as string
+      );
+      return { ...result, key: input.key, category: input.category };
+    }
+    case "delete_memory": {
+      if (!context?.username) return { error: "No user context available" };
+      await deleteMemory(context.username, input.memory_id as number);
+      return { action: "deleted", message: `Memory ${input.memory_id} deleted.` };
+    }
+
+    // ── Artifact Tool ──
+    case "create_artifact":
+      return {
+        type: input.type,
+        title: input.title,
+        content: input.content,
+        language: input.language,
+      };
+
+    // ── Document to Knowledge ──
+    case "save_document_to_knowledge": {
+      const entry = await addKnowledge({
+        title: input.title as string,
+        content: input.content as string,
+        category: input.category as string,
+        source: (input.source as string) || "Document upload",
+        tags: input.tags ? JSON.stringify(input.tags) : null,
+        confidence: 0.7,
+        status: "active",
+        supersededBy: null,
+        validFrom: null,
+        validUntil: null,
+        metadata: null,
+      });
+      return {
+        saved: true,
+        knowledgeId: entry.id,
+        name: input.title,
+        extractedLength: (input.content as string).length,
+        message: `Saved to knowledge bank as "${input.title}"`,
+      };
+    }
+
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
