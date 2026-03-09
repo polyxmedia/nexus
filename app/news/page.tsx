@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
+import { useDocumentVisible } from "@/lib/hooks/use-visibility";
 import {
   ExternalLink,
   Globe,
@@ -99,55 +101,29 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function NewsPage() {
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [activeCategory, setActiveCategory] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [digest, setDigest] = useState<string | null>(null);
-  const [digestLoading, setDigestLoading] = useState(false);
+  const visible = useDocumentVisible();
 
-  async function fetchNews() {
-    try {
-      const params = new URLSearchParams({ limit: "80" });
-      if (activeCategory !== "all") params.set("category", activeCategory);
-      const res = await fetch(`/api/news?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      setArticles(Array.isArray(data) ? data : []);
-      setLastUpdated(new Date());
-    } catch {
-      setArticles([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+  const newsParams = new URLSearchParams({ limit: "80" });
+  if (activeCategory !== "all") newsParams.set("category", activeCategory);
 
-  async function fetchDigest() {
-    setDigestLoading(true);
-    try {
-      const res = await fetch("/api/news/digest");
-      if (res.ok) {
-        const data = await res.json();
-        setDigest(data.digest || null);
-      }
-    } catch { /* fail silently */ }
-    setDigestLoading(false);
-  }
+  const { data: newsData, isLoading: loading, mutate: mutateNews } = useSwrFetch<NewsArticle[]>(
+    `/api/news?${newsParams}`,
+    { refreshInterval: visible ? 300_000 : 0, dedupingInterval: 30_000 }
+  );
+  const { data: digestData, isLoading: digestLoading } = useSwrFetch<{ digest?: string }>(
+    "/api/news/digest",
+    { dedupingInterval: 300_000 }
+  );
 
-  useEffect(() => {
-    setLoading(true);
-    fetchNews();
-    fetchDigest();
-    const interval = setInterval(fetchNews, 300_000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory]);
+  const articles = Array.isArray(newsData) ? newsData : [];
+  const digest = digestData?.digest || null;
+  const lastUpdated = articles.length > 0 ? new Date() : null;
 
   function handleRefresh() {
     setRefreshing(true);
-    fetchNews();
+    mutateNews().finally(() => setRefreshing(false));
   }
 
   const categoryCounts = articles.reduce(

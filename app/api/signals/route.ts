@@ -48,8 +48,8 @@ export async function POST(request: NextRequest) {
 
     const result = generateSignals(year);
 
-    for (const signal of result.signals) {
-      await db.insert(schema.signals).values(signal);
+    if (result.signals.length > 0) {
+      await db.insert(schema.signals).values(result.signals);
     }
 
     return NextResponse.json({

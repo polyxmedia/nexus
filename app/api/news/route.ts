@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
     const articles = await getNewsFeed(category, limit);
 
-    return NextResponse.json(articles);
+    return NextResponse.json(articles, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=120" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

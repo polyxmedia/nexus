@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   try {
     if (action === "yield_curve") {
       const curve = await getYieldCurve();
-      return NextResponse.json(curve);
+      return NextResponse.json(curve, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=1800" } });
     }
 
     if (action === "series") {
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     // Default: full macro snapshot
     const snapshot = await getMacroSnapshot();
-    return NextResponse.json(snapshot);
+    return NextResponse.json(snapshot, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=1800" } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

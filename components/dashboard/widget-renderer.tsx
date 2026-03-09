@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { IntensityIndicator } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
+import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
 
 const CandlestickChart = dynamic(() => import("@/components/charts/candlestick-chart"), { ssr: false });
 
@@ -63,115 +64,72 @@ function WidgetError({ message }: { message?: string }) {
 // ── Metric Widget ──
 
 function MetricWidget({ config }: { config: { metric: string } }) {
-  const [data, setData] = useState<{ label: string; value: string | number; change?: string; changeColor?: "green" | "red" | "neutral" } | null>(null);
-  const [loading, setLoading] = useState(true);
+  // SWR: all metrics sharing /api/warroom get a single deduplicated request
+  const needsWarroom = ["threat_level", "market_regime", "convergence_density"].includes(config.metric);
+  const needsMacro = config.metric === "vix";
+  const needsPortfolio = config.metric === "portfolio_value";
+  const needsThesis = config.metric === "thesis_confidence";
+  const needsPredictions = config.metric === "prediction_accuracy";
 
-  useEffect(() => {
-    async function load() {
-      try {
-        switch (config.metric) {
-          case "threat_level": {
-            const res = await fetch("/api/warroom").then((r) => r.json());
-            const m = res?.metrics;
-            setData({
-              label: "Threat Level",
-              value: m ? `${m.maxEscalation}/5` : "N/A",
-              change: m?.volatilityOutlook || "",
-              changeColor: m?.maxEscalation >= 4 ? "red" : m?.maxEscalation >= 3 ? "neutral" : "green",
-            });
-            break;
-          }
-          case "market_regime": {
-            const res = await fetch("/api/warroom").then((r) => r.json());
-            const m = res?.metrics;
-            setData({
-              label: "Market Regime",
-              value: m?.marketRegime?.replace("_", " ") || "N/A",
-              change: m ? `${m.activeSignalCount} active` : "",
-              changeColor: "neutral",
-            });
-            break;
-          }
-          case "portfolio_value": {
-            const res = await fetch("/api/trading212/account").then((r) => r.json());
-            const cash = res?.cash;
-            const info = res?.info;
-            const currency = info?.currencyCode || "GBP";
-            const pnl = cash?.result ?? null;
-            const invested = cash?.invested ?? null;
-            const pnlPct = invested && pnl ? (pnl / invested) * 100 : null;
-            setData({
-              label: "Portfolio",
-              value: cash?.total != null ? `${currency} ${cash.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "N/A",
-              change: pnl != null ? `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}${pnlPct != null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)` : ""}` : "",
-              changeColor: pnl != null ? (pnl >= 0 ? "green" : "red") : "neutral",
-            });
-            break;
-          }
-          case "thesis_confidence": {
-            const res = await fetch("/api/thesis?status=active").then((r) => r.json());
-            const thesis = res?.theses?.[0];
-            setData({
-              label: "Thesis Confidence",
-              value: thesis ? `${(thesis.overallConfidence * 100).toFixed(0)}%` : "N/A",
-              change: thesis?.volatilityOutlook || "no thesis",
-              changeColor: thesis && thesis.overallConfidence >= 0.7 ? "green" : "neutral",
-            });
-            break;
-          }
-          case "prediction_accuracy": {
-            const res = await fetch("/api/predictions").then((r) => r.json());
-            const preds = Array.isArray(res) ? res : res.predictions || [];
-            const resolved = preds.filter((p: { outcome: string | null }) => p.outcome);
-            const confirmed = resolved.filter((p: { outcome: string }) => p.outcome === "confirmed").length;
-            const avg = resolved.length > 0 ? resolved.reduce((s: number, p: { score: number | null }) => s + (p.score || 0), 0) / resolved.length : 0;
-            setData({
-              label: "Accuracy",
-              value: resolved.length > 0 ? `${(avg * 100).toFixed(0)}%` : "N/A",
-              change: resolved.length > 0 ? `${confirmed}/${resolved.length} confirmed` : "no data",
-              changeColor: avg >= 0.6 ? "green" : avg > 0 ? "red" : "neutral",
-            });
-            break;
-          }
-          case "convergence_density": {
-            const res = await fetch("/api/warroom").then((r) => r.json());
-            const m = res?.metrics;
-            setData({
-              label: "Convergence",
-              value: m?.convergenceDensity != null ? `${m.convergenceDensity.toFixed(1)}/10` : "N/A",
-              change: m ? `${m.highIntensityCount} high intensity` : "",
-              changeColor: m?.convergenceDensity >= 7 ? "red" : m?.convergenceDensity >= 4 ? "neutral" : "green",
-            });
-            break;
-          }
-          case "vix": {
-            const res = await fetch("/api/macro").then((r) => r.json());
-            const vixSeries = res?.VIXCLS;
-            const vixVal = vixSeries?.latest?.value ?? null;
-            const prevVal = vixSeries?.previous?.value ?? null;
-            const changeStr = vixVal != null && prevVal != null
-              ? `${vixVal > prevVal ? "+" : ""}${(vixVal - prevVal).toFixed(2)} (${vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent"})`
-              : vixVal != null
-              ? (vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent")
-              : "";
-            setData({
-              label: "VIX",
-              value: vixVal != null ? vixVal.toFixed(2) : "N/A",
-              change: changeStr,
-              changeColor: vixVal != null ? (vixVal >= 30 ? "red" : vixVal >= 20 ? "neutral" : "green") : "neutral",
-            });
-            break;
-          }
-          default:
-            setData({ label: config.metric, value: "N/A" });
+  const { data: warroomData, isLoading: warroomLoading } = useSwrFetch(needsWarroom ? "/api/warroom" : null, { dedupingInterval: 30_000 });
+  const { data: macroData, isLoading: macroLoading } = useSwrFetch(needsMacro ? "/api/macro" : null, { dedupingInterval: 60_000 });
+  const { data: portfolioData, isLoading: portfolioLoading } = useSwrFetch(needsPortfolio ? "/api/trading212/account" : null, { dedupingInterval: 30_000 });
+  const { data: thesisData, isLoading: thesisLoading } = useSwrFetch(needsThesis ? "/api/thesis?status=active" : null, { dedupingInterval: 30_000 });
+  const { data: predData, isLoading: predLoading } = useSwrFetch(needsPredictions ? "/api/predictions" : null, { dedupingInterval: 30_000 });
+
+  const loading = warroomLoading || macroLoading || portfolioLoading || thesisLoading || predLoading;
+
+  const data = (() => {
+    try {
+      const wr = warroomData as Record<string, unknown> | undefined;
+      const m = wr?.metrics as Record<string, unknown> | undefined;
+      switch (config.metric) {
+        case "threat_level":
+          return { label: "Threat Level", value: m ? `${m.maxEscalation}/5` : "N/A", change: (m?.volatilityOutlook as string) || "", changeColor: ((m?.maxEscalation as number) >= 4 ? "red" : (m?.maxEscalation as number) >= 3 ? "neutral" : "green") as "green" | "red" | "neutral" };
+        case "market_regime":
+          return { label: "Market Regime", value: (m?.marketRegime as string)?.replace("_", " ") || "N/A", change: m ? `${m.activeSignalCount} active` : "", changeColor: "neutral" as const };
+        case "convergence_density": {
+          const cd = m?.convergenceDensity as number | undefined;
+          return { label: "Convergence", value: cd != null ? `${cd.toFixed(1)}/10` : "N/A", change: m ? `${m.highIntensityCount} high intensity` : "", changeColor: (cd != null ? (cd >= 7 ? "red" : cd >= 4 ? "neutral" : "green") : "neutral") as "green" | "red" | "neutral" };
         }
-      } catch {
-        setData({ label: config.metric, value: "N/A", change: "fetch error", changeColor: "red" });
+        case "portfolio_value": {
+          const res = portfolioData as Record<string, unknown> | undefined;
+          const cash = res?.cash as Record<string, number> | undefined;
+          const info = res?.info as Record<string, string> | undefined;
+          const currency = info?.currencyCode || "GBP";
+          const pnl = cash?.result ?? null;
+          const invested = cash?.invested ?? null;
+          const pnlPct = invested && pnl ? (pnl / invested) * 100 : null;
+          return { label: "Portfolio", value: cash?.total != null ? `${currency} ${cash.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "N/A", change: pnl != null ? `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}${pnlPct != null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)` : ""}` : "", changeColor: (pnl != null ? (pnl >= 0 ? "green" : "red") : "neutral") as "green" | "red" | "neutral" };
+        }
+        case "thesis_confidence": {
+          const td = thesisData as { theses?: Array<{ overallConfidence: number; volatilityOutlook?: string }> } | undefined;
+          const thesis = td?.theses?.[0];
+          return { label: "Thesis Confidence", value: thesis ? `${(thesis.overallConfidence * 100).toFixed(0)}%` : "N/A", change: thesis?.volatilityOutlook || "no thesis", changeColor: (thesis && thesis.overallConfidence >= 0.7 ? "green" : "neutral") as "green" | "red" | "neutral" };
+        }
+        case "prediction_accuracy": {
+          const pd = predData as Array<{ outcome: string | null; score: number | null }> | { predictions: Array<{ outcome: string | null; score: number | null }> } | undefined;
+          const preds = Array.isArray(pd) ? pd : (pd as { predictions?: Array<{ outcome: string | null; score: number | null }> })?.predictions || [];
+          const resolved = preds.filter((p) => p.outcome);
+          const confirmed = resolved.filter((p) => p.outcome === "confirmed").length;
+          const avg = resolved.length > 0 ? resolved.reduce((s, p) => s + (p.score || 0), 0) / resolved.length : 0;
+          return { label: "Accuracy", value: resolved.length > 0 ? `${(avg * 100).toFixed(0)}%` : "N/A", change: resolved.length > 0 ? `${confirmed}/${resolved.length} confirmed` : "no data", changeColor: (avg >= 0.6 ? "green" : avg > 0 ? "red" : "neutral") as "green" | "red" | "neutral" };
+        }
+        case "vix": {
+          const md = macroData as Record<string, { latest?: { value: number }; previous?: { value: number } }> | undefined;
+          const vixSeries = md?.VIXCLS;
+          const vixVal = vixSeries?.latest?.value ?? null;
+          const prevVal = vixSeries?.previous?.value ?? null;
+          const changeStr = vixVal != null && prevVal != null ? `${vixVal > prevVal ? "+" : ""}${(vixVal - prevVal).toFixed(2)} (${vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent"})` : vixVal != null ? (vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent") : "";
+          return { label: "VIX", value: vixVal != null ? vixVal.toFixed(2) : "N/A", change: changeStr, changeColor: (vixVal != null ? (vixVal >= 30 ? "red" : vixVal >= 20 ? "neutral" : "green") : "neutral") as "green" | "red" | "neutral" };
+        }
+        default:
+          return { label: config.metric, value: "N/A" };
       }
-      setLoading(false);
+    } catch {
+      return { label: config.metric, value: "N/A", change: "fetch error", changeColor: "red" as const };
     }
-    load();
-  }, [config.metric]);
+  })();
 
   if (loading) return <WidgetSkeleton lines={2} />;
   if (!data) return <WidgetError />;
@@ -191,19 +149,8 @@ interface ThesisSummary {
 }
 
 function ThesisWidget() {
-  const [thesis, setThesis] = useState<ThesisSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/thesis?status=active")
-      .then((r) => r.json())
-      .then((d) => {
-        const t = d?.theses?.[0] || null;
-        setThesis(t);
-      })
-      .catch(() => setThesis(null))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: raw, isLoading: loading } = useSwrFetch<{ theses?: ThesisSummary[] }>("/api/thesis?status=active", { dedupingInterval: 30_000 });
+  const thesis = raw?.theses?.[0] || null;
 
   if (loading) return <WidgetSkeleton lines={4} />;
   if (!thesis) {
@@ -252,16 +199,8 @@ interface Prediction {
 }
 
 function PredictionsWidget() {
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/predictions")
-      .then((r) => r.json())
-      .then((d) => setPredictions(Array.isArray(d) ? d : d.predictions || []))
-      .catch(() => setPredictions([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: raw, isLoading: loading } = useSwrFetch<Prediction[] | { predictions: Prediction[] }>("/api/predictions", { dedupingInterval: 30_000 });
+  const predictions = Array.isArray(raw) ? raw : raw?.predictions || [];
 
   if (loading) return <WidgetSkeleton lines={5} />;
 
@@ -321,20 +260,10 @@ interface Signal {
 }
 
 function SignalsWidget({ config }: { config: { minIntensity?: number } }) {
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/signals")
-      .then((r) => r.json())
-      .then((d) => {
-        const all: Signal[] = Array.isArray(d) ? d : d.signals || [];
-        const min = config.minIntensity ?? 1;
-        setSignals(all.filter((s) => s.intensity >= min && (s.status === "active" || s.status === "upcoming")).slice(0, 12));
-      })
-      .catch(() => setSignals([]))
-      .finally(() => setLoading(false));
-  }, [config.minIntensity]);
+  const { data: raw, isLoading: loading } = useSwrFetch<Signal[] | { signals: Signal[] }>("/api/signals", { dedupingInterval: 30_000 });
+  const allSignals: Signal[] = Array.isArray(raw) ? raw : (raw as { signals?: Signal[] })?.signals || [];
+  const min = config.minIntensity ?? 1;
+  const signals = allSignals.filter((s) => s.intensity >= min && (s.status === "active" || s.status === "upcoming")).slice(0, 12);
 
   if (loading) return <WidgetSkeleton lines={4} />;
   if (signals.length === 0) return <WidgetError message="No matching signals" />;
@@ -375,34 +304,24 @@ interface CandleData {
 }
 
 function ChartWidget({ config }: { config: { symbol?: string; range?: string } }) {
-  const [data, setData] = useState<CandleData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
   const symbol = config.symbol || "SPY";
   const range = config.range || "3m";
+  const period = range === "3m" ? "3mo" : range === "1y" ? "1y" : "6mo";
 
-  useEffect(() => {
-    fetch(`/api/markets/chart?symbol=${symbol}&period=${range === "3m" ? "3mo" : range === "1y" ? "1y" : "6mo"}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setError(true); return; }
-        const raw = d?.bars || [];
-        const candles = Array.isArray(raw)
-          ? raw.map((bar: { time?: string; date?: string; open: number; high: number; low: number; close: number; volume?: number }) => ({
-              time: bar.time || bar.date || "",
-              open: bar.open,
-              high: bar.high,
-              low: bar.low,
-              close: bar.close,
-              volume: bar.volume,
-            }))
-          : [];
-        setData(candles);
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [symbol, range]);
+  const { data: raw, isLoading: loading, error: fetchError } = useSwrFetch<{ bars?: Array<{ time?: string; date?: string; open: number; high: number; low: number; close: number; volume?: number }>; error?: string }>(
+    `/api/markets/chart?symbol=${symbol}&period=${period}`,
+    { dedupingInterval: 60_000 }
+  );
+
+  const error = !!fetchError || !!raw?.error;
+  const data: CandleData[] = (raw?.bars || []).map((bar) => ({
+    time: bar.time || bar.date || "",
+    open: bar.open,
+    high: bar.high,
+    low: bar.low,
+    close: bar.close,
+    volume: bar.volume,
+  }));
 
   if (loading) return <Skeleton className="h-48 w-full rounded" />;
   if (error || data.length === 0) return <WidgetError message={`No chart data for ${symbol}`} />;
@@ -449,62 +368,25 @@ interface YieldPoint {
 }
 
 function MacroWidget({ config }: { config: { series?: string[]; view?: string } }) {
-  const [items, setItems] = useState<MacroItem[]>([]);
-  const [yieldCurve, setYieldCurve] = useState<YieldPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const isYieldCurve = config.view === "yield_curve";
+  // SWR: all macro widgets share the same /api/macro cache
+  const { data: snapshot, isLoading: loading } = useSwrFetch<Record<string, { latest?: { value: number; date: string }; previous?: { value: number; date: string }; change?: number; changePercent?: number; name?: string; unit?: string }>>("/api/macro", { dedupingInterval: 60_000 });
 
-  useEffect(() => {
-    if (isYieldCurve) {
-      // Fetch yield curve data from individual treasury series
-      fetch("/api/macro")
-        .then((r) => r.json())
-        .then((snapshot) => {
-          const maturities = [
-            { key: "DGS2", label: "2Y" },
-            { key: "DGS10", label: "10Y" },
-            { key: "DGS30", label: "30Y" },
-            { key: "T10Y2Y", label: "10Y-2Y" },
-          ];
-          const points: YieldPoint[] = maturities.map((m) => ({
-            maturity: m.label,
-            rate: snapshot?.[m.key]?.latest?.value ?? null,
-          }));
-          setYieldCurve(points);
-        })
-        .catch(() => setYieldCurve([]))
-        .finally(() => setLoading(false));
-    } else {
-      // Fetch specific series from macro snapshot
-      const seriesIds = config.series || [];
-      fetch("/api/macro")
-        .then((r) => r.json())
-        .then((snapshot) => {
-          if (!snapshot || typeof snapshot !== "object") {
-            setItems([]);
-            return;
-          }
-          const keys = seriesIds.length > 0 ? seriesIds : Object.keys(snapshot);
-          const parsed: MacroItem[] = keys
-            .filter((k) => snapshot[k] && snapshot[k].latest)
-            .map((k) => {
-              const s = snapshot[k];
-              return {
-                id: k,
-                name: s.name || k,
-                value: s.latest?.value ?? null,
-                unit: s.unit || "",
-                change: s.change ?? null,
-                changePercent: s.changePercent ?? null,
-              };
-            });
-          setItems(parsed);
-        })
-        .catch(() => setItems([]))
-        .finally(() => setLoading(false));
-    }
-  }, [config.series, config.view, isYieldCurve]);
+  const yieldCurve: YieldPoint[] = isYieldCurve && snapshot ? [
+    { key: "DGS2", label: "2Y" },
+    { key: "DGS10", label: "10Y" },
+    { key: "DGS30", label: "30Y" },
+    { key: "T10Y2Y", label: "10Y-2Y" },
+  ].map((m) => ({ maturity: m.label, rate: snapshot?.[m.key]?.latest?.value ?? null })) : [];
+
+  const items: MacroItem[] = !isYieldCurve && snapshot ? (() => {
+    const seriesIds = config.series || [];
+    const keys = seriesIds.length > 0 ? seriesIds : Object.keys(snapshot);
+    return keys.filter((k) => snapshot[k]?.latest).map((k) => {
+      const s = snapshot[k];
+      return { id: k, name: s.name || k, value: s.latest?.value ?? null, unit: s.unit || "", change: s.change ?? null, changePercent: s.changePercent ?? null };
+    });
+  })() : [];
 
   if (loading) return <WidgetSkeleton lines={3} />;
 
@@ -577,16 +459,10 @@ function MacroWidget({ config }: { config: { series?: string[]; view?: string } 
 // ── Options Widget ──
 
 function OptionsWidget({ config }: { config: { view?: string } }) {
-  const [data, setData] = useState<{ putCallRatio?: number; label?: string } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`/api/market-data?type=options&view=${config.view || "pcr"}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [config.view]);
+  const { data, isLoading: loading } = useSwrFetch<{ putCallRatio?: number; label?: string }>(
+    `/api/market-data?type=options&view=${config.view || "pcr"}`,
+    { dedupingInterval: 60_000 }
+  );
 
   if (loading) return <WidgetSkeleton lines={2} />;
 
@@ -604,16 +480,11 @@ function OptionsWidget({ config }: { config: { view?: string } }) {
 // ── Risk Widget ──
 
 function RiskWidget({ config }: { config: { view?: string } }) {
-  const [data, setData] = useState<{ var95?: number; var99?: number; sharpe?: number; maxDrawdown?: number } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`/api/market-data?type=risk&view=${config.view || "var"}`)
-      .then((r) => r.json())
-      .then((d) => setData(d?.risk || d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [config.view]);
+  const { data: raw, isLoading: loading } = useSwrFetch<{ risk?: { var95?: number; var99?: number; sharpe?: number; maxDrawdown?: number }; var95?: number; var99?: number; sharpe?: number; maxDrawdown?: number }>(
+    `/api/market-data?type=risk&view=${config.view || "var"}`,
+    { dedupingInterval: 60_000 }
+  );
+  const data = raw?.risk || raw || null;
 
   if (loading) return <WidgetSkeleton lines={3} />;
 
@@ -687,16 +558,7 @@ const SIG_DOTS: Record<number, string> = {
 };
 
 function CalendarWidget() {
-  const [data, setData] = useState<CalendarWidgetData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/calendar/hebrew")
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } = useSwrFetch<CalendarWidgetData>("/api/calendar/hebrew", { dedupingInterval: 300_000 });
 
   if (loading) return <WidgetSkeleton lines={5} />;
   if (!data) return <WidgetError message="Calendar unavailable" />;
@@ -779,16 +641,9 @@ interface FredSnapshot {
 }
 
 function useMacroSnapshot() {
-  const [data, setData] = useState<FredSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    fetch("/api/macro")
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
-  return { data, loading };
+  // SWR: all institutional widgets share the same /api/macro cache
+  const { data, isLoading: loading } = useSwrFetch<FredSnapshot>("/api/macro", { dedupingInterval: 60_000 });
+  return { data: data ?? null, loading };
 }
 
 function val(snap: FredSnapshot | null, key: string): number | null {
@@ -1254,17 +1109,8 @@ interface PredictionMarketsWidgetData {
 }
 
 function PredictionMarketsWidget() {
-  const [data, setData] = useState<PredictionMarketsWidgetData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useSwrFetch<PredictionMarketsWidgetData>("/api/prediction-markets", { dedupingInterval: 60_000 });
   const [tab, setTab] = useState<"top" | "geo" | "econ" | "political">("top");
-
-  useEffect(() => {
-    fetch("/api/prediction-markets")
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
 
   if (loading) return <WidgetSkeleton lines={8} />;
   if (!data || !data.markets?.length) return <WidgetError message="No prediction market data" />;
@@ -1374,17 +1220,8 @@ interface CongressionalWidgetData {
 }
 
 function CongressionalTradingWidget() {
-  const [data, setData] = useState<CongressionalWidgetData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useSwrFetch<CongressionalWidgetData>("/api/congressional-trading", { dedupingInterval: 300_000 });
   const [tab, setTab] = useState<"recent" | "buys" | "clusters">("recent");
-
-  useEffect(() => {
-    fetch("/api/congressional-trading")
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
 
   if (loading) return <WidgetSkeleton lines={8} />;
   if (!data) return <WidgetError message="No congressional trading data" />;
@@ -1518,17 +1355,8 @@ interface AIProgressionData {
 }
 
 function AIProgressionWidget() {
-  const [data, setData] = useState<AIProgressionData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useSwrFetch<AIProgressionData>("/api/ai-progression", { dedupingInterval: 300_000 });
   const [tab, setTab] = useState<"overview" | "sectors" | "timeline">("overview");
-
-  useEffect(() => {
-    fetch("/api/ai-progression")
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
 
   if (loading) return <WidgetSkeleton lines={8} />;
   if (!data) return <WidgetError message="No AI progression data" />;

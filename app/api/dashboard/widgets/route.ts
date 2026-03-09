@@ -28,14 +28,9 @@ export async function GET() {
 
     // Seed defaults if empty
     if (widgets.length === 0) {
-      for (const w of DEFAULT_WIDGETS) {
-        await db.insert(schema.dashboardWidgets).values({
-          userId: "default",
-          ...w,
-        });
-      }
-      widgets = await db.select().from(schema.dashboardWidgets)
-        .where(eq(schema.dashboardWidgets.userId, "default"));
+      widgets = await db.insert(schema.dashboardWidgets)
+        .values(DEFAULT_WIDGETS.map((w) => ({ userId: "default", ...w })))
+        .returning();
     }
 
     return NextResponse.json({
@@ -81,11 +76,13 @@ export async function POST(req: NextRequest) {
 
     if (action === "reorder") {
       const { order } = body as { order: number[] };
-      for (let i = 0; i < order.length; i++) {
-        await db.update(schema.dashboardWidgets)
-          .set({ position: i })
-          .where(eq(schema.dashboardWidgets.id, order[i]));
-      }
+      await Promise.all(
+        order.map((id, i) =>
+          db.update(schema.dashboardWidgets)
+            .set({ position: i })
+            .where(eq(schema.dashboardWidgets.id, id))
+        )
+      );
       return NextResponse.json({ success: true });
     }
 
@@ -106,12 +103,8 @@ export async function POST(req: NextRequest) {
     if (action === "reset") {
       await db.delete(schema.dashboardWidgets)
         .where(eq(schema.dashboardWidgets.userId, "default"));
-      for (const w of DEFAULT_WIDGETS) {
-        await db.insert(schema.dashboardWidgets).values({
-          userId: "default",
-          ...w,
-        });
-      }
+      await db.insert(schema.dashboardWidgets)
+        .values(DEFAULT_WIDGETS.map((w) => ({ userId: "default", ...w })));
       return NextResponse.json({ success: true });
     }
 
