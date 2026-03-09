@@ -10,6 +10,7 @@ import {
   BarChart3,
   Calendar,
   Check,
+  ChevronRight,
   Crosshair,
   Target,
   TrendingUp,
