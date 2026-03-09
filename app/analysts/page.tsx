@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageContainer } from "@/components/layout/page-container";
@@ -68,7 +68,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   celestial: "Celestial",
 };
 
-export default function AnalystProfilePage() {
+function AnalystProfileContent() {
   const searchParams = useSearchParams();
   const username = searchParams.get("username");
   const [profile, setProfile] = useState<{ username: string; stats: AnalystStats | null } | null>(null);
@@ -420,5 +420,13 @@ export default function AnalystProfilePage() {
         )}
       </div>
     </PageContainer>
+  );
+}
+
+export default function AnalystProfilePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-4 h-4 border-2 border-navy-600 border-t-navy-300 rounded-full animate-spin" /></div>}>
+      <AnalystProfileContent />
+    </Suspense>
   );
 }
