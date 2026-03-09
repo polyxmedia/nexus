@@ -7,6 +7,7 @@ import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CodeEditor } from "@/components/ui/code-editor";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   BarChart3,
@@ -36,6 +37,21 @@ import {
   XCircle,
   Eye,
   RefreshCw,
+  Activity,
+  Coins,
+  Hash,
+  ArrowUpRight,
+  ArrowDownRight,
+  Globe,
+  Monitor,
+  Smartphone,
+  Tablet,
+  MapPin,
+  LogIn,
+  LogOut,
+  Zap,
+  Timer,
+  MousePointer,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -75,16 +91,100 @@ interface UserRecord {
   } | null;
 }
 
+interface UserStats {
+  creditBalance: {
+    period: string;
+    creditsGranted: number;
+    creditsUsed: number;
+    creditsRemaining: number;
+  } | null;
+  recentLedger: {
+    id: number;
+    amount: number;
+    reason: string;
+    model: string | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    sessionId: string | null;
+    createdAt: string;
+  }[];
+  usageByPeriod: {
+    period: string;
+    totalCredits: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    callCount: number;
+  }[];
+  modelUsage: {
+    model: string | null;
+    totalCredits: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    callCount: number;
+  }[];
+  recentSessions: {
+    id: number;
+    uuid: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  chatStats: {
+    totalSessions: number;
+    totalMessages: number;
+  };
+  recentTrades: {
+    id: number;
+    ticker: string;
+    direction: string;
+    quantity: number;
+    status: string;
+    environment: string;
+    createdAt: string;
+  }[];
+  tradeStats: {
+    total: number;
+    filled: number;
+  };
+  supportTickets: {
+    id: number;
+    title: string;
+    status: string;
+    priority: string;
+    createdAt: string;
+  }[];
+  accountCreated: string | null;
+  lastLogin: string | null;
+  dailyUsage: {
+    day: string;
+    credits: number;
+    calls: number;
+  }[];
+}
+
 interface AnalyticsData {
   period: { days: number; since: string };
   totalViews: number;
   uniqueSessions: number;
+  uniqueVisitors: number;
   avgViewsPerSession: number;
-  topPages: { path: string; views: number; uniqueVisitors: number }[];
-  dailyViews: { date: string; views: number; unique: number }[];
+  bounceRate: number;
+  avgDuration: number;
+  newVisitors: number;
+  returningVisitors: number;
+  live: { activeVisitors: number; pageviews: number };
+  topPages: { path: string; views: number; uniqueVisitors: number; avgDuration: number }[];
+  dailyViews: { date: string; views: number; unique: number; visitors: number }[];
   devices: { deviceType: string | null; count: number }[];
-  referrers: { referrer: string | null; count: number }[];
+  browsers: { browser: string | null; count: number }[];
+  operatingSystems: { os: string | null; count: number }[];
+  referrers: { referrer: string | null; count: number; uniqueVisitors: number }[];
   hourly: { hour: string; count: number }[];
+  countries: { country: string | null; count: number; uniqueVisitors: number }[];
+  cities: { city: string | null; country: string | null; count: number }[];
+  screens: { width: number | null; height: number | null; count: number }[];
+  entryPages: { path: string; count: number }[];
+  exitPages: { path: string; count: number }[];
 }
 
 interface GrowthData {
@@ -237,11 +337,10 @@ function PromptEditor({
 
       {expanded && (
         <div className="border-t border-navy-700/50 p-4 space-y-3">
-          <textarea
+          <CodeEditor
             value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full h-80 bg-navy-900/50 border border-navy-700/50 rounded p-3 text-[12px] font-mono text-navy-200 resize-y focus:outline-none focus:border-navy-500 leading-relaxed"
-            spellCheck={false}
+            onChange={setValue}
+            height="320px"
           />
 
           <div className="flex items-center justify-between">
@@ -298,7 +397,7 @@ function PromptEditor({
           </div>
 
           {showDefault && (
-            <div className="border border-navy-700/30 rounded bg-navy-950 p-3 max-h-60 overflow-y-auto">
+            <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] text-navy-500 uppercase tracking-wider font-medium">
                   Default prompt
@@ -313,9 +412,12 @@ function PromptEditor({
                   Restore this
                 </button>
               </div>
-              <pre className="text-[11px] font-mono text-navy-500 whitespace-pre-wrap leading-relaxed">
-                {prompt.defaultValue}
-              </pre>
+              <CodeEditor
+                value={prompt.defaultValue}
+                onChange={() => {}}
+                height="240px"
+                readOnly
+              />
             </div>
           )}
         </div>
@@ -1484,6 +1586,19 @@ function GrowthPanel({
   );
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+const DEVICE_ICONS: Record<string, typeof Monitor> = {
+  desktop: Monitor,
+  mobile: Smartphone,
+  tablet: Tablet,
+};
+
 function AnalyticsPanel({
   analytics,
   loading,
@@ -1504,8 +1619,8 @@ function AnalyticsPanel({
 
   if (loading && !analytics) {
     return (
-      <div className="space-y-4 max-w-4xl">
-        {[1, 2, 3].map((i) => (
+      <div className="space-y-4">
+        {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-32 w-full" />
         ))}
       </div>
@@ -1514,7 +1629,7 @@ function AnalyticsPanel({
 
   if (!analytics) {
     return (
-      <div className="border border-navy-700/50 border-dashed rounded p-8 text-center max-w-4xl">
+      <div className="border border-navy-700/50 border-dashed rounded p-8 text-center">
         <BarChart3 className="h-8 w-8 text-navy-600 mx-auto mb-3" />
         <p className="text-sm text-navy-400">No analytics data yet</p>
         <p className="text-[10px] text-navy-500 mt-1">
@@ -1527,14 +1642,27 @@ function AnalyticsPanel({
   const maxDailyViews = Math.max(...analytics.dailyViews.map((d) => d.views), 1);
   const maxHourly = Math.max(...analytics.hourly.map((h) => h.count), 1);
   const totalDevices = analytics.devices.reduce((sum, d) => sum + d.count, 0) || 1;
+  const totalBrowsers = analytics.browsers.reduce((sum, b) => sum + b.count, 0) || 1;
+  const totalOS = analytics.operatingSystems.reduce((sum, o) => sum + o.count, 0) || 1;
+  const topCountryCount = analytics.countries.length > 0 ? analytics.countries[0].count : 1;
 
   return (
-    <div className="max-w-4xl space-y-6">
-      {/* Period selector */}
+    <div className="space-y-6">
+      {/* Header: period selector + live indicator */}
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-navy-400">
-          Anonymous, cookieless usage analytics. No PII collected.
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-[11px] text-navy-400">
+            Anonymous, cookieless analytics. No PII collected.
+          </p>
+          {analytics.live.activeVisitors > 0 && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-accent-emerald/10 border border-accent-emerald/20">
+              <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald animate-pulse" />
+              <span className="text-[10px] font-mono text-accent-emerald tabular-nums">
+                {analytics.live.activeVisitors} live now
+              </span>
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           {[7, 14, 30, 90].map((d) => (
             <button
@@ -1552,21 +1680,27 @@ function AnalyticsPanel({
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* KPI row */}
+      <div className="grid grid-cols-6 gap-3">
         {[
-          { label: "Total Views", value: analytics.totalViews.toLocaleString() },
-          { label: "Unique Visitors", value: analytics.uniqueSessions.toLocaleString() },
-          { label: "Avg Pages/Visit", value: String(analytics.avgViewsPerSession) },
+          { label: "Pageviews", value: analytics.totalViews.toLocaleString(), icon: MousePointer, color: "text-accent-cyan" },
+          { label: "Visitors", value: (analytics.uniqueVisitors || analytics.uniqueSessions).toLocaleString(), icon: Users, color: "text-accent-emerald" },
+          { label: "Pages/Visit", value: String(analytics.avgViewsPerSession), icon: BarChart3, color: "text-navy-300" },
+          { label: "Bounce Rate", value: `${analytics.bounceRate}%`, icon: LogOut, color: analytics.bounceRate > 60 ? "text-accent-rose" : "text-accent-emerald" },
+          { label: "Avg Duration", value: formatDuration(analytics.avgDuration), icon: Timer, color: "text-accent-amber" },
+          { label: "New Visitors", value: analytics.uniqueVisitors > 0 ? `${Math.round((analytics.newVisitors / (analytics.uniqueVisitors || 1)) * 100)}%` : "0%", icon: Zap, color: "text-accent-cyan" },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="border border-navy-700/40 rounded-lg bg-navy-900/30 px-4 py-3"
+            className="border border-navy-700/40 rounded-lg bg-navy-900/30 px-3 py-3"
           >
-            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-1">
-              {stat.label}
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <stat.icon className={`h-3 w-3 ${stat.color} opacity-60`} />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">
+                {stat.label}
+              </span>
             </div>
-            <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">
+            <div className="text-lg font-mono font-bold text-navy-100 tabular-nums">
               {stat.value}
             </div>
           </div>
@@ -1576,21 +1710,19 @@ function AnalyticsPanel({
       {/* Daily views chart */}
       <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
         <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
-          Daily Pageviews
+          Daily Traffic
         </div>
-        <div className="flex items-end gap-[2px] h-32">
+        <div className="flex items-end gap-[2px] h-36">
           {analytics.dailyViews.map((day) => (
-            <div
-              key={day.date}
-              className="flex-1 group relative"
-            >
+            <div key={day.date} className="flex-1 group relative">
               <div
                 className="w-full bg-accent-cyan/30 hover:bg-accent-cyan/50 transition-colors rounded-t-sm"
                 style={{ height: `${(day.views / maxDailyViews) * 100}%`, minHeight: day.views > 0 ? 2 : 0 }}
               />
               <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
                 <div className="bg-navy-800 border border-navy-700 rounded px-2 py-1 text-[9px] font-mono text-navy-200 whitespace-nowrap shadow-lg">
-                  {day.date}: {day.views} views, {day.unique} unique
+                  <div>{day.date}</div>
+                  <div>{day.views} views / {day.unique} sessions / {day.visitors || day.unique} visitors</div>
                 </div>
               </div>
             </div>
@@ -1598,109 +1730,237 @@ function AnalyticsPanel({
         </div>
         {analytics.dailyViews.length > 0 && (
           <div className="flex justify-between mt-1.5">
-            <span className="text-[9px] font-mono text-navy-600">
-              {analytics.dailyViews[0]?.date}
-            </span>
-            <span className="text-[9px] font-mono text-navy-600">
-              {analytics.dailyViews[analytics.dailyViews.length - 1]?.date}
-            </span>
+            <span className="text-[9px] font-mono text-navy-600">{analytics.dailyViews[0]?.date}</span>
+            <span className="text-[9px] font-mono text-navy-600">{analytics.dailyViews[analytics.dailyViews.length - 1]?.date}</span>
           </div>
         )}
       </div>
 
+      {/* Geography: Countries + Cities */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Top Pages */}
         <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
-            Top Pages
+          <div className="flex items-center gap-2 mb-3">
+            <Globe className="h-3.5 w-3.5 text-accent-cyan opacity-60" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Countries</span>
           </div>
-          <div className="space-y-1.5">
-            {analytics.topPages.slice(0, 10).map((page) => (
-              <div key={page.path} className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-mono text-navy-300 truncate flex-1">
-                  {page.path}
-                </span>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-[10px] font-mono text-navy-500 tabular-nums">
-                    {page.uniqueVisitors} uniq
-                  </span>
-                  <span className="text-[10px] font-mono text-navy-200 tabular-nums w-12 text-right">
-                    {page.views}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {analytics.topPages.length === 0 && (
-              <p className="text-[10px] text-navy-600">No page data yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* Device & Referrers */}
-        <div className="space-y-3">
-          {/* Devices */}
-          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
-              Devices
-            </div>
-            <div className="space-y-2">
-              {analytics.devices.map((d) => {
-                const pct = Math.round((d.count / totalDevices) * 100);
+          {analytics.countries.length > 0 ? (
+            <div className="space-y-1.5">
+              {analytics.countries.slice(0, 15).map((c) => {
+                const pct = Math.round((c.count / topCountryCount) * 100);
                 return (
-                  <div key={d.deviceType || "unknown"}>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[11px] font-mono text-navy-300 capitalize">
-                        {d.deviceType || "unknown"}
-                      </span>
-                      <span className="text-[10px] font-mono text-navy-500 tabular-nums">
-                        {pct}%
-                      </span>
+                  <div key={c.country} className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-navy-200 w-8 shrink-0">{c.country || "??"}</span>
+                    <div className="flex-1 h-1.5 bg-navy-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-accent-cyan/40 rounded-full" style={{ width: `${pct}%` }} />
                     </div>
-                    <div className="h-1.5 bg-navy-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-accent-cyan/50 rounded-full transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
+                    <span className="text-[10px] font-mono text-navy-400 tabular-nums w-10 text-right">{c.count}</span>
+                    <span className="text-[9px] font-mono text-navy-600 tabular-nums w-10 text-right">{c.uniqueVisitors} uv</span>
                   </div>
                 );
               })}
             </div>
-          </div>
+          ) : (
+            <p className="text-[10px] text-navy-600">No geo data yet. Country headers are populated by Vercel in production.</p>
+          )}
+        </div>
 
-          {/* Referrers */}
-          <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
-              Referrers
-            </div>
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <MapPin className="h-3.5 w-3.5 text-accent-amber opacity-60" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Top Cities</span>
+          </div>
+          {analytics.cities.length > 0 ? (
             <div className="space-y-1.5">
-              {analytics.referrers.slice(0, 5).map((r) => (
-                <div
-                  key={r.referrer}
-                  className="flex items-center justify-between gap-2"
-                >
+              {analytics.cities.map((c) => (
+                <div key={`${c.city}-${c.country}`} className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-mono text-navy-300 truncate flex-1">
-                    {r.referrer || "Direct"}
+                    {c.city || "Unknown"}
                   </span>
-                  <span className="text-[10px] font-mono text-navy-200 tabular-nums">
-                    {r.count}
-                  </span>
+                  <span className="text-[9px] font-mono text-navy-600 shrink-0">{c.country}</span>
+                  <span className="text-[10px] font-mono text-navy-200 tabular-nums w-10 text-right">{c.count}</span>
                 </div>
               ))}
-              {analytics.referrers.length === 0 && (
-                <p className="text-[10px] text-navy-600">No referrer data</p>
-              )}
             </div>
+          ) : (
+            <p className="text-[10px] text-navy-600">No city data yet. Available on Vercel production.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Top Pages with duration */}
+      <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+        <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
+          Top Pages
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-[9px] font-mono text-navy-600 uppercase tracking-wider pb-1 border-b border-navy-700/30">
+            <span className="flex-1">Path</span>
+            <span className="w-14 text-right">Visitors</span>
+            <span className="w-14 text-right">Views</span>
+            <span className="w-14 text-right">Avg Time</span>
+          </div>
+          {analytics.topPages.slice(0, 15).map((page) => (
+            <div key={page.path} className="flex items-center gap-2 py-0.5">
+              <span className="text-[11px] font-mono text-navy-300 truncate flex-1">{page.path}</span>
+              <span className="text-[10px] font-mono text-navy-500 tabular-nums w-14 text-right">{page.uniqueVisitors}</span>
+              <span className="text-[10px] font-mono text-navy-200 tabular-nums w-14 text-right">{page.views}</span>
+              <span className="text-[10px] font-mono text-navy-500 tabular-nums w-14 text-right">{formatDuration(Math.round(page.avgDuration))}</span>
+            </div>
+          ))}
+          {analytics.topPages.length === 0 && (
+            <p className="text-[10px] text-navy-600 py-2">No page data yet</p>
+          )}
+        </div>
+      </div>
+
+      {/* Entry / Exit Pages */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <LogIn className="h-3.5 w-3.5 text-accent-emerald opacity-60" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Entry Pages</span>
+          </div>
+          <div className="space-y-1.5">
+            {analytics.entryPages.slice(0, 8).map((p) => (
+              <div key={p.path} className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-navy-300 truncate flex-1">{p.path}</span>
+                <span className="text-[10px] font-mono text-navy-200 tabular-nums">{p.count}</span>
+              </div>
+            ))}
+            {analytics.entryPages.length === 0 && <p className="text-[10px] text-navy-600">No data</p>}
+          </div>
+        </div>
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <LogOut className="h-3.5 w-3.5 text-accent-rose opacity-60" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Exit Pages</span>
+          </div>
+          <div className="space-y-1.5">
+            {analytics.exitPages.slice(0, 8).map((p) => (
+              <div key={p.path} className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-navy-300 truncate flex-1">{p.path}</span>
+                <span className="text-[10px] font-mono text-navy-200 tabular-nums">{p.count}</span>
+              </div>
+            ))}
+            {analytics.exitPages.length === 0 && <p className="text-[10px] text-navy-600">No data</p>}
           </div>
         </div>
       </div>
+
+      {/* Referrers */}
+      <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+        <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
+          Traffic Sources
+        </div>
+        {analytics.referrers.length > 0 ? (
+          <div className="space-y-1.5">
+            {analytics.referrers.slice(0, 10).map((r) => (
+              <div key={r.referrer} className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-navy-300 truncate flex-1">{r.referrer || "Direct"}</span>
+                <span className="text-[10px] font-mono text-navy-500 tabular-nums w-12 text-right">{r.uniqueVisitors} uv</span>
+                <span className="text-[10px] font-mono text-navy-200 tabular-nums w-12 text-right">{r.count}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[10px] text-navy-600">No referrer data</p>
+        )}
+      </div>
+
+      {/* Tech breakdown: Devices, Browsers, OS */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Devices */}
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Devices</div>
+          <div className="space-y-2">
+            {analytics.devices.map((d) => {
+              const pct = Math.round((d.count / totalDevices) * 100);
+              const DevIcon = DEVICE_ICONS[d.deviceType || "desktop"] || Monitor;
+              return (
+                <div key={d.deviceType || "unknown"}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <DevIcon className="h-3 w-3 text-navy-500" />
+                      <span className="text-[11px] font-mono text-navy-300 capitalize">{d.deviceType || "unknown"}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-navy-500 tabular-nums">{pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-navy-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-accent-cyan/50 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Browsers */}
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Browsers</div>
+          <div className="space-y-2">
+            {analytics.browsers.slice(0, 6).map((b) => {
+              const pct = Math.round((b.count / totalBrowsers) * 100);
+              return (
+                <div key={b.browser || "unknown"}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[11px] font-mono text-navy-300">{b.browser || "unknown"}</span>
+                    <span className="text-[10px] font-mono text-navy-500 tabular-nums">{pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-navy-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-accent-amber/50 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* OS */}
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Operating Systems</div>
+          <div className="space-y-2">
+            {analytics.operatingSystems.slice(0, 6).map((o) => {
+              const pct = Math.round((o.count / totalOS) * 100);
+              return (
+                <div key={o.os || "unknown"}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[11px] font-mono text-navy-300">{o.os || "unknown"}</span>
+                    <span className="text-[10px] font-mono text-navy-500 tabular-nums">{pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-navy-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-accent-emerald/50 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Screen Resolutions */}
+      {analytics.screens.length > 0 && (
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Screen Resolutions</div>
+          <div className="flex flex-wrap gap-2">
+            {analytics.screens.map((s) => (
+              <div
+                key={`${s.width}x${s.height}`}
+                className="px-2.5 py-1.5 rounded border border-navy-700/30 bg-navy-800/30"
+              >
+                <span className="text-[11px] font-mono text-navy-300">{s.width}x{s.height}</span>
+                <span className="text-[9px] font-mono text-navy-600 ml-2">{s.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Hourly distribution */}
       <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
         <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">
           Hourly Distribution (UTC)
         </div>
-        <div className="flex items-end gap-[3px] h-16">
+        <div className="flex items-end gap-[3px] h-20">
           {Array.from({ length: 24 }, (_, i) => {
             const hour = String(i).padStart(2, "0");
             const entry = analytics.hourly.find((h) => h.hour === hour);
@@ -1713,7 +1973,7 @@ function AnalyticsPanel({
                 />
                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
                   <div className="bg-navy-800 border border-navy-700 rounded px-2 py-1 text-[9px] font-mono text-navy-200 whitespace-nowrap shadow-lg">
-                    {hour}:00 - {count} views
+                    {hour}:00 UTC - {count} views
                   </div>
                 </div>
               </div>
@@ -1722,10 +1982,40 @@ function AnalyticsPanel({
         </div>
         <div className="flex justify-between mt-1.5">
           <span className="text-[9px] font-mono text-navy-600">00:00</span>
+          <span className="text-[9px] font-mono text-navy-600">06:00</span>
           <span className="text-[9px] font-mono text-navy-600">12:00</span>
+          <span className="text-[9px] font-mono text-navy-600">18:00</span>
           <span className="text-[9px] font-mono text-navy-600">23:00</span>
         </div>
       </div>
+
+      {/* New vs Returning */}
+      {(analytics.newVisitors > 0 || analytics.returningVisitors > 0) && (
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">New vs Returning Visitors</div>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <div className="h-3 rounded-full bg-navy-800 overflow-hidden flex">
+                <div
+                  className="h-full bg-accent-cyan/60 rounded-l-full"
+                  style={{ width: `${analytics.uniqueVisitors > 0 ? (analytics.newVisitors / analytics.uniqueVisitors) * 100 : 50}%` }}
+                />
+                <div className="h-full bg-accent-amber/60 rounded-r-full flex-1" />
+              </div>
+            </div>
+            <div className="flex items-center gap-4 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full bg-accent-cyan/60" />
+                <span className="text-[10px] font-mono text-navy-300">New {analytics.newVisitors}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full bg-accent-amber/60" />
+                <span className="text-[10px] font-mono text-navy-300">Returning {analytics.returningVisitors}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2008,6 +2298,26 @@ export default function AdminPage() {
     await fetchUsers();
     setEditSaving(false);
     setEditModal(null);
+  };
+
+  // User stats modal
+  const [statsModal, setStatsModal] = useState<string | null>(null);
+  const [statsData, setStatsData] = useState<UserStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const openStatsModal = async (username: string) => {
+    setStatsModal(username);
+    setStatsData(null);
+    setStatsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}/stats`);
+      if (res.ok) {
+        setStatsData(await res.json());
+      }
+    } catch {
+      // ignore
+    }
+    setStatsLoading(false);
   };
 
   // Block/unblock
@@ -2293,6 +2603,16 @@ export default function AdminPage() {
                             >
                               <Eye className="h-3 w-3" />
                               Edit
+                            </button>
+
+                            {/* Stats button */}
+                            <button
+                              onClick={() => openStatsModal(user.username)}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-400 hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors"
+                              title="View stats"
+                            >
+                              <Activity className="h-3 w-3" />
+                              Stats
                             </button>
 
                             {/* Role toggle */}
@@ -2622,6 +2942,313 @@ export default function AdminPage() {
                     )}
                     Save Changes
                   </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* User Stats Modal */}
+          {statsModal && (
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setStatsModal(null)}>
+              <div
+                className="bg-navy-900 border border-navy-700 rounded-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-3.5 w-3.5 text-accent-cyan" />
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-navy-200">User Stats</span>
+                    <span className="text-[11px] font-mono text-accent-cyan">{statsModal}</span>
+                  </div>
+                  <button onClick={() => setStatsModal(null)} className="text-navy-500 hover:text-navy-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+                  {statsLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4].map((i) => (
+                        <Skeleton key={i} className="h-20 w-full" />
+                      ))}
+                    </div>
+                  ) : statsData ? (
+                    <>
+                      {/* Account Info */}
+                      <div className="grid grid-cols-4 gap-3">
+                        <div className="border border-navy-700/40 rounded-lg p-3 bg-navy-800/20">
+                          <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Account Created</div>
+                          <div className="text-[12px] font-mono text-navy-200">
+                            {statsData.accountCreated
+                              ? new Date(statsData.accountCreated).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                              : "Unknown"}
+                          </div>
+                        </div>
+                        <div className="border border-navy-700/40 rounded-lg p-3 bg-navy-800/20">
+                          <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Last Login</div>
+                          <div className="text-[12px] font-mono text-navy-200">
+                            {statsData.lastLogin
+                              ? new Date(statsData.lastLogin).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                              : "N/A"}
+                          </div>
+                        </div>
+                        <div className="border border-navy-700/40 rounded-lg p-3 bg-navy-800/20">
+                          <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Chat Sessions</div>
+                          <div className="text-[12px] font-mono text-navy-200">{statsData.chatStats.totalSessions}</div>
+                          <div className="text-[9px] font-mono text-navy-600">{statsData.chatStats.totalMessages} messages</div>
+                        </div>
+                        <div className="border border-navy-700/40 rounded-lg p-3 bg-navy-800/20">
+                          <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Trades</div>
+                          <div className="text-[12px] font-mono text-navy-200">{statsData.tradeStats.total}</div>
+                          <div className="text-[9px] font-mono text-navy-600">{statsData.tradeStats.filled} filled</div>
+                        </div>
+                      </div>
+
+                      {/* Credit Balance */}
+                      {statsData.creditBalance && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Coins className="h-3.5 w-3.5 text-accent-amber" />
+                            <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Credit Balance</span>
+                            <span className="text-[9px] font-mono text-navy-600 ml-auto">Period: {statsData.creditBalance.period}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <div className="text-[9px] font-mono text-navy-500 uppercase mb-0.5">Granted</div>
+                              <div className="text-lg font-mono text-navy-200 tabular-nums">
+                                {statsData.creditBalance.creditsGranted === -1 ? "Unlimited" : statsData.creditBalance.creditsGranted.toLocaleString()}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[9px] font-mono text-navy-500 uppercase mb-0.5">Used</div>
+                              <div className="text-lg font-mono text-accent-amber tabular-nums">{statsData.creditBalance.creditsUsed.toLocaleString()}</div>
+                            </div>
+                            <div>
+                              <div className="text-[9px] font-mono text-navy-500 uppercase mb-0.5">Remaining</div>
+                              <div className={`text-lg font-mono tabular-nums ${
+                                statsData.creditBalance.creditsRemaining < statsData.creditBalance.creditsGranted * 0.2
+                                  ? "text-accent-rose"
+                                  : "text-accent-emerald"
+                              }`}>
+                                {statsData.creditBalance.creditsGranted === -1 ? "Unlimited" : statsData.creditBalance.creditsRemaining.toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                          {/* Usage bar */}
+                          {statsData.creditBalance.creditsGranted > 0 && (
+                            <div className="mt-3">
+                              <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    statsData.creditBalance.creditsUsed / statsData.creditBalance.creditsGranted > 0.8
+                                      ? "bg-accent-rose"
+                                      : statsData.creditBalance.creditsUsed / statsData.creditBalance.creditsGranted > 0.5
+                                      ? "bg-accent-amber"
+                                      : "bg-accent-cyan"
+                                  }`}
+                                  style={{ width: `${Math.min(100, (statsData.creditBalance.creditsUsed / statsData.creditBalance.creditsGranted) * 100)}%` }}
+                                />
+                              </div>
+                              <div className="text-[9px] font-mono text-navy-600 mt-1">
+                                {((statsData.creditBalance.creditsUsed / statsData.creditBalance.creditsGranted) * 100).toFixed(1)}% used
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Daily Usage Chart (simple bar) */}
+                      {statsData.dailyUsage.length > 0 && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <BarChart3 className="h-3.5 w-3.5 text-accent-cyan" />
+                            <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Daily Usage (14 days)</span>
+                          </div>
+                          <div className="flex items-end gap-1 h-24">
+                            {statsData.dailyUsage.map((day) => {
+                              const maxCredits = Math.max(...statsData.dailyUsage.map((d) => d.credits));
+                              const height = maxCredits > 0 ? (day.credits / maxCredits) * 100 : 0;
+                              return (
+                                <div key={day.day} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 hidden group-hover:block bg-navy-800 border border-navy-700 rounded px-2 py-1 text-[9px] font-mono text-navy-200 whitespace-nowrap z-10">
+                                    {day.credits.toLocaleString()} credits / {day.calls} calls
+                                  </div>
+                                  <div
+                                    className="w-full rounded-t bg-accent-cyan/60 hover:bg-accent-cyan transition-all cursor-default min-h-[2px]"
+                                    style={{ height: `${Math.max(2, height)}%` }}
+                                  />
+                                  <span className="text-[7px] font-mono text-navy-600 rotate-0">{day.day.slice(8)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Model Usage Breakdown */}
+                      {statsData.modelUsage.length > 0 && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Hash className="h-3.5 w-3.5 text-accent-emerald" />
+                            <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Model Usage</span>
+                          </div>
+                          <div className="space-y-2">
+                            {statsData.modelUsage.map((m) => (
+                              <div key={m.model || "unknown"} className="flex items-center gap-3">
+                                <span className="text-[10px] font-mono text-navy-300 w-40 truncate">
+                                  {(m.model || "unknown").replace("claude-", "").replace(/-\d{8}$/, "")}
+                                </span>
+                                <div className="flex-1 h-1.5 rounded-full bg-navy-800 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-accent-emerald/60"
+                                    style={{
+                                      width: `${Math.min(100, (m.totalCredits / Math.max(...statsData.modelUsage.map((x) => x.totalCredits))) * 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-mono text-navy-400 tabular-nums w-20 text-right">{m.totalCredits.toLocaleString()}</span>
+                                <span className="text-[9px] font-mono text-navy-600 tabular-nums w-16 text-right">{m.callCount} calls</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Usage by Period */}
+                      {statsData.usageByPeriod.length > 0 && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Monthly History</span>
+                          <div className="mt-3 space-y-1.5">
+                            {statsData.usageByPeriod.map((p) => (
+                              <div key={p.period} className="flex items-center gap-3 text-[10px] font-mono">
+                                <span className="text-navy-400 w-16">{p.period}</span>
+                                <span className="text-accent-amber tabular-nums w-20 text-right">{p.totalCredits.toLocaleString()} cr</span>
+                                <span className="text-navy-500 tabular-nums w-24 text-right">{(p.totalInputTokens || 0).toLocaleString()} in</span>
+                                <span className="text-navy-500 tabular-nums w-24 text-right">{(p.totalOutputTokens || 0).toLocaleString()} out</span>
+                                <span className="text-navy-600 tabular-nums">{p.callCount} calls</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Recent Chat Sessions */}
+                      {statsData.recentSessions.length > 0 && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <MessageSquare className="h-3.5 w-3.5 text-accent-cyan" />
+                            <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Recent Chat Sessions</span>
+                          </div>
+                          <div className="space-y-1">
+                            {statsData.recentSessions.map((s) => (
+                              <div key={s.id} className="flex items-center gap-3 text-[10px] font-mono py-1">
+                                <span className="text-navy-300 flex-1 truncate">{s.title}</span>
+                                <span className="text-navy-600 tabular-nums shrink-0">
+                                  {new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Recent Trades */}
+                      {statsData.recentTrades.length > 0 && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <TrendingUp className="h-3.5 w-3.5 text-accent-emerald" />
+                            <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Recent Trades</span>
+                          </div>
+                          <div className="space-y-1">
+                            {statsData.recentTrades.map((t) => (
+                              <div key={t.id} className="flex items-center gap-3 text-[10px] font-mono py-1">
+                                <span className={`w-8 uppercase ${t.direction === "BUY" ? "text-accent-emerald" : "text-accent-rose"}`}>
+                                  {t.direction === "BUY" ? (
+                                    <span className="flex items-center gap-0.5"><ArrowUpRight className="h-2.5 w-2.5" />Buy</span>
+                                  ) : (
+                                    <span className="flex items-center gap-0.5"><ArrowDownRight className="h-2.5 w-2.5" />Sell</span>
+                                  )}
+                                </span>
+                                <span className="text-navy-200 w-16">{t.ticker}</span>
+                                <span className="text-navy-500 tabular-nums">{t.quantity}</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                  t.status === "filled" ? "bg-accent-emerald/15 text-accent-emerald" :
+                                  t.status === "rejected" ? "bg-accent-rose/15 text-accent-rose" :
+                                  "bg-navy-700 text-navy-400"
+                                }`}>{t.status}</span>
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-navy-800 text-navy-500 uppercase">{t.environment}</span>
+                                <span className="text-navy-600 tabular-nums ml-auto shrink-0">
+                                  {new Date(t.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Support Tickets */}
+                      {statsData.supportTickets.length > 0 && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <MessageSquare className="h-3.5 w-3.5 text-accent-amber" />
+                            <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Support Tickets</span>
+                          </div>
+                          <div className="space-y-1">
+                            {statsData.supportTickets.map((t) => (
+                              <div key={t.id} className="flex items-center gap-3 text-[10px] font-mono py-1">
+                                <span className="text-navy-300 flex-1 truncate">{t.title}</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                  t.status === "open" ? "bg-accent-amber/15 text-accent-amber" :
+                                  t.status === "resolved" ? "bg-accent-emerald/15 text-accent-emerald" :
+                                  "bg-navy-700 text-navy-400"
+                                }`}>{t.status}</span>
+                                <span className="text-navy-600 tabular-nums shrink-0">
+                                  {new Date(t.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Recent Credit Ledger */}
+                      {statsData.recentLedger.length > 0 && (
+                        <div className="border border-navy-700/40 rounded-lg p-4 bg-navy-800/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Clock className="h-3.5 w-3.5 text-navy-500" />
+                            <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Recent Activity Log</span>
+                          </div>
+                          <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                            {statsData.recentLedger.map((entry) => (
+                              <div key={entry.id} className="flex items-center gap-2 text-[9px] font-mono py-0.5">
+                                <span className="text-accent-rose tabular-nums w-14 text-right">{entry.amount}</span>
+                                <span className="text-navy-500 w-20 truncate">{entry.reason}</span>
+                                <span className="text-navy-600 truncate flex-1">
+                                  {(entry.model || "").replace("claude-", "").replace(/-\d{8}$/, "")}
+                                </span>
+                                <span className="text-navy-600 tabular-nums shrink-0">
+                                  {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Empty state */}
+                      {!statsData.creditBalance && statsData.recentSessions.length === 0 && statsData.recentTrades.length === 0 && (
+                        <div className="border border-navy-700/30 border-dashed rounded-lg p-8 text-center">
+                          <Activity className="h-6 w-6 text-navy-600 mx-auto mb-2 opacity-40" />
+                          <p className="text-[11px] text-navy-500">No activity recorded for this user</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="border border-navy-700/30 border-dashed rounded-lg p-8 text-center">
+                      <XCircle className="h-6 w-6 text-accent-rose/40 mx-auto mb-2" />
+                      <p className="text-[11px] text-navy-500">Failed to load stats</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
