@@ -1,5 +1,7 @@
 import { db, schema } from "../db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc, like } from "drizzle-orm";
+import { sendMessage } from "@/lib/telegram/bot";
+import { sendSms, getUserPhone } from "@/lib/sms";
 
 export interface AlertCondition {
   // price_threshold
@@ -35,12 +37,16 @@ export async function createAlert(values: {
   type: string;
   condition: AlertCondition;
   cooldownMinutes?: number;
+  notifyTelegram?: number;
+  notifySms?: number;
 }) {
   return await db.insert(schema.alerts).values({
     name: values.name,
     type: values.type,
     condition: JSON.stringify(values.condition),
     cooldownMinutes: values.cooldownMinutes || 60,
+    notifyTelegram: values.notifyTelegram || 0,
+    notifySms: values.notifySms || 0,
   }).returning();
 }
 
@@ -50,6 +56,8 @@ export async function updateAlert(id: number, values: Partial<{
   condition: AlertCondition;
   enabled: number;
   cooldownMinutes: number;
+  notifyTelegram: number;
+  notifySms: number;
 }>) {
   const set: Record<string, unknown> = {};
   if (values.name !== undefined) set.name = values.name;
@@ -57,6 +65,8 @@ export async function updateAlert(id: number, values: Partial<{
   if (values.condition !== undefined) set.condition = JSON.stringify(values.condition);
   if (values.enabled !== undefined) set.enabled = values.enabled;
   if (values.cooldownMinutes !== undefined) set.cooldownMinutes = values.cooldownMinutes;
+  if (values.notifyTelegram !== undefined) set.notifyTelegram = values.notifyTelegram;
+  if (values.notifySms !== undefined) set.notifySms = values.notifySms;
 
   await db.update(schema.alerts).set(set).where(eq(schema.alerts.id, id));
   return await getAlert(id);
@@ -259,6 +269,36 @@ export async function evaluateAlerts(): Promise<number> {
         severity,
         data: JSON.stringify(data),
       });
+
+      // Send Telegram notification if enabled
+      if (alert.notifyTelegram) {
+        const chatIdRows = await db.select().from(schema.settings)
+          .where(like(schema.settings.key, "%:telegram_chat_id"));
+        for (const row of chatIdRows) {
+          if (!row.value) continue;
+          const text = [
+            `<b>ALERT TRIGGERED</b>`,
+            ``,
+            `<b>${title}</b>`,
+            message,
+            `Severity: ${severity}/5`,
+            ``,
+            `<a href="https://nexushq.xyz/alerts">View in NEXUS</a>`,
+          ].join("\n");
+          sendMessage({ chatId: row.value, text }).catch(() => {});
+        }
+      }
+
+      // Send SMS notification if enabled
+      if (alert.notifySms) {
+        const phoneRows = await db.select().from(schema.settings)
+          .where(like(schema.settings.key, "%:sms_phone"));
+        for (const row of phoneRows) {
+          if (!row.value) continue;
+          const smsText = `NEXUS ALERT: ${title} - ${message} (Severity ${severity}/5)`;
+          sendSms(row.value, smsText).catch(() => {});
+        }
+      }
 
       triggered++;
     }

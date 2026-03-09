@@ -350,7 +350,17 @@ export default function NewsPage() {
                       <span className="text-[9px] font-mono text-navy-600">{timeAgo(article.date)}</span>
                     </div>
                   </div>
-                  <ExternalLink className="h-3 w-3 text-navy-800 group-hover:text-navy-500 transition-colors mt-0.5 shrink-0" />
+                  {article.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={article.imageUrl}
+                      alt=""
+                      className="w-16 h-16 rounded object-cover shrink-0 opacity-70 group-hover:opacity-90 transition-opacity"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <ExternalLink className="h-3 w-3 text-navy-800 group-hover:text-navy-500 transition-colors mt-0.5 shrink-0" />
+                  )}
                 </a>
               );
             })}

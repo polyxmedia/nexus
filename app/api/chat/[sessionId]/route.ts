@@ -10,6 +10,7 @@ import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
 import { getUserTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
+import { hasCredits, debitCredits, calculateCredits } from "@/lib/credits";
 
 // ── Conversation compression ──
 // When a session exceeds COMPRESS_THRESHOLD messages, older messages are
@@ -273,6 +274,15 @@ export async function POST(
     }
   }
 
+  // Credit check before streaming
+  const creditCheck = await hasCredits(username, tierInfo.isAdmin ? "institution" : tierInfo.tier, tierInfo.isAdmin);
+  if (!creditCheck.allowed) {
+    return NextResponse.json(
+      { error: "Monthly credits exhausted. Upgrade your plan for more.", upgrade: true, creditsRemaining: 0 },
+      { status: 429 }
+    );
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -281,14 +291,18 @@ export async function POST(
       }
       try {
         const client = new Anthropic({ apiKey });
+        const chatModel = await getChatModel();
         let messages = [...anthropicMessages];
         let fullText = "";
         const allToolUses: Array<{ toolName: string; toolUseId: string; input: unknown }> = [];
         const allToolResults: Array<{ toolName: string; toolUseId: string; result: unknown }> = [];
         let continueLoop = true;
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        const requestStartTime = Date.now();
         while (continueLoop) {
           const response = await client.messages.create({
-            model: await getChatModel(),
+            model: chatModel,
             max_tokens: 4096,
             system: await getSystemPromptWithMode(),
             tools: filteredTools,
@@ -299,8 +313,12 @@ export async function POST(
           let currentToolIndex = -1;
           let iterationText = "";
           let stopReason = "";
+          let iterInputTokens = 0;
+          let iterOutputTokens = 0;
           for await (const event of response) {
-            if (event.type === "content_block_start") {
+            if (event.type === "message_start") {
+              iterInputTokens = event.message.usage?.input_tokens || 0;
+            } else if (event.type === "content_block_start") {
               if (event.content_block.type === "tool_use") {
                 pendingTools.push({ id: event.content_block.id, name: event.content_block.name, inputJson: "" });
                 currentToolIndex = pendingTools.length - 1;
@@ -316,8 +334,22 @@ export async function POST(
               }
             } else if (event.type === "message_delta") {
               stopReason = event.delta.stop_reason || "";
+              iterOutputTokens = event.usage?.output_tokens || 0;
             }
           }
+          totalInputTokens += iterInputTokens;
+          totalOutputTokens += iterOutputTokens;
+
+          // Send live token usage update after each API call
+          sendEvent({
+            type: "token_usage",
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            model: chatModel,
+            elapsedMs: Date.now() - requestStartTime,
+            creditsUsed: calculateCredits(chatModel, totalInputTokens, totalOutputTokens),
+          });
+
           if (stopReason === "tool_use" && pendingTools.length > 0) {
             const assistantContent: Anthropic.ContentBlockParam[] = [];
             if (iterationText) assistantContent.push({ type: "text" as const, text: iterationText });
@@ -354,15 +386,19 @@ export async function POST(
           toolResults: allToolResults.length > 0 ? JSON.stringify(allToolResults) : null,
         });
 
+        // Debit credits
+        const totalCredits = calculateCredits(chatModel, totalInputTokens, totalOutputTokens);
+        const debitResult = await debitCredits(username, chatModel, totalInputTokens, totalOutputTokens, "chat_request", sessionId).catch(() => null);
+
         // Non-blocking compression check after response is stored
         maybeCompressSession(client, id, sessionSummary, summarizedUntilId).catch((err) => {
           console.error("Compression background error:", err);
         });
 
-        // Generate follow-up suggestions
+        // Generate follow-up suggestions (use Haiku to save credits)
         try {
           const sugResponse = await client.messages.create({
-            model: await getChatModel(),
+            model: "claude-haiku-4-5-20251001",
             max_tokens: 300,
             system: "Generate 3-4 short follow-up prompts the user might want to explore next based on this conversation. Return ONLY a JSON array of strings, nothing else. Each prompt should be concise (under 60 chars), actionable, and naturally continue the conversation. Do not wrap in markdown code blocks.",
             messages: [
@@ -379,9 +415,24 @@ export async function POST(
               sendEvent({ type: "suggestions", suggestions: suggestions.slice(0, 4) });
             }
           }
+          // Debit suggestion credits too (small, Haiku)
+          if (sugResponse.usage) {
+            debitCredits(username, "claude-haiku-4-5-20251001", sugResponse.usage.input_tokens, sugResponse.usage.output_tokens, "suggestions", sessionId).catch(() => {});
+          }
         } catch {
           // Suggestions are best-effort, don't block the response
         }
+
+        // Send final usage summary
+        sendEvent({
+          type: "usage_summary",
+          totalInputTokens,
+          totalOutputTokens,
+          totalCreditsUsed: totalCredits,
+          creditsRemaining: debitResult?.balance.creditsRemaining ?? -1,
+          model: chatModel,
+          elapsedMs: Date.now() - requestStartTime,
+        });
 
         sendEvent({ type: "done" });
         controller.close();

@@ -12,7 +12,7 @@ function getResend() {
   return _resend;
 }
 
-const FROM_ADDRESS = process.env.EMAIL_FROM || "Nexus <noreply@nexusintel.io>";
+const FROM_ADDRESS = process.env.EMAIL_FROM || "Nexus <noreply@nexushq.xyz>";
 
 export interface SendEmailOptions {
   to: string | string[];

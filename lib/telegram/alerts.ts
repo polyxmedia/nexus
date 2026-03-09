@@ -1,0 +1,230 @@
+// ── Telegram Alert Formatting & Dispatch ──
+// Sends formatted alerts to subscribed users based on their preferences.
+
+import { db, schema } from "@/lib/db";
+import { like } from "drizzle-orm";
+import { sendMessage, sendMessageToMany } from "./bot";
+
+// ── Alert types users can subscribe to ──
+
+export type AlertType =
+  | "signal_convergence"    // High-intensity signal convergences (4+)
+  | "prediction_resolved"   // Prediction outcomes (win/loss)
+  | "price_target"          // Price target hit
+  | "warroom_escalation"    // War room escalation events
+  | "trade_executed"        // Trading execution confirmations
+  | "daily_briefing"        // Daily intelligence digest
+  | "chokepoint_status";    // Chokepoint status changes
+
+export const ALERT_TYPES: { id: AlertType; label: string; description: string; global: boolean }[] = [
+  { id: "signal_convergence", label: "Signal Convergences", description: "Alerts when signal intensity reaches 4+ across multiple layers", global: true },
+  { id: "prediction_resolved", label: "Prediction Outcomes", description: "Notified when predictions are resolved (win or loss)", global: true },
+  { id: "price_target", label: "Price Targets", description: "Alerts when monitored symbols hit Monte Carlo P50 targets", global: false },
+  { id: "warroom_escalation", label: "War Room Escalations", description: "Real-time alerts for military/geopolitical escalations", global: true },
+  { id: "trade_executed", label: "Trade Executions", description: "Confirmation when trades are executed on your account", global: false },
+  { id: "daily_briefing", label: "Daily Briefing", description: "Morning intelligence digest sent at 08:00 UTC", global: true },
+  { id: "chokepoint_status", label: "Chokepoint Alerts", description: "Status changes on your subscribed maritime chokepoints", global: false },
+];
+
+const DEFAULT_PREFS: AlertType[] = [
+  "signal_convergence",
+  "prediction_resolved",
+  "warroom_escalation",
+  "daily_briefing",
+];
+
+// ── User preferences ──
+
+interface TelegramUser {
+  username: string;
+  chatId: string;
+  alerts: AlertType[];
+}
+
+/**
+ * Get all users who have linked Telegram and opted into a specific alert type.
+ */
+export async function getSubscribers(alertType: AlertType): Promise<TelegramUser[]> {
+  try {
+    // Find all telegram_chat_id settings
+    const chatIdRows = await db
+      .select()
+      .from(schema.settings)
+      .where(like(schema.settings.key, "%:telegram_chat_id"));
+
+    const users: TelegramUser[] = [];
+
+    for (const row of chatIdRows) {
+      const username = row.key.split(":")[0];
+      if (!username || !row.value) continue;
+
+      // Get their alert preferences
+      const prefRows = await db
+        .select()
+        .from(schema.settings)
+        .where(like(schema.settings.key, `${username}:telegram_alerts`));
+
+      let alerts: AlertType[] = DEFAULT_PREFS;
+      if (prefRows.length > 0) {
+        try {
+          alerts = JSON.parse(prefRows[0].value) as AlertType[];
+        } catch { /* use defaults */ }
+      }
+
+      if (alerts.includes(alertType)) {
+        users.push({ username, chatId: row.value, alerts });
+      }
+    }
+
+    return users;
+  } catch (err) {
+    console.error("Failed to get telegram subscribers:", err);
+    return [];
+  }
+}
+
+/**
+ * Send a specific user their own alert (e.g. trade execution).
+ */
+export async function sendUserAlert(
+  username: string,
+  alertType: AlertType,
+  message: string
+): Promise<boolean> {
+  const subscribers = await getSubscribers(alertType);
+  const user = subscribers.find((u) => u.username === username);
+  if (!user) return false;
+
+  return sendMessage({
+    chatId: user.chatId,
+    text: message,
+  });
+}
+
+/**
+ * Broadcast a global alert to all subscribers of that type.
+ */
+export async function broadcastAlert(
+  alertType: AlertType,
+  message: string
+): Promise<number> {
+  const subscribers = await getSubscribers(alertType);
+  if (subscribers.length === 0) return 0;
+
+  await sendMessageToMany(
+    subscribers.map((s) => s.chatId),
+    message
+  );
+
+  return subscribers.length;
+}
+
+// ── Alert formatters ──
+
+export function formatSignalAlert(signal: {
+  title: string;
+  intensity: number;
+  layers: string[];
+  category: string;
+}): string {
+  const layerStr = signal.layers.join(" + ");
+  return [
+    `<b>SIGNAL CONVERGENCE</b>`,
+    ``,
+    `<b>${signal.title}</b>`,
+    `Intensity: ${"*".repeat(signal.intensity)} (${signal.intensity}/5)`,
+    `Layers: ${layerStr}`,
+    `Category: ${signal.category.toUpperCase()}`,
+    ``,
+    `<a href="https://nexushq.xyz/signals">View in NEXUS</a>`,
+  ].join("\n");
+}
+
+export function formatPredictionAlert(prediction: {
+  title: string;
+  outcome: "correct" | "incorrect" | "partial";
+  confidence: number;
+  brierScore?: number;
+}): string {
+  const emoji = prediction.outcome === "correct" ? "+" : prediction.outcome === "partial" ? "~" : "-";
+  return [
+    `<b>PREDICTION RESOLVED [${emoji}]</b>`,
+    ``,
+    `<b>${prediction.title}</b>`,
+    `Outcome: ${prediction.outcome.toUpperCase()}`,
+    `Confidence: ${(prediction.confidence * 100).toFixed(0)}%`,
+    prediction.brierScore != null ? `Brier Score: ${prediction.brierScore.toFixed(3)}` : "",
+    ``,
+    `<a href="https://nexushq.xyz/predictions">View in NEXUS</a>`,
+  ].filter(Boolean).join("\n");
+}
+
+export function formatPriceTargetAlert(data: {
+  symbol: string;
+  currentPrice: number;
+  targetPrice: number;
+  direction: "above" | "below";
+}): string {
+  return [
+    `<b>PRICE TARGET HIT</b>`,
+    ``,
+    `<b>${data.symbol}</b> moved ${data.direction} target`,
+    `Current: $${data.currentPrice.toFixed(2)}`,
+    `Target: $${data.targetPrice.toFixed(2)}`,
+    ``,
+    `<a href="https://nexushq.xyz/trading">View in NEXUS</a>`,
+  ].join("\n");
+}
+
+export function formatWarroomAlert(event: {
+  title: string;
+  severity: string;
+  region?: string;
+}): string {
+  return [
+    `<b>WAR ROOM ESCALATION</b>`,
+    ``,
+    `<b>${event.title}</b>`,
+    `Severity: ${event.severity.toUpperCase()}`,
+    event.region ? `Region: ${event.region}` : "",
+    ``,
+    `<a href="https://nexushq.xyz/warroom">View in NEXUS</a>`,
+  ].filter(Boolean).join("\n");
+}
+
+export function formatTradeAlert(trade: {
+  symbol: string;
+  side: "buy" | "sell";
+  quantity: number;
+  price: number;
+  platform: string;
+}): string {
+  return [
+    `<b>TRADE EXECUTED</b>`,
+    ``,
+    `${trade.side.toUpperCase()} ${trade.quantity} x <b>${trade.symbol}</b>`,
+    `Price: $${trade.price.toFixed(2)}`,
+    `Platform: ${trade.platform}`,
+    ``,
+    `<a href="https://nexushq.xyz/trading">View in NEXUS</a>`,
+  ].join("\n");
+}
+
+export function formatDailyBriefing(briefing: {
+  signalCount: number;
+  topSignal?: string;
+  openPredictions: number;
+  marketSummary: string;
+}): string {
+  return [
+    `<b>DAILY INTELLIGENCE BRIEFING</b>`,
+    ``,
+    `Active Signals: ${briefing.signalCount}`,
+    briefing.topSignal ? `Top Signal: ${briefing.topSignal}` : "",
+    `Open Predictions: ${briefing.openPredictions}`,
+    ``,
+    briefing.marketSummary,
+    ``,
+    `<a href="https://nexushq.xyz/dashboard">Open NEXUS</a>`,
+  ].filter(Boolean).join("\n");
+}

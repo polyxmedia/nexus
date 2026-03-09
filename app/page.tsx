@@ -160,7 +160,7 @@ const SECTIONS = [
       { name: "Trading", href: "/trading", icon: TrendingUp, desc: "Execute across stocks and crypto" },
       { name: "Calendar", href: "/calendar", icon: Calendar, desc: "Hebrew, Islamic, FOMC, OPEX convergence" },
       { name: "Thesis", href: "/thesis", icon: FileText, desc: "AI-generated daily operational briefings" },
-      { name: "Alerts", href: "/alerts", icon: Bell, desc: "Threshold and event-driven notifications" },
+      { name: "Alerts", href: "/alerts", icon: Bell, desc: "Email, Telegram & SMS notifications on thresholds and events" },
       { name: "Graph", href: "/graph", icon: Network, desc: "Entity and relationship intelligence map" },
     ],
   },
@@ -222,38 +222,42 @@ const features = [
 const tiers = [
   {
     name: "Analyst",
-    price: "$299",
-    priceAnnual: "$249",
+    price: "$150",
+    priceAnnual: "$125",
     period: "/mo",
     description: "Individual intelligence capability",
     features: [
       "Signal detection engine",
-      "AI chat analyst (100 msgs/day)",
+      "50,000 AI credits/month",
       "Daily thesis generation",
       "Prediction tracking",
-      "Narrative & sentiment tracking",
-      "War Room (view only)",
-      "Email alerts",
+      "War Room with OSINT",
+      "Game theory scenarios",
+      "Calendar intelligence",
+      "Timeline & graph analysis",
+      "Email, Telegram & SMS alerts",
     ],
     cta: "Start Analysing",
     highlighted: false,
   },
   {
     name: "Operator",
-    price: "$999",
-    priceAnnual: "$849",
+    price: "$750",
+    priceAnnual: "$625",
     period: "/mo",
     description: "Full operational capability",
     features: [
       "Everything in Analyst",
-      "Unlimited AI analyst access",
+      "250,000 AI credits/month",
       "Trading broker integration",
-      "Real-time War Room + OSINT",
       "On-chain analytics & GEX",
       "GPR decomposition & BOCPD",
-      "Short interest & shipping intel",
+      "Short interest & options flow",
+      "Shipping & dark fleet intel",
       "Custom signal layers",
       "Portfolio risk analytics",
+      "Monte Carlo simulation",
+      "Congressional trading signals",
       "API access",
     ],
     cta: "Go Operational",
@@ -267,6 +271,7 @@ const tiers = [
     description: "Multi-seat deployment",
     features: [
       "Everything in Operator",
+      "Unlimited AI credits",
       "Unlimited seats",
       "Custom data integrations",
       "Dedicated infrastructure",
@@ -853,7 +858,7 @@ export default function LandingPage() {
               Pick what fits
             </h2>
             <p className="text-sm text-navy-400 max-w-md mx-auto mb-8">
-              14-day free trial on everything. No credit card, no commitment. Just try it.
+              2-day free trial on everything. No credit card, no commitment. Just try it.
             </p>
             <div className="flex items-center justify-center gap-3">
               <span className={`text-xs font-medium transition-colors ${!billingAnnual ? "text-navy-100" : "text-navy-500"}`}>Monthly</span>
@@ -946,7 +951,7 @@ export default function LandingPage() {
           </h2>
 
           <p className="text-sm text-navy-400 mb-10 max-w-md mx-auto leading-relaxed font-sans">
-            By the time a geopolitical development hits the wire, the alpha is gone. NEXUS detects convergence across signals that most desks track in isolation. 14 days free, full access.
+            By the time a geopolitical development hits the wire, the alpha is gone. NEXUS detects convergence across signals that most desks track in isolation. 2 days free, full access.
           </p>
 
           <Link

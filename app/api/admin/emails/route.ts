@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing 'to' or 'templateId'" }, { status: 400 });
     }
 
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nexusintel.io";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
     let template: { subject: string; html: string };
 
     switch (templateId) {
@@ -78,8 +78,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: `Unknown template: ${templateId}` }, { status: 400 });
     }
 
-    await sendEmail({ to, ...template, type: `test:${templateId}` });
-    return NextResponse.json({ success: true });
+    try {
+      await sendEmail({ to, ...template, type: `test:${templateId}` });
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
   }
 
   if (action === "resend") {

@@ -2,24 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
-import { CoinbaseClient } from "@/lib/coinbase/client";
+import { getCoinbaseClient } from "@/lib/coinbase/get-client";
 import { checkDuplicate } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateOrigin } from "@/lib/security/csrf";
-import { getSettingValue } from "@/lib/settings/get-setting";
-
-async function getCoinbaseClient() {
-  const apiKey = await getSettingValue("coinbase_api_key", process.env.COINBASE_API_KEY);
-  const apiSecret = await getSettingValue("coinbase_api_secret", process.env.COINBASE_API_SECRET);
-
-  if (!apiKey || !apiSecret) {
-    throw new Error("Coinbase API credentials not configured");
-  }
-
-  return new CoinbaseClient(apiKey, apiSecret);
-}
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("operator");
@@ -30,7 +18,7 @@ export async function GET(request: NextRequest) {
     const productId = searchParams.get("productId") || undefined;
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 500);
 
-    const client = await getCoinbaseClient();
+    const client = await getCoinbaseClient(tierCheck.result.username);
     const orders = await client.getOrders({ productId, limit });
     return NextResponse.json(orders);
   } catch (error) {
@@ -107,7 +95,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = await getCoinbaseClient();
+    const client = await getCoinbaseClient(session.user.name);
     let orderResult;
 
     if (orderType === "LIMIT" && limitPrice) {
@@ -170,7 +158,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const client = await getCoinbaseClient();
+    const client = await getCoinbaseClient(session.user.name);
     await client.cancelOrders([orderId]);
 
     return NextResponse.json({ success: true, orderId });

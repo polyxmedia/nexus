@@ -321,7 +321,7 @@ function RegisterForm() {
               Create your account
             </h1>
             <p className="text-[13px] text-navy-500 mt-3 font-sans">
-              14-day free trial. Full platform access.
+              2-day free trial. Full platform access.
             </p>
           </div>
 
@@ -468,7 +468,7 @@ function RegisterForm() {
               <span className="text-[10px] font-mono text-navy-600">System Online</span>
             </div>
             <span className="text-navy-800">|</span>
-            <span className="text-[10px] font-mono text-navy-600">14-Day Free Trial</span>
+            <span className="text-[10px] font-mono text-navy-600">2-Day Free Trial</span>
             <span className="text-navy-800">|</span>
             <span className="text-[10px] font-mono text-navy-600">Encrypted</span>
           </div>

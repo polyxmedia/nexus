@@ -26,8 +26,11 @@ async function getUserEmail(userId: string): Promise<string | null> {
 
 // ── Referral Commission Logic ──
 
-async function handleReferralOnSubscription(userId: string, tierId: number, amountPaid?: number) {
+async function handleReferralOnSubscription(userId: string, tierId: number, amountPaid: number) {
   try {
+    // Only create commissions for actual payments
+    if (!amountPaid || amountPaid <= 0) return;
+
     const fullUserId = `user:${userId}`;
 
     // Check if this user was referred
@@ -40,7 +43,7 @@ async function handleReferralOnSubscription(userId: string, tierId: number, amou
 
     const referral = referralRows[0];
 
-    // Update referral status to subscribed
+    // Update referral status to subscribed (only on first real payment)
     if (referral.status === "signed_up") {
       await db
         .update(schema.referrals)
@@ -61,19 +64,7 @@ async function handleReferralOnSubscription(userId: string, tierId: number, amou
     if (codeRows.length === 0 || !codeRows[0].isActive) return;
 
     const commissionRate = codeRows[0].commissionRate;
-
-    // Get the tier price if amount not provided
-    let paymentAmount = amountPaid;
-    if (!paymentAmount) {
-      const tiers = await db
-        .select()
-        .from(schema.subscriptionTiers)
-        .where(eq(schema.subscriptionTiers.id, tierId));
-      // Tier price is in dollars, commissions in cents
-      paymentAmount = tiers.length > 0 ? Math.round(tiers[0].price * 100) : 0;
-    }
-
-    if (paymentAmount <= 0) return;
+    const paymentAmount = amountPaid;
 
     const commissionAmount = Math.round(paymentAmount * commissionRate);
     const now = new Date();
@@ -198,13 +189,16 @@ export async function POST(request: Request) {
           }
         }
 
-        // Track referral commission on new subscription
-        await handleReferralOnSubscription(userId, parseInt(tierId));
+        // Track referral commission only on paid subscriptions (not free trials)
+        const amountTotal = (session as Stripe.Checkout.Session).amount_total;
+        if (amountTotal && amountTotal > 0) {
+          await handleReferralOnSubscription(userId, parseInt(tierId), amountTotal);
+        }
 
         // Send subscription confirmation email
         const email = await getUserEmail(userId);
         if (email && tiers.length > 0) {
-          const baseUrl = process.env.NEXTAUTH_URL || "https://nexusintel.io";
+          const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
           const template = subscriptionActiveEmail(userId, tiers[0].name, `${baseUrl}/dashboard`);
           sendEmail({ to: email, ...template }).catch((err) =>
             console.error("Subscription email failed:", err)
@@ -287,7 +281,10 @@ export async function POST(request: Request) {
         if (subRows.length > 0 && subRows[0].status === "active") {
           const username = subRows[0].userId.replace("user:", "");
           const amountPaid = invoice.amount_paid; // in cents
-          await handleReferralOnSubscription(username, subRows[0].tierId, amountPaid);
+          // Only create commission if actual money was paid (skip $0 trial invoices)
+          if (amountPaid > 0) {
+            await handleReferralOnSubscription(username, subRows[0].tierId, amountPaid);
+          }
         }
         break;
       }
@@ -312,7 +309,7 @@ export async function POST(request: Request) {
         if (failedSubs.length > 0) {
           const failedEmail = await getUserEmail(failedSubs[0].userId);
           if (failedEmail) {
-            const baseUrl = process.env.NEXTAUTH_URL || "https://nexusintel.io";
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
             const template = paymentFailedEmail(
               failedSubs[0].userId.replace("user:", ""),
               `${baseUrl}/settings`

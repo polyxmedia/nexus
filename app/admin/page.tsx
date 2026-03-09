@@ -59,6 +59,8 @@ interface UserRecord {
   tier: string;
   createdAt: string;
   email: string | null;
+  blocked: boolean;
+  blockedAt: string | null;
   compedGrant: {
     tier: string;
     grantedAt: string;
@@ -637,14 +639,14 @@ function EmailPanel() {
         body: JSON.stringify({ action: "test", templateId: testTemplate, to: testTo }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setSendResult({ ok: true, msg: "Test email sent" });
         fetchEmails();
       } else {
-        setSendResult({ ok: false, msg: data.error || "Failed" });
+        setSendResult({ ok: false, msg: data.error || `Failed (HTTP ${res.status})` });
       }
-    } catch {
-      setSendResult({ ok: false, msg: "Request failed" });
+    } catch (err) {
+      setSendResult({ ok: false, msg: err instanceof Error ? err.message : "Request failed" });
     }
     setSending(false);
   };
@@ -1934,6 +1936,122 @@ export default function AdminPage() {
     setGranting(null);
   };
 
+  // Create user modal
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ username: "", password: "", email: "", role: "user", tier: "free" });
+  const [createSaving, setCreateSaving] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const saveCreateUser = async () => {
+    setCreateError(null);
+    if (!createForm.username || !createForm.password) {
+      setCreateError("Username and password are required");
+      return;
+    }
+    if (createForm.password.length < 10) {
+      setCreateError("Password must be at least 10 characters");
+      return;
+    }
+    setCreateSaving(true);
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: createForm.username,
+        action: "create_user",
+        password: createForm.password,
+        email: createForm.email,
+        newRole: createForm.role,
+        newTier: createForm.tier,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setCreateError(data.error || "Failed to create user");
+      setCreateSaving(false);
+      return;
+    }
+    await fetchUsers();
+    setCreateSaving(false);
+    setCreateModal(false);
+    setCreateForm({ username: "", password: "", email: "", role: "user", tier: "free" });
+  };
+
+  // Edit user modal
+  const [editModal, setEditModal] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ email: "", role: "user", tier: "free" });
+  const [editSaving, setEditSaving] = useState(false);
+
+  const openEditModal = (user: UserRecord) => {
+    setEditModal(user.username);
+    setEditForm({
+      email: user.email || "",
+      role: user.role,
+      tier: user.tier || "free",
+    });
+  };
+
+  const saveEditUser = async () => {
+    if (!editModal) return;
+    setEditSaving(true);
+    await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: editModal,
+        action: "edit_user",
+        email: editForm.email,
+        newRole: editForm.role,
+        newTier: editForm.tier,
+      }),
+    });
+    await fetchUsers();
+    setEditSaving(false);
+    setEditModal(null);
+  };
+
+  // Block/unblock
+  const [blocking, setBlocking] = useState<string | null>(null);
+
+  const blockUser = async (username: string) => {
+    if (!confirm(`Block ${username}? They will lose access immediately.`)) return;
+    setBlocking(username);
+    await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, action: "block_user" }),
+    });
+    await fetchUsers();
+    setBlocking(null);
+  };
+
+  const unblockUser = async (username: string) => {
+    setBlocking(username);
+    await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, action: "unblock_user" }),
+    });
+    await fetchUsers();
+    setBlocking(null);
+  };
+
+  // Delete user
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const deleteUser = async (username: string) => {
+    if (!confirm(`Permanently delete ${username}? This removes all their data and cannot be undone.`)) return;
+    if (!confirm(`Are you sure? Type confirms this is irreversible.`)) return;
+    setDeleting(username);
+    await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, action: "delete_user" }),
+    });
+    await fetchUsers();
+    setDeleting(null);
+  };
+
   if (loading || status === "loading") {
     return (
       <PageContainer title="Admin" subtitle="Platform administration">
@@ -2059,10 +2177,20 @@ export default function AdminPage() {
 
         {/* Users Tab */}
         <Tabs.Content value="users">
-          <div className="max-w-3xl">
-            <p className="text-[11px] text-navy-400 mb-4">
-              Manage user roles and view subscription status.
-            </p>
+          <div className="max-w-5xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[11px] text-navy-400">
+                Manage user roles and view subscription status.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setCreateModal(true); setCreateError(null); setCreateForm({ username: "", password: "", email: "", role: "user", tier: "free" }); }}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add User
+              </Button>
+            </div>
 
             {usersLoading ? (
               <div className="space-y-2">
@@ -2071,8 +2199,8 @@ export default function AdminPage() {
                 ))}
               </div>
             ) : (
-              <div className="border border-navy-700 rounded overflow-hidden">
-                <table className="w-full text-left">
+              <div className="border border-navy-700 rounded overflow-x-auto">
+                <table className="w-full text-left min-w-[800px]">
                   <thead>
                     <tr className="border-b border-navy-700/60">
                       <th className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-widest text-navy-500">
@@ -2087,7 +2215,7 @@ export default function AdminPage() {
                       <th className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-widest text-navy-500">
                         Status
                       </th>
-                      <th className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-widest text-navy-500">
+                      <th className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-widest text-navy-500 min-w-[280px]">
                         Actions
                       </th>
                     </tr>
@@ -2096,12 +2224,22 @@ export default function AdminPage() {
                     {users.map((user) => (
                       <tr
                         key={user.username}
-                        className="border-b border-navy-700/30 hover:bg-navy-800/30 transition-colors"
+                        className={`border-b border-navy-700/30 hover:bg-navy-800/30 transition-colors ${user.blocked ? "opacity-50" : ""}`}
                       >
                         <td className="px-4 py-3">
-                          <span className="text-xs font-mono text-navy-200">
-                            {user.username}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-mono ${user.blocked ? "text-navy-500 line-through" : "text-navy-200"}`}>
+                              {user.username}
+                            </span>
+                            {user.blocked && (
+                              <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-accent-rose/15 text-accent-rose uppercase tracking-wider">
+                                Blocked
+                              </span>
+                            )}
+                          </div>
+                          {user.email && (
+                            <span className="text-[10px] text-navy-600 font-mono block mt-0.5">{user.email}</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -2146,58 +2284,50 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Edit button */}
+                            <button
+                              onClick={() => openEditModal(user)}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-400 hover:text-navy-200 hover:bg-navy-800/50 transition-colors"
+                              title="Edit user"
+                            >
+                              <Eye className="h-3 w-3" />
+                              Edit
+                            </button>
+
+                            {/* Role toggle */}
                             {user.role !== "admin" ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-[10px]"
+                              <button
+                                className="px-2 py-1 rounded text-[10px] font-mono text-navy-500 hover:text-accent-amber hover:bg-accent-amber/10 transition-colors disabled:opacity-40"
                                 disabled={roleUpdating === user.username}
                                 onClick={() => updateRole(user.username, "admin")}
                               >
-                                {roleUpdating === user.username ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  "Make Admin"
-                                )}
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-[10px]"
-                                disabled={
-                                  roleUpdating === user.username ||
-                                  user.username === session?.user?.name
-                                }
+                                {roleUpdating === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : "Admin"}
+                              </button>
+                            ) : user.username !== session?.user?.name ? (
+                              <button
+                                className="px-2 py-1 rounded text-[10px] font-mono text-accent-amber hover:text-navy-400 hover:bg-navy-800/50 transition-colors disabled:opacity-40"
+                                disabled={roleUpdating === user.username}
                                 onClick={() => updateRole(user.username, "user")}
                               >
-                                {roleUpdating === user.username ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  "Remove Admin"
-                                )}
-                              </Button>
-                            )}
+                                {roleUpdating === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : "Demote"}
+                              </button>
+                            ) : null}
+
                             {/* Grant / Revoke Access */}
                             {granting === user.username ? (
                               <Loader2 className="h-3 w-3 animate-spin text-navy-500" />
                             ) : user.subscription?.status === "active" &&
                               user.subscription?.stripeSubscriptionId?.startsWith("comped_") ? (
-                              <div className="flex items-center gap-2">
+                              <>
                                 {user.compedGrant?.expiresAt && user.compedGrant.expiresAt !== "2099-12-31T23:59:59.000Z" && (
                                   <span className={`text-[9px] font-mono tabular-nums ${
                                     new Date(user.compedGrant.expiresAt) < new Date() ? "text-accent-rose" : "text-accent-amber"
                                   }`}>
                                     {new Date(user.compedGrant.expiresAt) < new Date()
                                       ? "expired"
-                                      : `expires ${new Date(user.compedGrant.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                                      : `exp ${new Date(user.compedGrant.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
                                     }
-                                  </span>
-                                )}
-                                {user.compedGrant?.note && (
-                                  <span className="text-[9px] text-navy-500 max-w-[100px] truncate" title={user.compedGrant.note}>
-                                    {user.compedGrant.note}
                                   </span>
                                 )}
                                 <button
@@ -2211,15 +2341,15 @@ export default function AdminPage() {
                                   }}
                                   className="text-[10px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors"
                                 >
-                                  Edit
+                                  Grant
                                 </button>
                                 <button
                                   onClick={() => revokeAccess(user.username)}
-                                  className="text-[10px] font-mono text-accent-rose hover:text-accent-rose/80 transition-colors"
+                                  className="text-[10px] font-mono text-accent-rose/70 hover:text-accent-rose transition-colors"
                                 >
                                   Revoke
                                 </button>
-                              </div>
+                              </>
                             ) : !user.subscription || user.subscription.status !== "active" ? (
                               <button
                                 onClick={() => {
@@ -2229,9 +2359,44 @@ export default function AdminPage() {
                                 className="flex items-center gap-1 text-[10px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors"
                               >
                                 <Gift className="h-3 w-3" />
-                                Grant Access
+                                Grant
                               </button>
                             ) : null}
+
+                            {/* Divider */}
+                            <div className="w-px h-3 bg-navy-700/40" />
+
+                            {/* Block / Unblock */}
+                            {user.username !== session?.user?.name && (
+                              user.blocked ? (
+                                <button
+                                  onClick={() => unblockUser(user.username)}
+                                  disabled={blocking === user.username}
+                                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-accent-emerald/70 hover:text-accent-emerald hover:bg-accent-emerald/10 transition-colors disabled:opacity-40"
+                                >
+                                  {blocking === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Shield className="h-3 w-3" /> Unblock</>}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => blockUser(user.username)}
+                                  disabled={blocking === user.username}
+                                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-600 hover:text-accent-rose hover:bg-accent-rose/10 transition-colors disabled:opacity-40"
+                                >
+                                  {blocking === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Shield className="h-3 w-3" /> Block</>}
+                                </button>
+                              )
+                            )}
+
+                            {/* Delete */}
+                            {user.username !== session?.user?.name && (
+                              <button
+                                onClick={() => deleteUser(user.username)}
+                                disabled={deleting === user.username}
+                                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-600 hover:text-accent-rose hover:bg-accent-rose/10 transition-colors disabled:opacity-40"
+                              >
+                                {deleting === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Trash2 className="h-3 w-3" /> Delete</>}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -2361,6 +2526,226 @@ export default function AdminPage() {
                       <Gift className="h-3 w-3 mr-1" />
                     )}
                     Grant {grantForm.tier}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit User Modal */}
+          {editModal && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setEditModal(null)}>
+              <div
+                className="bg-navy-900 border border-navy-700 rounded-lg w-full max-w-md overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700">
+                  <div className="flex items-center gap-2">
+                    <User className="h-3.5 w-3.5 text-accent-cyan" />
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-navy-200">Edit User</span>
+                  </div>
+                  <button onClick={() => setEditModal(null)} className="text-navy-500 hover:text-navy-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-4">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded bg-navy-800/40 border border-navy-700/30">
+                    <User className="h-3 w-3 text-navy-500" />
+                    <span className="text-sm font-mono text-navy-200">{editModal}</span>
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-600" />
+                      <input
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        placeholder="user@example.com"
+                        className="w-full h-8 pl-8 pr-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Role */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Role</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {["user", "admin"].map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => setEditForm({ ...editForm, role: r })}
+                          className={`px-3 py-2 rounded border text-[11px] font-mono uppercase tracking-wider transition-all ${
+                            editForm.role === r
+                              ? "border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan"
+                              : "border-navy-700/40 text-navy-500 hover:text-navy-300 hover:border-navy-700"
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tier */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Tier</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {["free", "analyst", "operator", "institution"].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setEditForm({ ...editForm, tier: t })}
+                          className={`px-2 py-2 rounded border text-[10px] font-mono uppercase tracking-wider transition-all ${
+                            editForm.tier === t
+                              ? "border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan"
+                              : "border-navy-700/40 text-navy-500 hover:text-navy-300 hover:border-navy-700"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-navy-700">
+                  <Button variant="ghost" size="sm" onClick={() => setEditModal(null)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={saveEditUser} disabled={editSaving}>
+                    {editSaving ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Save className="h-3 w-3 mr-1" />
+                    )}
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Create User Modal */}
+          {createModal && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setCreateModal(false)}>
+              <div
+                className="bg-navy-900 border border-navy-700 rounded-lg w-full max-w-md overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700">
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-3.5 w-3.5 text-accent-cyan" />
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-navy-200">Create User</span>
+                  </div>
+                  <button onClick={() => setCreateModal(false)} className="text-navy-500 hover:text-navy-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-4">
+                  {createError && (
+                    <div className="px-3 py-2 rounded bg-accent-rose/10 border border-accent-rose/20 text-[11px] font-mono text-accent-rose">
+                      {createError}
+                    </div>
+                  )}
+
+                  {/* Username */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Username</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-600" />
+                      <input
+                        value={createForm.username}
+                        onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
+                        placeholder="3-32 chars, letters/numbers/underscores"
+                        className="w-full h-8 pl-8 pr-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Password</label>
+                    <div className="relative">
+                      <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-600" />
+                      <input
+                        type="password"
+                        value={createForm.password}
+                        onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                        placeholder="Minimum 10 characters"
+                        className="w-full h-8 pl-8 pr-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Email (optional)</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-600" />
+                      <input
+                        value={createForm.email}
+                        onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                        placeholder="user@example.com"
+                        className="w-full h-8 pl-8 pr-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Role */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Role</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {["user", "admin"].map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => setCreateForm({ ...createForm, role: r })}
+                          className={`px-3 py-2 rounded border text-[11px] font-mono uppercase tracking-wider transition-all ${
+                            createForm.role === r
+                              ? "border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan"
+                              : "border-navy-700/40 text-navy-500 hover:text-navy-300 hover:border-navy-700"
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tier */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Tier</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {["free", "analyst", "operator", "institution"].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setCreateForm({ ...createForm, tier: t })}
+                          className={`px-2 py-2 rounded border text-[10px] font-mono uppercase tracking-wider transition-all ${
+                            createForm.tier === t
+                              ? "border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan"
+                              : "border-navy-700/40 text-navy-500 hover:text-navy-300 hover:border-navy-700"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-navy-700">
+                  <Button variant="ghost" size="sm" onClick={() => setCreateModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={saveCreateUser} disabled={createSaving}>
+                    {createSaving ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Plus className="h-3 w-3 mr-1" />
+                    )}
+                    Create User
                   </Button>
                 </div>
               </div>

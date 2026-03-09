@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   Anchor,
   AlertTriangle,
+  Bell,
+  BellOff,
   Eye,
   RefreshCw,
   ExternalLink,
@@ -14,6 +16,11 @@ import {
   TrendingDown,
   Package,
   BarChart3,
+  Search,
+  X,
+  Ship,
+  Plus,
+  Loader2,
 } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
@@ -95,6 +102,26 @@ interface ShippingSnapshot {
   overallRiskScore: number;
 }
 
+interface WatchedVessel {
+  mmsi: string;
+  name: string;
+  lat: number;
+  lng: number;
+  speed: number;
+  course: number;
+  vesselType: string;
+  flag: string;
+  destination: string;
+  lastUpdate: number;
+}
+
+interface VesselSearchResult {
+  mmsi: string;
+  name: string;
+  type: string;
+  flag: string;
+}
+
 // ── Style maps ──────────────────────────────────────────────────────────────────
 
 const STATUS_DOT: Record<ChokepointStatus, string> = {
@@ -154,7 +181,15 @@ function overallLabel(score: number): { label: string; color: string } {
 
 // ── Chokepoint Card ─────────────────────────────────────────────────────────────
 
-function ChokepointCard({ cp }: { cp: Chokepoint }) {
+function ChokepointCard({
+  cp,
+  subscribed,
+  onToggleAlert,
+}: {
+  cp: Chokepoint;
+  subscribed: boolean;
+  onToggleAlert: (id: ChokepointId) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const pct = cp.estimatedDailyTransits / cp.baselineDailyTransits;
   const barColor = cp.status === "disrupted" ? "#f43f5e" : cp.status === "elevated" ? "#f59e0b" : "#10b981";
@@ -171,6 +206,13 @@ function ChokepointCard({ cp }: { cp: Chokepoint }) {
           <span className={`text-[9px] font-mono uppercase tracking-wider ${STATUS_TEXT[cp.status]}`}>
             {STATUS_LABEL[cp.status]}
           </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleAlert(cp.id); }}
+            title={subscribed ? "Unsubscribe from alerts" : "Subscribe to alerts"}
+            className={`p-0.5 rounded transition-colors ${subscribed ? "text-accent-amber hover:text-accent-amber/70" : "text-navy-700 hover:text-navy-500"}`}
+          >
+            {subscribed ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
+          </button>
         </div>
 
         {/* Transit bar */}
@@ -308,6 +350,16 @@ export default function ShippingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Vessel watchlist
+  const [watchlist, setWatchlist] = useState<WatchedVessel[]>([]);
+  const [vesselSearch, setVesselSearch] = useState("");
+  const [vesselResults, setVesselResults] = useState<VesselSearchResult[]>([]);
+  const [searchingVessels, setSearchingVessels] = useState(false);
+  const [addingVessel, setAddingVessel] = useState<string | null>(null);
+
+  // Chokepoint alert subscriptions
+  const [cpSubscriptions, setCpSubscriptions] = useState<ChokepointId[]>([]);
+
   async function fetchData() {
     try {
       const res = await fetch("/api/shipping");
@@ -322,8 +374,92 @@ export default function ShippingPage() {
     }
   }
 
+  async function fetchWatchlist() {
+    try {
+      const res = await fetch("/api/shipping/watchlist");
+      if (res.ok) {
+        const data = await res.json();
+        setWatchlist(data.vessels || []);
+      }
+    } catch { /* silent */ }
+  }
+
+  async function fetchCpSubscriptions() {
+    try {
+      const res = await fetch("/api/shipping/chokepoint-alerts");
+      if (res.ok) {
+        const data = await res.json();
+        setCpSubscriptions(data.chokepoints || []);
+      }
+    } catch { /* silent */ }
+  }
+
+  async function searchVessels(query: string) {
+    if (query.length < 2) { setVesselResults([]); return; }
+    setSearchingVessels(true);
+    try {
+      const res = await fetch(`/api/shipping/watchlist?search=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setVesselResults(data.results || []);
+      }
+    } catch { /* silent */ }
+    setSearchingVessels(false);
+  }
+
+  async function addVessel(query: string) {
+    setAddingVessel(query);
+    try {
+      const res = await fetch("/api/shipping/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      if (res.ok) {
+        await fetchWatchlist();
+        setVesselSearch("");
+        setVesselResults([]);
+      }
+    } catch { /* silent */ }
+    setAddingVessel(null);
+  }
+
+  async function removeVessel(mmsi: string) {
+    try {
+      await fetch("/api/shipping/watchlist", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mmsi }),
+      });
+      setWatchlist((prev) => prev.filter((v) => v.mmsi !== mmsi));
+    } catch { /* silent */ }
+  }
+
+  async function toggleCpAlert(cpId: ChokepointId) {
+    const isSubscribed = cpSubscriptions.includes(cpId);
+    try {
+      if (isSubscribed) {
+        await fetch("/api/shipping/chokepoint-alerts", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chokepoint: cpId }),
+        });
+        setCpSubscriptions((prev) => prev.filter((id) => id !== cpId));
+      } else {
+        await fetch("/api/shipping/chokepoint-alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chokepoint: cpId }),
+        });
+        setCpSubscriptions((prev) => [...prev, cpId]);
+      }
+    } catch { /* silent */ }
+  }
+
   useEffect(() => {
     fetchData();
+    fetchWatchlist();
+    fetchCpSubscriptions();
     intervalRef.current = setInterval(fetchData, 600_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
@@ -414,9 +550,126 @@ export default function ShippingPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {snapshot.chokepoints.map((cp) => (
-                <ChokepointCard key={cp.id} cp={cp} />
+                <ChokepointCard
+                  key={cp.id}
+                  cp={cp}
+                  subscribed={cpSubscriptions.includes(cp.id)}
+                  onToggleAlert={toggleCpAlert}
+                />
               ))}
             </div>
+          </section>
+
+          {/* ── Vessel Watchlist ── */}
+          <section className="mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <Ship className="h-3.5 w-3.5 text-navy-600" />
+              <h2 className="text-[10px] font-mono uppercase tracking-widest text-navy-600">Vessel Watchlist</h2>
+              <span className="text-[9px] font-mono text-navy-700 ml-1">{watchlist.length} tracked</span>
+            </div>
+
+            {/* Search bar */}
+            <div className="relative mb-3 max-w-md">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-700" />
+              <input
+                type="text"
+                value={vesselSearch}
+                onChange={(e) => {
+                  setVesselSearch(e.target.value);
+                  searchVessels(e.target.value);
+                }}
+                placeholder="Search by MMSI or vessel name..."
+                className="w-full bg-navy-950/80 border border-navy-800/60 rounded pl-8 pr-8 py-2 text-[11px] font-mono text-navy-300 placeholder:text-navy-700 focus:outline-none focus:border-navy-600 transition-colors"
+              />
+              {vesselSearch && (
+                <button
+                  onClick={() => { setVesselSearch(""); setVesselResults([]); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-navy-700 hover:text-navy-400"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+
+              {/* Search results dropdown */}
+              {vesselResults.length > 0 && (
+                <div className="absolute z-10 top-full mt-1 w-full bg-navy-950 border border-navy-800/60 rounded shadow-lg max-h-48 overflow-y-auto">
+                  {vesselResults.map((v) => (
+                    <button
+                      key={v.mmsi}
+                      onClick={() => addVessel(v.mmsi)}
+                      disabled={addingVessel === v.mmsi || watchlist.some((w) => w.mmsi === v.mmsi)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-navy-900/40 transition-colors disabled:opacity-50 border-b border-navy-800/20 last:border-0"
+                    >
+                      <div>
+                        <p className="text-[11px] font-mono text-navy-300">{v.name}</p>
+                        <p className="text-[9px] font-mono text-navy-600">MMSI {v.mmsi} · {v.type} · {v.flag}</p>
+                      </div>
+                      {addingVessel === v.mmsi ? (
+                        <Loader2 className="h-3 w-3 text-navy-600 animate-spin" />
+                      ) : watchlist.some((w) => w.mmsi === v.mmsi) ? (
+                        <span className="text-[9px] font-mono text-navy-700">added</span>
+                      ) : (
+                        <Plus className="h-3 w-3 text-navy-600" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {searchingVessels && vesselResults.length === 0 && vesselSearch.length >= 2 && (
+                <div className="absolute z-10 top-full mt-1 w-full bg-navy-950 border border-navy-800/60 rounded px-3 py-3 flex items-center justify-center">
+                  <Loader2 className="h-3 w-3 text-navy-600 animate-spin mr-2" />
+                  <span className="text-[10px] font-mono text-navy-600">Searching...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Vessel cards */}
+            {watchlist.length === 0 ? (
+              <p className="text-[11px] font-mono text-navy-700 py-4 px-3">No vessels tracked. Search above to add tankers or cargo ships.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {watchlist.map((v) => (
+                  <div key={v.mmsi} className="border border-navy-800/60 rounded bg-navy-950/80 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-mono font-semibold text-navy-200 truncate">{v.name}</span>
+                      <button
+                        onClick={() => removeVessel(v.mmsi)}
+                        className="text-navy-700 hover:text-accent-rose transition-colors p-0.5"
+                        title="Remove from watchlist"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                      <div>
+                        <span className="text-[9px] font-mono text-navy-700 uppercase">MMSI</span>
+                        <p className="text-[10px] font-mono text-navy-400 tabular-nums">{v.mmsi}</p>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono text-navy-700 uppercase">Type</span>
+                        <p className="text-[10px] font-mono text-navy-400">{v.vesselType}</p>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono text-navy-700 uppercase">Flag</span>
+                        <p className="text-[10px] font-mono text-navy-400">{v.flag}</p>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono text-navy-700 uppercase">Speed</span>
+                        <p className="text-[10px] font-mono text-navy-400 tabular-nums">{v.speed.toFixed(1)} kn</p>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono text-navy-700 uppercase">Position</span>
+                        <p className="text-[10px] font-mono text-navy-400 tabular-nums">{v.lat.toFixed(2)}, {v.lng.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono text-navy-700 uppercase">Dest</span>
+                        <p className="text-[10px] font-mono text-navy-400 truncate">{v.destination || "---"}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* ── Freight Market Proxies ── */}

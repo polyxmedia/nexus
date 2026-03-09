@@ -1,0 +1,20 @@
+{
+  "regions": ["iad1"],
+  "functions": {
+    "app/api/chat/[sessionId]/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/analysis/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/predictions/generate/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/thesis/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/calendar/reading/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

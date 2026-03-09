@@ -238,6 +238,8 @@ export const alerts = pgTable("alerts", {
   lastTriggered: text("last_triggered"),
   triggerCount: integer("trigger_count").notNull().default(0),
   cooldownMinutes: integer("cooldown_minutes").notNull().default(60),
+  notifyTelegram: integer("notify_telegram").notNull().default(0),
+  notifySms: integer("notify_sms").notNull().default(0),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -416,6 +418,31 @@ export const analyticsEvents = pgTable("analytics_events", {
   country: text("country"),
   deviceType: text("device_type"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Credits ──
+
+export const creditLedger = pgTable("credit_ledger", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  amount: integer("amount").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  reason: text("reason").notNull(),
+  model: text("model"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  sessionId: text("session_id"),
+  period: text("period").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const creditBalances = pgTable("credit_balances", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  period: text("period").notNull(),
+  creditsGranted: integer("credits_granted").notNull().default(0),
+  creditsUsed: integer("credits_used").notNull().default(0),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
 // Type exports

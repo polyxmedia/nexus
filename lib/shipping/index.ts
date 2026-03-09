@@ -3,6 +3,7 @@
 // and freight market proxies (shipping stocks) to surface actionable intelligence.
 
 import { getMultipleQuotes } from "@/lib/market-data/yahoo";
+import { checkAndAlertStatusChanges } from "./alerts";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -586,6 +587,9 @@ export async function getShippingSnapshot(
   };
 
   cachedSnapshot = { data: snapshot, expiry: Date.now() + CACHE_TTL_MS };
+
+  // Check for chokepoint status changes and alert subscribers
+  checkAndAlertStatusChanges(chokepoints).catch(() => {});
 
   // Apply filter if requested
   if (filterChokepoint) {

@@ -4,6 +4,7 @@ import { withAuth } from "next-auth/middleware";
 const PUBLIC_API_PATHS = [
   "/api/predictions/feedback",
   "/api/predictions/recent-resolved",
+  "/api/telegram/webhook",
 ];
 
 export default withAuth({
@@ -58,6 +59,7 @@ export const config = {
     "/api/watchlists/:path*",
     "/api/admin/:path*",
     "/api/referrals/:path*",
+    "/api/telegram/:path*",
     // Protect app pages
     "/chat/:path*",
     "/dashboard/:path*",

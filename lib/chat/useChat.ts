@@ -12,12 +12,22 @@ export interface ToolCall {
   result?: unknown;
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  creditsUsed: number;
+  creditsRemaining?: number;
+  model: string;
+  elapsedMs: number;
+}
+
 export interface ChatTurn {
   id: string;
   role: "user" | "assistant";
   content: string;
   toolCalls: ToolCall[];
   suggestions?: string[];
+  tokenUsage?: TokenUsage;
   /** File attachments (user turns only, client-side display) */
   files?: Array<{ name: string; type: string; size: number; previewUrl?: string }>;
 }
@@ -166,6 +176,25 @@ export function useChat(sessionId: string) {
                           ? { ...tc, status: "done" as const, result: event.result }
                           : tc
                       ),
+                    };
+                  }
+                  return updated;
+                });
+              } else if (event.type === "token_usage" || event.type === "usage_summary") {
+                setTurns((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      tokenUsage: {
+                        inputTokens: event.inputTokens ?? event.totalInputTokens ?? 0,
+                        outputTokens: event.outputTokens ?? event.totalOutputTokens ?? 0,
+                        creditsUsed: event.creditsUsed ?? event.totalCreditsUsed ?? 0,
+                        creditsRemaining: event.creditsRemaining,
+                        model: event.model ?? "",
+                        elapsedMs: event.elapsedMs ?? 0,
+                      },
                     };
                   }
                   return updated;

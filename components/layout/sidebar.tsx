@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -132,6 +132,49 @@ function NavSection({ label, items, pathname }: { label: string; items: NavItem[
   );
 }
 
+function CreditMeter() {
+  const [data, setData] = useState<{ creditsUsed: number; creditsGranted: number; unlimited: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/credits")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d && setData(d))
+      .catch(() => {});
+
+    // Refresh every 60s
+    const interval = setInterval(() => {
+      fetch("/api/credits")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setData(d))
+        .catch(() => {});
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!data || data.unlimited) return null;
+
+  const pct = data.creditsGranted > 0 ? Math.min(100, (data.creditsUsed / data.creditsGranted) * 100) : 0;
+  const remaining = Math.max(0, data.creditsGranted - data.creditsUsed);
+  const isLow = pct > 80;
+
+  return (
+    <div className="px-3 py-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider">Credits</span>
+        <span className={`text-[9px] font-mono ${isLow ? "text-accent-amber" : "text-navy-500"}`}>
+          {remaining.toLocaleString()} left
+        </span>
+      </div>
+      <div className="h-1 rounded-full bg-navy-800 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${isLow ? "bg-accent-amber" : "bg-accent-cyan/60"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -224,6 +267,7 @@ export function Sidebar() {
             Sign Out
           </button>
         )}
+        <CreditMeter />
         <div className="flex items-center justify-between px-2 pt-2 pb-1">
           <div className="flex items-center gap-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />

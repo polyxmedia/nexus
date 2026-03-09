@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Bell,
   Plus,
@@ -21,6 +22,8 @@ import {
   Sparkles,
   Zap,
   ChevronRight,
+  MessageSquare,
+  Smartphone,
 } from "lucide-react";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
@@ -33,6 +36,8 @@ interface Alert {
   lastTriggered: string | null;
   triggerCount: number;
   cooldownMinutes: number;
+  notifyTelegram: number;
+  notifySms: number;
   createdAt: string;
 }
 
@@ -92,6 +97,7 @@ function safeParse(json: string | null): Record<string, unknown> {
 }
 
 export default function AlertsPage() {
+  const searchParams = useSearchParams();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [history, setHistory] = useState<AlertHistoryItem[]>([]);
   const [suggestions, setSuggestions] = useState<AlertSuggestion[]>([]);
@@ -107,6 +113,23 @@ export default function AlertsPage() {
   const [newType, setNewType] = useState("signal_intensity");
   const [newCooldown, setNewCooldown] = useState(60);
   const [newCondition, setNewCondition] = useState<Record<string, unknown>>({});
+  const [newNotifyTelegram, setNewNotifyTelegram] = useState(false);
+  const [newNotifySms, setNewNotifySms] = useState(false);
+
+  // Handle prefill from timeline "Create Alert" action
+  useEffect(() => {
+    const prefill = searchParams.get("prefill");
+    if (prefill) {
+      try {
+        const data = JSON.parse(prefill);
+        if (data.name) setNewName(data.name);
+        if (data.type) setNewType(data.type);
+        if (data.condition) setNewCondition(data.condition);
+        if (data.cooldownMinutes) setNewCooldown(data.cooldownMinutes);
+        setShowCreate(true);
+      } catch { /* invalid prefill */ }
+    }
+  }, [searchParams]);
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -164,11 +187,15 @@ export default function AlertsPage() {
           type: newType,
           condition: newCondition,
           cooldownMinutes: newCooldown,
+          notifyTelegram: newNotifyTelegram ? 1 : 0,
+          notifySms: newNotifySms ? 1 : 0,
         }),
       });
       setShowCreate(false);
       setNewName("");
       setNewCondition({});
+      setNewNotifyTelegram(false);
+      setNewNotifySms(false);
       await fetchAlerts();
     } catch {
       // fail
@@ -548,6 +575,16 @@ export default function AlertsPage() {
                             <span className="text-[9px] text-navy-600">
                               Cooldown: {alert.cooldownMinutes}min
                             </span>
+                            {alert.notifyTelegram ? (
+                              <span className="text-[9px] text-accent-cyan flex items-center gap-0.5">
+                                <MessageSquare className="h-2.5 w-2.5" /> TG
+                              </span>
+                            ) : null}
+                            {alert.notifySms ? (
+                              <span className="text-[9px] text-accent-cyan flex items-center gap-0.5">
+                                <Smartphone className="h-2.5 w-2.5" /> SMS
+                              </span>
+                            ) : null}
                             {alert.triggerCount > 0 && (
                               <span className="text-[9px] text-accent-amber">
                                 Triggered {alert.triggerCount}x
@@ -707,6 +744,40 @@ export default function AlertsPage() {
                 <div className="mt-1.5">
                   {renderConditionFields()}
                 </div>
+              </div>
+
+              {/* Notifications */}
+              <div>
+                <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-2 block">Notify via</label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewNotifyTelegram(!newNotifyTelegram)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded border text-xs transition-colors ${
+                      newNotifyTelegram
+                        ? "border-accent-cyan/40 bg-accent-cyan/5 text-accent-cyan"
+                        : "border-navy-700 bg-navy-800/50 text-navy-500 hover:border-navy-600"
+                    }`}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Telegram
+                    {newNotifyTelegram ? <Check className="h-3 w-3" /> : null}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewNotifySms(!newNotifySms)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded border text-xs transition-colors ${
+                      newNotifySms
+                        ? "border-accent-cyan/40 bg-accent-cyan/5 text-accent-cyan"
+                        : "border-navy-700 bg-navy-800/50 text-navy-500 hover:border-navy-600"
+                    }`}
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                    SMS
+                    {newNotifySms ? <Check className="h-3 w-3" /> : null}
+                  </button>
+                </div>
+                <p className="text-[9px] text-navy-600 mt-1.5">Configure Telegram and SMS in Settings to receive notifications</p>
               </div>
 
               {/* Cooldown */}

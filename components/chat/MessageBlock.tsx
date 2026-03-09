@@ -167,6 +167,35 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBl
         </div>
       )}
 
+      {/* Token usage summary */}
+      {turn.tokenUsage && (
+        <div className={`flex items-center gap-3 mt-2 py-1.5 text-[10px] font-mono text-navy-600 ${isStreaming ? "animate-pulse" : ""}`}>
+          <span className="text-navy-500">
+            {turn.tokenUsage.model.replace("claude-", "").replace(/-\d+$/, "")}
+          </span>
+          <span className="text-navy-700">|</span>
+          <span>
+            {turn.tokenUsage.inputTokens.toLocaleString()} in / {turn.tokenUsage.outputTokens.toLocaleString()} out
+          </span>
+          <span className="text-navy-700">|</span>
+          <span>
+            {turn.tokenUsage.creditsUsed.toLocaleString()} credits
+          </span>
+          <span className="text-navy-700">|</span>
+          <span>
+            {(turn.tokenUsage.elapsedMs / 1000).toFixed(1)}s
+          </span>
+          {turn.tokenUsage.creditsRemaining != null && turn.tokenUsage.creditsRemaining >= 0 && !isStreaming && (
+            <>
+              <span className="text-navy-700">|</span>
+              <span className={turn.tokenUsage.creditsRemaining < 5000 ? "text-accent-amber" : ""}>
+                {turn.tokenUsage.creditsRemaining.toLocaleString()} remaining
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Follow-up suggestions */}
       {!isStreaming && turn.suggestions && turn.suggestions.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">

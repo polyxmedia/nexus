@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth";
+import { authOptions, hashPassword } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, like } from "drizzle-orm";
 import { validateOrigin } from "@/lib/security/csrf";
@@ -38,6 +38,8 @@ export async function GET() {
         createdAt: s.updatedAt,
         compedGrant: data.compedGrant || null,
         email: data.email || null,
+        blocked: data.blocked || false,
+        blockedAt: data.blockedAt || null,
       };
     });
 
@@ -69,6 +71,47 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { username, role, action, tier: grantTier } = body;
+
+    // For create_user, skip the existing-user lookup
+    if (action === "create_user") {
+      const { password, email, newRole, newTier } = body;
+
+      if (!username || !password) {
+        return NextResponse.json({ error: "Username and password are required" }, { status: 400 });
+      }
+
+      if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) {
+        return NextResponse.json({ error: "Username must be 3-32 chars, letters/numbers/underscores" }, { status: 400 });
+      }
+
+      if (password.length < 10) {
+        return NextResponse.json({ error: "Password must be at least 10 characters" }, { status: 400 });
+      }
+
+      const existingUser = await db
+        .select()
+        .from(schema.settings)
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      if (existingUser.length > 0) {
+        return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+      }
+
+      const hashed = await hashPassword(password);
+      const userPayload: Record<string, string> = {
+        password: hashed,
+        role: newRole || "user",
+        email: email || "",
+      };
+      if (newTier && newTier !== "free") userPayload.tier = newTier;
+
+      await db.insert(schema.settings).values({
+        key: `user:${username}`,
+        value: JSON.stringify(userPayload),
+      });
+
+      return NextResponse.json({ success: true, created: true });
+    }
 
     const userSettings = await db
       .select()
@@ -178,6 +221,89 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ success: true, revoked: true });
+    }
+
+    // Block user (sets blocked flag, cancels subscription)
+    if (action === "block_user") {
+      userData.blocked = true;
+      userData.blockedAt = new Date().toISOString();
+      userData.blockedBy = session.user!.name;
+      userData.tier = "free";
+
+      await db
+        .update(schema.settings)
+        .set({ value: JSON.stringify(userData) })
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      // Cancel any active subscription
+      const subs = await db
+        .select()
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.userId, username));
+
+      if (subs.length > 0) {
+        await db
+          .update(schema.subscriptions)
+          .set({ status: "canceled", updatedAt: new Date().toISOString() })
+          .where(eq(schema.subscriptions.userId, username));
+      }
+
+      return NextResponse.json({ success: true, blocked: true });
+    }
+
+    // Unblock user
+    if (action === "unblock_user") {
+      delete userData.blocked;
+      delete userData.blockedAt;
+      delete userData.blockedBy;
+
+      await db
+        .update(schema.settings)
+        .set({ value: JSON.stringify(userData) })
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      return NextResponse.json({ success: true, unblocked: true });
+    }
+
+    // Delete user (removes user record, subscription, and all user-scoped settings)
+    if (action === "delete_user") {
+      // Prevent self-deletion
+      if (username === session.user!.name) {
+        return NextResponse.json({ error: "Cannot delete yourself" }, { status: 400 });
+      }
+
+      // Delete user account key
+      await db.delete(schema.settings).where(eq(schema.settings.key, `user:${username}`));
+
+      // Delete user-scoped settings
+      const userScopedSettings = await db
+        .select()
+        .from(schema.settings)
+        .where(like(schema.settings.key, `${username}:%`));
+
+      for (const row of userScopedSettings) {
+        await db.delete(schema.settings).where(eq(schema.settings.key, row.key));
+      }
+
+      // Delete subscription
+      await db.delete(schema.subscriptions).where(eq(schema.subscriptions.userId, username));
+
+      return NextResponse.json({ success: true, deleted: true });
+    }
+
+    // Edit user fields (email, role, tier)
+    if (action === "edit_user") {
+      const { email, newRole, newTier } = body;
+      if (email !== undefined) userData.email = email || null;
+      if (newRole) userData.role = newRole;
+      if (newTier) userData.tier = newTier;
+
+      await db
+        .update(schema.settings)
+        .set({ value: JSON.stringify(userData) })
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      return NextResponse.json({ success: true });
     }
 
     // Update role (existing functionality)

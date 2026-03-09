@@ -213,7 +213,7 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
           </button>
 
           <p className="mt-4 font-mono text-[9px] text-navy-600 tracking-wider">
-            14 days free, full access, no credit card
+            2 days free, full access, no credit card
           </p>
         </div>
       </div>

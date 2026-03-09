@@ -15,6 +15,7 @@ const TIER_LEVELS: Record<string, number> = {
 
 export interface TierLimits {
   chatMessages: number; // -1 = unlimited
+  monthlyCredits: number; // -1 = unlimited, 0 = none
   warRoomAccess: "none" | "view" | "full";
   tradingIntegration: boolean;
   apiAccess: boolean;
@@ -23,6 +24,7 @@ export interface TierLimits {
 
 const DEFAULT_LIMITS: TierLimits = {
   chatMessages: 10,
+  monthlyCredits: 0,
   warRoomAccess: "none",
   tradingIntegration: false,
   apiAccess: false,
@@ -58,6 +60,7 @@ export async function requireTier(
           tierLevel: 3,
           limits: {
             chatMessages: -1,
+            monthlyCredits: -1,
             warRoomAccess: "full",
             tradingIntegration: true,
             apiAccess: true,
@@ -109,6 +112,7 @@ export async function requireTier(
         tierLevel: 3,
         limits: {
           chatMessages: -1,
+          monthlyCredits: -1,
           warRoomAccess: "full",
           tradingIntegration: true,
           apiAccess: true,
@@ -258,6 +262,7 @@ export async function getUserTier(): Promise<{
       tierLevel: 3,
       limits: {
         chatMessages: -1,
+        monthlyCredits: -1,
         warRoomAccess: "full",
         tradingIntegration: true,
         apiAccess: true,

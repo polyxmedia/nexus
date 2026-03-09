@@ -14,7 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
-const UPDATE_MODEL = "claude-sonnet-4-20250514";
+const UPDATE_MODEL = "claude-haiku-4-5-20251001";
 
 interface ActorUpdate {
   actorId: string;

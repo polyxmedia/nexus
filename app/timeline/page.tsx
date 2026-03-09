@@ -81,6 +81,7 @@ function ActionMenu({ event, onAction }: { event: TimelineEntry; onAction: (acti
     { id: "discuss", label: "Discuss in Chat", icon: MessageSquare, color: "#06b6d4" },
     { id: "knowledge", label: "Add to Knowledge", icon: BookOpen, color: "#8b5cf6" },
     { id: "predict", label: "Create Prediction", icon: Crosshair, color: "#f59e0b" },
+    { id: "alert", label: "Create Alert", icon: Bell, color: "#ef4444" },
     { id: "trade", label: "Create Position", icon: TrendingUp, color: "#10b981" },
     ...(event.sourceType && event.sourceId
       ? [{ id: "source", label: `View ${event.sourceType}`, icon: ExternalLink, color: "#94a3b8" }]
@@ -190,6 +191,29 @@ export default function TimelinePage() {
           const prompt = `Based on this event, generate a formal prediction with target, timeframe, and confidence:\n\n**${event.title}**\n${event.description || ""}\n\nSeverity: ${event.severity}/5 | Category: ${event.category || "N/A"}`;
           router.push(`/chat/${data.session.uuid}?prompt=${encodeURIComponent(prompt)}`);
         }
+        break;
+      }
+      case "alert": {
+        // Build a sensible alert from the event context
+        const alertBody: Record<string, unknown> = {
+          name: `Alert: ${event.title.slice(0, 60)}`,
+          type: "signal_intensity",
+          condition: { minIntensity: Math.max(event.severity, 3) },
+          cooldownMinutes: 60,
+        };
+
+        // If event has ticker metadata, create a price alert instead
+        const eventTicker = event.metadata?.ticker || event.metadata?.symbol;
+        if (eventTicker) {
+          alertBody.type = "price_threshold";
+          alertBody.condition = { ticker: String(eventTicker), direction: "above", threshold: 0 };
+        } else if (event.type === "prediction") {
+          alertBody.type = "prediction_due";
+          alertBody.condition = { daysBeforeDeadline: 3 };
+        }
+
+        // Navigate to alerts page with pre-filled data
+        router.push(`/alerts?prefill=${encodeURIComponent(JSON.stringify(alertBody))}`);
         break;
       }
       case "trade": {

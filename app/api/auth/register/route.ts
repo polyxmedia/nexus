@@ -103,7 +103,7 @@ export async function POST(request: Request) {
     }
 
     // Send welcome email (non-blocking)
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nexusintel.io";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
     const template = welcomeEmail(username, `${baseUrl}/login`);
     sendEmail({ to: email, ...template }).catch((err) =>
       console.error("Welcome email failed:", err)

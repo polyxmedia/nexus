@@ -38,10 +38,17 @@ export interface CoinbaseProduct {
 export class CoinbaseClient {
   private apiKey: string;
   private apiSecret: string;
+  private accessToken: string | null;
 
-  constructor(apiKey: string, apiSecret: string) {
+  constructor(apiKey: string, apiSecret: string, accessToken?: string) {
     this.apiKey = apiKey;
     this.apiSecret = apiSecret;
+    this.accessToken = accessToken || null;
+  }
+
+  /** Create a client using OAuth access token (no API key needed) */
+  static fromOAuth(accessToken: string): CoinbaseClient {
+    return new CoinbaseClient("", "", accessToken);
   }
 
   private sign(
@@ -64,18 +71,29 @@ export class CoinbaseClient {
   ): Promise<T> {
     const url = `${base}${path}`;
     const method = (options.method || "GET").toUpperCase();
-    const timestamp = Math.floor(Date.now() / 1000).toString();
     const body = options.body ? String(options.body) : "";
 
-    const signature = this.sign(timestamp, method, `/api/v3/brokerage${path}`, body);
+    let authHeaders: Record<string, string>;
+
+    if (this.accessToken) {
+      // OAuth bearer token auth
+      authHeaders = { Authorization: `Bearer ${this.accessToken}` };
+    } else {
+      // API key HMAC signing
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const signature = this.sign(timestamp, method, `/api/v3/brokerage${path}`, body);
+      authHeaders = {
+        "CB-ACCESS-KEY": this.apiKey,
+        "CB-ACCESS-SIGN": signature,
+        "CB-ACCESS-TIMESTAMP": timestamp,
+      };
+    }
 
     const res = await fetch(url, {
       ...options,
       method,
       headers: {
-        "CB-ACCESS-KEY": this.apiKey,
-        "CB-ACCESS-SIGN": signature,
-        "CB-ACCESS-TIMESTAMP": timestamp,
+        ...authHeaders,
         "Content-Type": "application/json",
         ...options.headers,
       },

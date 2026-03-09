@@ -22,7 +22,7 @@ const DEFAULT_TIERS = [
     interval: "month",
     features: [
       "Signal detection engine",
-      "AI chat analyst (100 msgs/day)",
+      "50,000 AI credits/month",
       "Daily thesis generation",
       "Prediction tracking",
       "War Room with OSINT",
@@ -32,7 +32,8 @@ const DEFAULT_TIERS = [
       "Email alerts",
     ],
     limits: {
-      chatMessages: 100,
+      chatMessages: -1,
+      monthlyCredits: 50000,
       warRoomAccess: "full",
       tradingIntegration: false,
       apiAccess: false,
@@ -47,7 +48,7 @@ const DEFAULT_TIERS = [
     interval: "month",
     features: [
       "Everything in Analyst",
-      "Unlimited AI analyst access",
+      "250,000 AI credits/month",
       "Trading broker integration",
       "On-chain analytics & GEX",
       "GPR decomposition & BOCPD",
@@ -62,6 +63,7 @@ const DEFAULT_TIERS = [
     ],
     limits: {
       chatMessages: -1,
+      monthlyCredits: 250000,
       warRoomAccess: "full",
       tradingIntegration: true,
       apiAccess: true,
@@ -76,6 +78,7 @@ const DEFAULT_TIERS = [
     interval: "month",
     features: [
       "Everything in Operator",
+      "Unlimited AI credits",
       "Unlimited seats",
       "Custom data integrations",
       "Dedicated infrastructure",
@@ -86,6 +89,7 @@ const DEFAULT_TIERS = [
     ],
     limits: {
       chatMessages: -1,
+      monthlyCredits: -1,
       warRoomAccess: "full",
       tradingIntegration: true,
       apiAccess: true,

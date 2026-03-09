@@ -5,9 +5,8 @@ import { db, schema } from "@/lib/db";
 import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 
-function generateCode(username: string): string {
-  const suffix = crypto.randomBytes(3).toString("hex").slice(0, 4);
-  return `${username}-${suffix}`.toLowerCase();
+function generateCode(): string {
+  return crypto.randomUUID();
 }
 
 // GET: Fetch referral dashboard data for current user
@@ -31,7 +30,7 @@ export async function GET() {
         .insert(schema.referralCodes)
         .values({
           userId,
-          code: generateCode(session.user.name),
+          code: generateCode(),
           commissionRate: 0.20,
           createdAt: new Date().toISOString(),
         })
@@ -118,7 +117,7 @@ export async function POST(request: NextRequest) {
 
   try {
     if (body.action === "regenerate") {
-      const newCode = generateCode(session.user.name);
+      const newCode = generateCode();
       await db
         .update(schema.referralCodes)
         .set({ code: newCode })

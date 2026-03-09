@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { PageContainer } from "@/components/layout/page-container";
 import { StatusDot } from "@/components/ui/status-dot";
@@ -20,6 +21,9 @@ import {
   Database,
   Trash2,
   Brain,
+  Bell,
+  Send,
+  Smartphone,
 } from "lucide-react";
 
 interface SettingEntry {
@@ -109,8 +113,19 @@ const TABS = [
   { id: "ai-models", label: "AI Models", icon: Brain },
   { id: "api-keys", label: "API Keys", icon: Key },
   { id: "trading", label: "Trading", icon: TrendingUp },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "data", label: "Data Sources", icon: Database },
   { id: "system", label: "System", icon: Settings2 },
+];
+
+const TELEGRAM_ALERT_TYPES = [
+  { id: "signal_convergence", label: "Signal Convergences", description: "Intensity 4+ across multiple layers", global: true },
+  { id: "prediction_resolved", label: "Prediction Outcomes", description: "Win/loss notifications when predictions resolve", global: true },
+  { id: "price_target", label: "Price Targets", description: "Monitored symbols hitting Monte Carlo P50 targets", global: false },
+  { id: "warroom_escalation", label: "War Room Escalations", description: "Real-time military/geopolitical escalation alerts", global: true },
+  { id: "trade_executed", label: "Trade Executions", description: "Confirmation when trades execute on your account", global: false },
+  { id: "daily_briefing", label: "Daily Briefing", description: "Morning intelligence digest at 08:00 UTC", global: true },
+  { id: "chokepoint_status", label: "Chokepoint Alerts", description: "Status changes on your subscribed maritime chokepoints", global: false },
 ];
 
 const AI_MODELS = [
@@ -133,6 +148,8 @@ const TIER_BADGE = {
 
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
+  const username = session?.user?.name || "";
   const [settings, setSettings] = useState<SettingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -159,6 +176,8 @@ export default function SettingsPage() {
   const [alphaVantageKey, setAlphaVantageKey] = useState("");
   const [coinbaseKey, setCoinbaseKey] = useState("");
   const [coinbaseSecret, setCoinbaseSecret] = useState("");
+  const [coinbaseOAuth, setCoinbaseOAuth] = useState<{ oauthAvailable: boolean; connected: boolean } | null>(null);
+  const [coinbaseConnecting, setCoinbaseConnecting] = useState(false);
   const [fredKey, setFredKey] = useState("");
   const [ibkrGatewayUrl, setIbkrGatewayUrl] = useState("");
   const [ibkrAccountId, setIbkrAccountId] = useState("");
@@ -172,6 +191,15 @@ export default function SettingsPage() {
   const [tradingEnv, setTradingEnv] = useState("demo");
   const [stopLossPct, setStopLossPct] = useState("5");
   const [takeProfitPct, setTakeProfitPct] = useState("10");
+
+  // Telegram / Notifications
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [smsPhone, setSmsPhone] = useState("");
+  const [telegramAlerts, setTelegramAlerts] = useState<string[]>([
+    "signal_convergence", "prediction_resolved", "warroom_escalation", "daily_briefing",
+  ]);
+  const [telegramTestLoading, setTelegramTestLoading] = useState(false);
+  const [telegramTestResult, setTelegramTestResult] = useState<string | null>(null);
 
   // Data Sources
   const [newsPollingInterval, setNewsPollingInterval] = useState("300");
@@ -203,6 +231,16 @@ export default function SettingsPage() {
             case "ai_chat_model": setAiChatModel(setting.value); break;
             case "jiang_mode": setJiangMode(setting.value === "true"); break;
           }
+          // Handle user-scoped keys (username:key format)
+          const baseKey = setting.key.includes(":") ? setting.key.split(":").slice(1).join(":") : "";
+          switch (baseKey) {
+            case "telegram_chat_id": setTelegramChatId(setting.value); break;
+            case "telegram_alerts": {
+              try { setTelegramAlerts(JSON.parse(setting.value)); } catch { /* keep defaults */ }
+              break;
+            }
+            case "sms_phone": setSmsPhone(setting.value); break;
+          }
         }
         setLoading(false);
       })
@@ -220,6 +258,12 @@ export default function SettingsPage() {
         setSubLoading(false);
       })
       .catch(() => setSubLoading(false));
+
+    // Check Coinbase OAuth status
+    fetch("/api/coinbase/oauth/status")
+      .then((r) => r.json())
+      .then((data) => setCoinbaseOAuth(data))
+      .catch(() => {});
   }, []);
 
   const saveSetting = async (key: string, value: string) => {
@@ -829,22 +873,74 @@ export default function SettingsPage() {
               <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
                 Coinbase (Crypto)
               </h3>
-              <div className="space-y-3">
-                <ApiKeyField
-                  label="API Key"
-                  settingKey="coinbase_api_key"
-                  value={coinbaseKey}
-                  onChange={setCoinbaseKey}
-                  placeholder="Enter Coinbase API key..."
-                />
-                <ApiKeyField
-                  label="API Secret"
-                  settingKey="coinbase_api_secret"
-                  value={coinbaseSecret}
-                  onChange={setCoinbaseSecret}
-                  placeholder="Enter Coinbase API secret..."
-                />
-              </div>
+
+              {/* OAuth connect (preferred) */}
+              {coinbaseOAuth?.oauthAvailable && (
+                <div className="mb-3 pb-3 border-b border-navy-800">
+                  {coinbaseOAuth.connected ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-accent-emerald" />
+                        <span className="text-[11px] text-navy-300">Connected via OAuth</span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await fetch("/api/coinbase/oauth", { method: "DELETE" });
+                          setCoinbaseOAuth({ ...coinbaseOAuth, connected: false });
+                        }}
+                        className="text-[10px] font-mono text-accent-rose hover:text-red-400 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      disabled={coinbaseConnecting}
+                      onClick={async () => {
+                        setCoinbaseConnecting(true);
+                        try {
+                          const res = await fetch("/api/coinbase/oauth");
+                          const data = await res.json();
+                          if (data.url) window.location.href = data.url;
+                        } catch {
+                          setCoinbaseConnecting(false);
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded bg-navy-800 hover:bg-navy-700 border border-navy-600 text-navy-200 text-[11px] font-mono transition-colors disabled:opacity-50"
+                    >
+                      {coinbaseConnecting ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Shield className="h-3.5 w-3.5" />
+                      )}
+                      Connect with Coinbase
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* API key fallback */}
+              {(!coinbaseOAuth?.oauthAvailable || !coinbaseOAuth?.connected) && (
+                <div className="space-y-3">
+                  {coinbaseOAuth?.oauthAvailable && (
+                    <p className="text-[9px] text-navy-600 font-mono">Or use API keys manually:</p>
+                  )}
+                  <ApiKeyField
+                    label="API Key"
+                    settingKey="coinbase_api_key"
+                    value={coinbaseKey}
+                    onChange={setCoinbaseKey}
+                    placeholder="Enter Coinbase API key..."
+                  />
+                  <ApiKeyField
+                    label="API Secret"
+                    settingKey="coinbase_api_secret"
+                    value={coinbaseSecret}
+                    onChange={setCoinbaseSecret}
+                    placeholder="Enter Coinbase API secret..."
+                  />
+                </div>
+              )}
             </div>
 
             <div className="border border-navy-700 rounded p-4">
@@ -985,6 +1081,206 @@ export default function SettingsPage() {
                   onChange={setTakeProfitPct}
                   suffix="%"
                 />
+              </div>
+            </div>
+          </div>
+        </Tabs.Content>
+
+        {/* Notifications / Telegram Tab */}
+        <Tabs.Content value="notifications">
+          <div className="space-y-6 max-w-2xl">
+            {/* Telegram Connection */}
+            <div className="border border-navy-700 rounded p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Send className="h-4 w-4 text-accent-cyan" />
+                <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
+                  Telegram Alerts
+                </h3>
+                {telegramChatId ? (
+                  <span className="ml-auto flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent-emerald" />
+                    Connected
+                  </span>
+                ) : (
+                  <span className="ml-auto text-[10px] font-mono text-navy-600">Not linked</span>
+                )}
+              </div>
+
+              {!telegramChatId ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-navy-400 leading-relaxed">
+                    Link your Telegram account to receive real-time intelligence alerts. Open the NEXUS bot and send the start command with your username.
+                  </p>
+                  <div className="border border-navy-700/40 rounded bg-navy-900/60 p-4">
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-2">Setup</div>
+                    <ol className="text-xs text-navy-300 space-y-2">
+                      <li className="flex gap-2">
+                        <span className="text-navy-500 font-mono shrink-0">01</span>
+                        <span>Search for <span className="font-mono text-accent-cyan">@NexusIntelBot</span> on Telegram (or use the bot name from your .env)</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-navy-500 font-mono shrink-0">02</span>
+                        <span>Send: <code className="bg-navy-800 px-1.5 py-0.5 rounded text-accent-cyan">/start your_username</code></span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-navy-500 font-mono shrink-0">03</span>
+                        <span>The bot will confirm the link and you can configure alerts below</span>
+                      </li>
+                    </ol>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">
+                      Or paste your Chat ID manually
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="e.g. 123456789"
+                        value={telegramChatId}
+                        onChange={(e) => setTelegramChatId(e.target.value)}
+                      />
+                      <SaveBtn settingKey={`${username}:telegram_chat_id`} value={telegramChatId} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <span className="text-[10px] text-navy-500 uppercase tracking-wider block">Chat ID</span>
+                      <span className="text-xs font-mono text-navy-300">{telegramChatId}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setTelegramChatId("");
+                        deleteSetting(`${username}:telegram_chat_id`);
+                      }}
+                      className="ml-auto text-[10px] font-mono text-navy-600 hover:text-accent-rose transition-colors"
+                    >
+                      Unlink
+                    </button>
+                  </div>
+
+                  {/* Test button */}
+                  <button
+                    onClick={async () => {
+                      setTelegramTestLoading(true);
+                      setTelegramTestResult(null);
+                      try {
+                        const res = await fetch("/api/telegram/test", { method: "POST" });
+                        const data = await res.json();
+                        setTelegramTestResult(res.ok ? "Test alert sent" : data.error || "Failed");
+                      } catch {
+                        setTelegramTestResult("Network error");
+                      } finally {
+                        setTelegramTestLoading(false);
+                        setTimeout(() => setTelegramTestResult(null), 4000);
+                      }
+                    }}
+                    disabled={telegramTestLoading}
+                    className="flex items-center gap-2 px-3 py-2 rounded border border-navy-700 text-[11px] font-mono text-navy-400 hover:text-navy-200 hover:border-navy-600 transition-colors disabled:opacity-50"
+                  >
+                    {telegramTestLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Send className="h-3 w-3" />
+                    )}
+                    Send Test Alert
+                    {telegramTestResult && (
+                      <span className={`ml-2 ${telegramTestResult.includes("sent") ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        {telegramTestResult}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* SMS Configuration */}
+            <div className="border border-navy-700 rounded p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Smartphone className="h-4 w-4 text-navy-400" />
+                <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500">
+                  SMS Alerts
+                </h3>
+                {smsPhone ? (
+                  <span className="ml-auto text-[10px] font-mono text-accent-emerald">Configured</span>
+                ) : (
+                  <span className="ml-auto text-[10px] font-mono text-navy-600">Not configured</span>
+                )}
+              </div>
+
+              <p className="text-xs text-navy-400 leading-relaxed mb-3">
+                Add your phone number to receive SMS alerts when critical conditions trigger. International format required (e.g. +44 7700 900000).
+              </p>
+
+              <div className="flex gap-2">
+                <Input
+                  type="tel"
+                  placeholder="+44 7700 900000"
+                  value={smsPhone}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSmsPhone(e.target.value)}
+                />
+                <SaveBtn settingKey={`${username}:sms_phone`} value={smsPhone} />
+              </div>
+              {smsPhone && (
+                <button
+                  onClick={() => {
+                    setSmsPhone("");
+                    deleteSetting(`${username}:sms_phone`);
+                  }}
+                  className="mt-2 text-[10px] font-mono text-navy-600 hover:text-accent-rose transition-colors"
+                >
+                  Remove phone number
+                </button>
+              )}
+            </div>
+
+            {/* Alert Preferences */}
+            <div className="border border-navy-700 rounded p-5">
+              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-4">
+                Alert Preferences
+              </h3>
+              <div className="space-y-3">
+                {TELEGRAM_ALERT_TYPES.map((alertType) => {
+                  const enabled = telegramAlerts.includes(alertType.id);
+                  return (
+                    <div
+                      key={alertType.id}
+                      className={`flex items-start gap-3 p-3 rounded border transition-colors cursor-pointer ${
+                        enabled
+                          ? "border-navy-600 bg-navy-800/30"
+                          : "border-navy-800/40 bg-navy-900/20 opacity-60"
+                      }`}
+                      onClick={() => {
+                        const next = enabled
+                          ? telegramAlerts.filter((a) => a !== alertType.id)
+                          : [...telegramAlerts, alertType.id];
+                        setTelegramAlerts(next);
+                        saveSetting(`${username}:telegram_alerts`, JSON.stringify(next));
+                      }}
+                    >
+                      <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                        enabled
+                          ? "border-accent-cyan bg-accent-cyan/20"
+                          : "border-navy-700"
+                      }`}>
+                        {enabled && (
+                          <CheckCircle2 className="w-3 h-3 text-accent-cyan" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-navy-200">{alertType.label}</span>
+                          {alertType.global && (
+                            <span className="text-[8px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-navy-800 text-navy-500">Global</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-navy-500 mt-0.5">{alertType.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
