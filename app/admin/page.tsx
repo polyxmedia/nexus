@@ -52,7 +52,10 @@ import {
   Zap,
   Timer,
   MousePointer,
+  MoreVertical,
+  UserCheck,
 } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 
 interface Tier {
@@ -2090,6 +2093,8 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showNewTier, setShowNewTier] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncAllResult, setSyncAllResult] = useState<string | null>(null);
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -2470,6 +2475,31 @@ export default function AdminPage() {
     setDeleting(null);
   };
 
+  // Impersonate user
+  const [impersonating, setImpersonating] = useState<string | null>(null);
+
+  const impersonateUser = async (username: string) => {
+    if (!confirm(`Impersonate "${username}"? You will see the platform as this user for up to 1 hour.`)) return;
+    setImpersonating(username);
+    try {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      if (res.ok) {
+        // Reload to pick up the impersonation session
+        window.location.href = "/dashboard";
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to impersonate");
+      }
+    } catch {
+      alert("Failed to impersonate");
+    }
+    setImpersonating(null);
+  };
+
   if (loading || status === "loading") {
     return (
       <PageContainer title="Admin" subtitle="Platform administration">
@@ -2546,6 +2576,43 @@ export default function AdminPage() {
                 Manage subscription tiers. Connect each tier to a Stripe Price ID for checkout.
               </p>
               <div className="flex items-center gap-2">
+                {syncAllResult && (
+                  <span className={`text-[10px] font-mono ${syncAllResult.includes("Failed") ? "text-accent-rose" : "text-accent-emerald"}`}>
+                    {syncAllResult}
+                  </span>
+                )}
+                {tiers.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={syncingAll}
+                    onClick={async () => {
+                      setSyncingAll(true);
+                      setSyncAllResult(null);
+                      let ok = 0;
+                      let fail = 0;
+                      for (const t of tiers) {
+                        try {
+                          const res = await fetch("/api/admin/tiers/stripe-sync", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ tierId: t.id }),
+                          });
+                          if (res.ok) ok++;
+                          else fail++;
+                        } catch { fail++; }
+                      }
+                      setSyncAllResult(fail > 0 ? `${ok} synced, ${fail} failed` : `${ok} tiers synced`);
+                      setSyncingAll(false);
+                      // Refresh tiers to get updated Stripe IDs
+                      fetch("/api/admin/tiers").then(r => r.json()).then(data => { if (Array.isArray(data)) setTiers(data); });
+                      setTimeout(() => setSyncAllResult(null), 5000);
+                    }}
+                  >
+                    {syncingAll ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CreditCard className="h-3 w-3 mr-1" />}
+                    Sync All to Stripe
+                  </Button>
+                )}
                 {tiers.length === 0 && (
                   <Button variant="outline" size="sm" onClick={seedTiers} disabled={seeding}>
                     {seeding ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
@@ -2702,8 +2769,8 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {/* Edit button */}
+                          <div className="flex items-center gap-1.5">
+                            {/* Quick actions */}
                             <button
                               onClick={() => openEditModal(user)}
                               className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-400 hover:text-navy-200 hover:bg-navy-800/50 transition-colors"
@@ -2712,8 +2779,6 @@ export default function AdminPage() {
                               <Eye className="h-3 w-3" />
                               Edit
                             </button>
-
-                            {/* Stats button */}
                             <button
                               onClick={() => openStatsModal(user.username)}
                               className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-400 hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors"
@@ -2723,108 +2788,148 @@ export default function AdminPage() {
                               Stats
                             </button>
 
-                            {/* Role toggle */}
-                            {user.role !== "admin" ? (
-                              <button
-                                className="px-2 py-1 rounded text-[10px] font-mono text-navy-500 hover:text-accent-amber hover:bg-accent-amber/10 transition-colors disabled:opacity-40"
-                                disabled={roleUpdating === user.username}
-                                onClick={() => updateRole(user.username, "admin")}
-                              >
-                                {roleUpdating === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : "Admin"}
-                              </button>
-                            ) : user.username !== session?.user?.name ? (
-                              <button
-                                className="px-2 py-1 rounded text-[10px] font-mono text-accent-amber hover:text-navy-400 hover:bg-navy-800/50 transition-colors disabled:opacity-40"
-                                disabled={roleUpdating === user.username}
-                                onClick={() => updateRole(user.username, "user")}
-                              >
-                                {roleUpdating === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : "Demote"}
-                              </button>
-                            ) : null}
-
-                            {/* Grant / Revoke Access */}
-                            {granting === user.username ? (
-                              <Loader2 className="h-3 w-3 animate-spin text-navy-500" />
-                            ) : user.subscription?.status === "active" &&
-                              user.subscription?.stripeSubscriptionId?.startsWith("comped_") ? (
-                              <>
-                                {user.compedGrant?.expiresAt && user.compedGrant.expiresAt !== "2099-12-31T23:59:59.000Z" && (
-                                  <span className={`text-[9px] font-mono tabular-nums ${
-                                    new Date(user.compedGrant.expiresAt) < new Date() ? "text-accent-rose" : "text-accent-amber"
-                                  }`}>
-                                    {new Date(user.compedGrant.expiresAt) < new Date()
-                                      ? "expired"
-                                      : `exp ${new Date(user.compedGrant.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                                    }
-                                  </span>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setGrantModal(user.username);
-                                    setGrantForm({
-                                      tier: user.compedGrant?.tier || user.tier || "analyst",
-                                      duration: "",
-                                      note: user.compedGrant?.note || "",
-                                    });
-                                  }}
-                                  className="text-[10px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors"
-                                >
-                                  Grant
-                                </button>
-                                <button
-                                  onClick={() => revokeAccess(user.username)}
-                                  className="text-[10px] font-mono text-accent-rose/70 hover:text-accent-rose transition-colors"
-                                >
-                                  Revoke
-                                </button>
-                              </>
-                            ) : !user.subscription || user.subscription.status !== "active" ? (
-                              <button
-                                onClick={() => {
-                                  setGrantModal(user.username);
-                                  setGrantForm({ tier: "analyst", duration: "30", note: "" });
-                                }}
-                                className="flex items-center gap-1 text-[10px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors"
-                              >
-                                <Gift className="h-3 w-3" />
-                                Grant
-                              </button>
-                            ) : null}
-
-                            {/* Divider */}
-                            <div className="w-px h-3 bg-navy-700/40" />
-
-                            {/* Block / Unblock */}
-                            {user.username !== session?.user?.name && (
-                              user.blocked ? (
-                                <button
-                                  onClick={() => unblockUser(user.username)}
-                                  disabled={blocking === user.username}
-                                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-accent-emerald/70 hover:text-accent-emerald hover:bg-accent-emerald/10 transition-colors disabled:opacity-40"
-                                >
-                                  {blocking === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Shield className="h-3 w-3" /> Unblock</>}
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => blockUser(user.username)}
-                                  disabled={blocking === user.username}
-                                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-600 hover:text-accent-rose hover:bg-accent-rose/10 transition-colors disabled:opacity-40"
-                                >
-                                  {blocking === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Shield className="h-3 w-3" /> Block</>}
-                                </button>
-                              )
+                            {/* Subscription badge */}
+                            {user.compedGrant?.expiresAt && user.compedGrant.expiresAt !== "2099-12-31T23:59:59.000Z" &&
+                              user.subscription?.stripeSubscriptionId?.startsWith("comped_") && (
+                              <span className={`text-[9px] font-mono tabular-nums ${
+                                new Date(user.compedGrant.expiresAt) < new Date() ? "text-accent-rose" : "text-accent-amber"
+                              }`}>
+                                {new Date(user.compedGrant.expiresAt) < new Date()
+                                  ? "expired"
+                                  : `exp ${new Date(user.compedGrant.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                                }
+                              </span>
                             )}
 
-                            {/* Delete */}
-                            {user.username !== session?.user?.name && (
-                              <button
-                                onClick={() => deleteUser(user.username)}
-                                disabled={deleting === user.username}
-                                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-600 hover:text-accent-rose hover:bg-accent-rose/10 transition-colors disabled:opacity-40"
-                              >
-                                {deleting === user.username ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Trash2 className="h-3 w-3" /> Delete</>}
-                              </button>
-                            )}
+                            {/* 3-dot menu */}
+                            <DropdownMenu.Root>
+                              <DropdownMenu.Trigger asChild>
+                                <button className="p-1 rounded text-navy-500 hover:text-navy-200 hover:bg-navy-800/50 transition-colors">
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </button>
+                              </DropdownMenu.Trigger>
+                              <DropdownMenu.Portal>
+                                <DropdownMenu.Content
+                                  className="min-w-[160px] bg-navy-900 border border-navy-700 rounded-lg shadow-xl p-1 z-50"
+                                  sideOffset={4}
+                                  align="end"
+                                >
+                                  {/* Impersonate */}
+                                  {user.username !== session?.user?.name && user.role !== "admin" && !user.blocked && (
+                                    <DropdownMenu.Item
+                                      className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-accent-cyan cursor-pointer outline-none hover:bg-accent-cyan/10 transition-colors"
+                                      onSelect={() => impersonateUser(user.username)}
+                                      disabled={impersonating === user.username}
+                                    >
+                                      <UserCheck className="h-3 w-3" />
+                                      {impersonating === user.username ? "Impersonating..." : "Impersonate"}
+                                    </DropdownMenu.Item>
+                                  )}
+
+                                  {/* Role toggle */}
+                                  {user.role !== "admin" ? (
+                                    <DropdownMenu.Item
+                                      className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-300 cursor-pointer outline-none hover:bg-accent-amber/10 hover:text-accent-amber transition-colors"
+                                      onSelect={() => updateRole(user.username, "admin")}
+                                      disabled={roleUpdating === user.username}
+                                    >
+                                      <Shield className="h-3 w-3" />
+                                      {roleUpdating === user.username ? "Updating..." : "Promote to Admin"}
+                                    </DropdownMenu.Item>
+                                  ) : user.username !== session?.user?.name ? (
+                                    <DropdownMenu.Item
+                                      className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-accent-amber cursor-pointer outline-none hover:bg-navy-800/50 transition-colors"
+                                      onSelect={() => updateRole(user.username, "user")}
+                                      disabled={roleUpdating === user.username}
+                                    >
+                                      <Shield className="h-3 w-3" />
+                                      {roleUpdating === user.username ? "Updating..." : "Demote to User"}
+                                    </DropdownMenu.Item>
+                                  ) : null}
+
+                                  {/* Grant / Revoke Access */}
+                                  {granting === user.username ? (
+                                    <DropdownMenu.Item className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-500 cursor-default outline-none" disabled>
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                      Updating...
+                                    </DropdownMenu.Item>
+                                  ) : user.subscription?.status === "active" &&
+                                    user.subscription?.stripeSubscriptionId?.startsWith("comped_") ? (
+                                    <>
+                                      <DropdownMenu.Item
+                                        className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-300 cursor-pointer outline-none hover:bg-accent-cyan/10 hover:text-accent-cyan transition-colors"
+                                        onSelect={() => {
+                                          setGrantModal(user.username);
+                                          setGrantForm({
+                                            tier: user.compedGrant?.tier || user.tier || "analyst",
+                                            duration: "",
+                                            note: user.compedGrant?.note || "",
+                                          });
+                                        }}
+                                      >
+                                        <Gift className="h-3 w-3" />
+                                        Update Grant
+                                      </DropdownMenu.Item>
+                                      <DropdownMenu.Item
+                                        className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-accent-rose/70 cursor-pointer outline-none hover:bg-accent-rose/10 hover:text-accent-rose transition-colors"
+                                        onSelect={() => revokeAccess(user.username)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                        Revoke Access
+                                      </DropdownMenu.Item>
+                                    </>
+                                  ) : !user.subscription || user.subscription.status !== "active" ? (
+                                    <DropdownMenu.Item
+                                      className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-300 cursor-pointer outline-none hover:bg-accent-cyan/10 hover:text-accent-cyan transition-colors"
+                                      onSelect={() => {
+                                        setGrantModal(user.username);
+                                        setGrantForm({ tier: "analyst", duration: "30", note: "" });
+                                      }}
+                                    >
+                                      <Gift className="h-3 w-3" />
+                                      Grant Access
+                                    </DropdownMenu.Item>
+                                  ) : null}
+
+                                  {user.username !== session?.user?.name && (
+                                    <>
+                                      <DropdownMenu.Separator className="h-px bg-navy-700/40 my-1" />
+
+                                      {/* Block / Unblock */}
+                                      {user.blocked ? (
+                                        <DropdownMenu.Item
+                                          className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-accent-emerald/70 cursor-pointer outline-none hover:bg-accent-emerald/10 hover:text-accent-emerald transition-colors"
+                                          onSelect={() => unblockUser(user.username)}
+                                          disabled={blocking === user.username}
+                                        >
+                                          <Shield className="h-3 w-3" />
+                                          {blocking === user.username ? "Updating..." : "Unblock"}
+                                        </DropdownMenu.Item>
+                                      ) : (
+                                        <DropdownMenu.Item
+                                          className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-500 cursor-pointer outline-none hover:bg-accent-rose/10 hover:text-accent-rose transition-colors"
+                                          onSelect={() => blockUser(user.username)}
+                                          disabled={blocking === user.username}
+                                        >
+                                          <Shield className="h-3 w-3" />
+                                          {blocking === user.username ? "Updating..." : "Block"}
+                                        </DropdownMenu.Item>
+                                      )}
+
+                                      {/* Delete */}
+                                      <DropdownMenu.Item
+                                        className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-accent-rose/60 cursor-pointer outline-none hover:bg-accent-rose/10 hover:text-accent-rose transition-colors"
+                                        onSelect={() => deleteUser(user.username)}
+                                        disabled={deleting === user.username}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                        {deleting === user.username ? "Deleting..." : "Delete User"}
+                                      </DropdownMenu.Item>
+                                    </>
+                                  )}
+                                </DropdownMenu.Content>
+                              </DropdownMenu.Portal>
+                            </DropdownMenu.Root>
                           </div>
                         </td>
                       </tr>
