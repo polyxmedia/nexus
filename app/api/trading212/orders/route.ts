@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { getT212Client, checkDuplicate } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
+import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET() {
   const tierCheck = await requireTier("operator");
@@ -32,9 +34,22 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
+  // CSRF check
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const username = session.user.name;
+
+  // Rate limit: 30 orders per hour per user
+  const rl = rateLimit(`trading:${username}`, 30, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Trading rate limit exceeded. Max 30 orders per hour." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
 
   try {
     const body = await request.json();
@@ -43,6 +58,34 @@ export async function POST(request: NextRequest) {
     if (!ticker || !quantity || !direction || !orderType) {
       return NextResponse.json(
         { error: "ticker, quantity, direction, and orderType are required" },
+        { status: 400 }
+      );
+    }
+
+    if (!["BUY", "SELL"].includes(direction)) {
+      return NextResponse.json(
+        { error: "direction must be BUY or SELL" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof quantity !== "number" || quantity <= 0 || !isFinite(quantity)) {
+      return NextResponse.json(
+        { error: "quantity must be a positive number" },
+        { status: 400 }
+      );
+    }
+
+    if (limitPrice !== undefined && limitPrice !== null && (typeof limitPrice !== "number" || limitPrice <= 0 || !isFinite(limitPrice))) {
+      return NextResponse.json(
+        { error: "limitPrice must be a positive number" },
+        { status: 400 }
+      );
+    }
+
+    if (stopPrice !== undefined && stopPrice !== null && (typeof stopPrice !== "number" || stopPrice <= 0 || !isFinite(stopPrice))) {
+      return NextResponse.json(
+        { error: "stopPrice must be a positive number" },
         { status: 400 }
       );
     }
@@ -140,6 +183,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   const session = await getServerSession(authOptions);

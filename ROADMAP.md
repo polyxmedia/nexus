@@ -34,10 +34,10 @@
 - [x] Each brain has specialised prompts and restricted tool access
 
 ### v2.5 Conditional Monte Carlo Simulation
-- [ ] Scenario-weighted simulation (not just historical returns)
-- [ ] Define regime-specific parameters (wartime vol, ceasefire shock, supply crisis drift)
-- [ ] Blend scenarios by probability weights
-- [ ] Output actual probability distributions for positions
+- [x] Scenario-weighted simulation (not just historical returns)
+- [x] Define regime-specific parameters (wartime vol, ceasefire shock, supply crisis drift)
+- [x] Blend scenarios by probability weights
+- [x] Output actual probability distributions for positions
 - [ ] Visual comparison of scenario outcomes on trading page
 
 ### v2.6 Market Data Upgrade
@@ -54,17 +54,17 @@
 - [ ] Overlay on war room map alongside aircraft tracking
 
 ### v2.8 Knowledge Graph Enhancement
-- [ ] Relationship traversal on existing entity graph
-- [ ] Auto-link chain: positions -> drivers -> events -> signals -> convergences
-- [ ] Graph-based reasoning: queries traverse connections, not just keywords
-- [ ] Visual graph explorer with path highlighting
+- [x] Relationship traversal on existing entity graph
+- [x] Auto-link chain: positions -> drivers -> events -> signals -> convergences
+- [x] Graph-based reasoning: queries traverse connections, not just keywords
+- [x] Visual graph explorer with path highlighting
 
 ### v2.9 Operator Dashboard v2
-- [ ] At-a-glance portfolio with action flags (SELL/HOLD/WAITING)
-- [ ] Active alerts with severity levels and countdown timers
-- [ ] Current regime indicator (WARTIME/PEACETIME)
-- [ ] Active thesis confidence meter
-- [ ] Next signal with countdown
+- [x] At-a-glance portfolio with action flags (SELL/HOLD/WAITING)
+- [x] Active alerts with severity levels and countdown timers
+- [x] Current regime indicator (WARTIME/PEACETIME)
+- [x] Active thesis confidence meter
+- [x] Next signal with countdown
 
 ### v2.10 Infrastructure Targets
 | Service | Purpose | Monthly |
@@ -82,26 +82,26 @@
 ## CRITICAL: Security Hardening (Pre-Deploy)
 
 ### Rate Limiting
-- [ ] Add rate limiting on auth endpoints (login, register) to prevent brute-force attacks
-- [ ] Add rate limiting on trading endpoints (Trading212, Coinbase orders) to prevent abuse
-- [ ] Add rate limiting on AI/chat endpoints to prevent resource exhaustion
+- [x] Add rate limiting on auth endpoints (login, register) to prevent brute-force attacks
+- [x] Add rate limiting on trading endpoints (Trading212, Coinbase orders) to prevent abuse
+- [x] Add rate limiting on AI/chat endpoints to prevent resource exhaustion
 - [ ] Consider Vercel/Cloudflare WAF for edge-level rate limiting
 
 ### Settings API Hardening
-- [ ] Filter out `user:*` keys from the settings GET response (currently exposes password hashes)
-- [ ] Stop returning last 4 chars of API keys in masked output
+- [x] Filter out `user:*` keys from the settings GET response (currently exposes password hashes)
+- [x] Stop returning last 4 chars of API keys in masked output
 
 ### CSRF Protection
-- [ ] Add origin/referer validation on state-changing endpoints (POST/PUT/DELETE)
-- [ ] Validate origin header on trading and settings routes
+- [x] Add origin/referer validation on state-changing endpoints (POST/PUT/DELETE)
+- [x] Validate origin header on trading and settings routes
 
 ### API Key Encryption at Rest
-- [ ] Encrypt API keys stored in the settings table (AES-256 or similar)
-- [ ] Decrypt only at point of use, never return plaintext to frontend
+- [x] Encrypt API keys stored in the settings table (AES-256 or similar)
+- [x] Decrypt only at point of use, never return plaintext to frontend
 
 ### Input Validation & Limits
-- [ ] Add max length validation on chat messages to prevent resource exhaustion
-- [ ] Add max length validation on knowledge content submissions
+- [x] Add max length validation on chat messages to prevent resource exhaustion
+- [x] Add max length validation on knowledge content submissions
 - [ ] Add request body size limits on all POST endpoints
 
 ## NEXUS v3 — Critical New Features
@@ -152,7 +152,7 @@
 - [x] Full page with chokepoint status, traffic anomalies, dark fleet alerts, GDELT events
 - [x] Chat tool for shipping intelligence queries
 - [ ] AIS vessel tracking integration (paid feed)
-- [ ] Overlay on war room map alongside aircraft tracking
+- [x] Overlay on war room map alongside aircraft tracking
 
 ### v3.6 Signal Backtester
 - [x] Run historical signal engine against past price data
@@ -160,7 +160,7 @@
 - [x] Per-layer accuracy breakdown (celestial, hebrew, geopolitical, esoteric)
 - [x] Backtest specific signal types against specific asset classes
 - [x] Calibration dashboard: where the engine is strong vs weak
-- [ ] Feed results into prediction engine confidence adjustment
+- [x] Feed results into prediction engine confidence adjustment
 
 ### v3.6.1 Backtest Institutional Hardening
 - [x] Fix: prior backtests now loadable (missing DB columns in query, JSONB string parsing, error handling)
@@ -178,6 +178,15 @@
 - [ ] Monte Carlo permutation test: compare observed accuracy against 10,000 random shuffles for exact p-value
 - [ ] Expanding window cross-validation with purging (de Prado 2018): purge overlapping predictions between train/test
 
+### v3.6.2 Backtest Feedback Loops
+- [x] Central feedback module: `lib/backtest/feedback-loops.ts` with 10-min TTL cache
+- [x] Category accuracy → prediction confidence: backtest calibration gap applied as damped multiplier in `adjustConfidenceForBaseRate()`
+- [x] Walk-forward OOS → thesis credibility: credibility score scales thesis confidence, OOS stats injected into briefing prompt
+- [x] Regime analysis → regime detection: backtest regime performance data enriches `detectCurrentRegime()` output
+- [x] Cost sensitivity → trading sizing: `computeSizingSuggestions()` scales position sizes by cost-aware factor from backtest sweep
+- [x] Calibration data → prediction correction: `applyCalibrationCorrection()` available for per-bucket or per-category confidence adjustment
+- [x] Cache invalidation: backtest completion triggers `invalidateBacktestCache()` so downstream picks up new results immediately
+
 ### v3.7 Narrative Tracker
 - [x] Track narrative shifts across GDELT and Reddit (worldnews, geopolitics, economics, wallstreetbets)
 - [x] Narrative clustering: group related stories into themes via keyword matching
@@ -185,7 +194,7 @@
 - [x] Divergence detection: when narrative sentiment contradicts price action
 - [x] Full page with trending narratives, divergences, source breakdown
 - [x] Chat tool for narrative queries
-- [ ] Feed narrative signals into thesis generation
+- [x] Feed narrative signals into thesis generation
 
 ### v3.8 Bond Auction Intelligence
 - [ ] Treasury auction bid-to-cover ratios
@@ -204,15 +213,16 @@
 - [ ] Auto-adjust signal weights during election windows
 
 ### v3.10 Automated Alert Chains
-- [ ] Signal intensity 5 auto-generates prediction and trade recommendation
-- [ ] Configurable action chains: detect -> reason -> notify -> stage trade
-- [ ] Multi-channel delivery: in-app, push, email, Telegram
+- [x] Signal intensity 4+ auto-generates prediction; intensity 5 triggers thesis + trade recommendations
+- [x] Alert chains: detect signal -> auto-create prediction -> thesis generation -> email notification
+- [x] Multi-channel delivery: in-app, push, email (Telegram not yet)
+- [ ] Configurable chain rules UI (user-editable action chains)
 - [ ] Escalation levels based on convergence density
 - [ ] Close the loop from signal detection to position management
 
 ### v3.11 MCP Server for External Agents
-- [ ] Expose NEXUS intelligence layer as MCP tool server
-- [ ] External AI agents can query signals, predictions, macro data, knowledge
+- [x] Expose NEXUS intelligence layer as MCP tool server
+- [x] External AI agents can query signals, predictions, macro data, knowledge
 - [ ] Authentication and rate limiting for external consumers
 - [ ] Tool definitions matching internal chat tool capabilities
 - [ ] Documentation and example agent implementations
@@ -307,10 +317,10 @@
 - [ ] Market cap column
 
 ### Chart Upgrades
-- [ ] Technical indicator overlays (SMA, EMA, RSI, MACD, Bollinger Bands)
+- [x] Technical indicator overlays (SMA, EMA, RSI, MACD, Bollinger Bands)
 - [ ] Fibonacci retracement drawing tool
-- [ ] Multi-timeframe toggle (1D, 1W, 1M, 3M, 6M, 1Y, 5Y)
-- [ ] Volume profile
+- [x] Multi-timeframe toggle (3M, 6M, 1Y, 2Y, 5Y — missing 1D, 1W)
+- [x] Volume profile (histogram bars, not full profile)
 - [ ] Compare mode (overlay multiple symbols)
 - [ ] Fullscreen chart view
 
@@ -337,9 +347,9 @@
 - [ ] Sector rotation analysis (momentum scoring)
 
 ### Correlation Matrix
-- [ ] Cross-asset correlation grid (equities, bonds, commodities, FX, crypto)
-- [ ] Rolling window selector (30d, 90d, 1Y)
-- [ ] Highlight regime changes (correlation breakdowns)
+- [x] Cross-asset correlation grid (equities, bonds, commodities, FX, crypto)
+- [x] Rolling window selector (20d, 60d)
+- [x] Highlight regime changes (correlation breakdowns)
 - [ ] Integration with geopolitical signals (unique to Nexus)
 
 ### Earnings Calendar
@@ -355,6 +365,7 @@
 - [ ] FOMC dot plot visualization
 - [ ] Meeting countdown with market positioning
 - [ ] Historical rate decision impact on assets
+- [x] Central bank statement NLP analysis (hawkish/dovish scoring, rate path implications) — `lib/nlp/central-bank.ts`
 
 ## Phase 3: Advanced Analytics
 
@@ -501,7 +512,7 @@
 - [x] Wire `NotificationBell` to SSE stream or polling fallback
 - [x] Show toast on new alert trigger
 - [x] Add sidebar badge count for undismissed alerts
-- [ ] Stretch: email delivery via Resend or SendGrid
+- [x] Stretch: email delivery via Resend or SendGrid
 
 #### Subscription Gating
 - [x] Add `requireTier(minTier)` middleware helper for API routes
@@ -525,14 +536,14 @@ No user-facing button to run signal detection. `/api/scheduler` route exists but
 
 #### Signal → Trade Closed-Loop View
 Chain Signal → Prediction → Trade → Outcome exists in DB but no connected view surfaces it.
-- [ ] Add "Lineage" panel to signal detail page showing downstream predictions and trades
+- [x] Add "Lineage" panel to signal detail page showing downstream predictions and trades
 - [ ] Add signal origin to thesis detail page
 - [ ] Approximate P&L attribution on the trading page
 
 #### Portfolio Performance History
 `portfolioSnapshots` table is populated but there is no historical chart.
-- [ ] Equity curve chart on trading page (value over time from snapshots)
-- [ ] Show peak, trough, drawdown, and cumulative return
+- [x] Equity curve chart on trading page (value over time from snapshots)
+- [x] Show peak, trough, drawdown, and cumulative return
 - [ ] Add daily snapshot cron or trigger on portfolio page load
 
 ### P2 — Medium Priority
@@ -551,7 +562,7 @@ No way to export intelligence output.
 
 #### Game Theory: DB Persistence and AI Matching
 Scenarios are hardcoded in `lib/game-theory/actors.ts`. The `game_theory_scenarios` DB table is out of sync.
-- [ ] Persist analysis results to `game_theory_scenarios` with timestamps
+- [x] Persist analysis results to `game_theory_scenarios` with timestamps
 - [ ] Allow users to annotate scenarios with current event notes
 - [ ] "Which scenario most matches current signals?" AI cross-reference prompt
 
@@ -579,17 +590,17 @@ Mentioned in system design but not implemented.
 #### Referral Payout Mechanism
 Commissions tracked but no payout flow.
 - [ ] Stripe Connect or manual payout queue
-- [ ] "Request Payout" button once threshold is reached
-- [ ] Payout history on referrals page
+- [x] "Request Payout" button once threshold is reached
+- [x] Payout history on referrals page
 
 #### Model Selection in Settings
 `getModel()` utility exists but model is effectively hardcoded.
-- [ ] Add model preference setting (Opus / Sonnet / Haiku) per feature category
-- [ ] Surface in settings under AI Configuration
+- [x] Add model preference setting (Opus / Sonnet / Haiku) per feature category
+- [x] Surface in settings under AI Configuration
 
 #### Esoteric Signals (Cultural Context Only)
 Stripped from trading composite: lunar phase, Chinese zodiac, numerology, flying stars, Kondratieff. Kept: Hebrew/Islamic calendars (first-class event layers). Esoteric data still available via `/api/esoteric` and calendar page.
-- [ ] Surface as dedicated "Cultural Context" tab on calendar page (display only, clearly labeled non-trading)
+- [x] Surface as dedicated "Cultural Context" tab on calendar page (display only, clearly labeled non-trading)
 
 #### Options Data Feed into Signals
 Put/call ratio extremes should trigger a market signal. Currently options widget is display-only.
@@ -601,6 +612,6 @@ Put/call ratio extremes should trigger a market signal. Currently options widget
 - [ ] `lib/knowledge/ingest-final.ts` in root — unclear status, move or delete
 - [ ] Signal scheduling has no retry logic or error recovery
 - [ ] No structured error types across API routes (all ad hoc strings)
-- [ ] No end-to-end or unit tests
+- [ ] No end-to-end tests; limited unit tests (signals, predictions, auth only)
 - [ ] JSON stored in `text` Drizzle columns — migrate to `jsonb` for query performance on large datasets
-- [ ] `gameTheoryScenarios` DB table exists but scenarios are hardcoded — reconcile or remove table
+- [x] `gameTheoryScenarios` DB table exists but scenarios are hardcoded — reconcile or remove table

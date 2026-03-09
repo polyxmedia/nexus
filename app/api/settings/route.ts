@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, not, like } from "drizzle-orm";
 import { encrypt, decrypt } from "@/lib/encryption";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // Keys that are global (not per-user) and readable by any authenticated user
 const GLOBAL_READABLE_KEYS = new Set([
@@ -92,6 +93,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -140,6 +144,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

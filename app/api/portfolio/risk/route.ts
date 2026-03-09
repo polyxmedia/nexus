@@ -1,30 +1,22 @@
 import { NextResponse } from "next/server";
-import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { Trading212Client } from "@/lib/trading212/client";
 import { computePortfolioRisk, STRESS_SCENARIOS, stressTestPortfolio } from "@/lib/market-data/risk-analytics";
 import { requireTier } from "@/lib/auth/require-tier";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 export async function GET() {
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {
-    // Get T212 credentials
-    const apiKeySetting = await db.select().from(schema.settings)
-      .where(eq(schema.settings.key, "t212_api_key"));
-    const apiSecretSetting = await db.select().from(schema.settings)
-      .where(eq(schema.settings.key, "t212_api_secret"));
-
-    const apiKey = apiKeySetting?.value || process.env.TRADING212_API_KEY;
-    const apiSecret = apiSecretSetting?.value || process.env.TRADING212_SECRET;
+    const apiKey = await getSettingValue("t212_api_key", process.env.TRADING212_API_KEY);
+    const apiSecret = await getSettingValue("t212_api_secret", process.env.TRADING212_SECRET);
 
     if (!apiKey || !apiSecret) {
       return NextResponse.json({ error: "Trading 212 credentials not configured" }, { status: 500 });
     }
 
-    const envSetting = await db.select().from(schema.settings)
-      .where(eq(schema.settings.key, "t212_environment"));
-    const environment = (envSetting?.value || "live") as "demo" | "live";
+    const envValue = await getSettingValue("t212_environment");
+    const environment = (envValue || "live") as "demo" | "live";
 
     const client = new Trading212Client(apiKey, apiSecret, environment);
 

@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/auth";
 import { CoinbaseClient } from "@/lib/coinbase/client";
 import { checkDuplicate } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
+import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin } from "@/lib/security/csrf";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 async function getCoinbaseClient() {
-  const apiKeySetting = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "coinbase_api_key"))
-    ;
-
-  const apiSecretSetting = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "coinbase_api_secret"))
-    ;
-
-  const apiKey = apiKeySetting[0]?.value || process.env.COINBASE_API_KEY;
-  const apiSecret = apiSecretSetting[0]?.value || process.env.COINBASE_API_SECRET;
+  const apiKey = await getSettingValue("coinbase_api_key", process.env.COINBASE_API_KEY);
+  const apiSecret = await getSettingValue("coinbase_api_secret", process.env.COINBASE_API_SECRET);
 
   if (!apiKey || !apiSecret) {
     throw new Error("Coinbase API credentials not configured");
@@ -36,7 +28,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId") || undefined;
-    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 500);
 
     const client = await getCoinbaseClient();
     const orders = await client.getOrders({ productId, limit });
@@ -48,8 +40,24 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // CSRF check
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Rate limit: 30 orders per hour per user
+  const rl = rateLimit(`coinbase:${session.user.name}`, 30, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Trading rate limit exceeded. Max 30 orders per hour." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
 
   try {
     const body = await request.json();
@@ -65,6 +73,27 @@ export async function POST(request: NextRequest) {
     if (!["BUY", "SELL"].includes(side)) {
       return NextResponse.json(
         { error: "side must be BUY or SELL" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof amount !== "number" || amount <= 0 || !isFinite(amount)) {
+      return NextResponse.json(
+        { error: "amount must be a positive number" },
+        { status: 400 }
+      );
+    }
+
+    if (limitPrice !== undefined && limitPrice !== null && (typeof limitPrice !== "number" || limitPrice <= 0 || !isFinite(limitPrice))) {
+      return NextResponse.json(
+        { error: "limitPrice must be a positive number" },
+        { status: 400 }
+      );
+    }
+
+    if (!/^[A-Z0-9\-]{1,20}$/.test(productId)) {
+      return NextResponse.json(
+        { error: "Invalid productId format" },
         { status: 400 }
       );
     }
@@ -85,7 +114,7 @@ export async function POST(request: NextRequest) {
       orderResult = await client.placeLimitOrder({
         productId,
         side,
-        baseSize: amount,
+        baseSize: String(amount),
         limitPrice: String(limitPrice),
       });
     } else {
@@ -103,7 +132,7 @@ export async function POST(request: NextRequest) {
         ticker: productId,
         direction: side,
         orderType: orderType || "MARKET",
-        quantity: parseFloat(amount),
+        quantity: amount,
         limitPrice: limitPrice ? parseFloat(limitPrice) : null,
         status: "pending",
         environment: "live",
@@ -121,8 +150,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const { searchParams } = new URL(request.url);

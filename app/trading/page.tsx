@@ -21,7 +21,10 @@ import {
   TrendingDown,
   Coins,
   BarChart3,
+  Landmark,
 } from "lucide-react";
+import { IBKRPanel } from "@/components/trading/ibkr-panel";
+import { EquityCurve } from "@/components/trading/equity-curve";
 
 const CandlestickChart = dynamic(() => import("@/components/charts/candlestick-chart"), { ssr: false });
 
@@ -742,7 +745,7 @@ export default function TradingPage() {
 
 function TradingPageInner() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"stocks" | "crypto">("stocks");
+  const [activeTab, setActiveTab] = useState<"stocks" | "crypto" | "ibkr">("stocks");
 
   const [account, setAccount] = useState<AccountData | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -965,7 +968,21 @@ function TradingPageInner() {
           <Coins className="h-3.5 w-3.5" />
           Coinbase
         </button>
+        <button
+          onClick={() => setActiveTab("ibkr")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px ${
+            activeTab === "ibkr"
+              ? "border-accent-cyan text-accent-cyan"
+              : "border-transparent text-navy-500 hover:text-navy-300"
+          }`}
+        >
+          <Landmark className="h-3.5 w-3.5" />
+          Interactive Brokers
+        </button>
       </div>
+
+      {/* ── Equity Curve ── */}
+      <EquityCurve />
 
       {/* ── Chart Panels grid ── */}
       {chartPanels.length > 0 && (() => {
@@ -990,6 +1007,11 @@ function TradingPageInner() {
       {/* ── Crypto Tab ── */}
       {activeTab === "crypto" && (
         <CoinbasePanel onOpenChart={(s) => addPanel(s)} />
+      )}
+
+      {/* ── IBKR Tab ── */}
+      {activeTab === "ibkr" && (
+        <IBKRPanel onOpenChart={(s) => addPanel(s)} />
       )}
 
       {/* ── Stocks Tab ── */}

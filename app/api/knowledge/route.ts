@@ -8,6 +8,8 @@ import {
   getKnowledgeStats,
 } from "@/lib/knowledge/engine";
 import { seedKnowledge } from "@/lib/knowledge/seed";
+import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -48,6 +50,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
+
   const { searchParams } = new URL(request.url);
 
   // Seed action
@@ -63,6 +71,14 @@ export async function POST(request: NextRequest) {
       { error: "title, content, and category are required" },
       { status: 400 }
     );
+  }
+
+  // Input validation: max lengths
+  if (typeof body.title === "string" && body.title.length > 500) {
+    return NextResponse.json({ error: "Title too long. Maximum 500 characters." }, { status: 400 });
+  }
+  if (typeof body.content === "string" && body.content.length > 100_000) {
+    return NextResponse.json({ error: "Content too long. Maximum 100,000 characters." }, { status: 400 });
   }
 
   const entry = await addKnowledge({
@@ -82,6 +98,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
+
   const body = await request.json();
 
   if (!body.id) {
@@ -113,6 +135,12 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
+
   const { searchParams } = new URL(request.url);
   const idParam = searchParams.get("id");
 

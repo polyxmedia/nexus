@@ -1,11 +1,13 @@
 // In-memory rate limiter — works for single-server deployments.
-// For multi-server, swap the Map for Redis.
+// IMPORTANT: For multi-server (Vercel serverless), swap the Map for Redis.
+// Rate limits reset on cold start and are not shared across instances.
 
 interface RateLimitEntry {
   count: number;
   resetAt: number;
 }
 
+const MAX_STORE_SIZE = 50_000;
 const store = new Map<string, RateLimitEntry>();
 
 // Lazy cleanup — runs after first rateLimit() call
@@ -19,6 +21,23 @@ function scheduleCleanup() {
       if (entry.resetAt < now) store.delete(key);
     }
   }, 5 * 60 * 1000);
+}
+
+function evictIfNeeded() {
+  if (store.size <= MAX_STORE_SIZE) return;
+  const now = Date.now();
+  // First pass: remove expired entries
+  for (const [key, entry] of store.entries()) {
+    if (entry.resetAt < now) store.delete(key);
+  }
+  // If still over limit, remove oldest entries
+  if (store.size > MAX_STORE_SIZE) {
+    const entries = [...store.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
+    const toRemove = Math.ceil(entries.length * 0.1);
+    for (let i = 0; i < toRemove; i++) {
+      store.delete(entries[i][0]);
+    }
+  }
 }
 
 export interface RateLimitResult {
@@ -35,6 +54,7 @@ export interface RateLimitResult {
  */
 export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   scheduleCleanup();
+  evictIfNeeded();
   const now = Date.now();
   const entry = store.get(key);
 

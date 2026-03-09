@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, like } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -57,6 +58,9 @@ export async function GET() {
 
 // POST - update user role or grant/revoke access
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name || !(await isAdmin(session.user.name))) {

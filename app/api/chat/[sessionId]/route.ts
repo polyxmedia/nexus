@@ -186,6 +186,18 @@ export async function POST(
   const attachedFiles = body.files as Array<{ name: string; type: string; data: string }> | undefined;
   if (!userMessage?.trim() && !attachedFiles?.length) return NextResponse.json({ error: "Message required" }, { status: 400 });
 
+  // Input validation: max message length (16K chars)
+  if (userMessage.length > 16_000) {
+    return NextResponse.json({ error: "Message too long. Maximum 16,000 characters." }, { status: 400 });
+  }
+  // Input validation: max 5 file attachments, 10MB each
+  if (attachedFiles && attachedFiles.length > 5) {
+    return NextResponse.json({ error: "Maximum 5 file attachments allowed." }, { status: 400 });
+  }
+  if (attachedFiles?.some((f) => f.data && f.data.length > 10 * 1024 * 1024)) {
+    return NextResponse.json({ error: "File attachment too large. Maximum 10MB per file." }, { status: 400 });
+  }
+
   const sessionRows = await db.select().from(schema.chatSessions).where(eq(schema.chatSessions.uuid, sessionId));
   const session = sessionRows[0];
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });

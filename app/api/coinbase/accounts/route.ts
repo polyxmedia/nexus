@@ -1,24 +1,11 @@
 import { NextResponse } from "next/server";
-import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { CoinbaseClient } from "@/lib/coinbase/client";
 import { requireTier } from "@/lib/auth/require-tier";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 async function getCoinbaseClient() {
-  const apiKeySetting = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "coinbase_api_key"))
-    ;
-
-  const apiSecretSetting = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "coinbase_api_secret"))
-    ;
-
-  const apiKey = apiKeySetting[0]?.value || process.env.COINBASE_API_KEY;
-  const apiSecret = apiSecretSetting[0]?.value || process.env.COINBASE_API_SECRET;
+  const apiKey = await getSettingValue("coinbase_api_key", process.env.COINBASE_API_KEY);
+  const apiSecret = await getSettingValue("coinbase_api_secret", process.env.COINBASE_API_SECRET);
 
   if (!apiKey || !apiSecret) {
     throw new Error("Coinbase API key and secret not configured. Set COINBASE_API_KEY and COINBASE_API_SECRET in settings or environment.");

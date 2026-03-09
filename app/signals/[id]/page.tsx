@@ -27,6 +27,7 @@ import {
   type TradeRecommendation,
 } from "@/components/signals/trade-recommendation-card";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
+import { SignalLineagePanel } from "@/components/signals/signal-lineage-panel";
 import {
   LineChart,
   Line,
@@ -119,6 +120,8 @@ export default function SignalDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [backtest, setBacktest] = useState<BacktestData | null>(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [lineage, setLineage] = useState<any>(null);
 
   useEffect(() => {
     fetch(`/api/signals/${id}`)
@@ -153,6 +156,15 @@ export default function SignalDetailPage() {
             })
             .catch(() => setBacktestLoading(false));
         }
+
+        // Fetch lineage chain
+        fetch(`/api/signals/${id}/lineage`)
+          .then((r) => r.json())
+          .then((lin) => {
+            if (lin.signal) setLineage(lin);
+          })
+          .catch(() => {});
+
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -727,6 +739,9 @@ export default function SignalDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Decision Lineage */}
+      {lineage && <SignalLineagePanel data={lineage} />}
       </UpgradeGate>
     </PageContainer>
   );
