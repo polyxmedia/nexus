@@ -137,7 +137,7 @@ async function fetchEdgarInsiderTrades(): Promise<InsiderTrade[]> {
       {
         signal: AbortSignal.timeout(12000),
         headers: {
-          "User-Agent": "NexusIntelligence admin@nexus.app",
+          "User-Agent": "NexusIntelligence hello@nexushq.xyz",
           "Accept": "application/json",
         },
         cache: "no-store",

@@ -81,10 +81,10 @@ export default function SecurityPage() {
           <p className="font-sans text-sm text-navy-400 leading-relaxed">
             Report vulnerabilities to{" "}
             <a
-              href="mailto:security@nexushq.xyz"
+              href="mailto:hello@nexushq.xyz"
               className="text-accent-cyan hover:text-accent-cyan/80 transition-colors"
             >
-              security@nexushq.xyz
+              hello@nexushq.xyz
             </a>
             . Include a detailed description of the vulnerability and steps
             to reproduce. We aim to acknowledge reports within 24 hours and

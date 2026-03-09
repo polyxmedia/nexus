@@ -1,5 +1,6 @@
 import { db, schema } from "@/lib/db";
 import { eq, sql } from "drizzle-orm";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 const VOYAGE_MODEL = "voyage-3";
 const EMBEDDING_DIM = 1024;
@@ -9,19 +10,13 @@ const EMBEDDING_DIM = 1024;
  */
 async function getApiKey(): Promise<string> {
   // Check for dedicated Voyage key first, fall back to Anthropic key
-  const rows = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "voyage_api_key"));
-  if (rows?.value) return rows.value;
+  const voyageKey = await getSettingValue("voyage_api_key", process.env.VOYAGE_API_KEY);
+  if (voyageKey) return voyageKey;
 
-  const anthropicRows = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "anthropic_api_key"));
-  if (anthropicRows?.value) return anthropicRows.value;
+  const anthropicKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
+  if (anthropicKey) return anthropicKey;
 
-  return process.env.VOYAGE_API_KEY || process.env.ANTHROPIC_API_KEY || "";
+  return "";
 }
 
 /**

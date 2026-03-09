@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
   OnChainSnapshot,
@@ -405,6 +406,7 @@ export default function OnChainPage() {
 
   return (
     <PageContainer title="On-Chain Analytics" subtitle="Real-time blockchain intelligence across DeFi, whale activity, and exchange flows">
+      <UpgradeGate minTier="operator" feature="On-chain analytics" blur>
       {/* Controls */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex gap-1 flex-wrap">
@@ -520,6 +522,7 @@ export default function OnChainPage() {
           </section>
         )}
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

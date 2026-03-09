@@ -39,10 +39,10 @@ export default function ContactPage() {
               general enquiries.
             </p>
             <a
-              href="mailto:contact@nexushq.xyz"
+              href="mailto:hello@nexushq.xyz"
               className="font-mono text-sm text-accent-cyan hover:text-accent-cyan/80 transition-colors"
             >
-              contact@nexushq.xyz
+              hello@nexushq.xyz
             </a>
           </div>
 
@@ -58,10 +58,10 @@ export default function ContactPage() {
               pricing discussions.
             </p>
             <a
-              href="mailto:enterprise@nexushq.xyz"
+              href="mailto:hello@nexushq.xyz"
               className="font-mono text-sm text-accent-cyan hover:text-accent-cyan/80 transition-colors"
             >
-              enterprise@nexushq.xyz
+              hello@nexushq.xyz
             </a>
           </div>
         </div>

@@ -82,10 +82,10 @@ export default function StatusPage() {
         <p className="mt-6 font-sans text-xs text-navy-500 text-center">
           Status is updated automatically. For urgent issues, contact{" "}
           <a
-            href="mailto:support@nexushq.xyz"
+            href="mailto:hello@nexushq.xyz"
             className="text-accent-cyan hover:text-accent-cyan/80 transition-colors"
           >
-            support@nexushq.xyz
+            hello@nexushq.xyz
           </a>
         </p>
       </div>

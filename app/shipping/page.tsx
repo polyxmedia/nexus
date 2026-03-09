@@ -16,6 +16,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
@@ -365,6 +366,7 @@ export default function ShippingPage() {
         </div>
       }
     >
+      <UpgradeGate minTier="operator" feature="Shipping and dark fleet intelligence" blur>
       {loading ? (
         <LoadingSkeleton />
       ) : !snapshot ? (
@@ -569,6 +571,7 @@ export default function ShippingPage() {
           </section>
         </>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

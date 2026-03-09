@@ -121,7 +121,7 @@ export default function PrivacyPage() {
               You have the right to access, correct, or delete your personal
               data at any time. You may request a full export of your data or
               request account deletion by contacting us at
-              privacy@nexushq.xyz.
+              hello@nexushq.xyz.
             </p>
           </section>
 

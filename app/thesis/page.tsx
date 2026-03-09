@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { BriefingCard } from "@/components/ui/briefing-card";
 import { Markdown } from "@/components/ui/markdown";
 import { Metric } from "@/components/ui/metric";
@@ -235,6 +236,7 @@ export default function ThesisPage() {
       title="Thesis"
       subtitle="Intelligence briefings and trading actions"
     >
+      <UpgradeGate minTier="operator" feature="Investment thesis generation" blur>
       {/* Generate Section */}
       <div className="border border-navy-700 rounded bg-navy-900/80 p-4 mb-4">
         <div className="flex items-end gap-3">
@@ -537,6 +539,7 @@ export default function ThesisPage() {
           )}
         </>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

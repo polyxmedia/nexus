@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -92,6 +93,7 @@ export default function ParallelsPage() {
 
   return (
     <PageContainer title="Psycho-History Parallels">
+      <UpgradeGate minTier="analyst" feature="Historical parallels analysis" blur>
       <div className="space-y-6">
         {/* Search Bar */}
         <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-6">
@@ -371,6 +373,7 @@ export default function ParallelsPage() {
           </div>
         )}
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

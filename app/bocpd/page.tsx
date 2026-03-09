@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowUpRight,
@@ -106,6 +107,7 @@ export default function BOCPDPage() {
       title="Change-Point Detection"
       subtitle="Bayesian Online Change-Point Detection (Adams & MacKay 2007)"
     >
+      <UpgradeGate minTier="operator" feature="Bayesian change-point detection" blur>
       {/* Summary Cards */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <SummaryCard
@@ -241,6 +243,7 @@ export default function BOCPDPage() {
           </table>
         </div>
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

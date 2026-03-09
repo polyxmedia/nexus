@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExternalLink, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 
@@ -124,6 +125,7 @@ export default function AIProgressionPage() {
       title="AI Progression"
       subtitle="Capability tracking and labor displacement analysis"
     >
+      <UpgradeGate minTier="operator" feature="AI progression tracking" blur>
       {/* ── Composite Score ── */}
       <div className="border border-navy-800/60 rounded bg-navy-950/80 p-5 mb-8">
         <div className="flex items-end justify-between mb-4">
@@ -418,6 +420,7 @@ export default function AIProgressionPage() {
           </div>
         </div>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

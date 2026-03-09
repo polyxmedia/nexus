@@ -14,6 +14,7 @@ import {
   BrainCircuit,
 } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Markdown } from "@/components/ui/markdown";
 
 type PoliticalBias = "far-left" | "left" | "center-left" | "center" | "center-right" | "right" | "far-right" | "unknown";
@@ -151,6 +152,7 @@ export default function NewsPage() {
 
   return (
     <PageContainer title="News" subtitle="Real-time intelligence feed from global sources">
+      <UpgradeGate minTier="analyst" feature="News feed and intelligence" blur>
       {/* Top bar */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex gap-1 flex-wrap">
@@ -355,6 +357,7 @@ export default function NewsPage() {
           </div>
         </>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

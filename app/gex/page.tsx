@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface GEXLevel {
@@ -252,6 +253,7 @@ export default function GEXPage() {
       title="Gamma Exposure"
       subtitle="Net dealer gamma positioning across major ETFs"
     >
+      <UpgradeGate minTier="operator" feature="Gamma exposure analysis" blur>
       {/* Aggregate Regime Card */}
       <div className="mb-6 border border-navy-800/60 rounded bg-navy-950/80 p-5">
         <div className="flex items-start justify-between">
@@ -310,6 +312,7 @@ export default function GEXPage() {
           ))}
         </div>
       ) : null}
+      </UpgradeGate>
     </PageContainer>
   );
 }

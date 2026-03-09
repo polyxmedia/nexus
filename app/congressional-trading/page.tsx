@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search,
@@ -547,6 +548,7 @@ export default function CongressionalTradingPage() {
       title="Congressional Trading"
       subtitle="STOCK Act disclosures and SEC Form 4 insider filings"
     >
+      <UpgradeGate minTier="operator" feature="Congressional trading signals" blur>
       {/* AI Analysis */}
       <AnalysisPanel />
 
@@ -885,6 +887,7 @@ export default function CongressionalTradingPage() {
         </div>
       )}
 
+      </UpgradeGate>
     </PageContainer>
   );
 }

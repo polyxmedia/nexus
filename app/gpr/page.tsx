@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface GPRReading {
@@ -106,6 +107,7 @@ export default function GPRPage() {
 
   return (
     <PageContainer title="GPR Index" subtitle="Threats vs Acts Decomposition // Caldara-Iacoviello">
+      <UpgradeGate minTier="operator" feature="Geopolitical risk decomposition" blur>
       {/* Top Cards: Composite, Threats, Acts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="border border-navy-800/60 rounded bg-navy-950/80 p-5">
@@ -332,6 +334,7 @@ export default function GPRPage() {
       <div className="text-[10px] font-mono text-navy-700 mt-4">
         Last updated: {new Date(data.lastUpdated).toLocaleString()} // Source: Caldara-Iacoviello GPR Index + GDELT
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

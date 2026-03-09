@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { authOptions } from "./auth";
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
@@ -44,6 +45,30 @@ export interface TierCheckResult {
 export async function requireTier(
   minTier: "analyst" | "operator" | "institution"
 ): Promise<{ result: TierCheckResult } | { response: NextResponse }> {
+  // Allow internal scheduler calls via CRON_SECRET bearer token
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const headerStore = await headers();
+    const authHeader = headerStore.get("authorization");
+    if (authHeader === `Bearer ${cronSecret}`) {
+      return {
+        result: {
+          authorized: true,
+          tier: "institution",
+          tierLevel: 3,
+          limits: {
+            chatMessages: -1,
+            warRoomAccess: "full",
+            tradingIntegration: true,
+            apiAccess: true,
+            customSignalLayers: true,
+          },
+          username: "__scheduler__",
+        },
+      };
+    }
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return {

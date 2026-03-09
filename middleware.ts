@@ -11,6 +11,13 @@ export default withAuth({
     authorized({ req, token }) {
       // Allow public API paths without auth
       if (PUBLIC_API_PATHS.some((p) => req.nextUrl.pathname === p)) return true;
+
+      // Allow internal scheduler calls with CRON_SECRET
+      const cronSecret = process.env.CRON_SECRET;
+      if (cronSecret && req.headers.get("authorization") === `Bearer ${cronSecret}`) {
+        return true;
+      }
+
       return !!token;
     },
   },

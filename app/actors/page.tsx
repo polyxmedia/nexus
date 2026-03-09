@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Users,
@@ -121,17 +122,20 @@ export default function ActorsPage() {
   if (loading) {
     return (
       <PageContainer title="Actor Profiles">
+        <UpgradeGate minTier="analyst" feature="Actor tracking and analysis" blur>
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
+        </UpgradeGate>
       </PageContainer>
     );
   }
 
   return (
     <PageContainer title="Actor-Belief Profiles">
+      <UpgradeGate minTier="analyst" feature="Actor tracking and analysis" blur>
       <div className="space-y-4">
         <div className="mb-2">
           <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
@@ -481,6 +485,7 @@ export default function ActorsPage() {
           );
         })}
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

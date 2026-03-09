@@ -17,6 +17,7 @@ import {
   Globe,
 } from "lucide-react";
 import Link from "next/link";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
 // ── Types ──
 
@@ -655,6 +656,7 @@ export default function GameTheoryPage() {
 
   return (
     <div className="ml-48 h-screen flex flex-col bg-navy-950">
+      <UpgradeGate minTier="analyst" feature="Game theory analysis" blur>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-navy-700/50 px-6 h-14 shrink-0">
         <div className="flex items-center gap-3">
@@ -749,6 +751,7 @@ export default function GameTheoryPage() {
           )}
         </div>
       )}
+      </UpgradeGate>
     </div>
   );
 }

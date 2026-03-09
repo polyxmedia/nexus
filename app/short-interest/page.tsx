@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ShortInterestEntry {
@@ -98,6 +99,7 @@ export default function ShortInterestPage() {
       title="Short Interest"
       subtitle="Aggregate short interest signal across sector ETF proxies"
     >
+      <UpgradeGate minTier="operator" feature="Short interest signals" blur>
       {loading ? (
         <LoadingSkeleton />
       ) : error ? (
@@ -292,6 +294,7 @@ export default function ShortInterestPage() {
           </section>
         </div>
       ) : null}
+      </UpgradeGate>
     </PageContainer>
   );
 }

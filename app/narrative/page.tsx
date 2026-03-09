@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity,
@@ -326,6 +327,7 @@ export default function NarrativePage() {
         </div>
       }
     >
+      <UpgradeGate minTier="operator" feature="Narrative and sentiment tracking" blur>
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="border border-navy-800/60 rounded-lg p-3">
@@ -461,6 +463,7 @@ export default function NarrativePage() {
           </div>
         </>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

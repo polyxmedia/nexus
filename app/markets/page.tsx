@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -170,6 +171,7 @@ export default function MarketsPage() {
 
   return (
     <PageContainer title="Markets" subtitle="Live market data via Yahoo Finance">
+      <UpgradeGate minTier="operator" feature="Market data and analysis" blur>
       <Tabs.Root value={activeTab} onValueChange={handleTabChange}>
         <Tabs.List className="flex border-b border-navy-700/30 mb-6">
           {TAB_KEYS.map((key) => (
@@ -309,6 +311,7 @@ export default function MarketsPage() {
           )}
         </div>
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

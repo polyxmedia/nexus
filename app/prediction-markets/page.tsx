@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowUpRight, ArrowDownRight, ExternalLink } from "lucide-react";
 
@@ -369,6 +370,7 @@ export default function PredictionMarketsPage() {
       title="Prediction Markets"
       subtitle={`${data.totalMarkets} active markets from Polymarket and Kalshi`}
     >
+      <UpgradeGate minTier="operator" feature="Prediction markets divergence" blur>
       {/* ── Tabs ── */}
       <div className="flex items-center gap-0 border-b border-navy-800/40 mb-6">
         {TABS.map((t) => (
@@ -671,6 +673,7 @@ export default function PredictionMarketsPage() {
           )}
         </div>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

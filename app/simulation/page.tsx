@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Play, Sparkles, Search, TrendingUp, ChevronDown } from "lucide-react";
 import {
@@ -210,6 +211,7 @@ export default function SimulationPage() {
 
   return (
     <PageContainer title="Monte Carlo Simulation" subtitle="Scenario-weighted probability analysis">
+      <UpgradeGate minTier="operator" feature="Monte Carlo simulation" blur>
       <div className="grid grid-cols-12 gap-4">
         {/* Config Panel */}
         <div className="col-span-3 space-y-4">
@@ -539,6 +541,7 @@ export default function SimulationPage() {
           )}
         </div>
       </div>
+      </UpgradeGate>
     </PageContainer>
   );
 }

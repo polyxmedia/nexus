@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import {
   Plus,
   Search,
@@ -274,6 +275,7 @@ export default function WatchlistsPage() {
         </div>
       }
     >
+      <UpgradeGate minTier="operator" feature="Watchlist management" blur>
       {/* Auto-refresh indicator */}
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-1.5">
@@ -542,6 +544,7 @@ export default function WatchlistsPage() {
           })}
         </div>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

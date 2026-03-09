@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity,
@@ -219,6 +220,7 @@ export default function SignalsPage() {
   if (loading) {
     return (
       <PageContainer title="Signal Intelligence" subtitle="Multi-layer convergence detection">
+        <UpgradeGate minTier="analyst" feature="Signal detection and monitoring" blur>
         <div className="space-y-4">
           <div className="grid grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -226,12 +228,14 @@ export default function SignalsPage() {
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-96 w-full" />
         </div>
+        </UpgradeGate>
       </PageContainer>
     );
   }
 
   return (
     <PageContainer title="Signal Intelligence" subtitle="Multi-layer convergence detection">
+      <UpgradeGate minTier="analyst" feature="Signal detection and monitoring" blur>
       {/* Overview Metrics */}
       {analytics && (
         <>
@@ -579,6 +583,7 @@ export default function SignalsPage() {
           })}
         </div>
       )}
+      </UpgradeGate>
     </PageContainer>
   );
 }

@@ -275,10 +275,10 @@ export default function MediaPage() {
                 Media Enquiries
               </div>
               <a
-                href="mailto:media@nexushq.xyz"
+                href="mailto:hello@nexushq.xyz"
                 className="font-mono text-sm text-navy-200 hover:text-white transition-colors"
               >
-                media@nexushq.xyz
+                hello@nexushq.xyz
               </a>
               <p className="font-sans text-[12px] text-navy-500 mt-3 leading-relaxed">
                 For press enquiries, interview requests, and media partnerships.
@@ -345,8 +345,8 @@ export default function MediaPage() {
             <p className="font-sans text-[13px] text-navy-500 max-w-md mx-auto">
               Nexus Intelligence launched in 2025. For press enquiries or early
               access for review, contact{" "}
-              <a href="mailto:media@nexushq.xyz" className="text-accent-cyan/70 hover:text-accent-cyan transition-colors">
-                media@nexushq.xyz
+              <a href="mailto:hello@nexushq.xyz" className="text-accent-cyan/70 hover:text-accent-cyan transition-colors">
+                hello@nexushq.xyz
               </a>
             </p>
           </div>
@@ -510,7 +510,7 @@ export default function MediaPage() {
         </p>
         <div className="flex items-center justify-center gap-4">
           <a
-            href="mailto:media@nexushq.xyz"
+            href="mailto:hello@nexushq.xyz"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-navy-100 text-navy-950 rounded-lg text-[11px] font-mono tracking-wider uppercase hover:bg-white transition-colors"
           >
             <Mail className="w-3.5 h-3.5" />

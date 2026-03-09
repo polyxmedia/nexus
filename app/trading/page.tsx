@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { PageContainer } from "@/components/layout/page-container";
-import { UpgradeGate } from "@/components/ui/upgrade-gate";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { DataGrid, type Column } from "@/components/ui/data-grid";
 import { StatusDot } from "@/components/ui/status-dot";
 import { Button } from "@/components/ui/button";
@@ -930,7 +930,7 @@ function TradingPageInner() {
   ];
 
   return (
-    <UpgradeGate minTier="analyst" feature="Trading Integration">
+    <UpgradeGate minTier="operator" feature="Trading Integration">
     <PageContainer
       title="Trading"
       subtitle="Stocks & Crypto"

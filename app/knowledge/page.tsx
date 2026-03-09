@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PageContainer } from "@/components/layout/page-container";
+import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import {
   BookOpen,
   Plus,
@@ -211,6 +212,7 @@ export default function KnowledgePage() {
         </button>
       }
     >
+      <UpgradeGate minTier="analyst" feature="Knowledge bank" blur>
       {/* Stats Bar */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
@@ -439,6 +441,8 @@ export default function KnowledgePage() {
           })}
         </div>
       )}
+
+      </UpgradeGate>
 
       {/* Create/Edit Panel */}
       {showCreate && (
