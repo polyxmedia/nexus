@@ -2,6 +2,7 @@
 
 import { Metric } from "@/components/ui/metric";
 import { Badge } from "@/components/ui/badge";
+import { CollapsibleCard } from "./CollapsibleCard";
 
 interface SnapshotData {
   symbol?: string;
@@ -22,12 +23,6 @@ interface SnapshotData {
   error?: string;
 }
 
-const trendColor = {
-  bullish: "green" as const,
-  bearish: "red" as const,
-  neutral: "neutral" as const,
-};
-
 export function SnapshotWidget({ data }: { data: SnapshotData }) {
   if (data.error) {
     return (
@@ -40,25 +35,25 @@ export function SnapshotWidget({ data }: { data: SnapshotData }) {
   const s = data.snapshot!;
 
   return (
-    <div className="my-2 border border-navy-700 rounded bg-navy-900/80 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-[10px] uppercase tracking-wider text-navy-500 font-mono">
-          Technical Snapshot
-        </span>
-        <Badge variant="category">{data.symbol}</Badge>
-        <Badge
-          className={
-            s.trend === "bullish"
-              ? "bg-accent-emerald/20 text-accent-emerald border-accent-emerald/30"
-              : s.trend === "bearish"
-                ? "bg-accent-rose/20 text-accent-rose border-accent-rose/30"
-                : ""
-          }
-        >
-          {s.trend}
-        </Badge>
-      </div>
-
+    <CollapsibleCard
+      title="Technical Snapshot"
+      badge={
+        <div className="flex items-center gap-2">
+          <Badge variant="category">{data.symbol}</Badge>
+          <Badge
+            className={
+              s.trend === "bullish"
+                ? "bg-accent-emerald/20 text-accent-emerald border-accent-emerald/30"
+                : s.trend === "bearish"
+                  ? "bg-accent-rose/20 text-accent-rose border-accent-rose/30"
+                  : ""
+            }
+          >
+            {s.trend}
+          </Badge>
+        </div>
+      }
+    >
       <div className="grid grid-cols-3 gap-4">
         <Metric
           label="Price"
@@ -127,6 +122,6 @@ export function SnapshotWidget({ data }: { data: SnapshotData }) {
           Cached: {new Date(data.cachedAt).toLocaleString()}
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   );
 }

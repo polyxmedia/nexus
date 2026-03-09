@@ -4,7 +4,7 @@ import { getWartimeAnalysis } from "@/lib/game-theory/wartime";
 import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const analyses = await Promise.all(SCENARIOS.map(async (scenario) => {

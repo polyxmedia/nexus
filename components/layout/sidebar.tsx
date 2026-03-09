@@ -16,7 +16,6 @@ import {
   Crosshair,
   Dice5,
   FileText,
-  FlaskConical,
   Globe,
   History,
   Landmark,
@@ -45,65 +44,70 @@ import {
 import { signOut, useSession } from "next-auth/react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
-const mainNav = [
+type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }> };
+
+// ── Analyst tier: core intelligence ──
+const mainNav: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Ops Center", href: "/dashboard/operator", icon: Monitor },
   { name: "Chat", href: "/chat", icon: MessageSquare },
 ];
 
-const intelligenceNav = [
+const intelligenceNav: NavItem[] = [
   { name: "War Room", href: "/warroom", icon: Shield },
   { name: "News", href: "/news", icon: Newspaper },
   { name: "Signals", href: "/signals", icon: Activity },
   { name: "Predictions", href: "/predictions", icon: Crosshair },
-  { name: "Pred. Markets", href: "/prediction-markets", icon: Scale },
-  { name: "Congress", href: "/congressional-trading", icon: Landmark },
-  { name: "Narratives", href: "/narrative", icon: Globe },
-  { name: "AI Progression", href: "/ai-progression", icon: Bot },
-  { name: "GPR Index", href: "/gpr", icon: Radar },
   { name: "Game Theory", href: "/game-theory", icon: Swords },
+  { name: "Narratives", href: "/narrative", icon: Globe },
   { name: "Parallels", href: "/parallels", icon: History },
   { name: "Actors", href: "/actors", icon: Users },
   { name: "Knowledge", href: "/knowledge", icon: BookOpen },
 ];
 
-const marketsNav = [
-  { name: "Markets", href: "/markets", icon: BarChart3 },
-  { name: "Watchlists", href: "/watchlists", icon: Activity },
-  { name: "On-Chain", href: "/on-chain", icon: Link2 },
-  { name: "Short Interest", href: "/short-interest", icon: Target },
-  { name: "GEX", href: "/gex", icon: Sigma },
-  { name: "Trading", href: "/trading", icon: TrendingUp },
-  { name: "Thesis", href: "/thesis", icon: FileText },
-];
-
-const analyticsNav = [
-  { name: "GPR Index", href: "/gpr", icon: Globe },
-  { name: "Change-Points", href: "/bocpd", icon: Activity },
-  { name: "Shipping", href: "/shipping", icon: Anchor },
-];
-
-const toolsNav = [
+const toolsNav: NavItem[] = [
   { name: "Timeline", href: "/timeline", icon: Clock },
   { name: "Graph", href: "/graph", icon: Network },
-  { name: "Simulation", href: "/simulation", icon: Dice5 },
   { name: "Calendar", href: "/calendar", icon: Calendar },
-  { name: "Backtesting", href: "/admin/backtest", icon: FlaskConical },
   { name: "Alerts", href: "/alerts", icon: Bell },
   { name: "Support", href: "/support", icon: LifeBuoy },
 ];
 
-function NavSection({ label, items, pathname }: { label: string; items: typeof mainNav; pathname: string }) {
+// ── Operator tier: advanced analytics + trading ──
+const marketsNav: NavItem[] = [
+  { name: "Markets", href: "/markets", icon: BarChart3 },
+  { name: "Watchlists", href: "/watchlists", icon: Activity },
+  { name: "Trading", href: "/trading", icon: TrendingUp },
+  { name: "Thesis", href: "/thesis", icon: FileText },
+  { name: "On-Chain", href: "/on-chain", icon: Link2 },
+  { name: "Short Interest", href: "/short-interest", icon: Target },
+  { name: "GEX", href: "/gex", icon: Sigma },
+];
+
+const analyticsNav: NavItem[] = [
+  { name: "Pred. Markets", href: "/prediction-markets", icon: Scale },
+  { name: "Congress", href: "/congressional-trading", icon: Landmark },
+  { name: "AI Progression", href: "/ai-progression", icon: Bot },
+  { name: "GPR Index", href: "/gpr", icon: Radar },
+  { name: "Change-Points", href: "/bocpd", icon: Activity },
+  { name: "Shipping", href: "/shipping", icon: Anchor },
+  { name: "Simulation", href: "/simulation", icon: Dice5 },
+];
+
+function NavSection({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
+  if (items.length === 0) return null;
   return (
     <div className="mb-1">
-      <div className="px-3 pb-1 pt-3">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-navy-500">
-          {label}
-        </span>
-      </div>
+      {label && (
+        <div className="px-3 pb-1 pt-3">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-navy-500">
+            {label}
+          </span>
+        </div>
+      )}
       {items.map((item) => {
-        // Find the longest matching href in this section to avoid parent routes lighting up
         const bestMatch = items.reduce((best, it) =>
           (pathname === it.href || pathname.startsWith(it.href + "/")) && it.href.length > best.length ? it.href : best, "");
         const isActive = item.href === bestMatch;
@@ -131,10 +135,13 @@ function NavSection({ label, items, pathname }: { label: string; items: typeof m
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { meetsMinTier } = useSubscription();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const publicPages = ["/", "/landing", "/register", "/login", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
   if (publicPages.includes(pathname) || pathname.startsWith("/research")) return null;
+
+  const isOperator = meetsMinTier("operator");
 
   const sidebarContent = (
     <div className="flex h-full flex-col">
@@ -161,9 +168,13 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-1" onClick={() => setMobileOpen(false)}>
         <NavSection label="" items={mainNav} pathname={pathname} />
         <NavSection label="Intelligence" items={intelligenceNav} pathname={pathname} />
-        <NavSection label="Markets" items={marketsNav} pathname={pathname} />
-        <NavSection label="Analytics" items={analyticsNav} pathname={pathname} />
         <NavSection label="Tools" items={toolsNav} pathname={pathname} />
+        {isOperator && (
+          <>
+            <NavSection label="Markets" items={marketsNav} pathname={pathname} />
+            <NavSection label="Analytics" items={analyticsNav} pathname={pathname} />
+          </>
+        )}
       </nav>
 
       {/* Footer */}
@@ -244,7 +255,7 @@ export function Sidebar() {
         />
       )}
 
-      {/* Sidebar - hidden on mobile by default, slide in when open */}
+      {/* Sidebar */}
       <aside className={cn(
         "fixed left-0 top-0 z-50 h-screen w-48 border-r border-navy-700/50 bg-navy-950 transition-transform duration-200",
         "md:translate-x-0 md:z-40",

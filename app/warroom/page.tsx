@@ -167,7 +167,7 @@ export default function WarRoomPage() {
 
   return (
     <div className="ml-48 h-screen flex flex-col overflow-hidden bg-[#050505]">
-      <UpgradeGate minTier="operator" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
+      <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
       {/* Top Bar - COP Status */}
       <div className="h-9 border-b border-[#1a1a1a] bg-[#080808]/95 backdrop-blur-sm flex items-center px-3 gap-0 shrink-0 z-20 font-mono">
         {/* Threat Level */}

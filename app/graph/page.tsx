@@ -234,7 +234,7 @@ export default function GraphPage() {
 
   return (
     <div className="ml-48 h-screen flex flex-col bg-navy-950">
-      <UpgradeGate minTier="operator" feature="Entity relationship graph">
+      <UpgradeGate minTier="analyst" feature="Entity relationship graph">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-navy-800/40 px-4 h-12 shrink-0">
         <div className="flex items-center gap-3">

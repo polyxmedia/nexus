@@ -669,39 +669,34 @@ export default function LandingPage() {
           </Link>
 
           <div className="flex items-center gap-6">
-            {/* Nav links */}
-            <a href="#features" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
-              CAPABILITIES
-            </a>
-            <a href="#modules" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
-              MODULES
-            </a>
-            <a href="#pricing" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
-              PRICING
-            </a>
-
+            <Link href="/research/methodology" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              METHODOLOGY
+            </Link>
+            <Link href="/research/signal-theory" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              RESEARCH
+            </Link>
+            <Link href="/about" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              ABOUT
+            </Link>
+            <Link href="/investors" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              INVESTORS
+            </Link>
+            <Link href="/media" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+              MEDIA
+            </Link>
+            <Link
+              href="/login"
+              className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block"
+            >
+              SIGN IN
+            </Link>
             <ThemeToggle className="p-1.5 text-navy-400 hover:text-navy-200 transition-colors" />
-
-            {/* Live status */}
-            {status && (
-              <div className="flex items-center gap-5 border-l border-navy-700/50 pl-6 hidden lg:flex">
-                <Indicator
-                  label="Threat"
-                  value={`${status.maxEscalation}/5`}
-                  color={status.maxEscalation >= 4 ? "text-accent-rose" : status.maxEscalation >= 3 ? "text-accent-amber" : "text-navy-300"}
-                />
-                <Indicator
-                  label="Regime"
-                  value={status.marketRegime?.replace("_", " ")}
-                  color={status.marketRegime === "risk_off" ? "text-accent-rose" : status.marketRegime === "risk_on" ? "text-accent-emerald" : "text-accent-amber"}
-                />
-                <Indicator label="Signals" value={String(status.activeSignalCount)} color="text-navy-300" />
-                <div className="flex items-center gap-1.5">
-                  <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />
-                  <span className="text-[10px] font-mono text-navy-500">Online</span>
-                </div>
-              </div>
-            )}
+            <Link
+              href="/register"
+              className="px-4 py-1.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
+            >
+              Request Access
+            </Link>
           </div>
         </div>
       </header>

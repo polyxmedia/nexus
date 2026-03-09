@@ -5,7 +5,7 @@ import { requireTier } from "@/lib/auth/require-tier";
 
 // POST - auto-create relationships between a source and entities mentioned in its content
 export async function POST(req: NextRequest) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const { sourceType, sourceId } = await req.json();

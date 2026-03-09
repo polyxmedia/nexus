@@ -2,6 +2,7 @@
 
 import { Metric } from "@/components/ui/metric";
 import { Badge } from "@/components/ui/badge";
+import { CollapsibleCard } from "./CollapsibleCard";
 
 interface QuoteData {
   symbol: string;
@@ -25,14 +26,10 @@ export function QuoteWidget({ data }: { data: QuoteData }) {
   const positive = data.change >= 0;
 
   return (
-    <div className="my-2 border border-navy-700 rounded bg-navy-900/80 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-[10px] uppercase tracking-wider text-navy-500 font-mono">
-          Live Quote
-        </span>
-        <Badge variant="category">{data.symbol}</Badge>
-      </div>
-
+    <CollapsibleCard
+      title="Live Quote"
+      badge={<Badge variant="category">{data.symbol}</Badge>}
+    >
       <div className="grid grid-cols-4 gap-4">
         <Metric
           label="Price"
@@ -53,6 +50,6 @@ export function QuoteWidget({ data }: { data: QuoteData }) {
           value={new Date(data.timestamp).toLocaleTimeString()}
         />
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }

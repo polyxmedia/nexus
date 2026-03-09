@@ -3,7 +3,7 @@ import { autoDetectIndicators, getAllScenarioStatuses } from "@/lib/iw/engine";
 import { requireTier } from "@/lib/auth/require-tier";
 
 export async function POST() {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const detection = await autoDetectIndicators();

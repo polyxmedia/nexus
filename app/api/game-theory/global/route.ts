@@ -166,7 +166,7 @@ function getAffectedSectors(blueCodes: string[], redCodes: string[]): string[] {
 // ── Route handler ──
 
 export async function POST(request: NextRequest) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 
   try {

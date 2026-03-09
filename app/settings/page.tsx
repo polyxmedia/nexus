@@ -28,6 +28,82 @@ interface SettingEntry {
   updatedAt: string;
 }
 
+function RichValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (value === null || value === undefined) {
+    return <span className="text-navy-600 italic">null</span>;
+  }
+  if (value === true) return <span className="text-accent-emerald font-mono">true</span>;
+  if (value === false) return <span className="text-accent-rose font-mono">false</span>;
+  if (typeof value === "number") {
+    // Format large numbers, keep small ones as-is
+    const display = Math.abs(value) >= 1000 && Number.isFinite(value)
+      ? value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+      : String(value);
+    return <span className="text-accent-cyan font-mono">{display}</span>;
+  }
+  if (typeof value === "string") {
+    // Check if it looks like a timestamp
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      return <span className="text-navy-300 font-mono text-[10px]">{new Date(value).toLocaleString()}</span>;
+    }
+    return <span className="text-navy-300">{value}</span>;
+  }
+
+  if (Array.isArray(value)) {
+    // For arrays of primitives, show inline
+    if (value.length === 0) return <span className="text-navy-600 italic">empty</span>;
+    if (value.every(v => typeof v === "string" || typeof v === "number")) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.map((item, i) => (
+            <span key={i} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-navy-800/60 text-navy-300 border border-navy-700/40">
+              {String(item)}
+            </span>
+          ))}
+        </div>
+      );
+    }
+    // Array of objects - render as indexed cards
+    if (depth > 1) {
+      return <span className="text-navy-500 font-mono text-[10px]">[{value.length} items]</span>;
+    }
+    return (
+      <div className="space-y-2 mt-1">
+        {value.map((item, i) => (
+          <div key={i} className="bg-navy-950/40 rounded border border-navy-800/30 px-3 py-2">
+            <span className="text-[9px] font-mono text-navy-600 uppercase tracking-wider">#{i}</span>
+            <div className="mt-1">
+              <RichValue value={item} depth={depth + 1} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return <span className="text-navy-600 italic">empty</span>;
+
+    // For deeper nesting or many entries, use compact layout
+    const isCompact = depth > 0;
+    return (
+      <div className={`${isCompact ? "grid grid-cols-2 gap-x-4 gap-y-1" : "grid grid-cols-2 gap-x-6 gap-y-1.5"}`}>
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex items-baseline gap-2 min-w-0">
+            <span className="text-[10px] font-mono text-navy-500 shrink-0">{k}</span>
+            <span className="text-[11px] truncate min-w-0">
+              <RichValue value={v} depth={depth + 1} />
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <span className="text-navy-400">{String(value)}</span>;
+}
+
 const TABS = [
   { id: "subscription", label: "Subscription", icon: CreditCard },
   { id: "ai-models", label: "AI Models", icon: Brain },
@@ -1062,12 +1138,12 @@ export default function SettingsPage() {
                       {cat.settings.map((s) => {
                         const baseKey = s.key.includes(":") ? s.key.split(":").slice(1).join(":") : s.key;
                         const isMasked = s.value.startsWith("****");
-                        let parsedJson: Record<string, unknown> | null = null;
+                        let parsedJson: unknown = null;
                         if (!isMasked) {
                           try {
                             const parsed = JSON.parse(s.value);
                             if (typeof parsed === "object" && parsed !== null) {
-                              parsedJson = parsed as Record<string, unknown>;
+                              parsedJson = parsed;
                             }
                           } catch {
                             // not JSON
@@ -1095,29 +1171,8 @@ export default function SettingsPage() {
                                 {isMasked ? (
                                   <span className="font-mono text-[11px] text-navy-500 tracking-wider">{s.value}</span>
                                 ) : parsedJson ? (
-                                  <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 bg-navy-950/40 rounded-md px-3.5 py-2.5 border border-navy-800/30">
-                                    {Object.entries(parsedJson).map(([jk, jv]) => (
-                                      <div key={jk} className="flex items-baseline gap-2 min-w-0">
-                                        <span className="text-[10px] font-mono text-navy-500 shrink-0">
-                                          {jk}
-                                        </span>
-                                        <span className="text-[11px] text-navy-300 truncate">
-                                          {jv === null ? (
-                                            <span className="text-navy-600 italic">null</span>
-                                          ) : jv === true ? (
-                                            <span className="text-accent-emerald">true</span>
-                                          ) : jv === false ? (
-                                            <span className="text-accent-rose">false</span>
-                                          ) : typeof jv === "number" ? (
-                                            <span className="text-accent-cyan font-mono">{jv}</span>
-                                          ) : typeof jv === "object" ? (
-                                            <span className="text-navy-400 font-mono text-[10px]">{JSON.stringify(jv)}</span>
-                                          ) : (
-                                            String(jv)
-                                          )}
-                                        </span>
-                                      </div>
-                                    ))}
+                                  <div className="mt-2 bg-navy-950/40 rounded-md px-3.5 py-2.5 border border-navy-800/30">
+                                    <RichValue value={parsedJson} />
                                   </div>
                                 ) : isLongValue ? (
                                   <p className="text-[11px] text-navy-400 mt-1 line-clamp-2 leading-relaxed">

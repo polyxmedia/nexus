@@ -6,7 +6,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ scenarioId: string }> }
 ) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const { scenarioId } = await params;

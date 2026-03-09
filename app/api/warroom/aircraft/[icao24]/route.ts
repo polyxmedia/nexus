@@ -28,7 +28,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ icao24: string }> }
 ) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   const { icao24 } = await params;
 

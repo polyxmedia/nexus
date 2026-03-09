@@ -15,7 +15,7 @@ import type { WarRoomData, ActorWithGeo, ScenarioWithAnalysis, WarRoomSignal, Wa
 import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     // Actors with geo data

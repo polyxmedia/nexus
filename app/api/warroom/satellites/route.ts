@@ -119,7 +119,7 @@ async function getAllTles(): Promise<
 }
 
 export async function GET() {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const tles = await getAllTles();

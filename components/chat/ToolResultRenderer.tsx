@@ -43,105 +43,209 @@ import { GammaExposureWidget } from "./widgets/GammaExposureWidget";
 import { BayesianWidget } from "./widgets/BayesianWidget";
 import { ParallelsWidget } from "./widgets/ParallelsWidget";
 import { ActorProfileWidget } from "./widgets/ActorProfileWidget";
+import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
 
 interface ToolResultRendererProps {
   toolName: string;
   result: unknown;
 }
 
+// Tools that have CollapsibleCard built-in (don't need wrapper)
+const SELF_COLLAPSIBLE = new Set([
+  "get_live_quote",
+  "get_price_history",
+  "monte_carlo_simulation",
+  "get_market_snapshot",
+]);
+
+// Tiny status widgets that shouldn't be collapsible
+const SKIP_COLLAPSE = new Set([
+  "get_operator_context",
+  "save_to_knowledge",
+  "add_knowledge",
+]);
+
+// Human-readable labels for tool names
+const TOOL_LABELS: Record<string, string> = {
+  get_signals: "Signals",
+  get_market_sentiment: "Sentiment",
+  get_game_theory: "Game Theory",
+  get_active_thesis: "Active Thesis",
+  get_predictions: "Predictions",
+  get_portfolio: "Portfolio",
+  get_esoteric_reading: "Esoteric Reading",
+  web_search: "Web Search",
+  get_osint_events: "OSINT Events",
+  extract_osint_entities: "OSINT Entities",
+  get_economic_calendar: "Economic Calendar",
+  get_options_flow: "Options Flow",
+  get_portfolio_risk: "Portfolio Risk",
+  get_macro_data: "Macro Data",
+  search_knowledge: "Knowledge Bank",
+  get_timeline: "Timeline",
+  get_market_regime: "Market Regime",
+  get_on_chain: "On-Chain",
+  get_shipping_intelligence: "Shipping Intel",
+  get_ai_progression: "AI Progression",
+  get_iw_status: "IW Status",
+  get_systemic_risk: "Systemic Risk",
+  get_economic_nowcast: "Economic Nowcast",
+  get_gpr_index: "GPR Index",
+  get_change_points: "Change Points",
+  get_prediction_feedback: "Prediction Feedback",
+  get_prediction_markets: "Prediction Markets",
+  get_congressional_trading: "Congressional Trading",
+  get_correlation_monitor: "Correlation Monitor",
+  assess_source_reliability: "Source Reliability",
+  create_ach_analysis: "ACH Analysis",
+  analyze_central_bank_statement: "Central Bank",
+  get_collection_gaps: "Collection Gaps",
+  get_narratives: "Narratives",
+  get_short_interest: "Short Interest",
+  get_gamma_exposure: "Gamma Exposure",
+  run_bayesian_analysis: "Bayesian Analysis",
+  search_historical_parallels: "Historical Parallels",
+  get_actor_profile: "Actor Profile",
+};
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps) {
   const data = result as any;
 
+  let widget: React.ReactNode;
+
   switch (toolName) {
     case "get_signals":
-      return <SignalsWidget data={data} />;
+      widget = <SignalsWidget data={data} />;
+      break;
     case "get_market_snapshot":
-      return <SnapshotWidget data={data} />;
+      widget = <SnapshotWidget data={data} />;
+      break;
     case "get_market_sentiment":
-      return <SentimentWidget data={data} />;
+      widget = <SentimentWidget data={data} />;
+      break;
     case "get_game_theory":
-      return <GameTheoryWidget data={data} />;
+      widget = <GameTheoryWidget data={data} />;
+      break;
     case "get_active_thesis":
-      return <ThesisWidget data={data} />;
+      widget = <ThesisWidget data={data} />;
+      break;
     case "get_predictions":
-      return <PredictionsWidget data={data} />;
+      widget = <PredictionsWidget data={data} />;
+      break;
     case "get_portfolio":
-      return <PortfolioWidget data={data} />;
+      widget = <PortfolioWidget data={data} />;
+      break;
     case "get_esoteric_reading":
-      return <EsotericWidget data={data} />;
+      widget = <EsotericWidget data={data} />;
+      break;
     case "get_live_quote":
-      return <QuoteWidget data={data} />;
+      widget = <QuoteWidget data={data} />;
+      break;
     case "get_price_history":
-      return <PriceHistoryWidget data={data} />;
+      widget = <PriceHistoryWidget data={data} />;
+      break;
     case "monte_carlo_simulation":
-      return <MonteCarloWidget data={data} />;
+      widget = <MonteCarloWidget data={data} />;
+      break;
     case "web_search":
-      return <WebSearchWidget data={data} />;
+      widget = <WebSearchWidget data={data} />;
+      break;
     case "get_osint_events":
     case "extract_osint_entities":
-      return <OsintWidget data={data} />;
+      widget = <OsintWidget data={data} />;
+      break;
     case "get_economic_calendar":
-      return <CalendarWidget data={data} />;
+      widget = <CalendarWidget data={data} />;
+      break;
     case "get_options_flow":
-      return <OptionsFlowWidget data={data} />;
+      widget = <OptionsFlowWidget data={data} />;
+      break;
     case "get_portfolio_risk":
-      return <PortfolioRiskWidget data={data} />;
+      widget = <PortfolioRiskWidget data={data} />;
+      break;
     case "get_macro_data":
-      return <MacroWidget data={data} />;
+      widget = <MacroWidget data={data} />;
+      break;
     case "search_knowledge":
-      return <KnowledgeWidget data={data} />;
+      widget = <KnowledgeWidget data={data} />;
+      break;
     case "add_knowledge":
     case "save_to_knowledge":
-      return <SaveKnowledgeWidget data={data} />;
+      widget = <SaveKnowledgeWidget data={data} />;
+      break;
     case "get_timeline":
-      return <TimelineWidget data={data} />;
+      widget = <TimelineWidget data={data} />;
+      break;
     case "get_market_regime":
-      return <MarketRegimeWidget data={data} />;
+      widget = <MarketRegimeWidget data={data} />;
+      break;
     case "get_on_chain":
-      return <OnChainWidget data={data} />;
+      widget = <OnChainWidget data={data} />;
+      break;
     case "get_shipping_intelligence":
-      return <ShippingWidget data={data} />;
+      widget = <ShippingWidget data={data} />;
+      break;
     case "get_ai_progression":
-      return <AIProgressionWidget data={data} />;
+      widget = <AIProgressionWidget data={data} />;
+      break;
     case "get_iw_status":
-      return <IWStatusWidget data={data} />;
+      widget = <IWStatusWidget data={data} />;
+      break;
     case "get_systemic_risk":
-      return <SystemicRiskWidget data={data} />;
+      widget = <SystemicRiskWidget data={data} />;
+      break;
     case "get_economic_nowcast":
-      return <NowcastWidget data={data} />;
+      widget = <NowcastWidget data={data} />;
+      break;
     case "get_gpr_index":
-      return <GPRWidget data={data} />;
+      widget = <GPRWidget data={data} />;
+      break;
     case "get_change_points":
-      return <ChangePointsWidget data={data} />;
+      widget = <ChangePointsWidget data={data} />;
+      break;
     case "get_prediction_feedback":
-      return <PredictionFeedbackWidget data={data} />;
+      widget = <PredictionFeedbackWidget data={data} />;
+      break;
     case "get_prediction_markets":
-      return <PredictionMarketsWidget data={data} />;
+      widget = <PredictionMarketsWidget data={data} />;
+      break;
     case "get_congressional_trading":
-      return <CongressionalTradingWidget data={data} />;
+      widget = <CongressionalTradingWidget data={data} />;
+      break;
     case "get_correlation_monitor":
-      return <CorrelationWidget data={data} />;
+      widget = <CorrelationWidget data={data} />;
+      break;
     case "assess_source_reliability":
-      return <SourceReliabilityWidget data={data} />;
+      widget = <SourceReliabilityWidget data={data} />;
+      break;
     case "create_ach_analysis":
-      return <ACHWidget data={data} />;
+      widget = <ACHWidget data={data} />;
+      break;
     case "analyze_central_bank_statement":
-      return <CentralBankWidget data={data} />;
+      widget = <CentralBankWidget data={data} />;
+      break;
     case "get_collection_gaps":
-      return <CollectionGapsWidget data={data} />;
+      widget = <CollectionGapsWidget data={data} />;
+      break;
     case "get_narratives":
-      return <NarrativesWidget data={data} />;
+      widget = <NarrativesWidget data={data} />;
+      break;
     case "get_short_interest":
-      return <ShortInterestWidget data={data} />;
+      widget = <ShortInterestWidget data={data} />;
+      break;
     case "get_gamma_exposure":
-      return <GammaExposureWidget data={data} />;
+      widget = <GammaExposureWidget data={data} />;
+      break;
     case "run_bayesian_analysis":
-      return <BayesianWidget data={data} />;
+      widget = <BayesianWidget data={data} />;
+      break;
     case "search_historical_parallels":
-      return <ParallelsWidget data={data} />;
+      widget = <ParallelsWidget data={data} />;
+      break;
     case "get_actor_profile":
-      return <ActorProfileWidget data={data} />;
+      widget = <ActorProfileWidget data={data} />;
+      break;
     case "get_operator_context":
       return (
         <div className="my-2 border border-accent-cyan/30 rounded bg-accent-cyan/5 px-3 py-2 text-xs text-accent-cyan flex items-center gap-2">
@@ -151,14 +255,29 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       );
     default:
       return (
-        <div className="my-2 border border-navy-700 rounded bg-navy-900/60 p-3 text-xs text-navy-400 font-mono">
-          <div className="text-[10px] uppercase tracking-wider text-navy-500 mb-1">
-            {toolName}
+        <CollapsibleWrapper title={toolName} defaultOpen={false}>
+          <div className="my-2 border border-navy-700 rounded bg-navy-900/60 p-3 text-xs text-navy-400 font-mono">
+            <div className="text-[10px] uppercase tracking-wider text-navy-500 mb-1">
+              {toolName}
+            </div>
+            <pre className="overflow-x-auto whitespace-pre-wrap">
+              {JSON.stringify(result, null, 2)}
+            </pre>
           </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </div>
+        </CollapsibleWrapper>
       );
   }
+
+  // Widgets with built-in CollapsibleCard or tiny status widgets don't need wrapping
+  if (SELF_COLLAPSIBLE.has(toolName) || SKIP_COLLAPSE.has(toolName)) {
+    return widget;
+  }
+
+  // Wrap all other widgets with CollapsibleWrapper
+  const label = TOOL_LABELS[toolName] || toolName.replace(/^get_/, "").replace(/_/g, " ");
+  return (
+    <CollapsibleWrapper title={label}>
+      {widget}
+    </CollapsibleWrapper>
+  );
 }

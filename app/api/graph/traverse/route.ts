@@ -4,7 +4,7 @@ import { requireTier } from "@/lib/auth/require-tier";
 
 // GET - traverse from entity or find paths
 export async function GET(req: NextRequest) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(req.url);
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
 // POST - build context graph from text
 export async function POST(req: NextRequest) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const { text } = await req.json();

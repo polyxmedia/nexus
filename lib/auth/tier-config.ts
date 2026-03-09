@@ -13,51 +13,56 @@ export type MinTier = "analyst" | "operator" | "institution";
 // Every protected route must call requireTier() with the mapped tier.
 // Routes not listed here are either public or require only authentication.
 export const ROUTE_TIERS: Record<string, MinTier> = {
-  // ── Analyst tier (base paid) ──
+  // ── Analyst tier ($150/mo) - core intelligence ──
   "chat": "analyst",
   "signals": "analyst",
   "predictions": "analyst",
-  "thesis": "analyst",
-  "news": "analyst",
   "dashboard": "analyst",
+  "warroom": "analyst",
+  "game-theory": "analyst",
   "calendar": "analyst",
   "timeline": "analyst",
   "alerts": "analyst",
+  "news": "analyst",
+  "narrative": "analyst",
+  "knowledge": "analyst",
+  "thesis": "analyst",
+  "graph": "analyst",
+  "parallels": "analyst",
+  "actors": "analyst",
+  "iw": "analyst",
 
-  // ── Operator tier (professional) ──
-  "warroom": "operator",
+  // ── Operator tier ($750/mo) - advanced analytics + trading ──
   "trading212": "operator",
   "coinbase": "operator",
+  "ibkr": "operator",
   "portfolio": "operator",
-  "simulation": "operator",
-  "game-theory": "operator",
-  "iw": "operator",
-  "risk": "operator",
-  "regime": "operator",
-  "nowcast": "operator",
-  "bocpd": "operator",
-  "gex": "operator",
+  "market-data": "operator",
+  "markets": "operator",
+  "watchlists": "operator",
+  "on-chain": "operator",
   "short-interest": "operator",
+  "gex": "operator",
   "options": "operator",
+  "simulation": "operator",
+  "prediction-markets": "operator",
+  "congressional-trading": "operator",
+  "ai-progression": "operator",
+  "gpr": "operator",
+  "bocpd": "operator",
   "shipping": "operator",
+  "macro": "operator",
+  "regime": "operator",
+  "risk": "operator",
+  "nowcast": "operator",
   "nlp": "operator",
-  "narrative": "operator",
   "osint": "operator",
   "ach": "operator",
   "sources": "operator",
-  "on-chain": "operator",
-  "ai-progression": "operator",
-  "gpr": "operator",
-  "congressional-trading": "operator",
-  "prediction-markets": "operator",
   "collection-gaps": "operator",
-  "graph": "operator",
-  "watchlists": "operator",
-  "macro": "operator",
-  "market-data": "operator",
   "analytics": "operator",
 
-  // ── Institution tier ──
+  // ── Institution tier (custom pricing) ──
   "agents": "institution",
   "nexus-bridge": "institution",
 };
@@ -65,7 +70,7 @@ export const ROUTE_TIERS: Record<string, MinTier> = {
 // ── Chat Tool → Minimum Tier ──
 // Tools not listed here default to "analyst" (base paid tier).
 export const TOOL_TIERS: Record<string, MinTier> = {
-  // Analyst tools (included in base plan)
+  // Analyst tools (core intelligence)
   "get_signals": "analyst",
   "get_market_snapshot": "analyst",
   "get_market_sentiment": "analyst",
@@ -79,10 +84,11 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "search_knowledge": "analyst",
   "get_timeline": "analyst",
   "get_esoteric_reading": "analyst",
+  "get_game_theory": "analyst",
+  "get_iw_status": "analyst",
+  "get_narratives": "analyst",
 
-  // Operator tools (advanced analytics)
-  "get_game_theory": "operator",
-  "get_iw_status": "operator",
+  // Operator tools (advanced analytics + trading)
   "get_market_regime": "operator",
   "get_systemic_risk": "operator",
   "get_economic_nowcast": "operator",
@@ -95,7 +101,6 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "get_shipping_intelligence": "operator",
   "get_on_chain": "operator",
   "get_ai_progression": "operator",
-  "get_narratives": "operator",
   "get_prediction_markets": "operator",
   "get_congressional_trading": "operator",
   "monte_carlo_simulation": "operator",
@@ -115,6 +120,7 @@ export const TOOL_TIERS: Record<string, MinTier> = {
 
 // ── Page → Minimum Tier (for client-side UpgradeGate) ──
 export const PAGE_TIERS: Record<string, MinTier> = {
+  // Analyst
   "/chat": "analyst",
   "/signals": "analyst",
   "/predictions": "analyst",
@@ -123,7 +129,26 @@ export const PAGE_TIERS: Record<string, MinTier> = {
   "/calendar": "analyst",
   "/timeline": "analyst",
   "/alerts": "analyst",
-  "/warroom": "operator",
+  "/warroom": "analyst",
+  "/game-theory": "analyst",
+  "/graph": "analyst",
+  "/narrative": "analyst",
+  "/knowledge": "analyst",
+  "/parallels": "analyst",
+  "/actors": "analyst",
+  // Operator
   "/trading": "operator",
-  "/graph": "operator",
+  "/markets": "operator",
+  "/watchlists": "operator",
+  "/on-chain": "operator",
+  "/gex": "operator",
+  "/short-interest": "operator",
+  "/simulation": "operator",
+  "/prediction-markets": "operator",
+  "/congressional-trading": "operator",
+  "/ai-progression": "operator",
+  "/gpr": "operator",
+  "/bocpd": "operator",
+  "/shipping": "operator",
+  "/thesis": "operator",
 };

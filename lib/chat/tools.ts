@@ -8,6 +8,7 @@ import { analyzeScenario } from "@/lib/game-theory/analysis";
 import { getWartimeAnalysis } from "@/lib/game-theory/wartime";
 import { Trading212Client } from "@/lib/trading212/client";
 import { getQuoteData, getHistoricalData } from "@/lib/market-data/yahoo";
+import { computeTechnicalSnapshot } from "@/lib/market-data/indicators";
 import { getEsotericReading } from "@/lib/signals/numerology";
 import { getEconomicCalendarEvents } from "@/lib/signals/economic-calendar";
 import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
@@ -173,7 +174,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_price_history",
     description:
-      "Get daily OHLCV price history for a symbol. Supports stocks (AAPL, SPY) and crypto (BTC, XRP, ETH). Returns up to 100 recent bars (compact) or full history. Use this for trend analysis, support/resistance, and Monte Carlo inputs.",
+      "Get daily OHLCV price history with full technical analysis for a symbol. Returns candlestick chart data, RSI(14), MACD(12,26,9), Bollinger Bands, ATR(14), SMAs (20/50/200), trend/momentum/volatility regime classification. Supports stocks (AAPL, SPY) and crypto (BTC, XRP, ETH). ALWAYS use this tool when the user asks about price targets, entry points, technical levels, or chart analysis.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -968,11 +969,32 @@ async function executeGetPriceHistory(input: Record<string, unknown>) {
     const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
     const stdDev = Math.sqrt(returns.reduce((s, r) => s + (r - avgReturn) ** 2, 0) / returns.length);
 
+    // Compute technical indicators from all available bars (need history for accuracy)
+    const allOhlcv = bars.map(b => ({
+      date: b.date,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume,
+    }));
+    const snapshot = computeTechnicalSnapshot(symbol, allOhlcv);
+
+    // Chart-ready OHLCV data
+    const chartBars = recent.map(b => ({
+      time: b.date,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume,
+    }));
+
     return {
       symbol,
       bars: recent.length,
       latest: recent[recent.length - 1],
-      oldest: recent,
+      oldest: recent[0],
       stats: {
         avgDailyReturn: (avgReturn * 100).toFixed(4) + "%",
         dailyVolatility: (stdDev * 100).toFixed(4) + "%",
@@ -981,6 +1003,19 @@ async function executeGetPriceHistory(input: Record<string, unknown>) {
         low52w: Math.min(...closes),
         rangePercent: ((Math.max(...closes) - Math.min(...closes)) / Math.min(...closes) * 100).toFixed(2) + "%",
       },
+      indicators: {
+        rsi14: snapshot.rsi14,
+        macd: snapshot.macd,
+        bollingerBands: snapshot.bollingerBands,
+        atr14: snapshot.atr14,
+        sma20: snapshot.sma20,
+        sma50: snapshot.sma50,
+        sma200: snapshot.sma200,
+        trend: snapshot.trend,
+        momentum: snapshot.momentum,
+        volatilityRegime: snapshot.volatilityRegime,
+      },
+      chartBars,
       recentBars: recent.slice(-10),
     };
   } catch (err: unknown) {
@@ -1026,6 +1061,19 @@ async function executeMonteCarloSimulation(input: Record<string, unknown>) {
     const probDown10 = finalPrices.filter(p => p < currentPrice * 0.9).length / simulations;
     const probUp10 = finalPrices.filter(p => p > currentPrice * 1.1).length / simulations;
 
+    // Build distribution histogram for visualization (30 bins)
+    const p5Val = percentile(5);
+    const p95Val = percentile(95);
+    const binCount = 30;
+    const binWidth = (p95Val - p5Val) / binCount;
+    const distribution: Array<{ price: number; count: number }> = [];
+    for (let b = 0; b < binCount; b++) {
+      const lo = p5Val + b * binWidth;
+      const hi = lo + binWidth;
+      const count = finalPrices.filter(p => p >= lo && p < hi).length;
+      distribution.push({ price: +(lo + binWidth / 2).toFixed(2), count });
+    }
+
     return {
       symbol,
       currentPrice,
@@ -1050,6 +1098,7 @@ async function executeMonteCarloSimulation(input: Record<string, unknown>) {
         probUp10pct: +(probUp10 * 100).toFixed(1) + "%",
       },
       expectedReturn: +((percentile(50) - currentPrice) / currentPrice * 100).toFixed(2) + "%",
+      distribution,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

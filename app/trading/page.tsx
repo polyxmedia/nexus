@@ -930,7 +930,7 @@ function TradingPageInner() {
   ];
 
   return (
-    <UpgradeGate minTier="operator" feature="Trading Integration">
+    <UpgradeGate minTier="analyst" feature="Trading Integration">
     <PageContainer
       title="Trading"
       subtitle="Stocks & Crypto"

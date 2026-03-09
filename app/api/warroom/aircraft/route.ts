@@ -34,7 +34,7 @@ function isMilitaryCallsign(callsign: string): boolean {
 }
 
 export async function GET() {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const res = await fetch("https://opensky-network.org/api/states/all", {

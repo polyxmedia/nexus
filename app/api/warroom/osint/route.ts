@@ -99,7 +99,7 @@ async function fetchGdeltEvents(): Promise<OsintEvent[]> {
 }
 
 export async function GET() {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     // Try live GDELT first, fall back to seed data

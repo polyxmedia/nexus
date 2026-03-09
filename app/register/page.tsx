@@ -242,7 +242,8 @@ function RegisterForm() {
         setError("Account created. Please sign in.");
         router.push("/login");
       } else {
-        router.push("/dashboard");
+        // Send new users to choose a subscription plan (free trial)
+        router.push("/settings?tab=subscription");
       }
     } catch {
       setError("Registration failed");

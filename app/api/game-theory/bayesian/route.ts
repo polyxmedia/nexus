@@ -12,7 +12,7 @@ import { N_PLAYER_SCENARIOS, getNPlayerScenario } from "@/lib/game-theory/scenar
  * Returns all N-player scenarios with Bayesian analysis.
  */
 export async function GET() {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 
   try {
@@ -48,7 +48,7 @@ export async function GET() {
  * Body: { scenarioId: string, signals?: { description: string, actorId: string, source: string }[] }
  */
 export async function POST(req: Request) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 
   try {

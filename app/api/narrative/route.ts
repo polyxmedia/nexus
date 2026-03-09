@@ -3,7 +3,7 @@ import { getNarrativeSnapshot } from "@/lib/narrative";
 import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("operator");
+  const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);

@@ -219,7 +219,7 @@ export default function GlobalScenarioPage() {
   const getCountryName = (code: string) => COUNTRIES.find(c => c.code === code)?.name || code;
 
   return (
-    <UpgradeGate minTier="operator" feature="Global Scenario Planner">
+    <UpgradeGate minTier="analyst" feature="Global Scenario Planner">
       <div className="ml-0 md:ml-48 h-screen flex flex-col bg-navy-950">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-navy-700/20 bg-navy-900/50 backdrop-blur-sm shrink-0">
