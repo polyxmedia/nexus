@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getEmailLog, sendEmail } from "@/lib/email";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   welcomeEmail,
   subscriptionActiveEmail,
@@ -30,6 +31,15 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
+  const session = await getServerSession(authOptions);
+  const rl = rateLimit(`admin:emails:get:${session!.user!.name}`, 60, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   const log = await getEmailLog();
   return NextResponse.json({ emails: log });
 }
@@ -38,6 +48,15 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  const session = await getServerSession(authOptions);
+  const rl = rateLimit(`admin:emails:post:${session!.user!.name}`, 10, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
   }
 
   const body = await request.json();

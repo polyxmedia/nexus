@@ -2,10 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { loadStripe } from "@stripe/stripe-js";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+import { PaymentForm } from "@/components/stripe/payment-form";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
@@ -37,6 +34,8 @@ import {
   X,
   Zap,
   Plus,
+  User,
+  Upload,
 } from "lucide-react";
 
 interface SettingEntry {
@@ -122,6 +121,7 @@ function RichValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
 }
 
 const TABS = [
+  { id: "profile", label: "Profile", icon: User },
   { id: "subscription", label: "Subscription", icon: CreditCard },
   { id: "credits", label: "Credits", icon: Wallet },
   { id: "connections", label: "Connections", icon: Link2 },
@@ -186,7 +186,9 @@ export default function SettingsPage() {
   const [aiChatModelSaved, setAiChatModelSaved] = useState("");
   const [jiangMode, setJiangMode] = useState(false);
   const [jiangModeSaved, setJiangModeSaved] = useState(false);
-  const aiModelsDirty = aiModel !== aiModelSaved || aiChatModel !== aiChatModelSaved || jiangMode !== jiangModeSaved;
+  const [voiceId, setVoiceId] = useState("pNInz6obpgDQGcFmaJgB");
+  const [voiceIdSaved, setVoiceIdSaved] = useState("pNInz6obpgDQGcFmaJgB");
+  const aiModelsDirty = aiModel !== aiModelSaved || aiChatModel !== aiChatModelSaved || jiangMode !== jiangModeSaved || voiceId !== voiceIdSaved;
 
   // API Keys
   const [voyageKey, setVoyageKey] = useState("");
@@ -213,6 +215,7 @@ export default function SettingsPage() {
   const [connectStatus, setConnectStatus] = useState<Record<string, { ok: boolean; message: string } | null>>({});
   const [brokerModal, setBrokerModal] = useState<string | null>(null);
   const [t212Form, setT212Form] = useState({ apiKey: "", apiSecret: "" });
+  const [coinbaseForm, setCoinbaseForm] = useState({ apiKey: "", apiSecret: "" });
   const [polymarketKey, setPolymarketKey] = useState("");
   const [polymarketForm, setPolymarketForm] = useState({ privateKey: "" });
   const [kalshiKeyId, setKalshiKeyId] = useState("");
@@ -284,6 +287,7 @@ export default function SettingsPage() {
   const [creditsLoading, setCreditsLoading] = useState(true);
   const [topupLoading, setTopupLoading] = useState<string | null>(null);
   const [topupPackId, setTopupPackId] = useState<string | null>(null);
+  const [topupClientSecret, setTopupClientSecret] = useState<string | null>(null);
 
   // Data Sources
   const [newsPollingInterval, setNewsPollingInterval] = useState("300");
@@ -291,6 +295,59 @@ export default function SettingsPage() {
   const [aircraftPollingInterval, setAircraftPollingInterval] = useState("20");
   const [marketRefreshInterval, setMarketRefreshInterval] = useState("60");
   const [predictionAutoResolve, setPredictionAutoResolve] = useState("1");
+
+  // Profile
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d && setProfileImage(d.profileImage || null))
+      .catch(() => {});
+  }, []);
+
+  const handleProfileImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 200_000) {
+      setSaveError("Image too large. Max 200KB.");
+      setTimeout(() => setSaveError(null), 4000);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setProfileImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveProfileImage = async () => {
+    setProfileLoading(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileImage }),
+      });
+      if (res.ok) {
+        setProfileSaved(true);
+        setTimeout(() => setProfileSaved(false), 2000);
+      } else {
+        const data = await res.json().catch(() => ({ error: "Save failed" }));
+        setSaveError(data.error || "Failed to save profile image");
+        setTimeout(() => setSaveError(null), 4000);
+      }
+    } catch {
+      setSaveError("Network error");
+      setTimeout(() => setSaveError(null), 4000);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/settings")
@@ -314,6 +371,9 @@ export default function SettingsPage() {
             case "ai_model": setAiModel(setting.value); setAiModelSaved(setting.value); break;
             case "ai_chat_model": setAiChatModel(setting.value); setAiChatModelSaved(setting.value); break;
             case "jiang_mode": setJiangMode(setting.value === "true"); setJiangModeSaved(setting.value === "true"); break;
+            case "voice_id": setVoiceId(setting.value); setVoiceIdSaved(setting.value); break;
+            case "t212_api_key": if (setting.value && setting.value !== "****") setT212Key(setting.value); break;
+            case "coinbase_api_key": if (setting.value && setting.value !== "****") setCoinbaseKey(setting.value); break;
           }
           // Handle user-scoped keys (username:key format)
           const baseKey = setting.key.includes(":") ? setting.key.split(":").slice(1).join(":") : "";
@@ -354,6 +414,18 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data) => setAlpacaOAuth(data))
       .catch(() => {});
+
+    // Handle OAuth callback params
+    const callbackParams = new URLSearchParams(window.location.search);
+    if (callbackParams.get("coinbase") === "connected") {
+      setCoinbaseOAuth({ oauthAvailable: true, connected: true });
+      window.history.replaceState({}, "", window.location.pathname + "?tab=connections");
+    }
+    if (callbackParams.get("coinbase") === "error" || callbackParams.get("coinbase") === "denied") {
+      const msg = callbackParams.get("coinbase") === "denied" ? "Access denied by user" : "OAuth connection failed";
+      setConnectStatus(s => ({ ...s, coinbase: { ok: false, message: msg } }));
+      window.history.replaceState({}, "", window.location.pathname + "?tab=connections");
+    }
 
     // Handle Alpaca OAuth callback params
     const alpacaParams = new URLSearchParams(window.location.search);
@@ -632,7 +704,14 @@ export default function SettingsPage() {
           Setting saved
         </div>
       )}
-      <Tabs.Root defaultValue="ai-models">
+      <Tabs.Root
+        defaultValue={typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("tab") || "ai-models") : "ai-models"}
+        onValueChange={(val) => {
+          const url = new URL(window.location.href);
+          url.searchParams.set("tab", val);
+          window.history.replaceState({}, "", url.toString());
+        }}
+      >
         <Tabs.List className="flex gap-0 border-b border-navy-700 mb-6">
           {TABS.map((tab) => (
             <Tabs.Trigger
@@ -645,6 +724,82 @@ export default function SettingsPage() {
             </Tabs.Trigger>
           ))}
         </Tabs.List>
+
+        {/* Profile Tab */}
+        <Tabs.Content value="profile">
+          <div className="space-y-6 max-w-xl">
+            <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+              <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-4">Profile Image</h3>
+              <div className="flex items-start gap-5">
+                <div className="relative group">
+                  {profileImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profileImage}
+                      alt="Profile"
+                      className="h-20 w-20 rounded-full object-cover border-2 border-navy-700"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 rounded-full bg-navy-800 border-2 border-navy-700 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-navy-400 uppercase">
+                        {username.charAt(0) || "?"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-3">
+                  <p className="text-xs text-navy-400">
+                    Upload a profile image that will appear next to your comments and on your analyst profile. Max 200KB.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-navy-700 bg-navy-900 text-xs text-navy-300 hover:border-navy-600 hover:text-navy-200 transition-colors cursor-pointer">
+                      <Upload className="h-3 w-3" />
+                      Choose file
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfileImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {profileImage && (
+                      <button
+                        onClick={() => setProfileImage(null)}
+                        className="text-[10px] font-mono text-navy-600 hover:text-accent-rose transition-colors"
+                      >
+                        remove
+                      </button>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={saveProfileImage}
+                    disabled={profileLoading}
+                  >
+                    {profileLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                    ) : profileSaved ? (
+                      <CheckCircle2 className="h-3 w-3 text-accent-emerald mr-1.5" />
+                    ) : (
+                      <Save className="h-3 w-3 mr-1.5" />
+                    )}
+                    {profileSaved ? "Saved" : "Save"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+              <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Account</h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between py-1.5">
+                  <span className="text-xs text-navy-400">Username</span>
+                  <span className="text-xs font-mono text-navy-200">{username}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Tabs.Content>
 
         {/* Subscription Tab */}
         <Tabs.Content value="subscription">
@@ -971,37 +1126,66 @@ export default function SettingsPage() {
                       ))}
                     </div>
 
-                    {/* Embedded checkout for credit top-up */}
+                    {/* Payment form for credit top-up */}
                     {topupPackId && (
                       <div className="mt-4 border border-navy-700/50 rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-2 border-b border-navy-700/50">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-navy-700/50">
                           <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">
                             Purchase {creditPacks.find((p) => p.id === topupPackId)?.label}
                           </span>
                           <button
-                            onClick={() => setTopupPackId(null)}
+                            onClick={() => { setTopupPackId(null); setTopupClientSecret(null); }}
                             className="text-navy-500 hover:text-navy-300 transition-colors"
                           >
                             <X className="w-4 h-4" />
                           </button>
                         </div>
-                        <EmbeddedCheckoutProvider
-                          stripe={stripePromise}
-                          options={{
-                            fetchClientSecret: async () => {
-                              const res = await fetch("/api/credits/topup", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ packId: topupPackId, embedded: true }),
-                              });
-                              const data = await res.json();
-                              if (!res.ok || !data.clientSecret) throw new Error(data.error || "Checkout failed");
-                              return data.clientSecret;
-                            },
-                          }}
-                        >
-                          <EmbeddedCheckout className="embedded-checkout" />
-                        </EmbeddedCheckoutProvider>
+                        <div className="p-4">
+                          {topupClientSecret ? (
+                            <PaymentForm
+                              clientSecret={topupClientSecret}
+                              submitLabel={`Pay $${((creditPacks.find((p) => p.id === topupPackId)?.priceCents || 0) / 100).toFixed(0)}`}
+                              onSuccess={() => {
+                                setTopupPackId(null);
+                                setTopupClientSecret(null);
+                                fetch("/api/credits").then(r => r.json()).then(data => {
+                                  if (data && !data.error) setCreditBalance(data);
+                                });
+                              }}
+                              returnUrl={`${window.location.origin}/settings?tab=credits&status=topup_success`}
+                            />
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                setTopupLoading(topupPackId);
+                                try {
+                                  const res = await fetch("/api/credits/topup", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ packId: topupPackId }),
+                                  });
+                                  const data = await res.json();
+                                  if (res.ok && data.clientSecret) {
+                                    setTopupClientSecret(data.clientSecret);
+                                  }
+                                } finally {
+                                  setTopupLoading(null);
+                                }
+                              }}
+                              disabled={topupLoading !== null}
+                              className="w-full py-2.5 px-4 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 hover:bg-white rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                              {topupLoading ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  Loading
+                                </>
+                              ) : (
+                                `Continue to payment`
+                              )}
+                            </button>
+                          )}
+                        </div>
                         <p className="px-4 py-2 font-mono text-[9px] text-navy-600 tracking-wider text-center border-t border-navy-700/50">
                           Secured by Stripe. Credits added instantly after payment.
                         </p>
@@ -1255,6 +1439,55 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Voice */}
+            <div className="border border-navy-700 rounded p-4">
+              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-1">
+                Voice
+              </h3>
+              <p className="text-[10px] text-navy-600 mb-4">
+                Select the ElevenLabs voice for text-to-speech in chat. Available on Operator and Institution tiers.
+              </p>
+              <div className="space-y-2">
+                {[
+                  { id: "pNInz6obpgDQGcFmaJgB", label: "Adam", description: "Deep, authoritative male voice" },
+                  { id: "ErXwobaYiN019PkySvjV", label: "Antoni", description: "Well-rounded male voice" },
+                  { id: "VR6AewLTigWG4xSOukaG", label: "Arnold", description: "Crisp, clear male voice" },
+                  { id: "onwK4e9ZLuTAKqWW03F9", label: "Daniel", description: "British male, composed and authoritative" },
+                  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah", description: "Soft, natural female voice" },
+                  { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel", description: "Calm, clear female voice" },
+                  { id: "AZnzlk1XvdvUeBnXmlld", label: "Domi", description: "Strong, confident female voice" },
+                  { id: "MF3mGyEYCl7XYWbV9V6O", label: "Elli", description: "Young, friendly female voice" },
+                ].map((v) => {
+                  const isSelected = voiceId === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => setVoiceId(v.id)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border text-left transition-all ${
+                        isSelected
+                          ? "border-accent-cyan/40 bg-accent-cyan/[0.06]"
+                          : "border-navy-800 bg-navy-900/30 hover:border-navy-700 hover:bg-navy-900/50"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-mono font-medium ${isSelected ? "text-accent-cyan" : "text-navy-300"}`}>
+                            {v.label}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-navy-500 mt-0.5">{v.description}</p>
+                      </div>
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                        isSelected ? "border-accent-cyan" : "border-navy-600"
+                      }`}>
+                        {isSelected && <div className="h-2 w-2 rounded-full bg-accent-cyan" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Info box */}
             <div className="border border-navy-700/50 rounded p-4 bg-navy-900/30">
               <div className="flex items-start gap-2">
@@ -1280,9 +1513,13 @@ export default function SettingsPage() {
                   if (jiangMode !== jiangModeSaved) {
                     await saveSetting("jiang_mode", jiangMode ? "true" : "false");
                   }
+                  if (voiceId !== voiceIdSaved) {
+                    await saveSetting("voice_id", voiceId);
+                  }
                   setAiModelSaved(aiModel);
                   setAiChatModelSaved(aiChatModel);
                   setJiangModeSaved(jiangMode);
+                  setVoiceIdSaved(voiceId);
                 }}
                 disabled={!aiModelsDirty || saving !== null}
                 className="flex items-center gap-2 px-5 py-2 bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/30 text-accent-cyan text-xs font-mono uppercase tracking-wider rounded transition-colors disabled:opacity-50"
@@ -1439,11 +1676,11 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Coinbase - OAuth only */}
-            <div className={`border rounded-lg overflow-hidden transition-colors ${coinbaseOAuth?.connected ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+            {/* Coinbase - OAuth or API Key */}
+            <div className={`border rounded-lg overflow-hidden transition-colors ${coinbaseOAuth?.connected || coinbaseKey ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${coinbaseOAuth?.connected ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>CB</div>
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${coinbaseOAuth?.connected || coinbaseKey ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>CB</div>
                   <div>
                     <h3 className="text-sm font-medium text-navy-200">Coinbase</h3>
                     <p className="text-[10px] text-navy-500">Cryptocurrency trading</p>
@@ -1465,23 +1702,50 @@ export default function SettingsPage() {
                         Disconnect
                       </button>
                     </>
+                  ) : coinbaseKey ? (
+                    <>
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
+                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected via API Key
+                      </span>
+                      <button
+                        onClick={async () => {
+                          await saveSetting("coinbase_api_key", "");
+                          await saveSetting("coinbase_api_secret", "");
+                          setCoinbaseKey("");
+                          setCoinbaseSecret("");
+                        }}
+                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </>
                   ) : (
-                    <button
-                      disabled={coinbaseConnecting}
-                      onClick={async () => {
-                        setCoinbaseConnecting(true);
-                        try {
-                          const res = await fetch("/api/coinbase/oauth");
-                          const data = await res.json();
-                          if (data.url) window.location.href = data.url;
-                          else setCoinbaseConnecting(false);
-                        } catch { setCoinbaseConnecting(false); }
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all disabled:opacity-50"
-                    >
-                      {coinbaseConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
-                      Connect with Coinbase
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {coinbaseOAuth?.oauthAvailable && (
+                        <button
+                          disabled={coinbaseConnecting}
+                          onClick={async () => {
+                            setCoinbaseConnecting(true);
+                            try {
+                              const res = await fetch("/api/coinbase/oauth");
+                              const data = await res.json();
+                              if (data.url) window.location.href = data.url;
+                              else setCoinbaseConnecting(false);
+                            } catch { setCoinbaseConnecting(false); }
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all disabled:opacity-50"
+                        >
+                          {coinbaseConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
+                          OAuth
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setCoinbaseForm({ apiKey: "", apiSecret: "" }); setConnectStatus(s => ({ ...s, coinbase: null })); setBrokerModal("coinbase"); }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all"
+                      >
+                        <Key className="h-3 w-3" /> API Key
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1733,6 +1997,76 @@ export default function SettingsPage() {
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
                   >
                     {connectingBroker === "t212" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                    Connect
+                  </button>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Shield className="h-3 w-3 text-navy-600 shrink-0" />
+                    <p className="text-[9px] text-navy-600">Your API key is encrypted at rest using AES-256-GCM. It is never exposed to the frontend after saving.</p>
+                  </div>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+
+          {/* Coinbase API Key Connect Modal */}
+          <Dialog.Root open={brokerModal === "coinbase"} onOpenChange={(open) => { if (!open) setBrokerModal(null); }}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+              <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-navy-950 border border-navy-700 rounded-xl shadow-2xl z-50 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-300">CB</div>
+                    <div>
+                      <Dialog.Title className="text-sm font-medium text-navy-100">Connect Coinbase</Dialog.Title>
+                      <Dialog.Description className="text-[10px] text-navy-500 mt-0.5">Enter your CDP API key from the Coinbase Developer Platform.</Dialog.Description>
+                    </div>
+                  </div>
+                  <Dialog.Close className="text-navy-500 hover:text-navy-300 transition-colors">
+                    <X className="h-4 w-4" />
+                  </Dialog.Close>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Key Name</label>
+                    <Input type="password" placeholder="organizations/.../apiKeys/..." value={coinbaseForm.apiKey} onChange={(e) => setCoinbaseForm(f => ({ ...f, apiKey: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Key Secret</label>
+                    <Input type="password" placeholder="-----BEGIN EC PRIVATE KEY-----" value={coinbaseForm.apiSecret} onChange={(e) => setCoinbaseForm(f => ({ ...f, apiSecret: e.target.value }))} />
+                  </div>
+                  {connectStatus.coinbase && (
+                    <p className={`text-[10px] font-mono ${connectStatus.coinbase.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.coinbase.message}</p>
+                  )}
+                  <button
+                    disabled={!coinbaseForm.apiKey || !coinbaseForm.apiSecret || connectingBroker === "coinbase"}
+                    onClick={async () => {
+                      setConnectingBroker("coinbase");
+                      setConnectStatus(s => ({ ...s, coinbase: null }));
+                      try {
+                        await saveSetting("coinbase_api_key", coinbaseForm.apiKey);
+                        await saveSetting("coinbase_api_secret", coinbaseForm.apiSecret);
+                        setCoinbaseKey(coinbaseForm.apiKey);
+                        setCoinbaseSecret(coinbaseForm.apiSecret);
+                        const res = await fetch("/api/coinbase/accounts");
+                        const data = await res.json();
+                        if (data.error) {
+                          setConnectStatus(s => ({ ...s, coinbase: { ok: false, message: data.error } }));
+                          await saveSetting("coinbase_api_key", ""); await saveSetting("coinbase_api_secret", "");
+                          setCoinbaseKey(""); setCoinbaseSecret("");
+                        } else {
+                          setBrokerModal(null);
+                          setCoinbaseForm({ apiKey: "", apiSecret: "" });
+                        }
+                      } catch {
+                        setConnectStatus(s => ({ ...s, coinbase: { ok: false, message: "Connection failed" } }));
+                        await saveSetting("coinbase_api_key", ""); await saveSetting("coinbase_api_secret", "");
+                        setCoinbaseKey(""); setCoinbaseSecret("");
+                      }
+                      setConnectingBroker(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
+                  >
+                    {connectingBroker === "coinbase" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                     Connect
                   </button>
                   <div className="flex items-center gap-2 pt-1">

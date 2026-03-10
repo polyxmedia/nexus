@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { Network, RefreshCw, Loader2 } from "lucide-react";
 import { EntityDetailPanel } from "@/components/graph/entity-detail-panel";
 import { EntityListPanel } from "@/components/graph/entity-list-panel";
 import { GraphEmptyState, GraphTipBanner } from "@/components/graph/graph-empty-state";
+import { GraphStatsBar } from "@/components/graph/graph-stats-bar";
+import { GraphContextMenu } from "@/components/graph/context-menu";
 import { NODE_COLORS, NODE_TYPE_LABELS } from "@/lib/graph/constants";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import type { GraphNodeData, GraphEdgeData } from "@/components/graph/graph-canvas";
@@ -33,7 +36,54 @@ interface RawEdge {
   properties: Record<string, unknown>;
 }
 
+// BFS shortest path finder
+function findShortestPath(
+  fromId: number,
+  toId: number,
+  edges: RawEdge[]
+): { nodeIds: Set<number>; edgeIds: Set<number> } | null {
+  const adj = new Map<number, Array<{ nodeId: number; edgeId: number }>>();
+  for (const e of edges) {
+    if (!adj.has(e.from)) adj.set(e.from, []);
+    if (!adj.has(e.to)) adj.set(e.to, []);
+    adj.get(e.from)!.push({ nodeId: e.to, edgeId: e.id });
+    adj.get(e.to)!.push({ nodeId: e.from, edgeId: e.id });
+  }
+
+  const visited = new Set<number>();
+  const parent = new Map<number, { nodeId: number; edgeId: number }>();
+  const queue = [fromId];
+  visited.add(fromId);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === toId) {
+      // Reconstruct path
+      const nodeIds = new Set<number>();
+      const edgeIds = new Set<number>();
+      let c = toId;
+      nodeIds.add(c);
+      while (c !== fromId) {
+        const p = parent.get(c)!;
+        edgeIds.add(p.edgeId);
+        nodeIds.add(p.nodeId);
+        c = p.nodeId;
+      }
+      return { nodeIds, edgeIds };
+    }
+    for (const neighbor of adj.get(current) || []) {
+      if (!visited.has(neighbor.nodeId)) {
+        visited.add(neighbor.nodeId);
+        parent.set(neighbor.nodeId, { nodeId: current, edgeId: neighbor.edgeId });
+        queue.push(neighbor.nodeId);
+      }
+    }
+  }
+  return null;
+}
+
 export default function GraphPage() {
+  const router = useRouter();
   const [rawNodes, setRawNodes] = useState<RawNode[]>([]);
   const [rawEdges, setRawEdges] = useState<RawEdge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,8 +95,26 @@ export default function GraphPage() {
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
   const [breadcrumbs, setBreadcrumbs] = useState<RawNode[]>([]);
   const [showTip, setShowTip] = useState(false);
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // Focus mode (double-click shows 2-hop neighborhood)
+  const [focusNodeId, setFocusNodeId] = useState<number | null>(null);
+
+  // Path finder
+  const [pathSource, setPathSource] = useState<number | null>(null);
+  const [pathTarget, setPathTarget] = useState<number | null>(null);
+
+  // Context menu
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: number;
+  } | null>(null);
+
+  // Compute path
+  const pathResult = useMemo(() => {
+    if (pathSource == null || pathTarget == null) return null;
+    return findShortestPath(pathSource, pathTarget, rawEdges);
+  }, [pathSource, pathTarget, rawEdges]);
 
   // Fetch graph data
   const fetchGraph = useCallback(async () => {
@@ -67,7 +135,6 @@ export default function GraphPage() {
     try {
       await fetch("/api/graph", { method: "POST" });
       await fetchGraph();
-      // Show tip after first sync
       if (!localStorage.getItem("nexus-graph-tip-dismissed")) {
         setShowTip(true);
       }
@@ -81,18 +148,32 @@ export default function GraphPage() {
     fetchGraph();
   }, [fetchGraph]);
 
-  // Measure canvas container
+  // Keyboard shortcuts
   useEffect(() => {
-    const measure = () => {
-      if (canvasContainerRef.current) {
-        const rect = canvasContainerRef.current.getBoundingClientRect();
-        setCanvasSize({ width: rect.width, height: rect.height });
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (contextMenu) {
+          setContextMenu(null);
+        } else if (focusNodeId) {
+          setFocusNodeId(null);
+        } else if (pathSource != null) {
+          setPathSource(null);
+          setPathTarget(null);
+        } else if (selectedId) {
+          setSelectedId(null);
+          setBreadcrumbs([]);
+        }
+      }
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        // Focus the search input
+        const input = document.querySelector<HTMLInputElement>("[data-graph-search]");
+        input?.focus();
       }
     };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [selectedId]);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [contextMenu, focusNodeId, pathSource, selectedId]);
 
   // Connection counts
   const connectionCounts = useMemo(() => {
@@ -104,7 +185,7 @@ export default function GraphPage() {
     return counts;
   }, [rawEdges]);
 
-  // Convert to graph canvas format (source/target instead of from/to)
+  // Convert to graph canvas format
   const graphNodes: GraphNodeData[] = useMemo(
     () =>
       rawNodes.map((n) => ({
@@ -144,7 +225,7 @@ export default function GraphPage() {
     [rawNodes]
   );
 
-  // Type counts for header chips
+  // Type counts
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const n of rawNodes) {
@@ -180,7 +261,7 @@ export default function GraphPage() {
     return result.sort((a, b) => b.edge.weight - a.edge.weight);
   }, [rawNodes, rawEdges, selectedNode]);
 
-  // Navigation handler (updates breadcrumbs)
+  // Navigation handler
   const navigateTo = useCallback(
     (id: number) => {
       const node = rawNodes.find((n) => n.id === id);
@@ -197,6 +278,12 @@ export default function GraphPage() {
 
   const selectNode = useCallback(
     (id: number) => {
+      // If in path finder mode, set the target
+      if (pathSource != null && pathTarget == null && id !== pathSource) {
+        setPathTarget(id);
+        return;
+      }
+
       if (selectedId === id) {
         setSelectedId(null);
         setBreadcrumbs([]);
@@ -208,12 +295,13 @@ export default function GraphPage() {
         }
       }
     },
-    [selectedId, rawNodes]
+    [selectedId, rawNodes, pathSource, pathTarget]
   );
 
   const deselectNode = useCallback(() => {
     setSelectedId(null);
     setBreadcrumbs([]);
+    setContextMenu(null);
   }, []);
 
   const toggleType = useCallback((type: string) => {
@@ -229,6 +317,57 @@ export default function GraphPage() {
     setShowTip(false);
     localStorage.setItem("nexus-graph-tip-dismissed", "1");
   }, []);
+
+  // Double-click: focus mode
+  const handleNodeDoubleClick = useCallback((id: number) => {
+    setFocusNodeId((prev) => (prev === id ? null : id));
+    setPathSource(null);
+    setPathTarget(null);
+  }, []);
+
+  // Context menu handlers
+  const handleNodeContextMenu = useCallback((e: React.MouseEvent, nodeId: number) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, nodeId });
+  }, []);
+
+  const handleChatAbout = useCallback(
+    (name: string) => {
+      router.push(`/chat/new?prompt=${encodeURIComponent(`Tell me about ${name} and its relationships in our intelligence graph`)}`);
+    },
+    [router]
+  );
+
+  const handleFocusNeighborhood = useCallback((id: number) => {
+    setFocusNodeId(id);
+    setPathSource(null);
+    setPathTarget(null);
+  }, []);
+
+  const handleStartPathfinder = useCallback((id: number) => {
+    setPathSource(id);
+    setPathTarget(null);
+    setFocusNodeId(null);
+  }, []);
+
+  const handleViewSource = useCallback(
+    (sourceType: string, sourceId: string) => {
+      const routeMap: Record<string, string> = {
+        signals: "/signals",
+        predictions: "/predictions",
+        trades: "/trading",
+        theses: "/thesis",
+      };
+      const route = routeMap[sourceType];
+      if (route) router.push(`${route}/${sourceId}`);
+    },
+    [router]
+  );
+
+  const contextMenuNode = useMemo(
+    () => (contextMenu ? rawNodes.find((n) => n.id === contextMenu.nodeId) : null),
+    [contextMenu, rawNodes]
+  );
 
   const hasData = rawNodes.length > 0;
 
@@ -248,6 +387,13 @@ export default function GraphPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Path finder indicator */}
+          {pathSource != null && pathTarget == null && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-accent-amber/10 border border-accent-amber/30 text-[9px] font-mono text-accent-amber uppercase tracking-wider animate-pulse">
+              Select target node...
+            </div>
+          )}
+
           {/* Type filter chips */}
           {hasData && entityTypes.length > 0 && (
             <div className="flex items-center gap-1 mr-2">
@@ -290,6 +436,18 @@ export default function GraphPage() {
         </div>
       </div>
 
+      {/* Stats bar */}
+      {hasData && !loading && (
+        <GraphStatsBar
+          nodes={graphNodes}
+          edges={graphEdges}
+          focusMode={focusNodeId != null}
+          pathMode={pathSource != null}
+          onExitFocus={() => setFocusNodeId(null)}
+          onExitPath={() => { setPathSource(null); setPathTarget(null); }}
+        />
+      )}
+
       {/* Body */}
       <div className="flex-1 flex min-h-0">
         {loading ? (
@@ -315,7 +473,7 @@ export default function GraphPage() {
             />
 
             {/* Graph canvas */}
-            <div ref={canvasContainerRef} className="flex-1 relative min-w-0">
+            <div className="flex-1 relative min-w-0 min-h-0">
               {showTip && <GraphTipBanner onDismiss={dismissTip} />}
               <GraphCanvas
                 nodes={graphNodes}
@@ -323,15 +481,38 @@ export default function GraphPage() {
                 selectedId={selectedId}
                 hoveredId={hoveredId}
                 hiddenTypes={hiddenTypes}
+                focusNodeId={focusNodeId}
+                pathNodes={pathResult?.nodeIds || null}
+                pathEdges={pathResult?.edgeIds || null}
                 onNodeClick={selectNode}
                 onNodeHover={setHoveredId}
                 onBackgroundClick={deselectNode}
-                width={canvasSize.width}
-                height={canvasSize.height}
+                onNodeContextMenu={handleNodeContextMenu}
+                onNodeDoubleClick={handleNodeDoubleClick}
+                width={0}
+                height={0}
               />
+
+              {/* Context menu */}
+              {contextMenu && contextMenuNode && (
+                <GraphContextMenu
+                  x={contextMenu.x}
+                  y={contextMenu.y}
+                  nodeId={contextMenu.nodeId}
+                  nodeName={contextMenuNode.name}
+                  nodeType={contextMenuNode.type}
+                  sourceType={contextMenuNode.sourceType}
+                  sourceId={contextMenuNode.sourceId}
+                  onClose={() => setContextMenu(null)}
+                  onChatAbout={handleChatAbout}
+                  onFocusNeighborhood={handleFocusNeighborhood}
+                  onStartPathfinder={handleStartPathfinder}
+                  onViewSource={handleViewSource}
+                />
+              )}
             </div>
 
-            {/* Detail panel (slides in when selected) */}
+            {/* Detail panel */}
             {selectedNode && (
               <EntityDetailPanel
                 node={selectedNode}

@@ -10,11 +10,11 @@ const PREFIX = "enc:v1:"; // marks encrypted values so we can detect unencrypted
 function getKey(): Buffer {
   const raw = process.env.SETTINGS_ENCRYPTION_KEY;
   if (!raw) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("SETTINGS_ENCRYPTION_KEY must be set in production");
-    }
-    // Dev fallback — deterministic but not secure. Fine for local dev only.
-    return Buffer.from("00".repeat(32), "hex");
+    throw new Error(
+      "SETTINGS_ENCRYPTION_KEY is not set. " +
+      "All settings encryption requires this variable. " +
+      "Generate one with: openssl rand -hex 32"
+    );
   }
   const buf = Buffer.from(raw, "hex");
   if (buf.length !== 32) {
@@ -36,6 +36,10 @@ export function encrypt(plaintext: string): string {
 export function decrypt(value: string): string {
   if (!value.startsWith(PREFIX)) {
     // Legacy plaintext value — return as-is (allows gradual migration)
+    console.warn(
+      "[encryption] Detected unencrypted legacy value. " +
+      "Re-save this setting to encrypt it automatically."
+    );
     return value;
   }
   const parts = value.slice(PREFIX.length).split(":");

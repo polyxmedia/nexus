@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getBacktestRun } from "@/lib/backtest/engine";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function requireAdmin(): Promise<NextResponse | null> {
   const session = await getServerSession(authOptions);
@@ -23,6 +24,16 @@ export async function GET(
 ) {
   const denied = await requireAdmin();
   if (denied) return denied;
+
+  const session = await getServerSession(authOptions);
+  const rl = rateLimit(`admin:backtest-detail:${session!.user!.name}`, 60, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const { id } = await params;
     const run = await getBacktestRun(id);

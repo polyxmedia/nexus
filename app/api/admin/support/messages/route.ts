@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { supportMessages, settings } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -20,6 +21,15 @@ export async function GET(req: NextRequest) {
   if (!session?.user?.name || !(await isAdmin(session.user.name))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const rl = rateLimit(`admin:support-messages:${session.user.name}`, 60, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const ticketId = req.nextUrl.searchParams.get("ticketId");
     if (!ticketId) {

@@ -5,16 +5,16 @@
 
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
-import { getImpersonationFromCookie } from "@/lib/auth/impersonation";
+import { getValidatedImpersonation } from "@/lib/auth/impersonation";
 
 export async function getEffectiveUsername(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const sessionName = session?.user?.name ?? null;
   if (!sessionName) return null;
 
-  // Check impersonation cookie directly (works reliably in route handlers)
+  // Check impersonation with full validation (admin role re-check + revocation)
   try {
-    const impData = await getImpersonationFromCookie();
+    const impData = await getValidatedImpersonation();
     if (impData) {
       // Session callback may or may not have already applied the override.
       // If sessionName matches the admin OR the target, impersonation is active.

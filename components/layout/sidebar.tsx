@@ -36,6 +36,7 @@ import {
   Share2,
   Shield,
   Sigma,
+  Skull,
   Swords,
   Target,
   TrendingUp,
@@ -66,6 +67,7 @@ const intelligenceNav: NavItem[] = [
   { name: "Parallels", href: "/parallels", icon: History },
   { name: "Actors", href: "/actors", icon: Users },
   { name: "Knowledge", href: "/knowledge", icon: BookOpen },
+  { name: "Longevity", href: "/longevity", icon: Skull },
 ];
 
 const toolsNav: NavItem[] = [
@@ -82,6 +84,7 @@ const marketsNav: NavItem[] = [
   { name: "Markets", href: "/markets", icon: BarChart3 },
   { name: "Watchlists", href: "/watchlists", icon: Activity },
   { name: "Trading", href: "/trading", icon: TrendingUp },
+  { name: "Trade Lab", href: "/trade-lab", icon: Dice5 },
   { name: "Thesis", href: "/thesis", icon: FileText },
   { name: "On-Chain", href: "/on-chain", icon: Link2 },
   { name: "Short Interest", href: "/short-interest", icon: Target },

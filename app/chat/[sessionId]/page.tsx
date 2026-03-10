@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useChat } from "@/lib/chat/useChat";
+import { useVoiceMode } from "@/lib/chat/useVoiceMode";
 import { MessageBlock } from "@/components/chat/MessageBlock";
 import { ChatInput, type FileAttachment } from "@/components/chat/ChatInput";
 import {
@@ -21,36 +22,106 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { loadStripe } from "@stripe/stripe-js";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+import { PaymentForm } from "@/components/stripe/payment-form";
 
 function AutoPrompt({ sendMessage, historyLoaded, isStreaming }: { sendMessage: (msg: string) => void; historyLoaded: boolean; isStreaming: boolean }) {
   const searchParams = useSearchParams();
   const sent = useRef(false);
+  const promptRef = useRef<string | null>(null);
   const sendRef = useRef(sendMessage);
   sendRef.current = sendMessage;
 
+  // Capture prompt on first render before anything can clear it
+  if (promptRef.current === null) {
+    promptRef.current = searchParams.get("prompt") || "";
+  }
+
   useEffect(() => {
-    const prompt = searchParams.get("prompt");
+    const prompt = promptRef.current;
     if (prompt && !sent.current && historyLoaded && !isStreaming) {
       sent.current = true;
-      // Use ref to avoid stale closure from setTimeout
-      const frame = requestAnimationFrame(() => {
+
+      // Clear the prompt from URL so reload won't re-send
+      const url = new URL(window.location.href);
+      url.searchParams.delete("prompt");
+      window.history.replaceState({}, "", url.pathname);
+
+      // Send after a short delay to ensure chat state is fully ready
+      const timer = setTimeout(() => {
         sendRef.current(prompt);
-      });
-      return () => cancelAnimationFrame(frame);
+      }, 300);
+      return () => clearTimeout(timer);
     }
-  }, [searchParams, historyLoaded, isStreaming]);
+  }, [historyLoaded, isStreaming]);
 
   return null;
+}
+
+function ChatCheckoutForm({ tierId, onClose }: { tierId: number; onClose: () => void }) {
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [intentType, setIntentType] = useState<"payment" | "setup">("payment");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tierId }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.clientSecret) {
+          setClientSecret(data.clientSecret);
+          setIntentType(data.type || "payment");
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [tierId]);
+
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="w-full max-w-md mx-auto px-4">
+        <div className="flex items-center justify-between mb-4">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">
+            Subscribe to Analyst
+          </span>
+          <button
+            onClick={onClose}
+            className="text-navy-500 hover:text-navy-300 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="border border-navy-700/50 rounded-lg p-5">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-4 h-4 border-2 border-navy-600 border-t-navy-300 rounded-full animate-spin" />
+            </div>
+          ) : clientSecret ? (
+            <PaymentForm
+              clientSecret={clientSecret}
+              intentType={intentType}
+              submitLabel={intentType === "setup" ? "Start free trial" : "Subscribe"}
+              onSuccess={() => window.location.reload()}
+              returnUrl={`${window.location.origin}/settings?tab=subscription&status=success`}
+            />
+          ) : (
+            <p className="text-xs text-accent-rose text-center">Failed to load payment form</p>
+          )}
+        </div>
+        <p className="mt-3 font-mono text-[9px] text-navy-600 tracking-wider text-center">
+          2 days free, full access. Cancel anytime.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function ChatSessionPage() {
   const params = useParams();
   const sessionId = params.sessionId as string;
   const { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired } = useChat(sessionId);
+  const voice = useVoiceMode();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState("New Chat");
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -112,6 +183,29 @@ export default function ChatSessionPage() {
       userScrolledUp.current = false;
     }
   }, [isStreaming]);
+
+  // Auto-speak assistant response when voice mode is on and streaming completes
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming && voice.voiceEnabled) {
+      // Streaming just finished - speak the last assistant turn
+      const lastTurn = turns[turns.length - 1];
+      if (lastTurn?.role === "assistant" && lastTurn.content) {
+        voice.speak(lastTurn.content);
+      }
+    }
+    prevStreamingRef.current = isStreaming;
+  }, [isStreaming, turns, voice]);
+
+  // Voice input handler - sends transcript as a message
+  const handleVoiceStart = useCallback(() => {
+    voice.startListening((text: string) => {
+      if (text.trim()) {
+        sendMessage(text);
+        voice.stopListening();
+      }
+    });
+  }, [voice, sendMessage]);
 
   return (
     <div className="ml-0 md:ml-48 flex h-screen flex-col pt-12 md:pt-0">
@@ -175,45 +269,9 @@ export default function ChatSessionPage() {
         </div>
       )}
 
-      {/* Embedded checkout */}
+      {/* Payment form */}
       {upgradeRequired && showCheckout && tierId && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-full max-w-lg mx-auto px-4">
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">
-                Subscribe to Analyst
-              </span>
-              <button
-                onClick={() => setShowCheckout(false)}
-                className="text-navy-500 hover:text-navy-300 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="rounded-lg overflow-hidden border border-navy-700/50">
-              <EmbeddedCheckoutProvider
-                stripe={stripePromise}
-                options={{
-                  fetchClientSecret: async () => {
-                    const res = await fetch("/api/stripe/checkout", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ tierId, embedded: true }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok || !data.clientSecret) throw new Error(data.error || "Checkout failed");
-                    return data.clientSecret;
-                  },
-                }}
-              >
-                <EmbeddedCheckout className="embedded-checkout" />
-              </EmbeddedCheckoutProvider>
-            </div>
-            <p className="mt-3 font-mono text-[9px] text-navy-600 tracking-wider text-center">
-              2 days free, full access. Cancel anytime.
-            </p>
-          </div>
-        </div>
+        <ChatCheckoutForm tierId={tierId} onClose={() => setShowCheckout(false)} />
       )}
 
       {/* Messages */}
@@ -308,6 +366,15 @@ export default function ChatSessionPage() {
             onSend={(msg: string, files?: FileAttachment[]) => sendMessage(msg, files)}
             onStop={stop}
             isStreaming={isStreaming}
+            voiceAvailable={voice.voiceAvailable}
+            voiceEnabled={voice.voiceEnabled}
+            isListening={voice.isListening}
+            isSpeaking={voice.isSpeaking}
+            transcript={voice.transcript}
+            onToggleVoice={voice.toggleVoice}
+            onStartListening={handleVoiceStart}
+            onStopListening={voice.stopListening}
+            onStopSpeaking={voice.stopSpeaking}
           />
         </div>
       </div>}

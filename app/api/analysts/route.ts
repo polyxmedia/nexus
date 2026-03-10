@@ -119,9 +119,23 @@ export async function GET(req: NextRequest) {
     const accuracy = resolved.length > 0 ? confirmed.length / resolved.length : null;
     const avgConfidence = predictions.reduce((s, p) => s + p.confidence, 0) / predictions.length;
 
+    // Look up profile image
+    let profileImage: string | null = null;
+    try {
+      const userRows = await db
+        .select()
+        .from(schema.settings)
+        .where(eq(schema.settings.key, `user:${username}`));
+      if (userRows[0]) {
+        const userData = JSON.parse(userRows[0].value);
+        profileImage = userData.profileImage || null;
+      }
+    } catch {}
+
     return NextResponse.json({
       username,
       exists: true,
+      profileImage,
       stats: {
         total: predictions.length,
         resolved: resolved.length,

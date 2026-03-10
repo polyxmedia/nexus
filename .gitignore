@@ -48,3 +48,7 @@ data/*.db-shm
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Capacitor native projects
+/ios
+/android

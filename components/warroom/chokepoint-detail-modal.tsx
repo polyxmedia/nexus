@@ -22,22 +22,15 @@ export function ChokepointDetailModal({ chokepoint, onClose }: ChokepointDetailM
   const threat = THREAT_COLORS[chokepoint.threatLevel] || THREAT_COLORS[3];
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-40 pointer-events-auto animate-[slideUp_200ms_ease-out]">
-      <div className="mx-auto max-w-4xl rounded-t-lg border border-b-0 border-navy-700/40 bg-navy-900/98 backdrop-blur-md wr-shadow-lg overflow-hidden">
+    <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center p-6">
+      <div className="pointer-events-auto w-full max-w-4xl rounded-lg border border-navy-700/40 bg-navy-900/98 backdrop-blur-md wr-shadow-lg overflow-hidden animate-[slideUp_200ms_ease-out]">
         {/* Terminal header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-navy-700/20 bg-navy-900">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-accent-rose" />
-              <span className="w-2 h-2 rounded-full bg-accent-amber" />
-              <span className="w-2 h-2 rounded-full bg-accent-emerald" />
-            </div>
-            <div className="flex items-center gap-2">
-              <Anchor className="h-3.5 w-3.5 text-accent-amber" />
-              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-navy-400">
-                chokepoint intel
-              </span>
-            </div>
+            <Anchor className="h-3.5 w-3.5 text-accent-amber" />
+            <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-navy-400">
+              chokepoint intel
+            </span>
             <span className="text-[10px] font-mono text-navy-600">
               {chokepoint.coords.lat.toFixed(4)}&deg;{chokepoint.coords.lat >= 0 ? "N" : "S"}{" "}
               {chokepoint.coords.lng.toFixed(4)}&deg;{chokepoint.coords.lng >= 0 ? "E" : "W"}
@@ -71,7 +64,7 @@ export function ChokepointDetailModal({ chokepoint, onClose }: ChokepointDetailM
         </div>
 
         {/* Content grid */}
-        <div className="px-4 py-3 max-h-[45vh] overflow-y-auto">
+        <div className="px-4 py-3 max-h-[60vh] overflow-y-auto">
           {/* Title + summary row */}
           <div className="mb-3">
             <h2 className="text-base font-semibold text-navy-100 mb-1">{chokepoint.name}</h2>

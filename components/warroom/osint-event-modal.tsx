@@ -30,16 +30,11 @@ export function OsintEventModal({ event, onClose }: OsintEventModalProps) {
   if (!event) return null;
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-40 animate-[slideUp_200ms_ease-out]">
-      <div className="mx-auto max-w-3xl border-t border-x border-navy-700/60 rounded-t-lg bg-navy-950/95 backdrop-blur-md wr-shadow-lg">
+    <div className="absolute bottom-4 left-4 right-4 z-40 animate-[slideUp_200ms_ease-out]">
+      <div className="mx-auto max-w-3xl border border-navy-700/60 rounded-lg bg-navy-950/95 backdrop-blur-md wr-shadow-lg">
         {/* Terminal header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-navy-800/60">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-accent-amber/60" />
-              <div className="w-2 h-2 rounded-full bg-navy-700/60" />
-              <div className="w-2 h-2 rounded-full bg-navy-700/60" />
-            </div>
             <span className="font-mono text-[10px] uppercase tracking-wider text-navy-500">
               osint event
             </span>
@@ -59,14 +54,14 @@ export function OsintEventModal({ event, onClose }: OsintEventModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="text-navy-500 hover:text-navy-300 hover:bg-navy-800/60 rounded p-1 transition-colors"
+            className="text-navy-400 hover:text-white hover:bg-navy-700/80 rounded p-1.5 transition-colors border border-navy-700/50 hover:border-navy-600"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-[30vh] overflow-y-auto">
+        <div className="p-4 pb-6 max-h-[50vh] overflow-y-auto">
           {/* Location header */}
           <div className="mb-3">
             <div className="text-sm font-semibold text-navy-100">

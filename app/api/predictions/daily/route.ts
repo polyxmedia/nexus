@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generatePredictions, resolvePredictions, autoExpirePastDeadline, invalidateOnRegimeChange } from "@/lib/predictions/engine";
+import { generatePredictions, resolvePredictions, resolveByData, autoExpirePastDeadline, invalidateOnRegimeChange } from "@/lib/predictions/engine";
 import { runWartimeCheck } from "@/lib/game-theory/wartime";
 import { db, schema } from "@/lib/db";
 import { desc, and, gte, lt } from "drizzle-orm";
@@ -11,7 +11,10 @@ export async function POST() {
     const regimeInvalidated = await invalidateOnRegimeChange();
     const wartimeCheck = await runWartimeCheck();
 
-    // Step 1: Resolve any overdue predictions first
+    // Step 1a: Fast data-driven resolution (market predictions with price targets)
+    const dataResolved = await resolveByData();
+
+    // Step 1b: AI resolution for remaining complex predictions
     const resolved = await resolvePredictions();
 
     // Step 2: Check if we already generated predictions today
@@ -34,6 +37,7 @@ export async function POST() {
 
     return NextResponse.json({
       housekeeping: { autoExpired, regimeInvalidated, wartimeCheck },
+      dataResolved: { count: dataResolved.length, results: dataResolved },
       resolved: { count: resolved.length, results: resolved },
       generated: { count: generated.length, predictions: generated },
       alreadyGenerated: todaysPredictions.length > 0,

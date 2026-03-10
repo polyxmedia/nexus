@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { X, Plane, Eye, Loader2, ExternalLink, MapPin } from "lucide-react";
+import L from "leaflet";
 import type { AircraftState } from "@/lib/warroom/types";
 import { decodeCallsign } from "@/lib/warroom/callsign-decode";
 
@@ -51,6 +52,76 @@ function formatTime(ts: number): string {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function TrackMiniMap({ track, isMilitary }: { track: TrackPoint[]; isMilitary: boolean }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || track.length < 2) return;
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+
+    const miniMap = L.map(containerRef.current, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      touchZoom: false,
+    });
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd",
+    }).addTo(miniMap);
+
+    const coords: L.LatLngExpression[] = track.map((p) => [p.lat, p.lng]);
+    const color = isMilitary ? "#f43f5e" : "#06b6d4";
+
+    L.polyline(coords, { color, weight: 2, opacity: 0.8 }).addTo(miniMap);
+
+    // Start marker
+    L.circleMarker(coords[0], {
+      radius: 4,
+      color: "#555",
+      fillColor: "#3d3d3d",
+      fillOpacity: 1,
+      weight: 1,
+    }).addTo(miniMap);
+
+    // Current position marker
+    L.circleMarker(coords[coords.length - 1], {
+      radius: 5,
+      color: "rgba(255,255,255,0.3)",
+      fillColor: color,
+      fillOpacity: 1,
+      weight: 1,
+    }).addTo(miniMap);
+
+    const bounds = L.latLngBounds(coords);
+    miniMap.fitBounds(bounds, { padding: [15, 15] });
+    mapRef.current = miniMap;
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [track, isMilitary]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="rounded-md overflow-hidden border border-navy-700/20"
+      style={{ height: "140px", width: "100%" }}
+    />
+  );
 }
 
 export function AircraftDetailModal({
@@ -113,9 +184,7 @@ export function AircraftDetailModal({
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-navy-700/20 sticky top-0 bg-navy-900/95 backdrop-blur-md z-10">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`p-1.5 rounded ${aircraft.isMilitary ? "bg-accent-rose/10" : "bg-navy-800/60"}`}>
-            <Plane className={`h-4 w-4 ${aircraft.isMilitary ? "text-accent-rose" : "text-navy-400"}`} />
-          </div>
+          <Plane className={`h-4 w-4 ${aircraft.isMilitary ? "text-accent-rose" : "text-navy-400"}`} />
           <div className="min-w-0">
             <div className="text-xs font-semibold text-navy-100 font-mono truncate">
               {aircraft.callsign || aircraft.icao24}
@@ -289,64 +358,8 @@ export function AircraftDetailModal({
               </span>
             </div>
 
-            {/* Mini track visualization */}
-            <div className="bg-navy-800/60 rounded-md p-2 border border-navy-700/20">
-              <svg
-                viewBox="0 0 360 120"
-                className="w-full h-20"
-                preserveAspectRatio="none"
-              >
-                {(() => {
-                  const lats = track.map((p) => p.lat);
-                  const lngs = track.map((p) => p.lng);
-                  const minLat = Math.min(...lats);
-                  const maxLat = Math.max(...lats);
-                  const minLng = Math.min(...lngs);
-                  const maxLng = Math.max(...lngs);
-                  const padLat = (maxLat - minLat) * 0.1 || 0.01;
-                  const padLng = (maxLng - minLng) * 0.1 || 0.01;
-
-                  const points = track.map((p) => {
-                    const x = ((p.lng - minLng + padLng) / (maxLng - minLng + padLng * 2)) * 340 + 10;
-                    const y = 110 - ((p.lat - minLat + padLat) / (maxLat - minLat + padLat * 2)) * 100;
-                    return `${x},${y}`;
-                  });
-
-                  const lastPt = track[track.length - 1];
-                  const lastX = ((lastPt.lng - minLng + padLng) / (maxLng - minLng + padLng * 2)) * 340 + 10;
-                  const lastY = 110 - ((lastPt.lat - minLat + padLat) / (maxLat - minLat + padLat * 2)) * 100;
-
-                  return (
-                    <>
-                      <polyline
-                        points={points.join(" ")}
-                        fill="none"
-                        stroke={aircraft.isMilitary ? "#f43f5e" : "#06b6d4"}
-                        strokeWidth="1.5"
-                        opacity="0.7"
-                      />
-                      {/* Start point */}
-                      <circle
-                        cx={points[0].split(",")[0]}
-                        cy={points[0].split(",")[1]}
-                        r="3"
-                        fill="#3d3d3d"
-                        stroke="#5c5c5c"
-                        strokeWidth="1"
-                      />
-                      {/* Current position */}
-                      <circle
-                        cx={lastX}
-                        cy={lastY}
-                        r="3.5"
-                        fill={aircraft.isMilitary ? "#f43f5e" : "#06b6d4"}
-                        stroke="rgba(255,255,255,0.3)"
-                        strokeWidth="1"
-                      />
-                    </>
-                  );
-                })()}
-              </svg>
+            {/* Mini track map */}
+            <TrackMiniMap track={track} isMilitary={aircraft.isMilitary} />
 
               {/* Track data summary */}
               <div className="grid grid-cols-3 gap-2 mt-2 text-[9px]">
@@ -363,7 +376,6 @@ export function AircraftDetailModal({
                   <div className="text-navy-400 font-mono">{formatTime(track[track.length - 1].time)}</div>
                 </div>
               </div>
-            </div>
           </div>
         )}
 

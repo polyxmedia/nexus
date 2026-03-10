@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,6 +83,7 @@ interface ExtendedProfile {
 }
 
 export default function ActorsPage() {
+  const router = useRouter();
   const [profiles, setProfiles] = useState<ExtendedProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -478,6 +480,26 @@ export default function ActorsPage() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  {/* Discuss with AI */}
+                  <div className="px-4 pb-4">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const res = await fetch("/api/chat/sessions", { method: "POST" });
+                        const data = await res.json();
+                        if (data.session?.uuid) {
+                          const dominant = Object.entries(profile.base.typeDistribution).sort((a, b) => b[1] - a[1])[0];
+                          const prompt = `Analyze the actor-belief profile for ${profile.base.name} (${profile.base.country}). They are classified as ${dominant[0]} (${(dominant[1] * 100).toFixed(0)}%). Their belief framework: "${profile.beliefFramework}". Decision pattern: "${profile.decisionPattern}". They have ${profile.calendarModifiers.length} calendar modifiers and ${profile.publicStatements.length} recorded statements. What is your current assessment of their likely behavior and how should we factor them into our thesis?`;
+                          router.push(`/chat/${data.session.uuid}?prompt=${encodeURIComponent(prompt)}`);
+                        }
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 text-accent-cyan text-xs font-mono uppercase tracking-wider hover:bg-accent-cyan/10 hover:border-accent-cyan/40 transition-all"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Discuss with AI
+                    </button>
                   </div>
                 </div>
               )}

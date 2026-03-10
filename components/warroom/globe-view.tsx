@@ -14,9 +14,202 @@ import type {
 import type { AllianceLink, ConflictZone, StrategicLocation } from "@/lib/warroom/geo-constants";
 import { ACTOR_COORDS } from "@/lib/warroom/geo-constants";
 import { decodeCallsign as decodeGlobeCallsign } from "@/lib/warroom/callsign-decode";
+import * as THREE from "three";
 
 // Lazy import Globe (already dynamically imported at page level, but typed here)
 import Globe from "react-globe.gl";
+
+// ── Earth shaders (ported from 3dsolarsystem.online) ──
+
+const earthVertexShader = `
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vWorldNormal;
+  varying vec3 vPosition;
+  varying vec3 vWorldPosition;
+
+  void main() {
+    vUv = uv;
+    vNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const earthFragmentShader = `
+  uniform sampler2D dayTexture;
+  uniform sampler2D nightTexture;
+  uniform sampler2D cloudsTexture;
+  uniform vec3 sunPosition;
+  uniform float cloudOpacity;
+
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vWorldNormal;
+  varying vec3 vPosition;
+  varying vec3 vWorldPosition;
+
+  vec3 adjustSaturation(vec3 color, float saturation) {
+    float grey = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    return mix(vec3(grey), color, saturation);
+  }
+
+  vec3 adjustContrast(vec3 color, float contrast) {
+    return (color - 0.5) * contrast + 0.5;
+  }
+
+  void main() {
+    vec3 sunDir = normalize(sunPosition - vWorldPosition);
+    float sunFacing = dot(vWorldNormal, sunDir);
+    float dayFactor = smoothstep(-0.1, 0.2, sunFacing);
+
+    vec4 dayColor = texture2D(dayTexture, vUv);
+    vec4 nightColor = texture2D(nightTexture, vUv);
+    vec4 clouds = texture2D(cloudsTexture, vUv);
+
+    // Color grade the day texture
+    vec3 gradedDay = dayColor.rgb;
+    gradedDay = adjustSaturation(gradedDay, 0.85);
+    gradedDay = adjustContrast(gradedDay, 1.08);
+    gradedDay.b += 0.02;
+    gradedDay.g += 0.01;
+
+    // City lights with warm orange tint
+    vec3 cityLights = nightColor.rgb * 2.5;
+    cityLights.r *= 1.1;
+    cityLights.b *= 0.85;
+
+    float diffuse = max(sunFacing, 0.0);
+
+    // Day side with diffuse lighting
+    vec3 dayLit = gradedDay * (0.15 + diffuse * 0.85);
+
+    // Cloud overlay on day side
+    float cloudBlend = clouds.r * cloudOpacity * dayFactor;
+    dayLit = mix(dayLit, vec3(1.0) * (0.15 + diffuse * 0.85), cloudBlend);
+
+    // Night side city lights
+    vec3 nightLit = cityLights * 0.6;
+
+    vec3 surfaceColor = mix(nightLit, dayLit, dayFactor);
+
+    gl_FragColor = vec4(surfaceColor, 1.0);
+  }
+`;
+
+const atmosphereVertexShader = `
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const atmosphereFragmentShader = `
+  uniform vec3 sunPosition;
+
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+
+  void main() {
+    vec3 viewDir = normalize(-vPosition);
+    vec3 sunDir = normalize(sunPosition - vWorldPosition);
+    float sunFacing = dot(vWorldNormal, sunDir);
+    float dayFactor = smoothstep(-0.3, 0.2, sunFacing);
+
+    float fresnel = 1.0 - abs(dot(viewDir, vNormal));
+    float glow = pow(fresnel, 1.5);
+
+    glow *= smoothstep(0.0, 0.3, fresnel);
+    glow *= 1.0 - smoothstep(0.6, 1.0, fresnel);
+
+    // Reduce on dark side but keep 30% visible
+    glow *= (0.3 + dayFactor * 0.7);
+
+    vec3 blueColor = vec3(0.3, 0.6, 1.0);
+    vec3 lightBlue = vec3(0.55, 0.8, 1.0);
+    float whiteMix = smoothstep(0.4, 0.7, fresnel) * 0.3;
+    vec3 atmosphereColor = mix(blueColor, lightBlue, whiteMix);
+
+    gl_FragColor = vec4(atmosphereColor * glow, glow * 0.65);
+  }
+`;
+
+// ── Build custom earth material + atmosphere ──
+
+function createEarthMaterial(): THREE.ShaderMaterial {
+  const loader = new THREE.TextureLoader();
+  const dayTex = loader.load("/textures/earth_day.jpg");
+  const nightTex = loader.load("/textures/earth_night.jpg");
+  const cloudsTex = loader.load("/textures/earth_clouds.jpg");
+
+  // Set texture quality
+  for (const tex of [dayTex, nightTex, cloudsTex]) {
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = 8;
+  }
+
+  // Sun position - top-right for good day/night split
+  const sunPos = new THREE.Vector3(100, 60, 80);
+
+  return new THREE.ShaderMaterial({
+    vertexShader: earthVertexShader,
+    fragmentShader: earthFragmentShader,
+    uniforms: {
+      dayTexture: { value: dayTex },
+      nightTexture: { value: nightTex },
+      cloudsTexture: { value: cloudsTex },
+      sunPosition: { value: sunPos },
+      cloudOpacity: { value: 0.35 },
+    },
+  });
+}
+
+function addAtmosphere(scene: THREE.Scene) {
+  const sunPos = new THREE.Vector3(100, 60, 80);
+
+  // Find the globe mesh to match its scale
+  let globeRadius = 100; // default react-globe.gl radius
+  scene.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry instanceof THREE.SphereGeometry) {
+      const params = obj.geometry.parameters;
+      if (params && params.radius > 50) {
+        globeRadius = params.radius;
+      }
+    }
+  });
+
+  const atmosGeometry = new THREE.SphereGeometry(globeRadius * 1.015, 64, 64);
+  const atmosMaterial = new THREE.ShaderMaterial({
+    vertexShader: atmosphereVertexShader,
+    fragmentShader: atmosphereFragmentShader,
+    uniforms: {
+      sunPosition: { value: sunPos },
+    },
+    side: THREE.BackSide,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const atmosMesh = new THREE.Mesh(atmosGeometry, atmosMaterial);
+  atmosMesh.name = "earth-atmosphere";
+  scene.add(atmosMesh);
+
+  return atmosMesh;
+}
 
 // ── Escalation colors (matching 2D map) ──
 
@@ -145,7 +338,16 @@ export default function GlobeView({
 }: GlobeViewProps) {
   const globeRef = useRef<GlobeMethods>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  const atmosRef = useRef<THREE.Mesh | null>(null);
+  const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+
+  // Create custom earth material once
+  const earthMaterial = useMemo(() => {
+    const mat = createEarthMaterial();
+    materialRef.current = mat;
+    return mat;
+  }, []);
 
   // Size tracking
   useEffect(() => {
@@ -162,11 +364,29 @@ export default function GlobeView({
     return () => ro.disconnect();
   }, []);
 
-  // Set initial camera position
+  // Set initial camera position + add atmosphere
   useEffect(() => {
     if (globeRef.current) {
       globeRef.current.pointOfView({ lat: 25, lng: 45, altitude: 2.5 }, 0);
+
+      // Add atmosphere glow to the scene
+      const scene = globeRef.current.scene();
+      if (scene && !atmosRef.current) {
+        // Small delay to ensure globe mesh is in the scene
+        setTimeout(() => {
+          atmosRef.current = addAtmosphere(scene);
+        }, 100);
+      }
     }
+
+    return () => {
+      if (atmosRef.current) {
+        atmosRef.current.geometry.dispose();
+        (atmosRef.current.material as THREE.ShaderMaterial).dispose();
+        atmosRef.current.removeFromParent();
+        atmosRef.current = null;
+      }
+    };
   }, []);
 
   // ── Points data ──
@@ -320,19 +540,32 @@ export default function GlobeView({
     if (m.markerType === "aircraft") {
       const color = m.isMilitary ? "#f43f5e" : "#a8a8a8";
       const sz = m.isMilitary ? 14 : 10;
-      const glow = m.isMilitary ? "filter:drop-shadow(0 0 4px rgba(244,63,94,0.6));" : "";
-      const path = m.isMilitary
+      const pathD = m.isMilitary
         ? "M12 1 L14 9 L22 12 L14 13 L14 20 L17 22 L7 22 L10 20 L10 13 L2 12 L10 9 Z"
         : "M12 2 L13.5 8 L23 11.5 L13.5 13 L13 19 L16 22 L8 22 L11 19 L10.5 13 L1 11.5 L10.5 8 Z";
-      el.innerHTML = `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" style="transform:rotate(${Math.round(m.heading || 0)}deg);${glow}"><path d="${path}" fill="${color}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/></svg>`;
+
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNS, "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("width", String(sz));
+      svg.setAttribute("height", String(sz));
+      svg.style.transform = `rotate(${Math.round(m.heading || 0)}deg)`;
+      if (m.isMilitary) {
+        svg.style.filter = "drop-shadow(0 0 4px rgba(244,63,94,0.6))";
+      }
+      const pathEl = document.createElementNS(svgNS, "path");
+      pathEl.setAttribute("d", pathD);
+      pathEl.setAttribute("fill", color);
+      pathEl.setAttribute("stroke", "rgba(255,255,255,0.15)");
+      pathEl.setAttribute("stroke-width", "0.5");
+      svg.appendChild(pathEl);
+      el.appendChild(svg);
       el.style.cssText = "cursor:pointer;transform:translate(-50%,-50%);";
 
       // Tooltip on hover
       const decoded = m.isMilitary ? decodeGlobeCallsign(m.callsign || "") : null;
       const altFt = Math.round((m.altitude || 0) * 3.281);
       const spdKts = Math.round((m.velocity || 0) * 1.944);
-      const unitText = decoded ? `<div style="color:#f59e0b;font-size:9px;">${decoded.unit}</div>` : "";
-      const platformText = decoded?.platform ? `<div style="color:#06b6d4;font-size:9px;font-weight:600;">${decoded.platform}</div>` : "";
 
       el.title = "";
       el.addEventListener("mouseenter", () => {
@@ -341,7 +574,42 @@ export default function GlobeView({
           tip = document.createElement("div");
           tip.className = "globe-tip";
           tip.style.cssText = "position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(0,10,30,0.92);border:1px solid rgba(100,120,160,0.25);border-radius:6px;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#d4d4d4;white-space:nowrap;pointer-events:none;z-index:999;";
-          tip.innerHTML = `${m.isMilitary ? '<div style="color:#f43f5e;font-weight:700;font-size:9px;letter-spacing:.05em;">MILITARY</div>' : ""}<div style="font-weight:600;color:#e5e5e5;">${m.callsign || "UNKNOWN"}</div>${unitText}${platformText}<div style="opacity:0.7;">${m.originCountry || ""}</div><div>ALT ${altFt.toLocaleString()} ft | ${spdKts} kts</div>`;
+
+          if (m.isMilitary) {
+            const milLabel = document.createElement("div");
+            milLabel.style.cssText = "color:#f43f5e;font-weight:700;font-size:9px;letter-spacing:.05em;";
+            milLabel.textContent = "MILITARY";
+            tip.appendChild(milLabel);
+          }
+
+          const callsignDiv = document.createElement("div");
+          callsignDiv.style.cssText = "font-weight:600;color:#e5e5e5;";
+          callsignDiv.textContent = m.callsign || "UNKNOWN";
+          tip.appendChild(callsignDiv);
+
+          if (decoded) {
+            const unitDiv = document.createElement("div");
+            unitDiv.style.cssText = "color:#f59e0b;font-size:9px;";
+            unitDiv.textContent = decoded.unit;
+            tip.appendChild(unitDiv);
+          }
+
+          if (decoded?.platform) {
+            const platformDiv = document.createElement("div");
+            platformDiv.style.cssText = "color:#06b6d4;font-size:9px;font-weight:600;";
+            platformDiv.textContent = decoded.platform;
+            tip.appendChild(platformDiv);
+          }
+
+          const countryDiv = document.createElement("div");
+          countryDiv.style.opacity = "0.7";
+          countryDiv.textContent = m.originCountry || "";
+          tip.appendChild(countryDiv);
+
+          const altDiv = document.createElement("div");
+          altDiv.textContent = `ALT ${altFt.toLocaleString()} ft | ${spdKts} kts`;
+          tip.appendChild(altDiv);
+
           el.appendChild(tip);
         }
         tip.style.display = "block";
@@ -355,8 +623,16 @@ export default function GlobeView({
       const color = m.color || "#6b7280";
       const sz = m.size || 3;
       const isMil = m.category === "military";
-      const glow = isMil ? `box-shadow:0 0 4px ${color};` : "";
-      el.innerHTML = `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${color};${glow}"></div>`;
+
+      const dot = document.createElement("div");
+      dot.style.width = `${sz}px`;
+      dot.style.height = `${sz}px`;
+      dot.style.borderRadius = "50%";
+      dot.style.background = color;
+      if (isMil) {
+        dot.style.boxShadow = `0 0 4px ${color}`;
+      }
+      el.appendChild(dot);
       el.style.cssText = "cursor:pointer;transform:translate(-50%,-50%);";
 
       el.addEventListener("mouseenter", () => {
@@ -365,7 +641,25 @@ export default function GlobeView({
           tip = document.createElement("div");
           tip.className = "globe-tip";
           tip.style.cssText = "position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:rgba(0,10,30,0.92);border:1px solid rgba(100,120,160,0.25);border-radius:6px;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#d4d4d4;white-space:nowrap;pointer-events:none;z-index:999;";
-          tip.innerHTML = `<div style="font-weight:600;color:${color};">${m.name || "UNKNOWN"}</div><div style="text-transform:uppercase;font-size:9px;opacity:0.7;">${m.category} | ${m.country}</div><div>NORAD: ${m.noradId}</div><div>ALT: ${(m.altKm || 0).toLocaleString()} km | ${(m.velocityKmS || 0).toFixed(1)} km/s</div>`;
+
+          const nameDiv = document.createElement("div");
+          nameDiv.style.cssText = `font-weight:600;color:${color};`;
+          nameDiv.textContent = m.name || "UNKNOWN";
+          tip.appendChild(nameDiv);
+
+          const catDiv = document.createElement("div");
+          catDiv.style.cssText = "text-transform:uppercase;font-size:9px;opacity:0.7;";
+          catDiv.textContent = `${m.category} | ${m.country}`;
+          tip.appendChild(catDiv);
+
+          const noradDiv = document.createElement("div");
+          noradDiv.textContent = `NORAD: ${m.noradId}`;
+          tip.appendChild(noradDiv);
+
+          const altDiv = document.createElement("div");
+          altDiv.textContent = `ALT: ${(m.altKm || 0).toLocaleString()} km | ${(m.velocityKmS || 0).toFixed(1)} km/s`;
+          tip.appendChild(altDiv);
+
           el.appendChild(tip);
         }
         tip.style.display = "block";
@@ -520,11 +814,9 @@ export default function GlobeView({
         height={dimensions.height}
         backgroundColor="rgba(0,0,8,1)"
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-        bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+        globeMaterial={earthMaterial}
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
-        showAtmosphere={true}
-        atmosphereColor="#06b6d4"
-        atmosphereAltitude={0.15}
+        showAtmosphere={false}
         // Points
         pointsData={pointsData}
         pointLat="lat"

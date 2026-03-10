@@ -7,6 +7,7 @@ import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronRight,
+  MessageSquare,
   Search,
   Radio,
 } from "lucide-react";
@@ -66,13 +67,23 @@ export default function SignalsPage() {
   const [filterLayer, setFilterLayer] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"date" | "intensity">("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
 
   useEffect(() => {
     fetch("/api/signals")
       .then((r) => r.json())
       .then((data) => {
-        setSignals(Array.isArray(data) ? data : data.signals || []);
+        const sigs = Array.isArray(data) ? data : data.signals || [];
+        setSignals(sigs);
         setLoading(false);
+        // Fetch comment counts
+        if (sigs.length > 0) {
+          const ids = sigs.map((s: Signal) => s.id).join(",");
+          fetch(`/api/comments?view=counts&targetType=signal&ids=${ids}`)
+            .then((r) => r.ok ? r.json() : { counts: {} })
+            .then((d) => setCommentCounts(d.counts || {}))
+            .catch(() => {});
+        }
       })
       .catch(() => setLoading(false));
   }, []);
@@ -451,6 +462,12 @@ export default function SignalsPage() {
                         <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${statusCfg.bg} ${statusCfg.color}`}>
                           {signal.status}
                         </span>
+                        {commentCounts[signal.id] > 0 && (
+                          <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
+                            <MessageSquare className="h-3 w-3" />
+                            {commentCounts[signal.id]}
+                          </span>
+                        )}
                         <ChevronRight className="h-3.5 w-3.5 text-navy-700 group-hover:text-navy-400 transition-colors" />
                       </div>
                     </div>

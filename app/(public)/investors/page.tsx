@@ -142,7 +142,7 @@ export default function InvestorsPage() {
               Four primary signal layers. Narrative overlay. One synthesis engine.
             </h2>
             <p className="font-sans text-sm text-navy-400 leading-relaxed mb-10 max-w-2xl">
-              NEXUS runs a continuous convergence engine across geopolitical, market structure, OSINT, and systemic risk layers, with calendar and celestial data as narrative/actor-belief context. When primary signals align, the system scores the event, generates a structured thesis, and connects it directly to execution.
+              NEXUS runs a continuous convergence engine across geopolitical, market structure, OSINT, and systemic risk layers, with calendar and celestial data as narrative/actor-belief context. When primary signals align, the system scores the event, generates a structured thesis, and tracks it through to outcome.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
@@ -175,7 +175,7 @@ export default function InvestorsPage() {
                   icon: TrendingUp,
                   label: "Execution Layer",
                   color: "text-accent-cyan",
-                  desc: "Direct integration with Trading 212 and Coinbase. Thesis converts to trade without leaving the platform.",
+                  desc: "Manual portfolio tracking live today. Direct broker integrations (Trading 212, Coinbase, and more) coming soon.",
                 },
                 {
                   icon: Lock,
@@ -233,12 +233,12 @@ export default function InvestorsPage() {
                   </tr>
                   <tr className="border-b border-navy-800/60">
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-400">Execution integration</td>
-                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">Direct broker execution from within the thesis</td>
+                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">Direct broker execution (coming soon) + manual portfolio tracking</td>
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-600">Data only; no execution layer</td>
                   </tr>
                   <tr>
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-400">Cost</td>
-                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">$299–$999/mo (institutional: custom)</td>
+                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">$150–$450/mo (institutional: custom)</td>
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-600">$2,000–$25,000+/mo per seat</td>
                   </tr>
                 </tbody>
@@ -265,7 +265,7 @@ export default function InvestorsPage() {
                 <Stat value="$40B+" label="Financial data & analytics market" sub="12% CAGR" />
                 <Stat value="$2.7B" label="Alternative data segment" sub="28% CAGR — fastest growing layer" />
                 <Stat value="500K+" label="Professional allocators globally" sub="Family offices, independent funds, prop desks" />
-                <Stat value="$2K–25K" label="Monthly per-seat cost, incumbents" sub="NEXUS: $299–$999. 10–80x cheaper." />
+                <Stat value="$2K–25K" label="Monthly per-seat cost, incumbents" sub="NEXUS: $150–$450. 4–55x cheaper." />
               </div>
             </div>
           </section>
@@ -280,15 +280,15 @@ export default function InvestorsPage() {
               {[
                 {
                   tier: "Analyst",
-                  price: "$299/mo",
+                  price: "$150/mo",
                   target: "Individual professionals, researchers",
-                  items: ["Signal engine", "AI analyst (100 msg/day)", "Daily thesis", "Prediction tracking"],
+                  items: ["Signal engine", "AI analyst (50K credits/mo)", "Daily thesis", "Prediction tracking"],
                 },
                 {
                   tier: "Operator",
-                  price: "$999/mo",
+                  price: "$450/mo",
                   target: "Active allocators, prop desks",
-                  items: ["Unlimited AI access", "Trading integration", "War Room + OSINT", "On-chain, GEX, shipping intel", "Portfolio risk analytics"],
+                  items: ["250K AI credits/mo", "Trading integration (coming soon)", "War Room + OSINT", "On-chain, GEX, shipping intel", "Portfolio risk analytics"],
                   highlight: true,
                 },
                 {
@@ -343,7 +343,7 @@ export default function InvestorsPage() {
                 "AI analyst with 20+ live intelligence tools (Claude Opus 4.6)",
                 "Backtesting engine with Brier score + p-value significance testing",
                 "War Room with live aircraft tracking (OpenSky) and GDELT OSINT",
-                "Trading integration: Trading 212 stocks + Coinbase crypto",
+                "Portfolio tracking live, broker execution (Trading 212, Coinbase) coming soon",
                 "Knowledge bank with pgvector semantic memory (Voyage AI embeddings)",
                 "Shipping intelligence: 5 chokepoints, freight proxies, maritime OSINT",
                 "Full subscription stack: Stripe Checkout, portal, webhooks, admin tier management",
@@ -379,7 +379,7 @@ export default function InvestorsPage() {
                   ["Infrastructure", "Next.js 15, PostgreSQL (Neon), Vercel-ready"],
                   ["Payments", "Stripe Checkout + Portal + Webhooks"],
                   ["Market Data", "Alpha Vantage, FRED, Yahoo Finance, GDELT, OpenSky"],
-                  ["Execution", "Trading 212 API + Coinbase Advanced Trade API"],
+                  ["Execution", "Manual portfolio tracking + broker APIs (coming soon)"],
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-start justify-between gap-6 py-2.5 border-b border-navy-800/40 last:border-0">
                     <span className="font-mono text-[10px] uppercase tracking-wider text-navy-600 shrink-0">{label}</span>

@@ -14,9 +14,13 @@ export async function getCoinbaseClient(username: string): Promise<CoinbaseClien
   const oauthClient = await getOAuthClient(username);
   if (oauthClient) return oauthClient;
 
-  // Fall back to API key/secret
-  const apiKey = await getSettingValue("coinbase_api_key", process.env.COINBASE_API_KEY);
-  const apiSecret = await getSettingValue("coinbase_api_secret", process.env.COINBASE_API_SECRET);
+  // Fall back to API key/secret (per-user first, then global)
+  const apiKey =
+    await getSettingValue(`coinbase_api_key:${username}`) ||
+    await getSettingValue("coinbase_api_key", process.env.COINBASE_API_KEY);
+  const apiSecret =
+    await getSettingValue(`coinbase_api_secret:${username}`) ||
+    await getSettingValue("coinbase_api_secret", process.env.COINBASE_API_SECRET);
 
   if (!apiKey || !apiSecret) {
     throw new Error("Coinbase not connected. Connect via OAuth or configure API keys in Settings.");

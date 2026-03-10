@@ -210,8 +210,8 @@ const features = [
   },
   {
     icon: TrendingUp,
-    title: "Trading Integration",
-    description: "Connected directly to your broker. When a thesis converts into a trade, you can execute it right there, no switching tabs.",
+    title: "Portfolio Tracking",
+    description: "Track your positions and P&L against live prices. Manual portfolio tracking today, direct broker execution coming soon.",
     color: "text-accent-emerald",
     glow: "emerald" as const,
     tag: "EXECUTE",
@@ -242,14 +242,14 @@ const tiers = [
   },
   {
     name: "Operator",
-    price: "$750",
-    priceAnnual: "$625",
+    price: "$450",
+    priceAnnual: "$375",
     period: "/mo",
     description: "Full operational capability",
     features: [
       "Everything in Analyst",
       "250,000 AI credits/month",
-      "Trading broker integration",
+      "Portfolio tracking + broker integration (coming soon)",
       "On-chain analytics & GEX",
       "GPR decomposition & BOCPD",
       "Short interest & options flow",
@@ -757,7 +757,7 @@ export default function LandingPage() {
                   { label: "Backtested predictions", detail: "Brier-scored with temporal isolation, p-value validated" },
                   { label: "Real-time war room", detail: "military aircraft, OSINT, conflict zones live" },
                   { label: "AI thesis generation", detail: "from signal to position in a single pipeline" },
-                  { label: "Integrated execution", detail: "Trading 212 + Coinbase, direct from the platform" },
+                  { label: "Portfolio tracking", detail: "manual position tracking with live P&L, broker execution coming soon" },
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-2.5">
                     <div className="w-1 h-1 rounded-full bg-accent-cyan/40 mt-1.5 shrink-0" />

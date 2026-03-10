@@ -3,15 +3,7 @@
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Lock, ArrowRight, Zap, Activity, TrendingUp, Shield, Loader2, X } from "lucide-react";
-import { loadStripe } from "@stripe/stripe-js";
-import {
-  EmbeddedCheckoutProvider,
-  EmbeddedCheckout,
-} from "@stripe/react-stripe-js";
-
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
-);
+import { PaymentForm } from "@/components/stripe/payment-form";
 
 const TIER_LABELS: Record<string, string> = {
   analyst: "Analyst",
@@ -68,6 +60,9 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
   const [tierPrice, setTierPrice] = useState<number | null>(null);
   const [matchedTierId, setMatchedTierId] = useState<number | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [intentType, setIntentType] = useState<"payment" | "setup">("payment");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   // Rotate live stats
   useEffect(() => {
@@ -98,8 +93,7 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
       .catch(() => {});
   }, [minTier]);
 
-  // Poll for subscription activation after checkout opens
-  // Stripe webhook may take a few seconds to process
+  // Poll for subscription activation after checkout
   function startPolling() {
     if (pollRef.current) return;
     pollRef.current = setInterval(async () => {
@@ -114,7 +108,6 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
     }
   }
 
-  // Cleanup polling on unmount
   useEffect(() => {
     return () => stopPolling();
   }, []);
@@ -124,37 +117,42 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
     if (showCheckout && meetsMinTier(minTier)) {
       stopPolling();
       setShowCheckout(false);
+      setClientSecret(null);
     }
   }, [tier, showCheckout, minTier, meetsMinTier]);
 
-  // Embedded checkout: fetch clientSecret from our API
-  const fetchClientSecret = useCallback(async () => {
-    if (!matchedTierId) throw new Error("Plan not available");
-
-    const res = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tierId: matchedTierId, embedded: true }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || "Checkout failed");
-    if (!data.clientSecret) throw new Error("No client secret returned");
-
-    // Start polling once checkout is ready
-    startPolling();
-
-    return data.clientSecret;
-  }, [matchedTierId]);
-
-  function handleSubscribe() {
+  const handleSubscribe = useCallback(async () => {
     if (!matchedTierId) {
       setCheckoutError("Plan not available. Please try again.");
       return;
     }
+
     setCheckoutError(null);
-    setShowCheckout(true);
-  }
+    setCheckoutLoading(true);
+
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tierId: matchedTierId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.clientSecret) {
+        setCheckoutError(data.error || "Failed to start checkout");
+        return;
+      }
+
+      setClientSecret(data.clientSecret);
+      setIntentType(data.type || "payment");
+      setShowCheckout(true);
+      startPolling();
+    } catch {
+      setCheckoutError("Failed to connect to payment service");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [matchedTierId]);
 
   if (loading) {
     return (
@@ -185,33 +183,39 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
   const StatIcon = stat.icon;
   const priceDisplay = tierPrice ? `$${(tierPrice / 100).toFixed(0)}/mo` : null;
 
-  // Show embedded checkout
-  if (showCheckout) {
+  // Show payment form
+  if (showCheckout && clientSecret) {
     return (
       <div className="relative min-h-[70vh] flex items-center justify-center">
-        <div className="w-full max-w-lg mx-auto px-4">
+        <div className="w-full max-w-md mx-auto px-4">
           <div className="flex items-center justify-between mb-4">
             <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">
               Subscribe to {TIER_LABELS[minTier]}
               {priceDisplay && <span className="text-navy-500 ml-2">{priceDisplay}</span>}
             </span>
             <button
-              onClick={() => setShowCheckout(false)}
+              onClick={() => { setShowCheckout(false); setClientSecret(null); }}
               className="text-navy-500 hover:text-navy-300 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="rounded-lg overflow-hidden border border-navy-700/50">
-            <EmbeddedCheckoutProvider
-              stripe={stripePromise}
-              options={{ fetchClientSecret }}
-            >
-              <EmbeddedCheckout className="embedded-checkout" />
-            </EmbeddedCheckoutProvider>
+          <div className="border border-navy-700/50 rounded-lg p-5">
+            <PaymentForm
+              clientSecret={clientSecret}
+              intentType={intentType}
+              submitLabel={intentType === "setup" ? "Start free trial" : "Subscribe"}
+              onSuccess={() => {
+                refresh();
+              }}
+              returnUrl={`${window.location.origin}/settings?tab=subscription&status=success`}
+            />
           </div>
           <p className="mt-3 font-mono text-[9px] text-navy-600 tracking-wider text-center">
-            2 days free, full access. Cancel anytime before you're charged.
+            {intentType === "setup"
+              ? "2 days free, full access. Cancel anytime before you're charged."
+              : "Secured by Stripe. Cancel anytime."
+            }
           </p>
         </div>
       </div>
@@ -276,10 +280,10 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
           {/* CTA */}
           <button
             onClick={handleSubscribe}
-            disabled={!matchedTierId}
+            disabled={!matchedTierId || checkoutLoading}
             className="group inline-flex items-center gap-2.5 px-8 py-3 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 hover:bg-white rounded-lg transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {!matchedTierId ? (
+            {!matchedTierId || checkoutLoading ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 Loading

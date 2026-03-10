@@ -3,15 +3,49 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { requireTier } from "@/lib/auth/require-tier";
 import { db, schema } from "@/lib/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
-// GET: List comments for a target
+// GET: List comments for a target, or get counts
 export async function GET(req: NextRequest) {
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 
   const { searchParams } = new URL(req.url);
+  const view = searchParams.get("view");
   const targetType = searchParams.get("targetType");
+
+  // Comment counts mode: /api/comments?view=counts&targetType=signal&ids=1,2,3
+  if (view === "counts" && targetType) {
+    const idsParam = searchParams.get("ids");
+    if (!idsParam) return NextResponse.json({ counts: {} });
+    const ids = idsParam.split(",").map(Number).filter(Boolean);
+    if (ids.length === 0) return NextResponse.json({ counts: {} });
+
+    try {
+      const rows = await db
+        .select({
+          targetId: schema.comments.targetId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(schema.comments)
+        .where(
+          and(
+            eq(schema.comments.targetType, targetType),
+            inArray(schema.comments.targetId, ids)
+          )
+        )
+        .groupBy(schema.comments.targetId);
+
+      const counts: Record<number, number> = {};
+      for (const row of rows) {
+        counts[row.targetId] = row.count;
+      }
+      return NextResponse.json({ counts });
+    } catch {
+      return NextResponse.json({ counts: {} });
+    }
+  }
+
   const targetId = searchParams.get("targetId");
 
   if (!targetType || !targetId) {
@@ -30,7 +64,34 @@ export async function GET(req: NextRequest) {
       )
       .orderBy(desc(schema.comments.createdAt));
 
-    return NextResponse.json({ comments: rows });
+    // Look up profile images for all commenters
+    const uniqueUserIds = [...new Set(rows.map((r) => r.userId))];
+    const profileImages: Record<string, string | null> = {};
+    if (uniqueUserIds.length > 0) {
+      const userRows = await db
+        .select()
+        .from(schema.settings)
+        .where(
+          inArray(
+            schema.settings.key,
+            uniqueUserIds.map((u) => `user:${u}`)
+          )
+        );
+      for (const row of userRows) {
+        try {
+          const data = JSON.parse(row.value);
+          const username = row.key.replace("user:", "");
+          profileImages[username] = data.profileImage || null;
+        } catch {}
+      }
+    }
+
+    const comments = rows.map((r) => ({
+      ...r,
+      profileImage: profileImages[r.userId] || null,
+    }));
+
+    return NextResponse.json({ comments });
   } catch {
     return NextResponse.json({ comments: [] });
   }
@@ -85,8 +146,15 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Accept id from body or query params
   const { searchParams } = new URL(req.url);
-  const commentId = searchParams.get("id");
+  let commentId = searchParams.get("id");
+  if (!commentId) {
+    try {
+      const body = await req.json();
+      commentId = body.id ? String(body.id) : null;
+    } catch {}
+  }
 
   if (!commentId) {
     return NextResponse.json({ error: "Comment id required" }, { status: 400 });

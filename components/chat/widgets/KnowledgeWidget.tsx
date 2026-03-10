@@ -85,9 +85,9 @@ export function KnowledgeWidget({ data }: { data: KnowledgeData }) {
 
             {entry.tags && entry.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
-                {entry.tags.slice(0, 6).map((tag) => (
+                {entry.tags.slice(0, 6).map((tag, i) => (
                   <span
-                    key={tag}
+                    key={`${tag}-${i}`}
                     className="text-[8px] px-1 py-0.5 rounded bg-navy-700/60 text-navy-400 font-mono"
                   >
                     {tag}

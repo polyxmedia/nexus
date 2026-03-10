@@ -87,7 +87,7 @@ export interface PerformanceReport {
 
 // ── Constants ──
 
-const MIN_TOTAL_FOR_REPORT = 5;
+const MIN_TOTAL_FOR_REPORT = 3;
 const MIN_BUCKET_SIZE = 3;
 const MIN_CATEGORY_SIZE = 3;
 const DECAY_HALF_LIFE_DAYS = 60;

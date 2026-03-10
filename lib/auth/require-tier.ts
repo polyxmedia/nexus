@@ -123,78 +123,72 @@ export async function requireTier(
     };
   }
 
-  const userLevel = TIER_LEVELS[userTier] ?? 0;
   const requiredLevel = TIER_LEVELS[minTier] ?? 1;
 
-  // Get tier limits from DB
+  // Check subscription from DB (authoritative source of tier)
   let limits: TierLimits = DEFAULT_LIMITS;
-  if (userLevel > 0) {
-    const subs = await db
-      .select()
-      .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, username));
+  const subs = await db
+    .select()
+    .from(schema.subscriptions)
+    .where(eq(schema.subscriptions.userId, username));
 
-    if (subs.length > 0 && (subs[0].status === "active" || subs[0].status === "trialing")) {
-      // Check if comped subscription has expired
-      const isComped = !subs[0].stripeSubscriptionId || subs[0].stripeSubscriptionId?.startsWith("comped_");
-      if (isComped && subs[0].currentPeriodEnd) {
-        const expiry = new Date(subs[0].currentPeriodEnd);
-        if (expiry < new Date()) {
-          // Auto-expire: mark as canceled and downgrade tier
-          await db
-            .update(schema.subscriptions)
-            .set({ status: "canceled", updatedAt: new Date().toISOString() })
-            .where(eq(schema.subscriptions.userId, username));
+  if (subs.length > 0 && (subs[0].status === "active" || subs[0].status === "trialing")) {
+    // Check if comped subscription has expired
+    const isComped = !subs[0].stripeSubscriptionId || subs[0].stripeSubscriptionId?.startsWith("comped_");
+    if (isComped && subs[0].currentPeriodEnd) {
+      const expiry = new Date(subs[0].currentPeriodEnd);
+      if (expiry < new Date()) {
+        // Auto-expire: mark as canceled and downgrade tier
+        await db
+          .update(schema.subscriptions)
+          .set({ status: "canceled", updatedAt: new Date().toISOString() })
+          .where(eq(schema.subscriptions.userId, username));
 
-          const userData = userSettings.length > 0 ? JSON.parse(userSettings[0].value) : {};
-          userData.tier = "free";
-          delete userData.compedGrant;
-          await db
-            .update(schema.settings)
-            .set({ value: JSON.stringify(userData) })
-            .where(eq(schema.settings.key, `user:${username}`));
+        const userData = userSettings.length > 0 ? JSON.parse(userSettings[0].value) : {};
+        userData.tier = "free";
+        delete userData.compedGrant;
+        await db
+          .update(schema.settings)
+          .set({ value: JSON.stringify(userData) })
+          .where(eq(schema.settings.key, `user:${username}`));
 
-          return {
-            response: NextResponse.json(
-              {
-                error: `Your comped access has expired. Subscribe to continue using ${minTier} features.`,
-                requiredTier: minTier,
-                currentTier: "free",
-                upgrade: true,
-              },
-              { status: 403 }
-            ),
-          };
-        }
+        return {
+          response: NextResponse.json(
+            {
+              error: `Your comped access has expired. Subscribe to continue using ${minTier} features.`,
+              requiredTier: minTier,
+              currentTier: "free",
+              upgrade: true,
+            },
+            { status: 403 }
+          ),
+        };
       }
+    }
 
-      const tiers = await db
-        .select()
-        .from(schema.subscriptionTiers)
-        .where(eq(schema.subscriptionTiers.id, subs[0].tierId));
+    // Derive tier from the subscription's tier record (authoritative)
+    const tiers = await db
+      .select()
+      .from(schema.subscriptionTiers)
+      .where(eq(schema.subscriptionTiers.id, subs[0].tierId));
 
-      if (tiers.length > 0 && tiers[0].limits) {
+    if (tiers.length > 0) {
+      const subTierName = tiers[0].name?.toLowerCase() || "free";
+      // Subscription tier takes precedence over settings JSON
+      if ((TIER_LEVELS[subTierName] ?? 0) > (TIER_LEVELS[userTier] ?? 0)) {
+        userTier = subTierName;
+      }
+      if (tiers[0].limits) {
         try {
           limits = JSON.parse(tiers[0].limits) as TierLimits;
         } catch {
           // bad JSON
         }
       }
-    } else {
-      // No active subscription, treat as free
-      return {
-        response: NextResponse.json(
-          {
-            error: `This feature requires a ${minTier} subscription or higher`,
-            requiredTier: minTier,
-            currentTier: "free",
-            upgrade: true,
-          },
-          { status: 403 }
-        ),
-      };
     }
   }
+
+  const userLevel = TIER_LEVELS[userTier] ?? 0;
 
   if (userLevel < requiredLevel) {
     return {
@@ -285,11 +279,17 @@ export async function getUserTier(): Promise<{
       .from(schema.subscriptionTiers)
       .where(eq(schema.subscriptionTiers.id, subs[0].tierId));
 
-    if (tiers.length > 0 && tiers[0].limits) {
-      try {
-        limits = JSON.parse(tiers[0].limits) as TierLimits;
-      } catch {
-        // bad JSON
+    if (tiers.length > 0) {
+      const subTierName = tiers[0].name?.toLowerCase() || "free";
+      if ((TIER_LEVELS[subTierName] ?? 0) > (TIER_LEVELS[userTier] ?? 0)) {
+        userTier = subTierName;
+      }
+      if (tiers[0].limits) {
+        try {
+          limits = JSON.parse(tiers[0].limits) as TierLimits;
+        } catch {
+          // bad JSON
+        }
       }
     }
   }

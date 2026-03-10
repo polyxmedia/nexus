@@ -79,6 +79,47 @@ const NAME_TO_ALPHA2: Record<string, string> = {
   "Dem. Rep. Congo": "CD",
 };
 
+/**
+ * Fix antimeridian-crossing polygons (Russia, Fiji, etc.).
+ * Leaflet can't handle coordinates that jump from +170 to -170, so we detect
+ * rings where consecutive points span > 180 degrees of longitude and shift
+ * the negative-longitude points past +180 to keep the polygon continuous.
+ */
+function fixAntimeridian(feature: Feature): Feature {
+  const geom = feature.geometry;
+  if (geom.type !== "Polygon" && geom.type !== "MultiPolygon") return feature;
+
+  function fixRing(ring: number[][]): number[][] {
+    let needsFix = false;
+    for (let i = 1; i < ring.length; i++) {
+      if (Math.abs(ring[i][0] - ring[i - 1][0]) > 180) {
+        needsFix = true;
+        break;
+      }
+    }
+    if (!needsFix) return ring;
+    return ring.map(([lng, lat]) => [lng < 0 ? lng + 360 : lng, lat]);
+  }
+
+  if (geom.type === "Polygon") {
+    return {
+      ...feature,
+      geometry: { ...geom, coordinates: geom.coordinates.map(fixRing) },
+    };
+  }
+
+  // MultiPolygon
+  return {
+    ...feature,
+    geometry: {
+      ...geom,
+      coordinates: (geom as GeoJSON.MultiPolygon).coordinates.map(
+        (polygon) => polygon.map(fixRing)
+      ),
+    },
+  };
+}
+
 function resolveCountryCode(feature: Feature): string | null {
   const props = feature.properties || {};
 
@@ -129,6 +170,10 @@ export default function GlobalScenarioMap({
     import("world-atlas/countries-50m.json").then((topoData) => {
       const topo = topoData.default as unknown as Topology<{ countries: GeometryCollection }>;
       const fc = topojson.feature(topo, topo.objects.countries) as FeatureCollection;
+      // Fix antimeridian crossing for Russia (and similar) - prevents horizontal
+      // lines spanning the map. Shift negative longitudes past 180 for polygons
+      // that straddle the antimeridian.
+      fc.features = fc.features.map((f) => fixAntimeridian(f));
       setGeoData(fc);
     });
   }, []);

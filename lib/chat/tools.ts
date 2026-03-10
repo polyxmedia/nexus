@@ -1,5 +1,5 @@
 import { db, schema } from "@/lib/db";
-import { eq, desc, gte, lte, InferSelectModel } from "drizzle-orm";
+import { eq, and, desc, gte, lte, ilike, isNull, InferSelectModel } from "drizzle-orm";
 
 type Signal = InferSelectModel<typeof schema.signals>;
 type Prediction = InferSelectModel<typeof schema.predictions>;
@@ -111,6 +111,53 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "create_custom_game_theory",
+    description:
+      "Create and analyze a custom game theory scenario with any two actors and their strategies. Use this when the user asks about a hypothetical geopolitical situation, trade war, conflict scenario, or any strategic interaction not covered by the built-in scenarios. You define the actors, their strategies, relevant market sectors, and time horizon. The system generates payoff matrices using strategy classification heuristics and returns full Nash equilibria, dominant strategies, Schelling points, escalation analysis, and market impact assessment.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "Short title for the scenario, e.g. 'US-Iran Strait of Hormuz Escalation'",
+        },
+        description: {
+          type: "string",
+          description: "Brief description of the strategic situation and context",
+        },
+        actor1_name: {
+          type: "string",
+          description: "Name of the first actor, e.g. 'United States', 'China', 'OPEC'",
+        },
+        actor2_name: {
+          type: "string",
+          description: "Name of the second actor",
+        },
+        strategies1: {
+          type: "array",
+          items: { type: "string" },
+          description: "2-5 strategies for actor 1. Use descriptive names that indicate intent: e.g. 'Military strike on nuclear facilities', 'Diplomatic negotiations', 'Economic sanctions package', 'Naval blockade'. Strategy names are classified as escalatory/cooperative/economic/moderate to generate payoffs.",
+        },
+        strategies2: {
+          type: "array",
+          items: { type: "string" },
+          description: "2-5 strategies for actor 2",
+        },
+        market_sectors: {
+          type: "array",
+          items: { type: "string" },
+          description: "Affected market sectors: energy, defense, tech, finance, commodities, shipping, crypto, agriculture, healthcare, geopolitics",
+        },
+        time_horizon: {
+          type: "string",
+          enum: ["immediate", "short_term", "medium_term", "long_term"],
+          description: "Time horizon for the scenario playing out",
+        },
+      },
+      required: ["title", "actor1_name", "actor2_name", "strategies1", "strategies2"],
+    },
+  },
+  {
     name: "get_active_thesis",
     description:
       "Get the current active intelligence thesis/briefing. Includes executive summary, situation assessment, risk scenarios, trading actions, market regime, and confidence levels.",
@@ -123,7 +170,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_predictions",
     description:
-      "Get tracked predictions with their outcomes. Predictions are time-bound claims tied to signals with confidence scores.",
+      "Get tracked predictions filtered contextually. Always pass relevant filters based on what the user is asking about rather than loading every prediction.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -131,7 +178,28 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
           type: "string",
           enum: ["pending", "confirmed", "denied", "partial", "expired"],
           description:
-            "Filter by outcome status. Omit for all predictions.",
+            "Filter by outcome status. Use 'pending' for active predictions.",
+        },
+        category: {
+          type: "string",
+          enum: ["market", "geopolitical", "celestial"],
+          description:
+            "Filter by prediction category.",
+        },
+        search: {
+          type: "string",
+          description:
+            "Search term to match against prediction claims. Use this to find predictions about specific topics, symbols, or events.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Max predictions to return. Defaults to 20. Use smaller values for summaries, larger for detailed analysis.",
+        },
+        days: {
+          type: "number",
+          description:
+            "Only return predictions created within this many days. Defaults to 30. Use 7 for recent, 90 for broader history.",
         },
       },
       required: [],
@@ -150,7 +218,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_portfolio",
     description:
-      "Get the current Trading 212 portfolio including positions, P&L, and account value. This calls the live API.",
+      "Get the user's portfolio. Includes Trading 212 broker positions (if connected) AND manually tracked positions. Returns both sources merged so you can see the full picture.",
     input_schema: {
       type: "object" as const,
       properties: {},
@@ -696,6 +764,125 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: ["title", "content", "category"],
     },
   },
+  // ── Longevity Risk Analysis Tool ──
+  {
+    name: "longevity_risk_analysis",
+    description:
+      "Analyze the longevity risk of a public figure using publicly available data (news, health reports, lifestyle, security threats, actuarial factors). Use this tool when users ask about whether someone will die, their health risks, survival probability, mortality risk, or longevity. Also use when asking about succession risk or what happens if a leader becomes incapacitated. Works for any public figure: world leaders, CEOs, politicians, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "Full name of the public figure (e.g. 'Donald Trump', 'Vladimir Putin', 'Xi Jinping').",
+        },
+        timeframe_years: {
+          type: "number",
+          description: "Timeframe in years for the risk assessment. Defaults to 5.",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  // ── Cross-Asset Contagion Analysis ──
+  {
+    name: "contagion_analysis",
+    description:
+      "Analyze how a shock in one asset propagates through the financial system. Use this when users ask about cascading effects, second-order impacts, 'what happens to X if Y moves', supply chain effects, or cross-asset contagion. Accepts an asset/event and shock magnitude, returns all affected assets with expected moves, causal mechanisms, and trading implications across up to 3 orders of propagation.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        source_asset: {
+          type: "string",
+          description: "The asset or event experiencing the shock (e.g. 'oil', 'CL', 'fed rate', 'taiwan', 'BTC', 'gold'). Supports tickers, commodity names, and geopolitical events.",
+        },
+        shock_magnitude: {
+          type: "number",
+          description: "The shock as a decimal (e.g. -0.10 for a 10% drop, 0.05 for a 5% rise).",
+        },
+        trigger_description: {
+          type: "string",
+          description: "Optional human-readable description of what caused the shock (e.g. 'OPEC releases 500M barrels from strategic reserves').",
+        },
+        max_order: {
+          type: "number",
+          description: "Maximum propagation depth (1-3). Default 3.",
+        },
+      },
+      required: ["source_asset", "shock_magnitude"],
+    },
+  },
+  // ── Signal-to-PnL Attribution ──
+  {
+    name: "get_attribution",
+    description:
+      "Get the signal-to-PnL attribution report showing which signals, predictions, and theses generated each position's returns. Use when users ask 'why did I make/lose money', 'which signals worked', 'attribution report', 'what drove my PnL', or want to understand the causal chain from intelligence to returns.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ticker: {
+          type: "string",
+          description: "Optional: get attribution for a specific ticker only.",
+        },
+      },
+      required: [],
+    },
+  },
+  // ── Scenario Branches ──
+  {
+    name: "get_scenario_branches",
+    description:
+      "Get pre-computed thesis branches for upcoming catalysts (FOMC, CPI, NFP, OPEC, etc). Each catalyst has multiple scenario branches with pre-determined trading action overrides and market expectations. Use when users ask about upcoming events, 'what if CPI is hot', catalyst preparation, or scenario planning.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  // ── Document Generation ──
+  {
+    name: "generate_document",
+    description:
+      "Generate a downloadable PDF or PowerPoint presentation from the current discussion or analysis. Use when users ask to 'create a presentation', 'make a PDF', 'export as slides', 'generate a report', 'create a deck', 'download as PDF', or want a polished document summarizing insights, analysis, or findings. Structure the content into clear sections with headings, body text, and optional bullet points.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        format: {
+          type: "string",
+          enum: ["pdf", "pptx"],
+          description: "Document format. Use 'pptx' for presentations/decks, 'pdf' for reports/briefs.",
+        },
+        title: {
+          type: "string",
+          description: "Document title.",
+        },
+        sections: {
+          type: "array",
+          description: "Array of content sections. Each section becomes a slide (PPTX) or page (PDF).",
+          items: {
+            type: "object",
+            properties: {
+              heading: {
+                type: "string",
+                description: "Section heading.",
+              },
+              content: {
+                type: "string",
+                description: "Main body text for this section. Keep concise for slides.",
+              },
+              bullets: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional bullet points for key takeaways.",
+              },
+            },
+            required: ["heading", "content"],
+          },
+        },
+      },
+      required: ["format", "title", "sections"],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -720,6 +907,8 @@ export async function executeTool(
       return executeGetMarketSentiment();
     case "get_game_theory":
       return executeGetGameTheory(input);
+    case "create_custom_game_theory":
+      return executeCreateCustomGameTheory(input);
     case "get_active_thesis":
       return executeGetActiveThesis();
     case "get_predictions":
@@ -862,6 +1051,21 @@ export async function executeTool(
       };
     }
 
+    case "longevity_risk_analysis":
+      return executeLongevityAnalysis(input);
+
+    case "contagion_analysis":
+      return executeContagionAnalysis(input);
+
+    case "get_attribution":
+      return executeGetAttribution(input);
+
+    case "get_scenario_branches":
+      return executeGetScenarioBranches();
+
+    case "generate_document":
+      return executeGenerateDocument(input);
+
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -985,6 +1189,108 @@ async function executeGetGameTheory(input: Record<string, unknown>) {
   return { scenarios: results };
 }
 
+// ── Custom game theory helpers (mirrors api/game-theory POST logic) ──
+
+const GT_ESCALATORY = ["military", "strike", "attack", "war", "invasion", "blockade", "nuclear", "escalat"];
+const GT_COOPERATIVE = ["diplomacy", "negotiate", "concession", "treaty", "cooperat", "de-escalat", "peace", "withdraw"];
+const GT_ECONOMIC = ["sanction", "tariff", "embargo", "trade", "economic"];
+
+function gtClassify(strat: string): "escalatory" | "economic" | "cooperative" | "moderate" {
+  const lower = strat.toLowerCase();
+  if (GT_ESCALATORY.some(kw => lower.includes(kw))) return "escalatory";
+  if (GT_COOPERATIVE.some(kw => lower.includes(kw))) return "cooperative";
+  if (GT_ECONOMIC.some(kw => lower.includes(kw))) return "economic";
+  return "moderate";
+}
+
+function gtPayoff(s1: string, s2: string) {
+  const table: Record<string, Record<string, { p1: number; p2: number }>> = {
+    escalatory:  { escalatory: { p1: -6, p2: -6 }, economic: { p1: 2, p2: -4 }, cooperative: { p1: 5, p2: -7 }, moderate: { p1: 3, p2: -3 } },
+    economic:    { escalatory: { p1: -4, p2: 2 }, economic: { p1: -1, p2: -1 }, cooperative: { p1: 3, p2: -2 }, moderate: { p1: 1, p2: -1 } },
+    cooperative: { escalatory: { p1: -7, p2: 5 }, economic: { p1: -2, p2: 3 }, cooperative: { p1: 4, p2: 4 }, moderate: { p1: 2, p2: 3 } },
+    moderate:    { escalatory: { p1: -3, p2: 3 }, economic: { p1: -1, p2: 1 }, cooperative: { p1: 3, p2: 2 }, moderate: { p1: 1, p2: 1 } },
+  };
+  const { p1, p2 } = table[s1]?.[s2] ?? { p1: 0, p2: 0 };
+  const n1 = Math.round((Math.random() - 0.5) * 2 * 10) / 10;
+  const n2 = Math.round((Math.random() - 0.5) * 2 * 10) / 10;
+  const fp1 = Math.max(-8, Math.min(8, p1 + n1));
+  const fp2 = Math.max(-8, Math.min(8, p2 + n2));
+  const total = fp1 + fp2;
+  const direction: "bullish" | "bearish" | "mixed" = total > 2 ? "bullish" : total < -2 ? "bearish" : "mixed";
+  const escLevel = (s1 === "escalatory" ? 2 : s1 === "economic" ? 1 : 0) + (s2 === "escalatory" ? 2 : s2 === "economic" ? 1 : 0);
+  const magnitude: "low" | "medium" | "high" = escLevel >= 3 ? "high" : escLevel >= 1 ? "medium" : "low";
+  return { p1: fp1, p2: fp2, direction, magnitude };
+}
+
+async function executeCreateCustomGameTheory(input: Record<string, unknown>) {
+  const title = (input.title as string)?.trim();
+  const description = (input.description as string)?.trim() || "";
+  const actor1Name = (input.actor1_name as string)?.trim();
+  const actor2Name = (input.actor2_name as string)?.trim();
+  const strategies1 = input.strategies1 as string[];
+  const strategies2 = input.strategies2 as string[];
+  const marketSectors = (input.market_sectors as string[]) || ["geopolitics"];
+  const timeHorizon = (input.time_horizon as string) || "medium_term";
+
+  if (!title) return { error: "Title is required" };
+  if (!actor1Name || !actor2Name) return { error: "Both actor names are required" };
+  if (!strategies1?.length || strategies1.length < 2) return { error: "Actor 1 needs at least 2 strategies" };
+  if (!strategies2?.length || strategies2.length < 2) return { error: "Actor 2 needs at least 2 strategies" };
+
+  const a1Id = actor1Name.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 20);
+  const a2Id = actor2Name.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 20);
+
+  const payoffMatrix: Array<{
+    strategies: Record<string, string>;
+    payoffs: Record<string, number>;
+    marketImpact: { direction: string; magnitude: string; sectors: string[]; description: string };
+  }> = [];
+
+  for (const s1 of strategies1) {
+    const s1Class = gtClassify(s1);
+    for (const s2 of strategies2) {
+      const s2Class = gtClassify(s2);
+      const { p1, p2, direction, magnitude } = gtPayoff(s1Class, s2Class);
+      payoffMatrix.push({
+        strategies: { [a1Id]: s1, [a2Id]: s2 },
+        payoffs: { [a1Id]: p1, [a2Id]: p2 },
+        marketImpact: { direction, magnitude, sectors: marketSectors, description: `${s1} vs ${s2}` },
+      });
+    }
+  }
+
+  const scenario = {
+    id: `custom-chat-${Date.now()}`,
+    title,
+    description: description || `Custom scenario: ${actor1Name} vs ${actor2Name}`,
+    actors: [a1Id, a2Id],
+    strategies: { [a1Id]: strategies1, [a2Id]: strategies2 },
+    payoffMatrix,
+    context: `Custom scenario created via chat.`,
+    marketSectors,
+    timeHorizon: timeHorizon as "immediate" | "short_term" | "medium_term" | "long_term",
+  };
+
+  const analysis = analyzeScenario(scenario as any);
+
+  return {
+    scenario: {
+      id: scenario.id,
+      title: scenario.title,
+      description: scenario.description,
+      actors: [
+        { id: a1Id, name: actor1Name, shortName: actor1Name },
+        { id: a2Id, name: actor2Name, shortName: actor2Name },
+      ],
+      strategies: scenario.strategies,
+      marketSectors,
+      timeHorizon,
+    },
+    analysis,
+    custom: true,
+  };
+}
+
 async function executeGetActiveThesis() {
   const [thesis] = await db
     .select()
@@ -1017,33 +1323,49 @@ async function executeGetActiveThesis() {
 
 async function executeGetPredictions(input: Record<string, unknown>) {
   const status = input.status as string | undefined;
+  const category = input.category as string | undefined;
+  const search = input.search as string | undefined;
+  const limit = Math.min(Math.max((input.limit as number) || 20, 1), 100);
+  const days = (input.days as number) || 30;
 
-  let rows: Prediction[];
-  if (status) {
-    if (status === "pending") {
-      // Pending means outcome is null
-      const allPreds = await db
-        .select()
-        .from(schema.predictions)
-        .orderBy(desc(schema.predictions.createdAt));
-      rows = allPreds.filter((p: Prediction) => !p.outcome);
-    } else {
-      rows = await db
-        .select()
-        .from(schema.predictions)
-        .where(eq(schema.predictions.outcome, status))
-        .orderBy(desc(schema.predictions.createdAt));
-    }
-  } else {
-    rows = await db
-      .select()
-      .from(schema.predictions)
-      .orderBy(desc(schema.predictions.createdAt));
+  // Build date cutoff
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  const cutoff = cutoffDate.toISOString();
+
+  // Build query conditions
+  const conditions = [gte(schema.predictions.createdAt, cutoff)];
+
+  if (status && status !== "pending") {
+    conditions.push(eq(schema.predictions.outcome, status));
+  }
+  if (category) {
+    conditions.push(eq(schema.predictions.category, category));
+  }
+  if (search) {
+    conditions.push(ilike(schema.predictions.claim, `%${search}%`));
   }
 
+  let rows = await db
+    .select()
+    .from(schema.predictions)
+    .where(and(...conditions))
+    .orderBy(desc(schema.predictions.createdAt));
+
+  // Client-side filter for pending (outcome IS NULL)
+  if (status === "pending") {
+    rows = rows.filter((p: Prediction) => !p.outcome);
+  }
+
+  const truncated = rows.length > limit;
+  const results = rows.slice(0, limit);
+
   return {
-    count: rows.length,
-    predictions: rows.map((p) => ({
+    count: results.length,
+    totalMatching: rows.length,
+    truncated,
+    filters: { status: status || "all", category: category || "all", search: search || null, days },
+    predictions: results.map((p) => ({
       id: p.id,
       claim: p.claim,
       timeframe: p.timeframe,
@@ -1053,6 +1375,8 @@ async function executeGetPredictions(input: Record<string, unknown>) {
       outcome: p.outcome || "pending",
       outcomeNotes: p.outcomeNotes,
       score: p.score,
+      direction: p.direction,
+      referenceSymbol: p.referenceSymbol,
     })),
   };
 }
@@ -1061,7 +1385,7 @@ async function executeGetPredictionFeedback() {
   const { computePerformanceReport } = await import("@/lib/predictions/feedback");
   const report = await computePerformanceReport();
   if (!report) {
-    return { message: "Not enough resolved predictions to generate feedback (minimum 5 required)", report: null };
+    return { message: "Not enough resolved predictions to generate feedback (minimum 3 required)", report: null };
   }
   return {
     totalResolved: report.totalResolved,
@@ -1081,7 +1405,9 @@ async function executeGetPredictionFeedback() {
 }
 
 async function executeGetPortfolio() {
-  // Get API key + secret from settings or env
+  const result: Record<string, unknown> = {};
+
+  // 1. Try Trading 212 broker positions
   const [apiKeySetting] = await db
     .select()
     .from(schema.settings)
@@ -1095,33 +1421,61 @@ async function executeGetPortfolio() {
   const apiKey = apiKeySetting?.value || process.env.TRADING212_API_KEY;
   const apiSecret = apiSecretSetting?.value || process.env.TRADING212_SECRET;
 
-  if (!apiKey || !apiSecret) {
-    return { error: "Trading 212 API key and secret not configured." };
+  if (apiKey && apiSecret) {
+    const [envSetting] = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, "t212_environment"));
+
+    const environment = (envSetting?.value || "live") as "demo" | "live";
+    const client = new Trading212Client(apiKey, apiSecret, environment);
+
+    try {
+      const [account, positions] = await Promise.all([
+        client.getAccountCash() as Promise<Record<string, unknown>>,
+        client.getPositions() as Promise<Array<Record<string, unknown>>>,
+      ]);
+
+      result.broker = {
+        source: "trading212",
+        environment,
+        account,
+        positions: Array.isArray(positions) ? positions : [],
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      result.brokerError = `Failed to fetch Trading 212: ${message}`;
+    }
   }
 
-  const [envSetting] = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "t212_environment"));
-
-  const environment = (envSetting?.value || "live") as "demo" | "live";
-  const client = new Trading212Client(apiKey, apiSecret, environment);
-
+  // 2. Fetch manual positions (all users)
   try {
-    const [account, positions] = await Promise.all([
-      client.getAccountCash() as Promise<Record<string, unknown>>,
-      client.getPositions() as Promise<Array<Record<string, unknown>>>,
-    ]);
+    const manualPositions = await db
+      .select()
+      .from(schema.manualPositions)
+      .where(isNull(schema.manualPositions.closedAt));
 
-    return {
-      environment,
-      account,
-      positions: Array.isArray(positions) ? positions : [],
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { error: `Failed to fetch portfolio: ${message}` };
+    if (manualPositions.length > 0) {
+      result.manualPositions = manualPositions.map((p) => ({
+        ticker: p.ticker,
+        name: p.name,
+        direction: p.direction,
+        quantity: p.quantity,
+        avgCost: p.avgCost,
+        currency: p.currency,
+        openedAt: p.openedAt,
+        notes: p.notes,
+      }));
+    }
+  } catch {
+    // Non-critical, skip
   }
+
+  if (!result.broker && !result.manualPositions) {
+    return { error: "No portfolio data available. No broker connected and no manual positions tracked." };
+  }
+
+  return result;
 }
 
 async function executeGetLiveQuote(input: Record<string, unknown>) {
@@ -2284,4 +2638,260 @@ async function executeRunBayesianAnalysis(input: Record<string, unknown>) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Bayesian analysis failed: ${message}` };
   }
+}
+
+// ── Longevity Risk Analysis ──
+
+async function executeLongevityAnalysis(input: Record<string, unknown>) {
+  const name = input.name as string;
+  const timeframeYears = (input.timeframe_years as number) || 5;
+
+  if (!name) return { error: "Name is required" };
+
+  try {
+    // Gather OSINT in parallel
+    const [newsArticles, healthNews, wikiSummary] = await Promise.all([
+      searchGDELTForLongevity(`"${name}"`, 15),
+      searchGDELTForLongevity(`"${name}" (health OR medical OR hospital OR diet OR exercise OR illness OR disease OR surgery OR age)`, 10),
+      getWikiSummaryForLongevity(name),
+    ]);
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return { error: "AI API key not configured" };
+
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
+
+    const newsCtx = newsArticles.length > 0
+      ? `\n\nRecent news:\n${newsArticles.map((a) => `- ${a.title} (${a.source})`).join("\n")}`
+      : "";
+    const healthCtx = healthNews.length > 0
+      ? `\n\nHealth-related news:\n${healthNews.map((a) => `- ${a.title} (${a.source})`).join("\n")}`
+      : "";
+    const wikiCtx = wikiSummary ? `\n\nWikipedia: ${wikiSummary}` : "";
+
+    const prompt = `You are an actuarial intelligence analyst. Produce a longevity risk assessment for a public figure based on publicly available information. This is for geopolitical and market risk analysis.
+
+Subject: ${name}
+Timeframe: ${timeframeYears} years
+${wikiCtx}${newsCtx}${healthCtx}
+
+Return ONLY valid JSON:
+{
+  "subject": { "name": "string", "age": number|null, "nationality": "string", "role": "string", "significance": "string" },
+  "riskFactors": {
+    "age": { "score": 1-10, "rationale": "string" },
+    "knownHealthConditions": { "score": 1-10, "rationale": "string" },
+    "lifestyle": { "score": 1-10, "rationale": "string" },
+    "occupationalStress": { "score": 1-10, "rationale": "string" },
+    "securityThreats": { "score": 1-10, "rationale": "string" },
+    "mentalHealth": { "score": 1-10, "rationale": "string" },
+    "geneticIndicators": { "score": 1-10, "rationale": "string" },
+    "accessToHealthcare": { "score": 1-10, "rationale": "string" },
+    "substanceUse": { "score": 1-10, "rationale": "string" }
+  },
+  "compositeScore": {
+    "overallRisk": 1-10,
+    "survivalProbability": 0.0-1.0,
+    "confidence": 0.0-1.0,
+    "primaryConcerns": ["string"],
+    "mitigatingFactors": ["string"]
+  },
+  "geopoliticalImpact": {
+    "successionRisk": "string",
+    "marketSectors": ["string"],
+    "estimatedMarketImpact": "low|moderate|high|severe",
+    "keyDependencies": ["string"]
+  },
+  "timeline": { "shortTerm": "string", "mediumTerm": "string", "trendDirection": "improving|stable|declining|unknown" },
+  "intelligenceGaps": ["string"]
+}`;
+
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 3000,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { error: "Failed to parse analysis", raw: text.slice(0, 500) };
+
+    return JSON.parse(jsonMatch[0]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Longevity analysis failed: ${msg}` };
+  }
+}
+
+async function searchGDELTForLongevity(query: string, max = 15) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(
+      `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=artlist&maxrecords=${max}&format=json&sort=datedesc`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json.articles || []).map((a: { title: string; domain: string; seendate: string }) => ({
+      title: a.title, source: a.domain, date: a.seendate,
+    }));
+  } catch { return []; }
+}
+
+async function getWikiSummaryForLongevity(name: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(name)}&srlimit=1&format=json`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const title = data?.query?.search?.[0]?.title;
+    if (!title) return null;
+    const c2 = new AbortController();
+    const t2 = setTimeout(() => c2.abort(), 8000);
+    const res2 = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, { signal: c2.signal });
+    clearTimeout(t2);
+    if (!res2.ok) return null;
+    return (await res2.json())?.extract || null;
+  } catch { return null; }
+}
+
+// ── Contagion Analysis Executor ──
+
+async function executeContagionAnalysis(input: Record<string, unknown>) {
+  try {
+    const { propagateShock, summarizeContagion } = await import("@/lib/contagion/engine");
+    const result = propagateShock(
+      {
+        trigger: (input.trigger_description as string) || `${input.source_asset} shock`,
+        sourceAsset: input.source_asset as string,
+        shockMagnitude: input.shock_magnitude as number,
+        shockType: "price",
+      },
+      (input.max_order as number) || 3,
+    );
+
+    return {
+      summary: summarizeContagion(result),
+      trigger: result.trigger,
+      totalAssetsAffected: result.totalAssetsAffected,
+      highestOrderReached: result.highestOrderReached,
+      impacts: result.impacts.map(i => ({
+        asset: i.asset,
+        expectedMove: `${i.direction === "up" ? "+" : ""}${(i.expectedMove * 100).toFixed(2)}%`,
+        direction: i.direction,
+        confidence: i.confidence,
+        order: i.order,
+        pathway: i.pathway.join(" -> "),
+        mechanism: i.mechanism,
+        lag: i.lag,
+        tradingImplication: i.tradingImplication,
+      })),
+    };
+  } catch (err) {
+    return { error: `Contagion analysis failed: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+// ── Attribution Executor ──
+
+async function executeGetAttribution(input: Record<string, unknown>) {
+  try {
+    const { buildAttributionChain, generateAttributionReport } = await import("@/lib/attribution/engine");
+    const ticker = input.ticker as string | undefined;
+
+    if (ticker) {
+      const chain = await buildAttributionChain(ticker);
+      if (!chain) return { error: `No position found for ${ticker}` };
+      return chain;
+    }
+
+    const report = await generateAttributionReport();
+    return {
+      totalPnl: report.totalPnl,
+      realizedPnl: report.totalRealizedPnl,
+      unrealizedPnl: report.totalUnrealizedPnl,
+      positionCount: report.chains.length,
+      layerSummary: report.layerSummary,
+      signalPerformance: report.signalPerformance.slice(0, 10),
+      chains: report.chains.slice(0, 20),
+      unattributed: report.unattributed,
+    };
+  } catch (err) {
+    return { error: `Attribution failed: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+// ── Scenario Branches Executor ──
+
+async function executeGetScenarioBranches() {
+  try {
+    const { getActiveBranchSets, identifyUpcomingCatalysts } = await import("@/lib/thesis/branching");
+    const [branches, catalysts] = await Promise.all([
+      getActiveBranchSets(),
+      Promise.resolve(identifyUpcomingCatalysts()),
+    ]);
+
+    return {
+      upcomingCatalysts: catalysts.map(c => ({
+        name: c.name,
+        date: c.expectedDate,
+        category: c.category,
+        importance: c.importance,
+        consensus: c.consensusExpectation,
+        affectedTickers: c.affectedTickers,
+      })),
+      preComputedBranches: branches.map(bs => ({
+        catalyst: bs.catalyst.name,
+        catalystDate: bs.catalyst.expectedDate,
+        baseThesisId: bs.baseThesisId,
+        branchCount: bs.branches.length,
+        branches: bs.branches.map(b => ({
+          scenario: b.scenarioName,
+          probability: `${(b.probability * 100).toFixed(0)}%`,
+          condition: b.condition,
+          regimeShift: b.thesisRevision.marketRegimeShift || "none",
+          volShift: b.thesisRevision.volatilityShift || "none",
+          actionOverrides: b.thesisRevision.tradingActionOverrides.length,
+          narrative: b.thesisRevision.narrativeGuidance,
+          marketExpectations: b.marketExpectations.map(me =>
+            `${me.ticker}: ${me.direction === "up" ? "+" : ""}${(me.expectedMove * 100).toFixed(1)}% (${me.timeframe})`
+          ),
+        })),
+      })),
+      totalPendingBranches: branches.reduce((sum, bs) => sum + bs.branches.length, 0),
+    };
+  } catch (err) {
+    return { error: `Scenario branches failed: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeGenerateDocument(input: Record<string, unknown>) {
+  const format = input.format as "pdf" | "pptx";
+  const title = input.title as string;
+  const sections = input.sections as Array<{
+    heading: string;
+    content: string;
+    bullets?: string[];
+  }>;
+
+  if (!format || !title || !sections?.length) {
+    return { error: "Missing format, title, or sections" };
+  }
+
+  // Return structured data for the client widget to handle download
+  return {
+    format,
+    title,
+    sections,
+    slideCount: sections.length,
+    generatedAt: new Date().toISOString(),
+  };
 }

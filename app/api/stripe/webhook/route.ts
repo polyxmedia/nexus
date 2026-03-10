@@ -196,6 +196,52 @@ export async function POST(request: Request) {
 
   try {
     switch (event.type) {
+      case "payment_intent.succeeded": {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        // Handle credit top-up via PaymentIntent (Elements flow)
+        if (pi.metadata?.type === "credit_topup") {
+          const userId = pi.metadata.userId;
+          const credits = parseInt(pi.metadata.credits || "0");
+          if (userId && credits > 0) {
+            const period = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
+            const balRows = await db
+              .select()
+              .from(schema.creditBalances)
+              .where(eq(schema.creditBalances.userId, userId));
+
+            if (balRows.length > 0) {
+              await db
+                .update(schema.creditBalances)
+                .set({
+                  creditsGranted: balRows[0].creditsGranted + credits,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(schema.creditBalances.userId, userId));
+            } else {
+              await db.insert(schema.creditBalances).values({
+                userId,
+                period,
+                creditsGranted: credits,
+                creditsUsed: 0,
+              });
+            }
+
+            await db.insert(schema.creditLedger).values({
+              userId,
+              amount: credits,
+              balanceAfter: (balRows.length > 0 ? balRows[0].creditsGranted - balRows[0].creditsUsed : 0) + credits,
+              reason: "topup",
+              model: "stripe",
+              inputTokens: 0,
+              outputTokens: 0,
+              sessionId: pi.id,
+              period,
+            });
+          }
+        }
+        break;
+      }
+
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;

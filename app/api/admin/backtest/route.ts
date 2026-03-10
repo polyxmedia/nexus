@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { startBacktest, getAllBacktestRuns } from "@/lib/backtest/engine";
 import type { BacktestConfig } from "@/lib/backtest/types";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function requireAdmin(): Promise<NextResponse | null> {
   const session = await getServerSession(authOptions);
@@ -39,6 +40,16 @@ const CRYPTO_INSTRUMENTS = [
 export async function POST(req: NextRequest) {
   const denied = await requireAdmin();
   if (denied) return denied;
+
+  const session = await getServerSession(authOptions);
+  const rl = rateLimit(`admin:backtest:post:${session!.user!.name}`, 10, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const body = await req.json();
 
@@ -80,6 +91,16 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   const denied = await requireAdmin();
   if (denied) return denied;
+
+  const session = await getServerSession(authOptions);
+  const rl = rateLimit(`admin:backtest:get:${session!.user!.name}`, 60, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const runs = await getAllBacktestRuns();
 

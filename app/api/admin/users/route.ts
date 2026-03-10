@@ -4,6 +4,7 @@ import { authOptions, hashPassword } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, like } from "drizzle-orm";
 import { validateOrigin } from "@/lib/security/csrf";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -21,6 +22,14 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name || !(await isAdmin(session.user.name))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const rl = rateLimit(`admin:users:get:${session.user.name}`, 60, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+      );
     }
 
     const userSettings = await db
@@ -67,6 +76,14 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name || !(await isAdmin(session.user.name))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const rl = rateLimit(`admin:users:post:${session.user.name}`, 30, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+      );
     }
 
     const body = await request.json();

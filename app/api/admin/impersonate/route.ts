@@ -9,7 +9,10 @@ import {
   setImpersonationCookie,
   clearImpersonationCookie,
   getImpersonationFromCookie,
+  getValidatedImpersonation,
+  revokeImpersonationNonce,
 } from "@/lib/auth/impersonation";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function getAdminUser(): Promise<{ username: string; role: string } | null> {
   const session = await getServerSession(authOptions);
@@ -35,6 +38,14 @@ export async function POST(req: NextRequest) {
 
   const admin = await getAdminUser();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const rl = rateLimit(`admin:impersonate:${admin.username}`, 10, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
 
   try {
     const { username } = await req.json();
@@ -104,11 +115,16 @@ export async function DELETE(req: NextRequest) {
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Read impersonation data before clearing for audit
+  // Use getImpersonationFromCookie (not validated) so the admin can always exit
+  // even if their role was revoked mid-session
   const impData = await getImpersonationFromCookie();
 
   await clearImpersonationCookie();
 
   if (impData) {
+    // Revoke the nonce server-side so the token cannot be replayed
+    await revokeImpersonationNonce(impData.nonce, impData.adminUsername);
+
     console.log(`[IMPERSONATE] Admin "${impData.adminUsername}" stopped impersonating "${impData.targetUsername}" at ${new Date().toISOString()}`);
 
     await db.insert(schema.settings).values({
@@ -117,6 +133,7 @@ export async function DELETE(req: NextRequest) {
         admin: impData.adminUsername,
         target: impData.targetUsername,
         action: "stop",
+        nonce: impData.nonce,
         timestamp: new Date().toISOString(),
       }),
     });
@@ -132,7 +149,8 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ active: false });
 
-  const impData = await getImpersonationFromCookie();
+  // Use full validation (admin role re-check + revocation check)
+  const impData = await getValidatedImpersonation();
   if (!impData) {
     return NextResponse.json({ active: false });
   }

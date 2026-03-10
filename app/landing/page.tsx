@@ -175,8 +175,8 @@ const features = [
   },
   {
     icon: TrendingUp,
-    title: "Trading Integration",
-    description: "Connected directly to your broker. When a thesis converts into a trade, you can execute it right there, no switching tabs.",
+    title: "Portfolio Tracking",
+    description: "Track your positions and P&L against live prices. Manual portfolio tracking today, direct broker execution coming soon.",
     color: "text-accent-emerald",
     glow: "emerald" as const,
     tag: "EXECUTE",
@@ -187,13 +187,13 @@ const features = [
 const tiers = [
   {
     name: "Analyst",
-    price: "$299",
-    priceAnnual: "$249",
+    price: "$150",
+    priceAnnual: "$125",
     period: "/mo",
     description: "Individual intelligence capability",
     features: [
       "Signal detection engine",
-      "AI chat analyst (100 msgs/day)",
+      "50,000 AI credits/month",
       "Daily thesis generation",
       "Prediction tracking",
       "Narrative & sentiment tracking",
@@ -205,14 +205,14 @@ const tiers = [
   },
   {
     name: "Operator",
-    price: "$999",
-    priceAnnual: "$849",
+    price: "$450",
+    priceAnnual: "$375",
     period: "/mo",
     description: "Full operational capability",
     features: [
       "Everything in Analyst",
-      "Unlimited AI analyst access",
-      "Trading broker integration",
+      "250,000 AI credits/month",
+      "Portfolio tracking + broker integration (coming soon)",
       "Real-time War Room + OSINT",
       "On-chain analytics & GEX",
       "GPR decomposition & BOCPD",

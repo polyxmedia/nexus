@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { getStripe } from "@/lib/stripe";
 import { db, schema } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tierId, embedded } = await request.json();
+    const { tierId } = await request.json();
     if (!tierId) {
       return NextResponse.json({ error: "Tier ID required" }, { status: 400 });
     }
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const stripe = getStripe();
     const userId = session.user.name;
 
-    // Get user's real email from settings
+    // Get user's email from settings
     let userEmail: string | undefined;
     try {
       const userRows = await db
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       // Fall through
     }
 
-    // Check for existing Stripe customer
+    // Get or create Stripe customer
     const existingSubs = await db
       .select()
       .from(schema.subscriptions)
@@ -53,45 +53,73 @@ export async function POST(request: Request) {
 
     let customerId: string | undefined;
     if (existingSubs.length > 0 && existingSubs[0].stripeCustomerId) {
-      customerId = existingSubs[0].stripeCustomerId;
+      const cid = existingSubs[0].stripeCustomerId;
+      if (cid.startsWith("cus_") && !cid.startsWith("cus_manual") && !cid.startsWith("cus_comped")) {
+        // Verify customer exists in Stripe
+        try {
+          await stripe.customers.retrieve(cid);
+          customerId = cid;
+        } catch {
+          // Customer doesn't exist, create new
+        }
+      }
     }
 
-    const origin = request.headers.get("origin") || "http://localhost:3000";
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        ...(userEmail ? { email: userEmail } : {}),
+        metadata: { nexusUserId: userId },
+      });
+      customerId = customer.id;
+    }
 
-    // Check if user has ever had a subscription (no trial for returning users)
-    const hadSub = existingSubs.length > 0 && existingSubs[0].stripeCustomerId;
+    // Check if user has ever had a real subscription (no trial for returning users)
+    const hadSub = existingSubs.length > 0 && existingSubs[0].stripeSubscriptionId &&
+      !existingSubs[0].stripeSubscriptionId.startsWith("comped_");
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "subscription",
+    // Create subscription with incomplete payment so Elements can confirm it
+    const subscription = await stripe.subscriptions.create({
       customer: customerId,
-      customer_email: customerId ? undefined : userEmail,
-      line_items: [{ price: tier.stripePriceId, quantity: 1 }],
-      // 2-day free trial, payment details collected upfront
-      ...(!hadSub && {
-        subscription_data: {
-          trial_period_days: 2,
-        },
-      }),
-      payment_method_collection: "always",
-      ...(embedded
-        ? {
-            ui_mode: "embedded",
-            return_url: `${origin}/settings?tab=subscription&status=success`,
-          }
-        : {
-            success_url: `${origin}/settings?tab=subscription&status=success`,
-            cancel_url: `${origin}/settings?tab=subscription&status=canceled`,
-          }),
+      items: [{ price: tier.stripePriceId }],
+      payment_behavior: "default_incomplete",
+      payment_settings: {
+        save_default_payment_method: "on_subscription",
+      },
+      ...(!hadSub && { trial_period_days: 2 }),
+      expand: ["latest_invoice.payment_intent", "pending_setup_intent"],
       metadata: {
         userId,
         tierId: String(tierId),
       },
     });
 
-    if (embedded) {
-      return NextResponse.json({ clientSecret: checkoutSession.client_secret });
+    // With trial: no PaymentIntent (invoice is $0), use SetupIntent instead
+    // Without trial: PaymentIntent on the latest invoice
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subAny = subscription as any;
+    let clientSecret: string | null = null;
+    let type: "payment" | "setup" = "payment";
+
+    if (subAny.pending_setup_intent?.client_secret) {
+      // Trial subscription: SetupIntent to collect payment method for later
+      clientSecret = subAny.pending_setup_intent.client_secret;
+      type = "setup";
+    } else if (subAny.latest_invoice?.payment_intent?.client_secret) {
+      // Immediate payment subscription
+      clientSecret = subAny.latest_invoice.payment_intent.client_secret;
+      type = "payment";
     }
-    return NextResponse.json({ url: checkoutSession.url });
+
+    if (!clientSecret) {
+      return NextResponse.json({ error: "Failed to initialize payment" }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      clientSecret,
+      type,
+      subscriptionId: subscription.id,
+      customerId,
+    });
   } catch (error) {
     console.error("Checkout error:", error);
     return NextResponse.json({ error: "Failed to create checkout" }, { status: 500 });

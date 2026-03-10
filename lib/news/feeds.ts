@@ -34,9 +34,21 @@ const RSS_FEEDS = [
   { url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", source: "CNBC" },
   { url: "https://feeds.content.dowjones.io/public/rss/mw_bulletins", source: "MarketWatch" },
   { url: "https://feeds.bloomberg.com/politics/news.rss", source: "Bloomberg" },
-  // Center-right / Right (political diversity)
+  // Center-right
   { url: "https://feeds.skynews.com/feeds/rss/world.xml", source: "Sky News" },
+  { url: "https://feeds.content.dowjones.io/public/rss/wsj/latest/world", source: "Wall Street Journal" },
+  { url: "https://www.washingtontimes.com/rss/headlines/news/world/", source: "Washington Times" },
+  { url: "https://www.washingtonexaminer.com/section/news/feed", source: "Washington Examiner" },
+  // Right
   { url: "https://moxie.foxnews.com/google-publisher/world.xml", source: "Fox News" },
+  { url: "https://www.foxbusiness.com/feeds/rss/latest.xml", source: "Fox Business" },
+  { url: "https://nypost.com/feed/", source: "New York Post" },
+  { url: "https://feeds.dailycaller.com/dailycaller/home", source: "Daily Caller" },
+  { url: "https://www.dailywire.com/feeds/rss.xml", source: "Daily Wire" },
+  { url: "https://www.nationalreview.com/feed/", source: "National Review" },
+  { url: "https://www.dailymail.co.uk/articles.rss", source: "Daily Mail" },
+  { url: "https://www.telegraph.co.uk/rss.xml", source: "The Telegraph" },
+  { url: "https://www.newsmax.com/rss/Newsfront/1/", source: "Newsmax" },
   // Wire aggregators
   { url: "https://feedx.net/rss/ap.xml", source: "AP News" },
   // Specialist: energy
@@ -134,9 +146,11 @@ const SOURCE_BIAS: Record<string, PoliticalBias> = {
   "dailywire": "right",
   "daily caller": "right",
   "dailycaller": "right",
+  "the telegraph": "center-right",
+  "telegraph": "center-right",
   // Far-right
   "breitbart": "far-right",
-  "newsmax": "far-right",
+  "newsmax": "right",
   "oan": "far-right",
   "epoch times": "far-right",
   // International
@@ -280,11 +294,73 @@ function extractTag(xml: string, tag: string): string | undefined {
 }
 
 function stripCdata(text: string): string {
-  return text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+  return decodeEntities(text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")).trim();
 }
 
 function stripHtml(text: string): string {
-  return text.replace(/<[^>]*>/g, "").trim();
+  return decodeEntities(text.replace(/<[^>]*>/g, "")).trim();
+}
+
+/** Decode HTML/XML entities and clean stray unicode artifacts from RSS feeds. */
+function decodeEntities(text: string): string {
+  // Named entities
+  const named: Record<string, string> = {
+    "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'",
+    "&nbsp;": " ", "&ndash;": "-", "&mdash;": "-", "&lsquo;": "'",
+    "&rsquo;": "'", "&ldquo;": '"', "&rdquo;": '"', "&hellip;": "...",
+    "&bull;": "-", "&middot;": "-", "&copy;": "(c)", "&reg;": "(R)",
+    "&trade;": "(TM)", "&euro;": "EUR", "&pound;": "GBP", "&yen;": "JPY",
+    "&cent;": "c", "&sect;": "S", "&deg;": "deg", "&times;": "x",
+    "&divide;": "/", "&shy;": "", "&zwj;": "", "&zwnj;": "",
+  };
+
+  let result = text;
+
+  // Named entities (case-insensitive)
+  result = result.replace(/&[a-zA-Z]+;/g, (match) => named[match.toLowerCase()] ?? match);
+
+  // Numeric decimal entities: &#8217; &#169; etc.
+  result = result.replace(/&#(\d+);/g, (_match, code) => {
+    const cp = parseInt(code, 10);
+    return safeChar(cp);
+  });
+
+  // Numeric hex entities: &#x2019; &#xA9; etc.
+  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => {
+    const cp = parseInt(hex, 16);
+    return safeChar(cp);
+  });
+
+  // Replace common stray unicode that slips through RSS feeds
+  result = result
+    .replace(/[\u2018\u2019\u201A\uFF07]/g, "'")   // smart single quotes
+    .replace(/[\u201C\u201D\u201E\uFF02]/g, '"')    // smart double quotes
+    .replace(/[\u2013\u2014\uFE58]/g, "-")           // en/em dashes
+    .replace(/\u2026/g, "...")                        // ellipsis
+    .replace(/\u00A0/g, " ")                          // non-breaking space
+    .replace(/[\u200B-\u200F\u2028\u2029\uFEFF]/g, "") // zero-width and line/paragraph separators
+    .replace(/\u00AD/g, "");                          // soft hyphen
+
+  return result;
+}
+
+/** Convert a unicode codepoint to a safe ASCII-range char, or the original char if printable. */
+function safeChar(cp: number): string {
+  // Common smart punctuation codepoints -> ASCII
+  if (cp === 8216 || cp === 8217 || cp === 8218) return "'";  // single quotes
+  if (cp === 8220 || cp === 8221 || cp === 8222) return '"';  // double quotes
+  if (cp === 8211 || cp === 8212) return "-";                  // dashes
+  if (cp === 8230) return "...";                               // ellipsis
+  if (cp === 160) return " ";                                  // nbsp
+  if (cp === 8226) return "-";                                 // bullet
+  if (cp === 183) return "-";                                  // middle dot
+  // Printable ASCII and basic Latin supplement are fine
+  if (cp >= 32 && cp <= 126) return String.fromCodePoint(cp);
+  // Accented Latin characters (common in names) are fine
+  if (cp >= 192 && cp <= 687) return String.fromCodePoint(cp);
+  // Other printable unicode - pass through
+  if (cp >= 128) return String.fromCodePoint(cp);
+  return "";
 }
 
 async function fetchRssFeed(feedUrl: string, source: string): Promise<NewsArticle[]> {
@@ -331,7 +407,7 @@ async function fetchGdeltArticles(): Promise<NewsArticle[]> {
         return t.length >= 5 && u.startsWith("http");
       })
       .map((a: Record<string, string>) => {
-        const title = a.title.trim();
+        const title = decodeEntities(a.title.trim());
         const domain = a.domain || "GDELT";
         return {
           title,
@@ -376,7 +452,7 @@ async function fetchNewsDataArticles(): Promise<NewsArticle[]> {
         return t.length >= 5 && u.startsWith("http");
       })
       .map((a: Record<string, unknown>) => {
-        const title = (a.title as string).trim();
+        const title = decodeEntities((a.title as string).trim());
         const sourceName = (a.source_name as string) || (a.source_id as string) || "Unknown";
         const domain = (a.source_url as string) || "";
 
@@ -430,6 +506,13 @@ function prettifyDomain(domain: string): string {
     "rt.com": "RT",
     "breitbart.com": "Breitbart",
     "newsmax.com": "Newsmax",
+    "dailycaller.com": "Daily Caller",
+    "dailywire.com": "Daily Wire",
+    "nationalreview.com": "National Review",
+    "washingtontimes.com": "Washington Times",
+    "washingtonexaminer.com": "Washington Examiner",
+    "telegraph.co.uk": "The Telegraph",
+    "foxbusiness.com": "Fox Business",
     "feedx.net": "AP News",
     "moxie.foxnews.com": "Fox News",
   };

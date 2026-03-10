@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db";
 import { sql, desc, eq, gte, and, isNotNull } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,6 +19,14 @@ export async function GET(req: NextRequest) {
     const userData = userSettings[0]?.value ? JSON.parse(userSettings[0].value) : {};
     if (userData.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const rl = rateLimit(`admin:analytics:${session.user.name}`, 60, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+      );
     }
 
     const { searchParams } = new URL(req.url);

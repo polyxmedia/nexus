@@ -53,6 +53,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_on_chain: "Reading on-chain data",
   get_shipping_intelligence: "Tracking shipping intel",
   get_ai_progression: "Checking AI progression",
+  longevity_risk_analysis: "Analysing longevity risk",
   // Advanced analysis
   search_historical_parallels: "Finding historical parallels",
   get_actor_profile: "Loading actor profile",

@@ -240,10 +240,11 @@ function RegisterForm() {
 
       if (result?.error) {
         setError("Account created. Please sign in.");
-        router.push("/login");
+        window.location.href = "/login";
       } else {
         // Send new users to choose a subscription plan (free trial)
-        router.push("/settings?tab=subscription");
+        // Full navigation ensures the session cookie is sent with the request
+        window.location.href = "/settings?tab=subscription";
       }
     } catch {
       setError("Registration failed");

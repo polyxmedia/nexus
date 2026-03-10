@@ -45,7 +45,8 @@ export function EntityListPanel({
             type="text"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search entities..."
+            placeholder="Search entities... ( / )"
+            data-graph-search
             className="bg-transparent text-xs text-navy-200 outline-none w-full placeholder:text-navy-600"
           />
         </div>

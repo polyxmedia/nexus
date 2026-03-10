@@ -59,7 +59,9 @@ export default function LoginPage() {
     if (result?.error) {
       setError("Invalid credentials");
     } else {
-      router.push("/dashboard");
+      // Full navigation ensures the session cookie is sent with the request
+      // router.push can race the cookie, causing a redirect back to /login
+      window.location.href = "/dashboard";
     }
   }
 

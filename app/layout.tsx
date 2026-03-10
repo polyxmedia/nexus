@@ -12,6 +12,10 @@ import { OrganizationJsonLd, WebSiteJsonLd, SoftwareApplicationJsonLd } from "@/
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
+export const viewport = {
+  viewportFit: 'cover' as const,
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -83,7 +87,7 @@ export default function RootLayout({
         <WebSiteJsonLd />
         <SoftwareApplicationJsonLd />
       </head>
-      <body className="min-h-screen bg-navy-950 text-navy-100 antialiased">
+      <body className="min-h-screen bg-navy-950 text-navy-100 antialiased" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <AuthProvider>
           <NotificationProvider>
             <SubscriptionProvider>

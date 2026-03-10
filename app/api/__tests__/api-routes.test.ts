@@ -283,7 +283,7 @@ vi.mock("drizzle-orm", () => ({
 // ── Helpers ────────────────────────────────────────────────────────
 
 function makeRequest(url: string, options?: RequestInit): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost:3000"), options);
+  return new NextRequest(new URL(url, "http://localhost:3000"), options as import("next/dist/server/web/spec-extension/request").RequestInit | undefined);
 }
 
 function jsonBody(data: unknown): RequestInit {

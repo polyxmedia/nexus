@@ -103,6 +103,23 @@ export const portfolioSnapshots = pgTable("portfolio_snapshots", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+export const manualPositions = pgTable("manual_positions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  ticker: text("ticker").notNull(),
+  name: text("name"),
+  direction: text("direction").notNull().default("long"), // long | short
+  quantity: doublePrecision("quantity").notNull(),
+  avgCost: doublePrecision("avg_cost").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  openedAt: text("opened_at").notNull(),
+  closedAt: text("closed_at"),
+  closePrice: doublePrecision("close_price"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   key: text("key").notNull().unique(),
@@ -236,6 +253,7 @@ export const timelineEvents = pgTable("timeline_events", {
 
 export const alerts = pgTable("alerts", {
   id: serial("id").primaryKey(),
+  userId: text("user_id"),
   name: text("name").notNull(),
   type: text("type").notNull(), // price_threshold | vix_level | geofence | signal_intensity | prediction_due | osint_keyword | custom
   condition: text("condition").notNull(), // JSON: the condition definition

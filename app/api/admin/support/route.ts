@@ -6,6 +6,7 @@ import { supportTickets, supportMessages, settings } from "@/lib/db/schema";
 import { eq, desc, asc } from "drizzle-orm";
 import { sendEmail, getUserEmail } from "@/lib/email";
 import { ticketReplyEmail, ticketClosedEmail } from "@/lib/email/templates";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -23,6 +24,15 @@ export async function GET() {
   if (!session?.user?.name || !(await isAdmin(session.user.name))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const rl = rateLimit(`admin:support:get:${session.user.name}`, 60, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const tickets = await db
       .select()
@@ -42,6 +52,15 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.name || !(await isAdmin(session.user.name))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const rl = rateLimit(`admin:support:patch:${session.user.name}`, 30, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const { ticketId, status, priority, assignedTo } = await req.json();
     if (!ticketId) {
@@ -91,6 +110,15 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.name || !(await isAdmin(session.user.name))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const rl = rateLimit(`admin:support:post:${session.user.name}`, 30, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const { ticketId, content } = await req.json();
     if (!ticketId || !content?.trim()) {

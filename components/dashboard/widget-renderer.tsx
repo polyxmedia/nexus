@@ -822,6 +822,89 @@ function InflationPulseWidget() {
 }
 
 // ── T1: Vol Term Structure ──
+function VixAreaChart({ history }: { history: { date: string; value: number }[] }) {
+  if (history.length < 2) return null;
+
+  const values = history.map(h => h.value);
+  const min = Math.min(...values, 10);
+  const max = Math.max(...values, 35);
+  const range = max - min || 1;
+
+  const w = 240;
+  const h = 72;
+  const padTop = 2;
+  const padBot = 14; // room for date labels
+  const chartH = h - padTop - padBot;
+
+  const pts = history.map((p, i) => ({
+    x: (i / (history.length - 1)) * w,
+    y: padTop + chartH - ((p.value - min) / range) * chartH,
+    val: p.value,
+    date: p.date,
+  }));
+
+  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const areaPath = `${linePath} L${pts[pts.length - 1].x},${padTop + chartH} L${pts[0].x},${padTop + chartH} Z`;
+
+  // Regime zone thresholds
+  const zones: { min: number; max: number; color: string }[] = [
+    { min: 10, max: 15, color: "rgba(52,211,153,0.06)" },   // complacent
+    { min: 15, max: 20, color: "rgba(52,211,153,0.03)" },   // normal
+    { min: 20, max: 25, color: "rgba(251,191,36,0.06)" },   // elevated
+    { min: 25, max: 30, color: "rgba(251,113,133,0.06)" },   // fear
+    { min: 30, max: 50, color: "rgba(251,113,133,0.10)" },   // crisis
+  ];
+
+  // Latest point for dot
+  const last = pts[pts.length - 1];
+  const lastColor = last.val >= 25 ? "#fb7185" : last.val >= 20 ? "#fbbf24" : "#34d399";
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="overflow-visible">
+      {/* Regime zones */}
+      {zones.map((z, i) => {
+        const y1 = padTop + chartH - ((Math.min(z.max, max) - min) / range) * chartH;
+        const y2 = padTop + chartH - ((Math.max(z.min, min) - min) / range) * chartH;
+        if (y2 <= y1) return null;
+        return <rect key={i} x={0} y={y1} width={w} height={y2 - y1} fill={z.color} />;
+      })}
+
+      {/* Threshold lines at 20 and 30 */}
+      {[20, 30].map(t => {
+        if (t < min || t > max) return null;
+        const y = padTop + chartH - ((t - min) / range) * chartH;
+        return (
+          <g key={t}>
+            <line x1={0} y1={y} x2={w} y2={y} stroke="rgba(148,163,184,0.15)" strokeWidth="0.5" strokeDasharray="3,3" />
+            <text x={w - 1} y={y - 2} fill="rgba(148,163,184,0.3)" fontSize="6" textAnchor="end" fontFamily="monospace">{t}</text>
+          </g>
+        );
+      })}
+
+      {/* Gradient fill */}
+      <defs>
+        <linearGradient id="vixGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={lastColor} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={lastColor} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill="url(#vixGrad)" />
+      <path d={linePath} fill="none" stroke={lastColor} strokeWidth="1.5" strokeLinejoin="round" />
+
+      {/* Current value dot */}
+      <circle cx={last.x} cy={last.y} r="2.5" fill={lastColor} />
+      <circle cx={last.x} cy={last.y} r="5" fill={lastColor} opacity="0.2" />
+
+      {/* Date labels */}
+      {pts.filter((_, i) => i === 0 || i === pts.length - 1 || i === Math.floor(pts.length / 2)).map((p, i) => (
+        <text key={i} x={p.x} y={h - 1} fill="rgba(148,163,184,0.35)" fontSize="6" textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} fontFamily="monospace">
+          {p.date.slice(5)} {/* MM-DD */}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
 function VolTermWidget() {
   const { data, loading } = useMacroSnapshot();
   if (loading) return <WidgetSkeleton lines={3} />;
@@ -831,26 +914,61 @@ function VolTermWidget() {
   const vixPrev = prev(data, "VIXCLS");
   const history = data.VIXCLS?.history || [];
 
+  // Contextual risk indicators from same snapshot
+  const hyOas = val(data, "BAMLH0A0HYM2");
+  const dxy = val(data, "DTWEXBGS");
+  const dxyPrev = prev(data, "DTWEXBGS");
+
   const regime = vix != null ? (vix >= 30 ? "CRISIS" : vix >= 25 ? "FEAR" : vix >= 20 ? "ELEVATED" : vix >= 15 ? "NORMAL" : "COMPLACENT") : "N/A";
   const regimeColor = vix != null ? (vix >= 25 ? "text-accent-rose" : vix >= 20 ? "text-accent-amber" : "text-accent-emerald") : "text-navy-500";
+  const dayChange = vix != null && vixPrev != null ? vix - vixPrev : null;
+
+  // HY OAS stress label
+  const hyStress = hyOas != null ? (hyOas >= 5 ? "STRESSED" : hyOas >= 4 ? "WATCH" : "NORMAL") : null;
+  const hyColor = hyOas != null ? (hyOas >= 5 ? "text-accent-rose" : hyOas >= 4 ? "text-accent-amber" : "text-navy-400") : "text-navy-500";
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
+      {/* Header: VIX value + regime badge */}
       <div className="flex items-center justify-between">
-        <div>
-          <span className="text-[9px] text-navy-500 block">VIX</span>
-          <span className="text-xl font-mono text-navy-100 font-bold">{vix != null ? vix.toFixed(1) : "N/A"}</span>
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-mono text-navy-100 font-bold tracking-tight">{vix != null ? vix.toFixed(1) : "N/A"}</span>
+          {dayChange != null && (
+            <span className={`text-[11px] font-mono ${dayChange > 0 ? "text-accent-rose" : dayChange < 0 ? "text-accent-emerald" : "text-navy-400"}`}>
+              {dayChange > 0 ? "+" : ""}{dayChange.toFixed(2)}
+            </span>
+          )}
         </div>
-        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${regimeColor} bg-navy-800/60`}>{regime}</span>
+        <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded ${regimeColor} bg-navy-800/60 tracking-wider`}>{regime}</span>
       </div>
+
+      {/* Fear gauge */}
       {vix != null && <GaugeBar value={vix} min={10} max={45} thresholds={[20, 30]} label="Fear Gauge" />}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-navy-400">Day chg</span>
-        <span className={`text-[11px] font-mono ${vix != null && vixPrev != null ? (vix > vixPrev ? "text-accent-rose" : "text-accent-emerald") : "text-navy-400"}`}>
-          {vix != null && vixPrev != null ? `${vix > vixPrev ? "+" : ""}${(vix - vixPrev).toFixed(2)}` : "N/A"}
-        </span>
+
+      {/* Area chart with regime zones */}
+      <VixAreaChart history={history} />
+
+      {/* Risk context row */}
+      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-navy-800/30">
+        <div>
+          <span className="text-[8px] text-navy-600 uppercase tracking-wider block">HY Spread</span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[12px] font-mono text-navy-200">{hyOas != null ? `${hyOas.toFixed(2)}%` : "N/A"}</span>
+            {hyStress && <span className={`text-[8px] font-mono ${hyColor}`}>{hyStress}</span>}
+          </div>
+        </div>
+        <div>
+          <span className="text-[8px] text-navy-600 uppercase tracking-wider block">Dollar (DXY)</span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[12px] font-mono text-navy-200">{dxy != null ? dxy.toFixed(1) : "N/A"}</span>
+            {dxy != null && dxyPrev != null && (
+              <span className={`text-[8px] font-mono ${dxy > dxyPrev ? "text-accent-emerald" : dxy < dxyPrev ? "text-accent-rose" : "text-navy-400"}`}>
+                {dxy > dxyPrev ? "+" : ""}{(dxy - dxyPrev).toFixed(2)}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
-      <SparkLine history={history} color={regimeColor} />
     </div>
   );
 }

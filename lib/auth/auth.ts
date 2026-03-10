@@ -4,8 +4,7 @@ import { compare, hash } from "bcryptjs";
 import { db, schema } from "@/lib/db";
 import { eq, like } from "drizzle-orm";
 import { rateLimit } from "@/lib/rate-limit";
-import { cookies } from "next/headers";
-import { COOKIE_NAME, verifyImpersonationToken } from "@/lib/auth/impersonation";
+import { getValidatedImpersonation } from "@/lib/auth/impersonation";
 
 export async function hashPassword(password: string): Promise<string> {
   return hash(password, 12);
@@ -104,17 +103,14 @@ export const authOptions: AuthOptions = {
   },
   callbacks: {
     async session({ session }) {
-      // Check for admin impersonation cookie
+      // Check for admin impersonation cookie with full validation
+      // (re-checks admin role in DB and verifies token not revoked)
       try {
-        const jar = await cookies();
-        const impCookie = jar.get(COOKIE_NAME);
-        if (impCookie?.value) {
-          const impData = verifyImpersonationToken(impCookie.value);
-          if (impData && session.user?.name === impData.adminUsername) {
-            // Override session with impersonated user
-            session.user.name = impData.targetUsername;
-            session.user.email = `${impData.targetUsername}@nexus`;
-          }
+        const impData = await getValidatedImpersonation();
+        if (impData && session.user?.name === impData.adminUsername) {
+          // Override session with impersonated user
+          session.user.name = impData.targetUsername;
+          session.user.email = `${impData.targetUsername}@nexus`;
         }
       } catch {
         // cookies() may not be available in all contexts (e.g. middleware)

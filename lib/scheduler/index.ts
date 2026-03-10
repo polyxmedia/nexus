@@ -115,9 +115,15 @@ registerJob("intelligence-cycle", 15 * 60_000, async () => {
   if (!res.ok) throw new Error(`Intelligence cycle failed: ${res.status}`);
 });
 
+registerJob("prediction-fast-resolve", 30 * 60_000, async () => {
+  // Fast data-driven resolution every 30 min (no AI, just market data)
+  const res = await fetch(`${getBaseUrl()}/api/predictions/fast-resolve`, { method: "POST", headers: internalHeaders() });
+  if (!res.ok) throw new Error(`Fast prediction resolve failed: ${res.status}`);
+});
+
 registerJob("prediction-daily", 6 * 60 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
-  // Run prediction lifecycle every 6 hours: resolve overdue, then generate new
+  // AI resolve complex predictions + generate new ones every 6 hours
   const res = await fetch(`${getBaseUrl()}/api/predictions/daily`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Prediction daily cycle failed: ${res.status}`);
 });
@@ -144,6 +150,18 @@ registerJob("nowcast-update", 4 * 60 * 60_000, async () => {
   // Generate economic nowcast every 4 hours
   const res = await fetch(`${getBaseUrl()}/api/nowcast`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Nowcast update failed: ${res.status}`);
+});
+
+registerJob("context-alert-scan", 15 * 60_000, async () => {
+  // Context-aware alert scan: match news against positions, watchlist, theses, chat topics
+  const res = await fetch(`${getBaseUrl()}/api/alerts/context-scan`, { method: "POST", headers: internalHeaders() });
+  if (!res.ok) throw new Error(`Context alert scan failed: ${res.status}`);
+});
+
+registerJob("thesis-branch-generation", 6 * 60 * 60_000, async () => {
+  // Pre-compute thesis branches for upcoming catalysts every 6 hours
+  const res = await fetch(`${getBaseUrl()}/api/thesis/branches`, { method: "POST", headers: internalHeaders() });
+  if (!res.ok) throw new Error(`Thesis branch generation failed: ${res.status}`);
 });
 
 registerJob("collection-gaps-check", 2 * 60 * 60_000, async () => {

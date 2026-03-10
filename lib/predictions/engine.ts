@@ -9,7 +9,7 @@ import { getWartimeAnalysis } from "../game-theory/wartime";
 import { SCENARIOS } from "../game-theory/actors";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { SONNET_MODEL, HAIKU_MODEL } from "@/lib/ai/model";
-import { getBaseRateContext, adjustForBaseRate, BASE_RATES } from "./base-rates";
+import { getBaseRateContext, adjustForBaseRate, getBaseRate, updateObservedRates } from "./base-rates";
 import { getCalendarActorInsights } from "../signals/actor-beliefs";
 import { getCategoryCalibrationAdjustment, applyCalibrationCorrection } from "../backtest/feedback-loops";
 
@@ -74,38 +74,12 @@ async function fetchReferencePrices(alphaVantageKey: string): Promise<Record<str
 async function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): Promise<number> {
   const clamped = Math.max(0.1, Math.min(0.95, rawConfidence));
 
-  // Select the most relevant base rate for this prediction
-  const rates = BASE_RATES[category as keyof typeof BASE_RATES];
-  if (!rates) return clamped;
-
   // Infer evidence strength from the raw confidence:
   // low confidence = weak evidence, high confidence = strong evidence
   const evidenceStrength = clamped < 0.3 ? 1 : clamped < 0.5 ? 2 : clamped < 0.7 ? 3 : clamped < 0.85 ? 4 : 5;
 
-  // Pick the most relevant base rate based on claim content
-  const lower = claim.toLowerCase();
-  let baseRate = 0.10; // default
-
-  if (category === "market") {
-    if (lower.includes("vix") && lower.includes("40")) baseRate = BASE_RATES.market.vix_above_40;
-    else if (lower.includes("vix")) baseRate = BASE_RATES.market.vix_above_30;
-    else if (lower.includes("oil") || lower.includes("crude") || lower.includes("wti")) baseRate = BASE_RATES.market.oil_weekly_move_10pct;
-    else if (lower.includes("gold")) baseRate = BASE_RATES.market.gold_new_ath_month;
-    else if (lower.includes("recession")) baseRate = BASE_RATES.market.recession_any_quarter;
-    else if (lower.includes("fed") || lower.includes("rate")) baseRate = BASE_RATES.market.fed_rate_change_meeting;
-    else if (lower.includes("drop") || lower.includes("crash") || lower.includes("decline")) baseRate = BASE_RATES.market.spx_weekly_drop_5pct;
-    else baseRate = BASE_RATES.market.sector_rotation_month;
-  } else if (category === "geopolitical") {
-    if (lower.includes("military") || lower.includes("strike") || lower.includes("attack")) baseRate = BASE_RATES.geopolitical.military_op_any_week;
-    else if (lower.includes("sanction")) baseRate = BASE_RATES.geopolitical.sanctions_new_round_month;
-    else if (lower.includes("ceasefire")) baseRate = BASE_RATES.geopolitical.ceasefire_holds_30d;
-    else if (lower.includes("coup")) baseRate = BASE_RATES.geopolitical.coup_attempt_year;
-    else if (lower.includes("election")) baseRate = BASE_RATES.geopolitical.election_upset;
-    else if (lower.includes("nuclear")) baseRate = BASE_RATES.geopolitical.nuclear_test_year;
-    else baseRate = BASE_RATES.geopolitical.territorial_dispute_escalation_month;
-  } else if (category === "celestial") {
-    baseRate = BASE_RATES.celestial.convergence_with_market_move;
-  }
+  // Get best matching base rate from DB (keyword-scored, with observed rate blending)
+  const { rate: baseRate } = await getBaseRate(category, claim);
 
   const baseRateAdjusted = adjustForBaseRate(clamped, baseRate, evidenceStrength);
 
@@ -176,33 +150,12 @@ function extractDirectionLevel(claim: string): DirectionLevel {
 
 // ── Volume Cap ──
 
-async function enforceVolumeCap(): Promise<number> {
-  const pending = await db
+function getPendingCount(): Promise<number> {
+  return db
     .select()
     .from(schema.predictions)
-    .where(isNull(schema.predictions.outcome));
-
-  const active = pending.filter((p) => !p.regimeInvalidated);
-
-  if (active.length <= MAX_ACTIVE_PREDICTIONS) return 0;
-
-  // Expire lowest-confidence predictions over the cap
-  const sorted = active.sort((a, b) => a.confidence - b.confidence);
-  const toExpire = sorted.slice(0, active.length - MAX_ACTIVE_PREDICTIONS);
-  let expired = 0;
-
-  for (const p of toExpire) {
-    await db.update(schema.predictions)
-      .set({
-        outcome: "expired",
-        outcomeNotes: `Auto-expired: volume cap (${MAX_ACTIVE_PREDICTIONS} max active). Lowest confidence culled.`,
-        resolvedAt: new Date().toISOString(),
-      })
-      .where(eq(schema.predictions.id, p.id));
-    expired++;
-  }
-
-  return expired;
+    .where(isNull(schema.predictions.outcome))
+    .then((rows) => rows.length);
 }
 
 // ── Auto-Expiry for Past Deadline ──
@@ -300,8 +253,12 @@ export async function generatePredictions(): Promise<NewPrediction[]> {
   const alphaVantageKey = await getAlphaVantageKey();
   const today = new Date().toISOString().split("T")[0];
 
-  // Enforce volume cap before generating new ones
-  await enforceVolumeCap();
+  // Skip generation if already at cap (no culling - all predictions kept for history)
+  const pending = await getPendingCount();
+  if (pending >= MAX_ACTIVE_PREDICTIONS) {
+    console.log(`[predictions] Skipping generation: ${pending} pending (cap: ${MAX_ACTIVE_PREDICTIONS})`);
+    return [];
+  }
 
   // Capture current regime + reference prices
   const currentRegime = await classifyCurrentRegime();
@@ -475,7 +432,7 @@ ${actionsSummary}`;
   ).join(", ");
 
   // ── Base Rate Anchoring (Tetlock "Fermi-ize" principle) ──
-  const baseRateContext = getBaseRateContext(["market", "geopolitical", "celestial"]);
+  const baseRateContext = await getBaseRateContext();
 
   // ── Actor-Belief Bayesian Typing (calendar-conditioned behavior) ──
   let actorBeliefContext = "";
@@ -707,8 +664,7 @@ Output a brief devil's advocate summary.`;
     newTickers.forEach((t) => existingTickers.add(t));
   }
 
-  // Enforce volume cap again after generation
-  await enforceVolumeCap();
+  // Log final count (no culling - all predictions kept for historical record)
 
   return created;
 }
@@ -872,7 +828,155 @@ If the new signal is not relevant to this prediction, respond: { "adjustment": 0
   return adjustments;
 }
 
-// ── Resolution ──
+// ── Fast Data-Driven Resolution (no AI, runs every 30 min) ──
+
+export async function resolveByData(): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
+  const alphaVantageKey = await getAlphaVantageKey();
+  if (!alphaVantageKey) return [];
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const pending = await db
+    .select()
+    .from(schema.predictions)
+    .where(isNull(schema.predictions.outcome));
+
+  if (pending.length === 0) return [];
+
+  // Only pick up market predictions with clear price targets whose deadline has passed
+  const candidates = pending.filter(
+    (p) =>
+      p.deadline <= today &&
+      p.category === "market" &&
+      p.priceTarget != null &&
+      p.referenceSymbol != null &&
+      p.direction != null
+  );
+
+  if (candidates.length === 0) return [];
+
+  // Fetch current + historical data for all unique symbols
+  const symbols = [...new Set<string>(candidates.map((p) => p.referenceSymbol!))];
+  const marketData: Record<string, { current: number; history: Array<{ date: string; close: number; high: number; low: number }> }> = {};
+
+  for (let i = 0; i < symbols.length; i += 5) {
+    const batch = symbols.slice(i, i + 5);
+    await Promise.all(batch.map(async (symbol) => {
+      try {
+        const [quote, daily] = await Promise.all([
+          getQuote(symbol, alphaVantageKey).catch(() => null),
+          getDailySeries(symbol, alphaVantageKey).catch(() => []),
+        ]);
+
+        if (quote) {
+          marketData[symbol] = {
+            current: quote.price,
+            history: daily.map((b) => ({ date: b.date, close: b.close, high: b.high, low: b.low })),
+          };
+        }
+      } catch {
+        // skip
+      }
+    }));
+    if (i + 5 < symbols.length) {
+      await new Promise((resolve) => setTimeout(resolve, 12000));
+    }
+  }
+
+  const results: Array<{ id: number; outcome: string; score: number; notes: string }> = [];
+
+  for (const p of candidates) {
+    const data = marketData[p.referenceSymbol!];
+    if (!data) continue;
+
+    const target = p.priceTarget!;
+    const direction = p.direction!;
+    const createdDate = p.createdAt.split("T")[0];
+    const deadlineDate = p.deadline;
+
+    // Get price bars within the prediction window
+    const windowBars = data.history.filter((b) => b.date >= createdDate && b.date <= deadlineDate);
+    if (windowBars.length === 0) continue;
+
+    // Check if target was hit during the window
+    let targetHit = false;
+    let directionCorrect = false;
+    const refPrices = safeParse(p.referencePrices, {}) as Record<string, number>;
+    const startPrice = refPrices[p.referenceSymbol!] || windowBars[0]?.close;
+
+    if (!startPrice) continue;
+
+    const lastPrice = windowBars[windowBars.length - 1].close;
+
+    // Direction check
+    if (direction === "up") {
+      directionCorrect = lastPrice > startPrice;
+      targetHit = windowBars.some((b) => b.high >= target || b.close >= target);
+    } else if (direction === "down") {
+      directionCorrect = lastPrice < startPrice;
+      targetHit = windowBars.some((b) => b.low <= target || b.close <= target);
+    }
+
+    let outcome: string;
+    let score: number;
+
+    if (targetHit && directionCorrect) {
+      outcome = "confirmed";
+      score = 1.0;
+    } else if (directionCorrect && !targetHit) {
+      outcome = "partial";
+      score = 0.5;
+    } else {
+      outcome = "denied";
+      score = 0.0;
+    }
+
+    // Build evidence note
+    const hitDates = windowBars
+      .filter((b) =>
+        direction === "up"
+          ? b.high >= target || b.close >= target
+          : b.low <= target || b.close <= target
+      )
+      .map((b) => b.date);
+
+    const notes = [
+      `Data-resolved: ${p.referenceSymbol} moved from ${startPrice.toFixed(2)} to ${lastPrice.toFixed(2)}`,
+      `(${((lastPrice - startPrice) / startPrice * 100).toFixed(2)}%)`,
+      `during ${createdDate} to ${deadlineDate}.`,
+      `Target: ${direction === "up" ? "above" : "below"} ${target}.`,
+      targetHit
+        ? `Target hit on: ${hitDates.join(", ")}.`
+        : `Target not reached. ${direction === "up" ? "High" : "Low"} was ${direction === "up" ? Math.max(...windowBars.map((b) => b.high)).toFixed(2) : Math.min(...windowBars.map((b) => b.low)).toFixed(2)}.`,
+    ].join(" ");
+
+    await db.update(schema.predictions)
+      .set({
+        outcome,
+        score,
+        outcomeNotes: notes,
+        resolvedAt: new Date().toISOString(),
+        directionCorrect: directionCorrect ? 1 : 0,
+        levelCorrect: targetHit ? 1 : 0,
+      })
+      .where(eq(schema.predictions.id, p.id));
+
+    results.push({ id: p.id, outcome, score, notes });
+  }
+
+  // Update base rates from newly resolved predictions
+  if (results.length > 0) {
+    try {
+      await updateObservedRates();
+    } catch {
+      // Best-effort
+    }
+  }
+
+  return results;
+}
+
+// ── AI-Powered Resolution (runs every 6 hours for complex predictions) ──
 
 export async function resolvePredictions(): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
   const anthropicKey = await getAnthropicKey();
@@ -1091,6 +1195,15 @@ Respond ONLY with a JSON array:
       .where(eq(schema.predictions.id, r.id));
 
     updated.push({ id: r.id, outcome: r.outcome, score, notes: r.notes });
+  }
+
+  // Update base rates from observed prediction outcomes
+  if (updated.length > 0) {
+    try {
+      await updateObservedRates();
+    } catch {
+      // Base rate update is best-effort
+    }
   }
 
   // Persist failure patterns to knowledge bank after resolution

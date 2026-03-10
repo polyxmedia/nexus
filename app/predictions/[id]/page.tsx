@@ -18,9 +18,9 @@ import {
   Star,
   Activity,
   Calendar,
-  Loader2,
   ExternalLink,
   AlertTriangle,
+  MessageSquare,
 } from "lucide-react";
 import { CommentSection } from "@/components/social/comment-section";
 
@@ -90,8 +90,6 @@ export default function PredictionDetailPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [related, setRelated] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [resolving, setResolving] = useState(false);
-  const [resolveError, setResolveError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -114,27 +112,6 @@ export default function PredictionDetailPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const manualResolve = async (outcome: string) => {
-    setResolving(true);
-    setResolveError(null);
-    try {
-      const res = await fetch("/api/predictions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uuid: id, outcome }),
-      });
-      if (res.ok) {
-        fetchData();
-      } else {
-        const data = await res.json();
-        setResolveError(data.error || "Failed to resolve");
-      }
-    } catch {
-      setResolveError("Failed to resolve prediction");
-    }
-    setResolving(false);
-  };
 
   if (loading) {
     return (
@@ -194,10 +171,28 @@ export default function PredictionDetailPage() {
       title="Prediction Detail"
       subtitle={`#${prediction.id} - ${catConfig.label}`}
       actions={
-        <Button variant="ghost" size="sm" onClick={() => router.push("/predictions")}>
-          <ArrowLeft className="h-3 w-3 mr-1" />
-          Back
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const res = await fetch("/api/chat/sessions", { method: "POST" });
+              const data = await res.json();
+              if (data.session?.uuid) {
+                const prompt = `Analyze prediction #${prediction.id}: "${prediction.claim}" (confidence: ${(prediction.confidence * 100).toFixed(0)}%, deadline: ${prediction.deadline}, outcome: ${prediction.outcome || "pending"}). What is your assessment?`;
+                router.push(`/chat/${data.session.uuid}?prompt=${encodeURIComponent(prompt)}`);
+              }
+            }}
+            className="text-accent-cyan border-accent-cyan/30 hover:bg-accent-cyan/10"
+          >
+            <MessageSquare className="h-3 w-3 mr-1" />
+            Discuss
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => router.push("/predictions")}>
+            <ArrowLeft className="h-3 w-3 mr-1" />
+            Back
+          </Button>
+        </div>
       }
     >
       {/* Outcome Banner */}
@@ -335,34 +330,6 @@ export default function PredictionDetailPage() {
           </div>
         )}
       </div>
-
-      {/* Manual Resolution (if pending) */}
-      {!isResolved && (
-        <div className="border border-navy-700/40 rounded-lg p-5 bg-navy-900/30 mb-6">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block mb-3">Manual Resolution</span>
-          <p className="text-xs text-navy-400 font-sans mb-4">Override the AI auto-resolution by manually setting the outcome.</p>
-          <div className="flex items-center gap-2">
-            {(["confirmed", "denied", "partial", "expired"] as const).map((outcome) => {
-              const cfg = OUTCOME_CONFIG[outcome];
-              const Icon = cfg.icon;
-              return (
-                <Button
-                  key={outcome}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => manualResolve(outcome)}
-                  disabled={resolving}
-                  className={`${cfg.color} hover:${cfg.bg}`}
-                >
-                  {resolving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Icon className="h-3 w-3 mr-1" />}
-                  {cfg.label}
-                </Button>
-              );
-            })}
-          </div>
-          {resolveError && <p className="text-xs text-accent-rose mt-2">{resolveError}</p>}
-        </div>
-      )}
 
       {/* Linked Signal */}
       {signal && (

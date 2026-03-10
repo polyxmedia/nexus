@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { eq, desc, like } from "drizzle-orm";
+import { eq, desc, like, and } from "drizzle-orm";
 import { sendMessage } from "@/lib/telegram/bot";
 import { sendSms, getUserPhone } from "@/lib/sms";
 
@@ -24,7 +24,12 @@ export interface AlertCondition {
   expression?: string;
 }
 
-export async function getAlerts() {
+export async function getAlerts(userId?: string) {
+  if (userId) {
+    return await db.select().from(schema.alerts)
+      .where(eq(schema.alerts.userId, userId))
+      .orderBy(desc(schema.alerts.createdAt));
+  }
   return await db.select().from(schema.alerts).orderBy(desc(schema.alerts.createdAt));
 }
 
@@ -33,6 +38,7 @@ export async function getAlert(id: number) {
 }
 
 export async function createAlert(values: {
+  userId?: string;
   name: string;
   type: string;
   condition: AlertCondition;
@@ -41,6 +47,7 @@ export async function createAlert(values: {
   notifySms?: number;
 }) {
   return await db.insert(schema.alerts).values({
+    userId: values.userId || null,
     name: values.name,
     type: values.type,
     condition: JSON.stringify(values.condition),
@@ -76,11 +83,19 @@ export async function deleteAlert(id: number) {
   await db.delete(schema.alerts).where(eq(schema.alerts.id, id));
 }
 
-export async function getAlertHistory(limit: number = 50) {
+export async function getAlertHistory(limit: number = 50, userId?: string) {
+  if (userId) {
+    return await db.select({ alertHistory: schema.alertHistory })
+      .from(schema.alertHistory)
+      .innerJoin(schema.alerts, eq(schema.alertHistory.alertId, schema.alerts.id))
+      .where(eq(schema.alerts.userId, userId))
+      .orderBy(desc(schema.alertHistory.triggeredAt))
+      .limit(limit)
+      .then(rows => rows.map(r => r.alertHistory));
+  }
   return await db.select().from(schema.alertHistory)
     .orderBy(desc(schema.alertHistory.triggeredAt))
-    .limit(limit)
-    ;
+    .limit(limit);
 }
 
 export async function dismissAlertHistory(id: number) {
@@ -90,11 +105,18 @@ export async function dismissAlertHistory(id: number) {
     ;
 }
 
-export async function getUndismissedAlerts() {
+export async function getUndismissedAlerts(userId?: string) {
+  if (userId) {
+    return await db.select({ alertHistory: schema.alertHistory })
+      .from(schema.alertHistory)
+      .innerJoin(schema.alerts, eq(schema.alertHistory.alertId, schema.alerts.id))
+      .where(and(eq(schema.alertHistory.dismissed, 0), eq(schema.alerts.userId, userId)))
+      .orderBy(desc(schema.alertHistory.triggeredAt))
+      .then(rows => rows.map(r => r.alertHistory));
+  }
   return await db.select().from(schema.alertHistory)
     .where(eq(schema.alertHistory.dismissed, 0))
-    .orderBy(desc(schema.alertHistory.triggeredAt))
-    ;
+    .orderBy(desc(schema.alertHistory.triggeredAt));
 }
 
 function safeParse(json: string | null): unknown {

@@ -10,6 +10,19 @@ import { validateOrigin } from "@/lib/security/csrf";
 const GLOBAL_READABLE_KEYS = new Set([
   "system_prompt",
   "trading_environment",
+  "ai_model",
+  "ai_chat_model",
+  "jiang_mode",
+  "max_order_size",
+  "daily_trade_limit",
+  "position_concentration_pct",
+  "default_stop_loss_pct",
+  "default_take_profit_pct",
+  "news_polling_interval",
+  "osint_polling_interval",
+  "aircraft_polling_interval",
+  "market_refresh_interval",
+  "prediction_auto_resolve",
 ]);
 
 // Keys that are global and only writable by admins

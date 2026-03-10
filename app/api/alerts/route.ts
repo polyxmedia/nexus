@@ -14,27 +14,29 @@ import { requireTier } from "@/lib/auth/require-tier";
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
+  const userId = tierCheck.result.username;
   const { searchParams } = new URL(request.url);
   const view = searchParams.get("view");
 
   if (view === "history") {
     const limit = parseInt(searchParams.get("limit") || "50", 10);
-    const history = await getAlertHistory(limit);
+    const history = await getAlertHistory(limit, userId);
     return NextResponse.json({ history });
   }
 
   if (view === "undismissed") {
-    const alerts = await getUndismissedAlerts();
+    const alerts = await getUndismissedAlerts(userId);
     return NextResponse.json({ alerts });
   }
 
-  const alerts = await getAlerts();
+  const alerts = await getAlerts(userId);
   return NextResponse.json({ alerts });
 }
 
 export async function POST(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
+  const userId = tierCheck.result.username;
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action");
 
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const alert = await createAlert(body);
+  const alert = await createAlert({ ...body, userId });
   return NextResponse.json({ alert });
 }
 

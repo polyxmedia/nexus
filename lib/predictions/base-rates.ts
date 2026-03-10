@@ -1,152 +1,192 @@
 /**
- * Empirical base rates for prediction anchoring.
+ * Dynamic base rates for prediction anchoring.
  *
  * Implements Tetlock's "Fermi-ize" principle: start from outside-view
- * base rates before applying inside-view adjustments. This prevents
- * overconfident predictions on rare events and underconfident predictions
- * on common ones.
+ * base rates before applying inside-view adjustments.
+ *
+ * Base rates are stored in the DB and auto-update from resolved predictions.
+ * Falls back to hardcoded defaults if DB is unavailable.
  */
 
-export const BASE_RATES = {
-  // Market events (annualized frequencies converted to weekly/monthly probabilities)
-  market: {
-    spx_weekly_drop_5pct: 0.02,
-    spx_weekly_drop_10pct: 0.004,
-    vix_above_30: 0.08,
-    vix_above_40: 0.02,
-    oil_weekly_move_10pct: 0.04,
-    gold_new_ath_month: 0.05,
-    recession_any_quarter: 0.06,
-    fed_rate_change_meeting: 0.35,
-    sector_rotation_month: 0.15,
-    flash_crash_year: 0.08,
-  },
+import { db } from "../db";
+import { sql, eq, isNull, not } from "drizzle-orm";
 
-  // Geopolitical events
-  geopolitical: {
-    military_op_any_week: 0.02,
-    sanctions_new_round_month: 0.08,
-    ceasefire_holds_30d: 0.40,
-    regime_change_year: 0.03,
-    chokepoint_disruption_month: 0.01,
-    nuclear_test_year: 0.15,
-    territorial_dispute_escalation_month: 0.05,
-    diplomatic_breakthrough_quarter: 0.10,
-    election_upset: 0.20,
-    coup_attempt_year: 0.04,
-  },
+// ── DB Row Type ──
 
-  // Calendar/convergence events
-  celestial: {
-    calendar_convergence_week: 0.05,
-    convergence_with_market_move: 0.15,
-    holiday_volatility_premium: 1.3,
-  },
-} as const;
+interface BaseRateRow {
+  id: number;
+  category: string;
+  pattern: string;
+  label: string;
+  timeframe: string;
+  base_rate: number;
+  observed_rate: number | null;
+  sample_count: number;
+  last_updated: string;
+  keywords: string;
+}
 
-export type BaseRateCategory = keyof typeof BASE_RATES;
+// ── Cache (refreshed every 10 min) ──
 
-const RATE_DESCRIPTIONS: Record<string, Record<string, { label: string; timeframe: string }>> = {
-  market: {
-    spx_weekly_drop_5pct: { label: "S&P 500 drops 5%+ in a week", timeframe: "week" },
-    spx_weekly_drop_10pct: { label: "S&P 500 drops 10%+ in a week", timeframe: "week" },
-    vix_above_30: { label: "VIX closes above 30", timeframe: "trading day" },
-    vix_above_40: { label: "VIX closes above 40", timeframe: "trading day" },
-    oil_weekly_move_10pct: { label: "WTI crude moves 10%+ in a week", timeframe: "week" },
-    gold_new_ath_month: { label: "Gold hits new all-time high", timeframe: "month" },
-    recession_any_quarter: { label: "US enters recession", timeframe: "quarter" },
-    fed_rate_change_meeting: { label: "Fed changes rates at a meeting", timeframe: "meeting" },
-    sector_rotation_month: { label: "Major sector rotation occurs", timeframe: "month" },
-    flash_crash_year: { label: "Flash crash event occurs", timeframe: "year" },
-  },
-  geopolitical: {
-    military_op_any_week: { label: "Major military operation launches (during standoff)", timeframe: "week" },
-    sanctions_new_round_month: { label: "New sanctions round imposed (during tensions)", timeframe: "month" },
-    ceasefire_holds_30d: { label: "Ceasefire holds 30 days once announced", timeframe: "instance" },
-    regime_change_year: { label: "Regime change in any country", timeframe: "year" },
-    chokepoint_disruption_month: { label: "Major chokepoint disruption", timeframe: "month" },
-    nuclear_test_year: { label: "DPRK nuclear test", timeframe: "year" },
-    territorial_dispute_escalation_month: { label: "Territorial dispute escalates militarily", timeframe: "month" },
-    diplomatic_breakthrough_quarter: { label: "Major diplomatic breakthrough", timeframe: "quarter" },
-    election_upset: { label: "Election produces upset result", timeframe: "instance" },
-    coup_attempt_year: { label: "Coup attempt anywhere", timeframe: "year" },
-  },
-  celestial: {
-    calendar_convergence_week: { label: "Multi-calendar convergence occurs", timeframe: "week" },
-    convergence_with_market_move: { label: "Market move >2% on convergence day", timeframe: "convergence day" },
-    holiday_volatility_premium: { label: "Volatility multiplier around major holidays", timeframe: "multiplier" },
-  },
-};
+let cachedRates: BaseRateRow[] = [];
+let cacheTime = 0;
+const CACHE_TTL = 10 * 60 * 1000; // 10 min
+
+async function loadRates(): Promise<BaseRateRow[]> {
+  if (cachedRates.length > 0 && Date.now() - cacheTime < CACHE_TTL) {
+    return cachedRates;
+  }
+  try {
+    const rows = await db.execute(sql`SELECT * FROM prediction_base_rates ORDER BY category, pattern`);
+    cachedRates = (rows.rows || []) as unknown as BaseRateRow[];
+    cacheTime = Date.now();
+    return cachedRates;
+  } catch {
+    return cachedRates; // return stale cache on error
+  }
+}
+
+// ── Public: Get Best Matching Base Rate ──
 
 /**
- * Returns a formatted block of relevant base rates for injection into
- * prediction prompts.
+ * Finds the best matching base rate for a claim by keyword scoring.
+ * Returns the effective rate (observed_rate if enough samples, otherwise base_rate).
  */
-export function getBaseRateContext(categories: string[]): string {
-  const lines: string[] = ["EMPIRICAL BASE RATES (outside-view anchors):"];
+export async function getBaseRate(category: string, claim: string): Promise<{ rate: number; pattern: string; sampleCount: number }> {
+  const rates = await loadRates();
+  const lower = claim.toLowerCase();
+
+  // Score each rate by keyword matches
+  const candidates = rates
+    .filter((r) => r.category === category)
+    .map((r) => {
+      const keywords = r.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+      let score = 0;
+      for (const kw of keywords) {
+        if (lower.includes(kw)) score++;
+      }
+      return { ...r, score };
+    })
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (candidates.length === 0) {
+    return { rate: 0.10, pattern: "default", sampleCount: 0 };
+  }
+
+  const best = candidates[0];
+  // Use observed rate if we have enough samples (5+), otherwise use the prior
+  const effectiveRate = best.observed_rate != null && best.sample_count >= 5
+    ? best.observed_rate
+    : best.base_rate;
+
+  return { rate: effectiveRate, pattern: best.pattern, sampleCount: best.sample_count };
+}
+
+// ── Public: Update Observed Rates from Resolved Predictions ──
+
+/**
+ * Recomputes observed hit rates from all resolved predictions and updates the DB.
+ * Called after each resolution batch.
+ */
+export async function updateObservedRates(): Promise<number> {
+  const rates = await loadRates();
+  let updated = 0;
+
+  // Fetch all resolved non-expired predictions
+  const resolved = await db.execute(sql`
+    SELECT claim, category, outcome FROM predictions
+    WHERE outcome IS NOT NULL AND outcome != 'expired'
+  `);
+  const predictions = (resolved.rows || []) as Array<{ claim: string; category: string; outcome: string }>;
+
+  if (predictions.length === 0) return 0;
+
+  for (const rate of rates) {
+    const keywords = rate.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+    if (keywords.length === 0) continue;
+
+    // Find predictions matching this rate's keywords and category
+    const matching = predictions.filter((p) => {
+      if (p.category !== rate.category) return false;
+      const lower = p.claim.toLowerCase();
+      return keywords.some((kw) => lower.includes(kw));
+    });
+
+    if (matching.length === 0) continue;
+
+    const hits = matching.filter((p) => p.outcome === "confirmed" || p.outcome === "partial").length;
+    const observedRate = hits / matching.length;
+
+    // Blend: weighted average of prior (base_rate) and observed, with more weight on observed as sample grows
+    // At 5 samples: 50/50 blend. At 20+: 90% observed.
+    const observedWeight = Math.min(0.9, matching.length / (matching.length + 5));
+    const blendedRate = (1 - observedWeight) * rate.base_rate + observedWeight * observedRate;
+
+    await db.execute(sql`
+      UPDATE prediction_base_rates
+      SET observed_rate = ${Math.round(blendedRate * 10000) / 10000},
+          sample_count = ${matching.length},
+          last_updated = ${new Date().toISOString().split("T")[0]}
+      WHERE id = ${rate.id}
+    `);
+    updated++;
+  }
+
+  // Invalidate cache
+  cacheTime = 0;
+  return updated;
+}
+
+// ── Public: Get Context for Prompt Injection ──
+
+/**
+ * Returns formatted base rate context for the generation prompt.
+ */
+export async function getBaseRateContext(): Promise<string> {
+  const rates = await loadRates();
+  const lines: string[] = ["EMPIRICAL BASE RATES (outside-view anchors - auto-updated from resolved predictions):"];
+
+  const categories = [...new Set(rates.map((r) => r.category))];
 
   for (const category of categories) {
-    const rates = BASE_RATES[category as BaseRateCategory];
-    const descriptions = RATE_DESCRIPTIONS[category];
-    if (!rates || !descriptions) continue;
-
+    const catRates = rates.filter((r) => r.category === category);
     lines.push("");
     lines.push(`[${category.toUpperCase()}]`);
 
-    for (const [key, value] of Object.entries(rates)) {
-      const desc = descriptions[key];
-      if (!desc) continue;
-
-      if (desc.timeframe === "multiplier") {
-        lines.push(`- ${desc.label}: ${value}x baseline`);
-      } else {
-        const pct = (value as number) * 100;
-        const formatted = pct < 1 ? pct.toFixed(1) : Math.round(pct);
-        lines.push(`- ${desc.label}: ${formatted}% base probability per ${desc.timeframe}`);
-      }
+    for (const r of catRates) {
+      const effectiveRate = r.observed_rate != null && r.sample_count >= 5
+        ? r.observed_rate
+        : r.base_rate;
+      const pct = effectiveRate * 100;
+      const formatted = pct < 1 ? pct.toFixed(1) : Math.round(pct);
+      const source = r.observed_rate != null && r.sample_count >= 5
+        ? `observed from ${r.sample_count} predictions`
+        : "prior estimate";
+      lines.push(`- ${r.label}: ${formatted}% per ${r.timeframe} (${source})`);
     }
   }
 
   lines.push("");
-  lines.push("Use these as starting anchors. Adjust based on specific evidence, but document why your estimate diverges from the base rate.");
+  lines.push("Start from these anchors. Adjust based on specific evidence, but document WHY your estimate diverges from the base rate. Large divergences (>30pp) require strong justification.");
 
   return lines.join("\n");
 }
 
-/**
- * Convert a probability to log-odds. Clamps to avoid infinities.
- */
+// ── Log-Odds Adjustment ──
+
 function toLogOdds(p: number): number {
   const clamped = Math.max(0.001, Math.min(0.999, p));
   return Math.log(clamped / (1 - clamped));
 }
 
-/**
- * Convert log-odds back to probability.
- */
 function fromLogOdds(lo: number): number {
   return 1 / (1 + Math.exp(-lo));
 }
 
 /**
  * Adjusts a stated confidence toward the base rate using log-odds
- * weighted averaging.
- *
- * Evidence strength controls how much the model's estimate can pull
- * away from the base rate:
- *   1 (weak)       - stays close to the base rate (weight 0.2 on model estimate)
- *   2 (moderate)   - weight 0.4 on model estimate
- *   3 (solid)      - weight 0.6 on model estimate
- *   4 (strong)     - weight 0.8 on model estimate
- *   5 (very strong)- nearly trusts the model estimate (weight 0.9)
- *
- * This prevents the common failure mode where the model assigns 90%
- * confidence to a 2% base rate event without proportionally strong evidence.
- *
- * @param statedConfidence - Model's raw confidence (0-1)
- * @param baseRate - Empirical base rate (0-1)
- * @param evidenceStrength - Strength of inside-view evidence (1-5)
- * @returns Adjusted confidence (0-1)
+ * weighted averaging. Evidence strength controls pull from base rate.
  */
 export function adjustForBaseRate(
   statedConfidence: number,
@@ -154,9 +194,6 @@ export function adjustForBaseRate(
   evidenceStrength: number
 ): number {
   const clampedStrength = Math.max(1, Math.min(5, evidenceStrength));
-
-  // Weight for the model's estimate based on evidence strength
-  // Maps 1->0.2, 2->0.4, 3->0.6, 4->0.8, 5->0.9
   const modelWeight = clampedStrength <= 4
     ? clampedStrength * 0.2
     : 0.9;
@@ -164,7 +201,6 @@ export function adjustForBaseRate(
 
   const baseLO = toLogOdds(baseRate);
   const modelLO = toLogOdds(statedConfidence);
-
   const adjustedLO = baseWeight * baseLO + modelWeight * modelLO;
 
   return fromLogOdds(adjustedLO);

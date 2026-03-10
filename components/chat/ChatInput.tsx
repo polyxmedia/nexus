@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, type ChangeEvent, type DragEvent } from "react";
-import { ArrowUp, Square, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
+import { ArrowUp, Square, Paperclip, X, FileText, Image as ImageIcon, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface FileAttachment {
@@ -19,6 +19,16 @@ interface ChatInputProps {
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
+  /** Voice mode props (operator+ only) */
+  voiceAvailable?: boolean;
+  voiceEnabled?: boolean;
+  isListening?: boolean;
+  isSpeaking?: boolean;
+  transcript?: string;
+  onToggleVoice?: () => void;
+  onStartListening?: () => void;
+  onStopListening?: () => void;
+  onStopSpeaking?: () => void;
 }
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -59,7 +69,11 @@ async function readFile(file: File): Promise<FileAttachment | null> {
   });
 }
 
-export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputProps) {
+export function ChatInput({
+  onSend, onStop, isStreaming, disabled,
+  voiceAvailable, voiceEnabled, isListening, isSpeaking, transcript,
+  onToggleVoice, onStartListening, onStopListening, onStopSpeaking,
+}: ChatInputProps) {
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -204,6 +218,21 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
           </div>
         )}
 
+        {/* Voice transcript indicator */}
+        {isListening && transcript && (
+          <div className="px-4 pt-2 pb-0">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-rose opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-rose" />
+              </span>
+              <span className="font-mono text-[11px] text-navy-400 italic truncate">
+                {transcript}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Textarea */}
         <textarea
           ref={textareaRef}
@@ -249,6 +278,71 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
             onChange={handleFileChange}
             className="hidden"
           />
+
+          {/* Voice controls (operator+ only) */}
+          {voiceAvailable && (
+            <>
+              {/* Mic button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isListening) {
+                    onStopListening?.();
+                  } else {
+                    onStartListening?.();
+                  }
+                }}
+                disabled={disabled || isStreaming}
+                title={isListening ? "Stop recording" : "Voice input"}
+                className={cn(
+                  "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
+                  isListening
+                    ? "bg-accent-rose/10 border border-accent-rose/30 text-accent-rose animate-pulse"
+                    : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/70",
+                  "disabled:opacity-40 disabled:cursor-not-allowed"
+                )}
+              >
+                {isListening ? (
+                  <MicOff className="h-[15px] w-[15px]" />
+                ) : (
+                  <Mic className="h-[15px] w-[15px]" />
+                )}
+              </button>
+
+              {/* Voice mode toggle (TTS) */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSpeaking) {
+                    onStopSpeaking?.();
+                  } else {
+                    onToggleVoice?.();
+                  }
+                }}
+                title={
+                  isSpeaking
+                    ? "Stop speaking"
+                    : voiceEnabled
+                    ? "Disable voice responses"
+                    : "Enable voice responses"
+                }
+                className={cn(
+                  "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
+                  isSpeaking
+                    ? "bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan animate-pulse"
+                    : voiceEnabled
+                    ? "bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan"
+                    : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/70"
+                )}
+              >
+                {voiceEnabled || isSpeaking ? (
+                  <Volume2 className="h-[15px] w-[15px]" />
+                ) : (
+                  <VolumeX className="h-[15px] w-[15px]" />
+                )}
+              </button>
+            </>
+          )}
 
           <div className="flex-1" />
 

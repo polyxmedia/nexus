@@ -46,6 +46,7 @@ import { ActorProfileWidget } from "./widgets/ActorProfileWidget";
 import { ArtifactWidget } from "./widgets/ArtifactWidget";
 import { MemoryWidget } from "./widgets/MemoryWidget";
 import { DocumentWidget } from "./widgets/DocumentWidget";
+import { DocumentDownloadWidget } from "./widgets/DocumentDownloadWidget";
 import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
 
 interface ToolResultRendererProps {
@@ -71,6 +72,7 @@ const SKIP_COLLAPSE = new Set([
   "save_memory",
   "delete_memory",
   "save_document_to_knowledge",
+  "generate_document",
 ]);
 
 // Human-readable labels for tool names
@@ -120,6 +122,7 @@ const TOOL_LABELS: Record<string, string> = {
   create_artifact: "Artifact",
   save_document_to_knowledge: "Document",
   generate_narrative_report: "Narrative Report",
+  generate_document: "Document",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -270,6 +273,9 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "save_document_to_knowledge":
       widget = <DocumentWidget result={data} />;
+      break;
+    case "generate_document":
+      widget = <DocumentDownloadWidget data={data} />;
       break;
     case "get_operator_context":
       return (

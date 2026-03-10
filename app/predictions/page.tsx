@@ -32,6 +32,7 @@ import {
   Eye,
   ArrowUpRight,
   ArrowDownRight,
+  MessageSquare,
 } from "lucide-react";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import {
@@ -229,6 +230,7 @@ export default function PredictionsPage() {
   const [feedbackReport, setFeedbackReport] = useState<FeedbackReport | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
+  const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
 
   const [claim, setClaim] = useState("");
   const [timeframe, setTimeframe] = useState("30 days");
@@ -240,7 +242,16 @@ export default function PredictionsPage() {
     try {
       const res = await fetch("/api/predictions");
       const data = await res.json();
-      setPredictions(Array.isArray(data) ? data : data.predictions || []);
+      const preds = Array.isArray(data) ? data : data.predictions || [];
+      setPredictions(preds);
+      // Fetch comment counts
+      if (preds.length > 0) {
+        const ids = preds.map((p: Prediction) => p.id).join(",");
+        fetch(`/api/comments?view=counts&targetType=prediction&ids=${ids}`)
+          .then((r) => r.ok ? r.json() : { counts: {} })
+          .then((d) => setCommentCounts(d.counts || {}))
+          .catch(() => {});
+      }
     } catch {
       // silent
     } finally {
@@ -1881,6 +1892,12 @@ export default function PredictionsPage() {
                             {p.regimeAtCreation}
                           </span>
                         )}
+                        {commentCounts[p.id] > 0 && (
+                          <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
+                            <MessageSquare className="h-3 w-3" />
+                            {commentCounts[p.id]}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -1967,6 +1984,12 @@ export default function PredictionsPage() {
                             )}
                             {p.regimeInvalidated === 1 && (
                               <span className="text-[9px] font-mono text-navy-500 px-1 py-0.5 rounded bg-navy-800/40">regime invalidated</span>
+                            )}
+                            {commentCounts[p.id] > 0 && (
+                              <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
+                                <MessageSquare className="h-3 w-3" />
+                                {commentCounts[p.id]}
+                              </span>
                             )}
                           </div>
                         </div>

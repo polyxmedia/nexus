@@ -71,7 +71,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 function AnalystProfileContent() {
   const searchParams = useSearchParams();
   const username = searchParams.get("username");
-  const [profile, setProfile] = useState<{ username: string; stats: AnalystStats | null } | null>(null);
+  const [profile, setProfile] = useState<{ username: string; profileImage?: string | null; stats: AnalystStats | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
 
@@ -183,11 +183,20 @@ function AnalystProfileContent() {
     >
       {/* Profile header */}
       <div className="flex items-start gap-4 mb-6">
-        <div className="h-14 w-14 rounded-full bg-navy-800 border border-navy-700 flex items-center justify-center">
-          <span className="text-xl font-bold text-navy-300 uppercase">
-            {profile.username.charAt(0)}
-          </span>
-        </div>
+        {profile.profileImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={profile.profileImage}
+            alt={profile.username}
+            className="h-14 w-14 rounded-full object-cover border border-navy-700"
+          />
+        ) : (
+          <div className="h-14 w-14 rounded-full bg-navy-800 border border-navy-700 flex items-center justify-center">
+            <span className="text-xl font-bold text-navy-300 uppercase">
+              {profile.username.charAt(0)}
+            </span>
+          </div>
+        )}
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-1">
             <h2 className="text-lg font-bold text-navy-100">{profile.username}</h2>

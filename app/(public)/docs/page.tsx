@@ -806,7 +806,7 @@ export default function DocsPage() {
           <div className="mt-8 pt-6 border-t border-navy-800/50">
             <Link
               href="/settings?tab=platform-api"
-              className="flex items-center gap-2 text-[11px] font-mono text-navy-400 hover:text-accent-cyan transition-colors"
+              className="flex items-center gap-2 text-[11px] font-mono text-navy-100 hover:text-accent-cyan transition-colors"
             >
               <Key className="w-3.5 h-3.5" />
               Generate API Key

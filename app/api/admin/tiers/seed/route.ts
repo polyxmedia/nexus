@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -107,6 +108,14 @@ export async function POST() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name || !(await isAdmin(session.user.name))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const rl = rateLimit(`admin:tiers-seed:${session.user.name}`, 5, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+      );
     }
 
     const existing = await db.select().from(schema.subscriptionTiers);

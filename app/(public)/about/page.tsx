@@ -116,7 +116,7 @@ const pipelineSteps = [
     tag: "EXECUTE",
     color: "#a78bfa",
     title: "Integrated Execution",
-    body: "When a thesis converts to a trade, you execute it from the same platform. Trading 212 for equities and commodities, Coinbase for crypto. The full pipeline from 'something is happening' to 'here is the position' runs inside one system.",
+    body: "When a thesis converts to a trade, you will be able to execute it from the same platform. Broker integrations for equities, commodities, and crypto are coming soon. Track positions manually today, execute directly tomorrow.",
   },
 ];
 
@@ -701,7 +701,7 @@ export default function AboutPage() {
             </div>
 
             <p className="font-mono text-[10px] text-navy-600 mt-8 tracking-wider">
-              ANALYST $299/mo // OPERATOR $999/mo // INSTITUTION Custom
+              ANALYST $150/mo // OPERATOR $450/mo // INSTITUTION Custom
             </p>
           </div>
         </div>

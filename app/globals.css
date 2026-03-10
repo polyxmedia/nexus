@@ -526,3 +526,97 @@ body {
 .marker-cluster-large div {
   background: transparent !important;
 }
+
+/* ── React Flow Graph Overrides ── */
+.graph-flow-container .react-flow__node {
+  cursor: pointer;
+}
+
+.graph-flow-container .react-flow__node-default,
+.graph-flow-container .react-flow__node-entity {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  color: #c0c0c0;
+  text-align: center;
+  border-radius: 50%;
+  overflow: visible;
+}
+
+.graph-flow-container .react-flow__node-entity .react-flow__handle {
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.graph-flow-container .react-flow__edge-text {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.graph-flow-container .react-flow__controls {
+  background: #0a0a0a;
+  border: 1px solid #1f1f1f;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.graph-flow-container .react-flow__controls button {
+  background: #0a0a0a;
+  border: none;
+  border-bottom: 1px solid #1f1f1f;
+  color: #787878;
+  width: 28px;
+  height: 28px;
+}
+
+.graph-flow-container .react-flow__controls button:hover {
+  background: #141414;
+  color: #c0c0c0;
+}
+
+.graph-flow-container .react-flow__controls button svg {
+  fill: currentColor;
+}
+
+.graph-flow-container .react-flow__controls button:last-child {
+  border-bottom: none;
+}
+
+/* Custom entity node wrapper */
+.entity-node-wrapper {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Pulse ring animation for selected nodes */
+.entity-pulse-ring {
+  animation: entity-pulse 2s ease-in-out infinite;
+}
+
+@keyframes entity-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+
+/* Path highlight ring */
+.entity-path-ring {
+  animation: path-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes path-glow {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* Minimap dark styling */
+.graph-flow-container .react-flow__minimap {
+  background: #050505;
+}
+
+/* Selection box styling */
+.graph-flow-container .react-flow__selection {
+  background: rgba(6, 182, 212, 0.05);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}

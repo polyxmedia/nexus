@@ -403,7 +403,7 @@ export async function POST(
               toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(toolResult) });
             }
             messages = [...messages, { role: "assistant" as const, content: assistantContent }, { role: "user" as const, content: toolResultContent }];
-            fullText = "";
+            // Keep accumulating fullText across iterations (don't reset)
           } else {
             continueLoop = false;
           }

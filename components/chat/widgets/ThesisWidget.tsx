@@ -26,6 +26,8 @@ interface ThesisData {
   overallConfidence?: number;
   tradingActions?: TradingAction[];
   executiveSummary?: string;
+  situationAssessment?: string;
+  riskScenarios?: string;
   error?: string;
 }
 

@@ -86,7 +86,8 @@ export async function POST(request: Request) {
       .where(eq(schema.settings.key, userKey));
 
     if (userRows.length === 0) {
-      return NextResponse.json({ error: "Account not found" }, { status: 400 });
+      // Return same error as invalid token to prevent user enumeration
+      return NextResponse.json({ error: "Invalid or expired reset link" }, { status: 400 });
     }
 
     const userData = JSON.parse(userRows[0].value);

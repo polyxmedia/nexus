@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Bell,
@@ -91,6 +91,137 @@ const URGENCY_BADGE = {
   low: "bg-navy-700 text-navy-400",
 };
 
+// Popular tickers for client-side autocomplete (no API call needed)
+const TICKER_LIST: Array<[string, string]> = [
+  // Major indices / ETFs
+  ["SPY", "S&P 500 ETF"], ["QQQ", "Nasdaq 100 ETF"], ["DIA", "Dow Jones ETF"], ["IWM", "Russell 2000 ETF"],
+  ["VTI", "Total Stock Market ETF"], ["VOO", "Vanguard S&P 500"], ["VXX", "VIX Short-Term Futures"],
+  ["UVXY", "Ultra VIX Short-Term"], ["SQQQ", "UltraPro Short QQQ"], ["TQQQ", "UltraPro QQQ"],
+  ["TLT", "20+ Year Treasury Bond"], ["HYG", "High Yield Corporate Bond"], ["LQD", "Investment Grade Bond"],
+  ["GLD", "Gold ETF"], ["SLV", "Silver ETF"], ["USO", "Oil ETF"], ["UNG", "Natural Gas ETF"],
+  ["XLE", "Energy Select Sector"], ["XLF", "Financial Select Sector"], ["XLK", "Technology Select Sector"],
+  ["XLV", "Health Care Select Sector"], ["XLI", "Industrial Select Sector"], ["XLP", "Consumer Staples Sector"],
+  ["XLY", "Consumer Discretionary Sector"], ["XLU", "Utilities Select Sector"], ["XLB", "Materials Select Sector"],
+  ["XLRE", "Real Estate Select Sector"], ["XLC", "Communication Services Sector"],
+  ["EEM", "Emerging Markets ETF"], ["EFA", "EAFE ETF"], ["FXI", "China Large-Cap ETF"],
+  ["EWJ", "Japan ETF"], ["EWZ", "Brazil ETF"], ["EWG", "Germany ETF"], ["EWU", "United Kingdom ETF"],
+  ["ARKK", "ARK Innovation ETF"], ["ARKG", "ARK Genomic Revolution"],
+  ["SMH", "Semiconductor ETF"], ["SOXX", "Semiconductor Index ETF"], ["ITA", "Aerospace & Defense ETF"],
+  ["KWEB", "China Internet ETF"], ["BITO", "Bitcoin ETF"],
+  // Mega caps
+  ["AAPL", "Apple"], ["MSFT", "Microsoft"], ["GOOGL", "Alphabet (Google)"], ["GOOG", "Alphabet Class C"],
+  ["AMZN", "Amazon"], ["NVDA", "NVIDIA"], ["META", "Meta Platforms"], ["TSLA", "Tesla"],
+  ["BRK.B", "Berkshire Hathaway B"], ["JPM", "JPMorgan Chase"], ["V", "Visa"],
+  ["UNH", "UnitedHealth Group"], ["MA", "Mastercard"], ["JNJ", "Johnson & Johnson"],
+  ["XOM", "Exxon Mobil"], ["PG", "Procter & Gamble"], ["HD", "Home Depot"],
+  ["CVX", "Chevron"], ["LLY", "Eli Lilly"], ["ABBV", "AbbVie"], ["MRK", "Merck"],
+  ["AVGO", "Broadcom"], ["KO", "Coca-Cola"], ["PEP", "PepsiCo"], ["COST", "Costco"],
+  ["WMT", "Walmart"], ["TMO", "Thermo Fisher"], ["ADBE", "Adobe"], ["CRM", "Salesforce"],
+  ["NFLX", "Netflix"], ["AMD", "AMD"], ["INTC", "Intel"], ["QCOM", "Qualcomm"],
+  ["TXN", "Texas Instruments"], ["ORCL", "Oracle"], ["IBM", "IBM"],
+  // Financials
+  ["BAC", "Bank of America"], ["WFC", "Wells Fargo"], ["GS", "Goldman Sachs"], ["MS", "Morgan Stanley"],
+  ["C", "Citigroup"], ["SCHW", "Charles Schwab"], ["BLK", "BlackRock"], ["AXP", "American Express"],
+  // Defense / Geo
+  ["LMT", "Lockheed Martin"], ["RTX", "RTX (Raytheon)"], ["BA", "Boeing"], ["NOC", "Northrop Grumman"],
+  ["GD", "General Dynamics"], ["GE", "GE Aerospace"],
+  // Energy
+  ["COP", "ConocoPhillips"], ["SLB", "Schlumberger"], ["OXY", "Occidental Petroleum"],
+  ["MPC", "Marathon Petroleum"], ["PSX", "Phillips 66"], ["VLO", "Valero Energy"],
+  // Other notable
+  ["DIS", "Walt Disney"], ["NKE", "Nike"], ["SBUX", "Starbucks"], ["MCD", "McDonald's"],
+  ["CAT", "Caterpillar"], ["DE", "Deere & Co"], ["UPS", "UPS"], ["FDX", "FedEx"],
+  ["F", "Ford Motor"], ["GM", "General Motors"], ["RIVN", "Rivian"], ["LCID", "Lucid Group"],
+  ["COIN", "Coinbase"], ["SQ", "Block (Square)"], ["PYPL", "PayPal"], ["SHOP", "Shopify"],
+  ["SNOW", "Snowflake"], ["PLTR", "Palantir"], ["NET", "Cloudflare"], ["CRWD", "CrowdStrike"],
+  ["ZS", "Zscaler"], ["PANW", "Palo Alto Networks"], ["DDOG", "Datadog"], ["MDB", "MongoDB"],
+  ["U", "Unity Software"], ["RBLX", "Roblox"], ["ABNB", "Airbnb"], ["UBER", "Uber"],
+  ["LYFT", "Lyft"], ["DASH", "DoorDash"], ["SNAP", "Snap"], ["PINS", "Pinterest"],
+  ["TTD", "The Trade Desk"], ["ROKU", "Roku"], ["SE", "Sea Limited"],
+  ["BABA", "Alibaba"], ["JD", "JD.com"], ["PDD", "PDD Holdings"], ["NIO", "NIO"],
+  ["TSM", "Taiwan Semiconductor"], ["ASML", "ASML Holdings"], ["SMCI", "Super Micro Computer"],
+  ["ARM", "Arm Holdings"], ["MRVL", "Marvell Technology"], ["MU", "Micron Technology"],
+  ["LRCX", "Lam Research"], ["AMAT", "Applied Materials"], ["KLAC", "KLA Corporation"],
+  // Crypto
+  ["BTC", "Bitcoin"], ["ETH", "Ethereum"], ["XRP", "XRP"], ["SOL", "Solana"],
+  ["ADA", "Cardano"], ["DOGE", "Dogecoin"], ["DOT", "Polkadot"], ["AVAX", "Avalanche"],
+  ["MATIC", "Polygon"], ["LINK", "Chainlink"], ["BNB", "BNB"], ["LTC", "Litecoin"],
+];
+
+function TickerAutocomplete({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (ticker: string) => void;
+}) {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  const filtered = query.length > 0
+    ? TICKER_LIST.filter(([sym, name]) => {
+        const q = query.toUpperCase();
+        return sym.startsWith(q) || name.toUpperCase().includes(q);
+      }).slice(0, 8)
+    : [];
+
+  function handleInput(val: string) {
+    const upper = val.toUpperCase();
+    setQuery(upper);
+    onChange(upper);
+    setOpen(true);
+  }
+
+  function select(symbol: string) {
+    setQuery(symbol);
+    onChange(symbol);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => handleInput(e.target.value)}
+        onFocus={() => query.length > 0 && setOpen(true)}
+        placeholder="SPY"
+        className="w-full bg-navy-800 border border-navy-700 rounded px-2 py-1.5 text-xs text-navy-200 outline-none focus:border-accent-cyan/50"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-[60] top-full left-0 right-0 mt-1 bg-navy-800 border border-navy-700 rounded shadow-xl max-h-48 overflow-y-auto">
+          {filtered.map(([sym, name]) => (
+            <button
+              key={sym}
+              type="button"
+              onClick={() => select(sym)}
+              className="w-full text-left px-2.5 py-1.5 hover:bg-navy-700/60 transition-colors flex items-center justify-between gap-2"
+            >
+              <div className="min-w-0 flex items-center gap-2">
+                <span className="text-xs font-mono font-semibold text-navy-100">{sym}</span>
+                <span className="text-[10px] text-navy-500 truncate">{name}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function safeParse(json: string | null): Record<string, unknown> {
   if (!json) return {};
   try { return JSON.parse(json); } catch { return {}; }
@@ -115,6 +246,7 @@ function AlertsPageInner() {
   const [showCreate, setShowCreate] = useState(false);
   const [tab, setTab] = useState<"rules" | "history">("rules");
   const [addingIdx, setAddingIdx] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Create form
   const [newName, setNewName] = useState("");
@@ -146,10 +278,17 @@ function AlertsPageInner() {
         fetch("/api/alerts"),
         fetch("/api/alerts?view=history"),
       ]);
+      if (!alertsRes.ok) {
+        const data = await alertsRes.json().catch(() => ({}));
+        setError(data.error || "Failed to load alerts");
+        setLoading(false);
+        return;
+      }
       const alertsJson = await alertsRes.json();
       const historyJson = await historyRes.json();
       setAlerts(alertsJson.alerts || []);
       setHistory(historyJson.history || []);
+      setError(null);
     } catch {
       // fail
     }
@@ -187,7 +326,7 @@ function AlertsPageInner() {
   const createAlert = async () => {
     if (!newName.trim()) return;
     try {
-      await fetch("/api/alerts", {
+      const res = await fetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -199,21 +338,27 @@ function AlertsPageInner() {
           notifySms: newNotifySms ? 1 : 0,
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to create alert");
+        return;
+      }
       setShowCreate(false);
       setNewName("");
       setNewCondition({});
       setNewNotifyTelegram(false);
       setNewNotifySms(false);
+      setError(null);
       await fetchAlerts();
     } catch {
-      // fail
+      setError("Network error creating alert");
     }
   };
 
   const addSuggestion = async (suggestion: AlertSuggestion, idx: number) => {
     setAddingIdx(idx);
     try {
-      await fetch("/api/alerts", {
+      const res = await fetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -223,11 +368,17 @@ function AlertsPageInner() {
           cooldownMinutes: suggestion.cooldownMinutes,
         }),
       });
-      // Remove from suggestions
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to add alert");
+        setAddingIdx(null);
+        return;
+      }
       setSuggestions((prev) => prev.filter((_, i) => i !== idx));
+      setError(null);
       await fetchAlerts();
     } catch {
-      // fail
+      setError("Network error adding alert");
     }
     setAddingIdx(null);
   };
@@ -277,13 +428,12 @@ function AlertsPageInner() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-[10px] text-navy-500 uppercase tracking-wider">Ticker</label>
-              <input
-                type="text"
-                value={(newCondition.ticker as string) || ""}
-                onChange={(e) => setNewCondition(c => ({ ...c, ticker: e.target.value.toUpperCase() }))}
-                placeholder="SPY"
-                className="mt-1 w-full bg-navy-800 border border-navy-700 rounded px-2 py-1.5 text-xs text-navy-200 outline-none"
-              />
+              <div className="mt-1">
+                <TickerAutocomplete
+                  value={(newCondition.ticker as string) || ""}
+                  onChange={(ticker) => setNewCondition(c => ({ ...c, ticker }))}
+                />
+              </div>
             </div>
             <div>
               <label className="text-[10px] text-navy-500 uppercase tracking-wider">Direction</label>
@@ -405,6 +555,16 @@ function AlertsPageInner() {
           </button>
         </div>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="mx-6 mt-3 px-3 py-2 rounded-md border border-accent-rose/30 bg-accent-rose/5 text-[11px] font-mono text-accent-rose flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-accent-rose/60 hover:text-accent-rose ml-3">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       {/* Suggested Alerts */}
       <div className="px-6 pt-5 pb-2">
@@ -800,9 +960,15 @@ function AlertsPageInner() {
               </div>
             </div>
 
+            {error && (
+              <div className="mx-5 px-3 py-2 rounded-md border border-accent-rose/30 bg-accent-rose/5 text-[11px] font-mono text-accent-rose">
+                {error}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-navy-700">
               <button
-                onClick={() => setShowCreate(false)}
+                onClick={() => { setShowCreate(false); setError(null); }}
                 className="px-4 py-2 rounded text-xs text-navy-400 hover:text-navy-200 transition-colors"
               >
                 Cancel

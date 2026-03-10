@@ -15,6 +15,9 @@ import {
   BarChart3,
   ArrowRight,
   Globe,
+  Plus,
+  X,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
@@ -633,12 +636,289 @@ function ScenarioDetail({ item }: { item: ScenarioAnalysis }) {
   );
 }
 
+// ── Create Scenario Form ──
+
+const SECTOR_OPTIONS = [
+  "energy", "defense", "technology", "semiconductors", "shipping",
+  "finance", "commodities", "agriculture", "healthcare", "real estate",
+];
+
+const HORIZON_OPTIONS = [
+  { value: "immediate", label: "Immediate (days)" },
+  { value: "short_term", label: "Short term (1-3 months)" },
+  { value: "medium_term", label: "Medium term (3-12 months)" },
+  { value: "long_term", label: "Long term (1-3 years)" },
+];
+
+function CreateScenarioForm({ onCreated, onCancel }: { onCreated: (item: ScenarioAnalysis) => void; onCancel: () => void }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [actor1Name, setActor1Name] = useState("");
+  const [actor2Name, setActor2Name] = useState("");
+  const [strategies1, setStrategies1] = useState<string[]>(["", ""]);
+  const [strategies2, setStrategies2] = useState<string[]>(["", ""]);
+  const [sectors, setSectors] = useState<string[]>([]);
+  const [timeHorizon, setTimeHorizon] = useState("medium_term");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const addStrategy = (actor: 1 | 2) => {
+    if (actor === 1 && strategies1.length < 5) setStrategies1([...strategies1, ""]);
+    if (actor === 2 && strategies2.length < 5) setStrategies2([...strategies2, ""]);
+  };
+
+  const removeStrategy = (actor: 1 | 2, idx: number) => {
+    if (actor === 1 && strategies1.length > 2) setStrategies1(strategies1.filter((_, i) => i !== idx));
+    if (actor === 2 && strategies2.length > 2) setStrategies2(strategies2.filter((_, i) => i !== idx));
+  };
+
+  const updateStrategy = (actor: 1 | 2, idx: number, value: string) => {
+    if (actor === 1) {
+      const next = [...strategies1];
+      next[idx] = value;
+      setStrategies1(next);
+    } else {
+      const next = [...strategies2];
+      next[idx] = value;
+      setStrategies2(next);
+    }
+  };
+
+  const toggleSector = (s: string) => {
+    setSectors(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  };
+
+  const canSubmit = title.trim() && actor1Name.trim() && actor2Name.trim()
+    && strategies1.filter(s => s.trim()).length >= 2
+    && strategies2.filter(s => s.trim()).length >= 2;
+
+  const handleSubmit = async () => {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/game-theory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          actor1Name: actor1Name.trim(),
+          actor2Name: actor2Name.trim(),
+          strategies1: strategies1.filter(s => s.trim()),
+          strategies2: strategies2.filter(s => s.trim()),
+          marketSectors: sectors.length ? sectors : ["geopolitics"],
+          timeHorizon,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to create scenario");
+        return;
+      }
+      onCreated({ scenario: data.scenario, analysis: data.analysis });
+    } catch {
+      setError("Failed to create scenario");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputClass = "w-full bg-navy-900/60 border border-navy-700/40 rounded px-3 py-2 text-xs text-navy-200 placeholder:text-navy-600 focus:outline-none focus:border-accent-cyan/40 font-sans";
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="px-6 py-5 border-b border-navy-800/40 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Plus className="h-4 w-4 text-accent-cyan" />
+          <h2 className="text-sm font-bold text-navy-100">Create Scenario</h2>
+        </div>
+        <button onClick={onCancel} className="p-1.5 rounded hover:bg-navy-800/50 text-navy-500 hover:text-navy-300 transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="px-6 py-5 space-y-5 max-w-2xl">
+        {/* Title + Description */}
+        <div className="space-y-3">
+          <div>
+            <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-1.5">Scenario Title</label>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. South China Sea Escalation"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-1.5">Description (optional)</label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Describe the strategic context..."
+              rows={2}
+              className={`${inputClass} resize-none`}
+            />
+          </div>
+        </div>
+
+        {/* Actors + Strategies */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Actor 1 */}
+          <div className="border border-navy-700/30 rounded-lg p-4 bg-navy-900/20">
+            <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-2">Actor 1</label>
+            <input
+              value={actor1Name}
+              onChange={e => setActor1Name(e.target.value)}
+              placeholder="e.g. China"
+              className={`${inputClass} mb-3`}
+            />
+            <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-2">
+              Strategies ({strategies1.length}/5)
+            </label>
+            <div className="space-y-1.5">
+              {strategies1.map((s, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input
+                    value={s}
+                    onChange={e => updateStrategy(1, i, e.target.value)}
+                    placeholder={`Strategy ${i + 1}`}
+                    className={`${inputClass} flex-1`}
+                  />
+                  {strategies1.length > 2 && (
+                    <button onClick={() => removeStrategy(1, i)} className="p-1 text-navy-600 hover:text-accent-rose transition-colors shrink-0">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {strategies1.length < 5 && (
+              <button
+                onClick={() => addStrategy(1)}
+                className="flex items-center gap-1 mt-2 text-[10px] font-mono text-navy-500 hover:text-accent-cyan transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Add strategy
+              </button>
+            )}
+          </div>
+
+          {/* Actor 2 */}
+          <div className="border border-navy-700/30 rounded-lg p-4 bg-navy-900/20">
+            <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-2">Actor 2</label>
+            <input
+              value={actor2Name}
+              onChange={e => setActor2Name(e.target.value)}
+              placeholder="e.g. United States"
+              className={`${inputClass} mb-3`}
+            />
+            <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-2">
+              Strategies ({strategies2.length}/5)
+            </label>
+            <div className="space-y-1.5">
+              {strategies2.map((s, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input
+                    value={s}
+                    onChange={e => updateStrategy(2, i, e.target.value)}
+                    placeholder={`Strategy ${i + 1}`}
+                    className={`${inputClass} flex-1`}
+                  />
+                  {strategies2.length > 2 && (
+                    <button onClick={() => removeStrategy(2, i)} className="p-1 text-navy-600 hover:text-accent-rose transition-colors shrink-0">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {strategies2.length < 5 && (
+              <button
+                onClick={() => addStrategy(2)}
+                className="flex items-center gap-1 mt-2 text-[10px] font-mono text-navy-500 hover:text-accent-cyan transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Add strategy
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Time Horizon */}
+        <div>
+          <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-2">Time Horizon</label>
+          <div className="flex gap-2">
+            {HORIZON_OPTIONS.map(h => (
+              <button
+                key={h.value}
+                onClick={() => setTimeHorizon(h.value)}
+                className={`px-3 py-1.5 rounded text-[10px] font-mono transition-colors ${
+                  timeHorizon === h.value
+                    ? "bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30"
+                    : "bg-navy-900/40 text-navy-400 border border-navy-700/30 hover:border-navy-600/40"
+                }`}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Market Sectors */}
+        <div>
+          <label className="text-[9px] font-mono uppercase tracking-widest text-navy-500 block mb-2">Affected Sectors</label>
+          <div className="flex flex-wrap gap-1.5">
+            {SECTOR_OPTIONS.map(s => (
+              <button
+                key={s}
+                onClick={() => toggleSector(s)}
+                className={`px-2.5 py-1 rounded text-[10px] font-mono transition-colors ${
+                  sectors.includes(s)
+                    ? "bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30"
+                    : "bg-navy-900/40 text-navy-500 border border-navy-700/30 hover:border-navy-600/40"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="text-[11px] text-accent-rose bg-accent-rose/10 border border-accent-rose/20 rounded px-3 py-2">
+            {error}
+          </div>
+        )}
+
+        {/* Submit */}
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit || submitting}
+            className="flex items-center gap-2 px-5 py-2.5 text-[10px] font-mono uppercase tracking-wider rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-accent-cyan text-white hover:bg-accent-cyan/90"
+          >
+            {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+            {submitting ? "Analysing..." : "Analyse Scenario"}
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-navy-400 hover:text-navy-200 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──
 
 export default function GameTheoryPage() {
   const [items, setItems] = useState<ScenarioAnalysis[]>([]);
   const [selected, setSelected] = useState<ScenarioAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
 
   const fetchScenarios = useCallback(async () => {
     setLoading(true);
@@ -654,6 +934,12 @@ export default function GameTheoryPage() {
 
   useEffect(() => { fetchScenarios(); }, [fetchScenarios]);
 
+  const handleCreated = useCallback((item: ScenarioAnalysis) => {
+    setItems(prev => [...prev, item]);
+    setSelected(item);
+    setCreating(false);
+  }, []);
+
   return (
     <div className="ml-0 md:ml-48 h-screen flex flex-col bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="Game theory analysis" blur>
@@ -668,13 +954,22 @@ export default function GameTheoryPage() {
             </p>
           </div>
         </div>
-        <Link
-          href="/game-theory/global"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-cyan border border-accent-cyan/20 rounded hover:bg-accent-cyan/10 transition-colors"
-        >
-          <Globe className="h-3 w-3" />
-          Global Scenario
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setCreating(true); setSelected(null); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-emerald border border-accent-emerald/20 rounded hover:bg-accent-emerald/10 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Create Scenario
+          </button>
+          <Link
+            href="/game-theory/global"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-cyan border border-accent-cyan/20 rounded hover:bg-accent-cyan/10 transition-colors"
+          >
+            <Globe className="h-3 w-3" />
+            Global Scenario
+          </Link>
+        </div>
       </div>
 
       {loading ? (
@@ -682,11 +977,17 @@ export default function GameTheoryPage() {
           <Loader2 className="h-5 w-5 animate-spin" />
           <span className="text-xs font-mono">Analysing strategic scenarios...</span>
         </div>
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && !creating ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
           <Swords className="h-10 w-10 text-navy-700" />
           <p className="text-sm text-navy-500 font-sans">No scenarios configured</p>
-          <p className="text-xs text-navy-600 font-sans">Strategic scenarios can be configured in the game theory module.</p>
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1.5 px-4 py-2 mt-2 text-[10px] font-mono uppercase tracking-wider text-accent-cyan border border-accent-cyan/20 rounded hover:bg-accent-cyan/10 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Create your first scenario
+          </button>
         </div>
       ) : (
         <div className="flex-1 flex min-h-0">
@@ -694,22 +995,28 @@ export default function GameTheoryPage() {
           <div className="w-72 shrink-0 border-r border-navy-800/40 overflow-y-auto bg-navy-950">
             <div className="p-2 space-y-1">
               {items.map(item => {
-                const isSelected = selected?.scenario.id === item.scenario.id;
+                const isSelected = !creating && selected?.scenario.id === item.scenario.id;
                 const assessment = item.analysis.marketAssessment;
                 const dirCfg = DIRECTION_CONFIG[assessment.direction] || DIRECTION_CONFIG.neutral;
                 const nashCount = item.analysis.nashEquilibria.length;
                 const stableCount = item.analysis.nashEquilibria.filter(n => n.stability === "stable").length;
+                const isCustom = item.scenario.id.startsWith("custom-");
                 return (
                   <button
                     key={item.scenario.id}
-                    onClick={() => setSelected(item)}
+                    onClick={() => { setSelected(item); setCreating(false); }}
                     className={`w-full text-left px-3.5 py-3 rounded-lg transition-all ${
                       isSelected
                         ? "bg-navy-900/80 border border-navy-700/40"
                         : "border border-transparent hover:bg-navy-900/40 hover:border-navy-800/30"
                     }`}
                   >
-                    <div className="text-xs font-semibold text-navy-200 leading-snug mb-1.5">{item.scenario.title}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-navy-200 leading-snug mb-1.5 flex-1">{item.scenario.title}</span>
+                      {isCustom && (
+                        <span className="text-[8px] font-mono uppercase tracking-wider text-accent-emerald/60 bg-accent-emerald/8 px-1.5 py-0.5 rounded shrink-0">Custom</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <span
                         className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded"
@@ -738,8 +1045,10 @@ export default function GameTheoryPage() {
             </div>
           </div>
 
-          {/* Detail panel */}
-          {selected ? (
+          {/* Detail panel or Create form */}
+          {creating ? (
+            <CreateScenarioForm onCreated={handleCreated} onCancel={() => { setCreating(false); if (items.length > 0) setSelected(items[0]); }} />
+          ) : selected ? (
             <ScenarioDetail item={selected} />
           ) : (
             <div className="flex-1 flex items-center justify-center">

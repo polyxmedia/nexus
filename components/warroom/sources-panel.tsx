@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Maximize2,
 } from "lucide-react";
 
 // ── News types ──
@@ -343,7 +344,7 @@ function LiveTVPlugin() {
   );
 }
 
-// ── World Webcams Plugin ──
+// ── World Webcams Plugin (Multi-Grid) ──
 
 interface WorldCam {
   id: string;
@@ -354,28 +355,28 @@ interface WorldCam {
 }
 
 const WORLD_CAMS: WorldCam[] = [
-  // Europe
-  { id: "kyiv", city: "Kyiv", country: "Ukraine", region: "europe", youtubeId: "2cyQML2QDKM" },
-  { id: "london", city: "London", country: "UK", region: "europe", youtubeId: "64dzOviuBnE" },
-  { id: "paris", city: "Paris", country: "France", region: "europe", youtubeId: "cTEdKxg3NbA" },
-  { id: "warsaw", city: "Warsaw", country: "Poland", region: "europe", youtubeId: "p5SXdnSKtZ4" },
-  { id: "berlin", city: "Berlin", country: "Germany", region: "europe", youtubeId: "KebuV8VPjmA" },
-  { id: "rome", city: "Rome", country: "Italy", region: "europe", youtubeId: "RiLiDzFHNBw" },
+  // Europe - verified working streams
+  { id: "amsterdam", city: "Amsterdam", country: "Netherlands", region: "europe", youtubeId: "Gd9d4q6WvUY" },
+  { id: "venice", city: "Venice", country: "Italy", region: "europe", youtubeId: "HpZAez2oYsA" },
+  { id: "dublin", city: "Dublin", country: "Ireland", region: "europe", youtubeId: "u4UZ4UvZXrg" },
+  { id: "stpetersburg", city: "St. Petersburg", country: "Russia", region: "europe", youtubeId: "h1wly909BYw" },
+  { id: "toronto", city: "Toronto", country: "Canada", region: "americas", youtubeId: "F2l3a9z1FCQ" },
+  { id: "funchal", city: "Funchal", country: "Portugal", region: "europe", youtubeId: "kLsk1pZ5YeY" },
   // Middle East
-  { id: "dubai", city: "Dubai", country: "UAE", region: "mideast", youtubeId: "K50LSm7_bfQ" },
-  { id: "jerusalem", city: "Jerusalem", country: "Israel", region: "mideast", youtubeId: "KQLA-bqOH-c" },
-  { id: "istanbul", city: "Istanbul", country: "Turkey", region: "mideast", youtubeId: "m4JlalCP_tU" },
   { id: "mecca", city: "Mecca", country: "Saudi Arabia", region: "mideast", youtubeId: "SuBuidpSiEQ" },
+  { id: "istanbul", city: "Istanbul", country: "Turkey", region: "mideast", youtubeId: "m4JlalCP_tU" },
   // Asia
-  { id: "tokyo", city: "Tokyo", country: "Japan", region: "asia", youtubeId: "DjYZk8nrXVY" },
-  { id: "seoul", city: "Seoul", country: "South Korea", region: "asia", youtubeId: "68Gh0hIwXJM" },
-  { id: "taipei", city: "Taipei", country: "Taiwan", region: "asia", youtubeId: "CjVQJdIrDJ0" },
-  { id: "mumbai", city: "Mumbai", country: "India", region: "asia", youtubeId: "ByED80IKdIU" },
+  { id: "tokyo", city: "Tokyo Shibuya", country: "Japan", region: "asia", youtubeId: "dfVK7ld38Ys" },
+  { id: "tokyo2", city: "Tokyo Shibuya Sky", country: "Japan", region: "asia", youtubeId: "3Q5wZeTuttw" },
+  { id: "bangkok", city: "Bangkok", country: "Thailand", region: "asia", youtubeId: "UemFRPrl1hk" },
   // Americas
-  { id: "nyc", city: "New York", country: "USA", region: "americas", youtubeId: "1-iS7LArMPA" },
-  { id: "dc", city: "Washington DC", country: "USA", region: "americas", youtubeId: "Mv2pXBW8khg" },
-  { id: "miami", city: "Miami", country: "USA", region: "americas", youtubeId: "VCi9V-knnCk" },
-  { id: "mexico", city: "Mexico City", country: "Mexico", region: "americas", youtubeId: "N6jf6bZXEWg" },
+  { id: "nyc-ts", city: "Times Square", country: "USA", region: "americas", youtubeId: "rnXIjl_Rzy4" },
+  { id: "nyc-summit", city: "NYC Skyline", country: "USA", region: "americas", youtubeId: "TsgoxkRFit0" },
+  { id: "chicago", city: "Chicago", country: "USA", region: "americas", youtubeId: "sQxL8t0gtu8" },
+  { id: "sf", city: "San Francisco", country: "USA", region: "americas", youtubeId: "CXYr04BWvmc" },
+  { id: "houston", city: "Houston", country: "USA", region: "americas", youtubeId: "SDK_m1_BVJ4" },
+  { id: "nola", city: "New Orleans", country: "USA", region: "americas", youtubeId: "qHW8srS0ylo" },
+  { id: "staugustine", city: "St. Augustine", country: "USA", region: "americas", youtubeId: "R8LU4PCZdgo" },
 ];
 
 const CAM_REGION_LABELS: Record<string, string> = {
@@ -386,155 +387,234 @@ const CAM_REGION_LABELS: Record<string, string> = {
   americas: "AMER",
 };
 
+// Default cam IDs to show on first load
+const DEFAULT_ACTIVE_CAMS = ["nyc-ts", "tokyo", "amsterdam", "bangkok"];
+
+function CamTile({ cam, onRemove, onExpand }: { cam: WorldCam; onRemove: (id: string) => void; onExpand: (cam: WorldCam) => void }) {
+  const embedUrl = `https://www.youtube.com/embed/${cam.youtubeId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1`;
+
+  return (
+    <div className="relative group bg-black rounded overflow-hidden border border-navy-700/40">
+      {/* Label overlay */}
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-1.5 py-0.5 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+        <div className="flex items-center gap-1.5">
+          <div className="h-1 w-1 rounded-full bg-accent-emerald animate-pulse" />
+          <span className="text-[8px] font-mono text-white/90 tracking-wider uppercase">{cam.city}</span>
+        </div>
+        <span className="text-[7px] font-mono text-white/50 uppercase">{cam.country}</span>
+      </div>
+
+      {/* Controls overlay (on hover) */}
+      <div className="absolute top-0 right-0 z-10 flex gap-0.5 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+        <button
+          onClick={() => onExpand(cam)}
+          className="p-0.5 bg-black/60 rounded text-white/60 hover:text-white transition-colors"
+          title="Expand"
+        >
+          <Maximize2 className="h-2.5 w-2.5" />
+        </button>
+        <button
+          onClick={() => onRemove(cam.id)}
+          className="p-0.5 bg-black/60 rounded text-white/60 hover:text-accent-rose transition-colors"
+          title="Remove"
+        >
+          <X className="h-2.5 w-2.5" />
+        </button>
+      </div>
+
+      {/* Stream */}
+      <div className="aspect-video">
+        <iframe
+          src={embedUrl}
+          className="w-full h-full"
+          allow="autoplay; encrypted-media"
+          title={`${cam.city} webcam`}
+          loading="lazy"
+        />
+      </div>
+    </div>
+  );
+}
+
 function WorldCamPlugin() {
-  const [activeCam, setActiveCam] = useState<WorldCam>(WORLD_CAMS[0]);
+  const [activeCamIds, setActiveCamIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return DEFAULT_ACTIVE_CAMS;
+    try {
+      const stored = localStorage.getItem("wr:active_cams");
+      return stored ? JSON.parse(stored) : DEFAULT_ACTIVE_CAMS;
+    } catch {
+      return DEFAULT_ACTIVE_CAMS;
+    }
+  });
   const [regionFilter, setRegionFilter] = useState("all");
-  const [cycling, setCycling] = useState(false);
-  const [playing, setPlaying] = useState(true);
-  const cycleRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [expandedCam, setExpandedCam] = useState<WorldCam | null>(null);
+
+  // Persist active cams
+  useEffect(() => {
+    localStorage.setItem("wr:active_cams", JSON.stringify(activeCamIds));
+  }, [activeCamIds]);
+
+  const activeCams = activeCamIds
+    .map((id) => WORLD_CAMS.find((c) => c.id === id))
+    .filter(Boolean) as WorldCam[];
 
   const filtered = regionFilter === "all"
     ? WORLD_CAMS
     : WORLD_CAMS.filter((c) => c.region === regionFilter);
 
   const regions = ["all", ...Array.from(new Set(WORLD_CAMS.map((c) => c.region)))];
-  const currentIndex = filtered.findIndex((c) => c.id === activeCam.id);
 
-  const goNext = useCallback(() => {
-    const pool = regionFilter === "all" ? WORLD_CAMS : WORLD_CAMS.filter((c) => c.region === regionFilter);
-    const idx = pool.findIndex((c) => c.id === activeCam.id);
-    const nextIdx = (idx + 1) % pool.length;
-    setActiveCam(pool[nextIdx]);
-    setPlaying(true);
-  }, [activeCam.id, regionFilter]);
-
-  const goPrev = () => {
-    const prevIdx = (currentIndex - 1 + filtered.length) % filtered.length;
-    setActiveCam(filtered[prevIdx]);
-    setPlaying(true);
+  const toggleCam = (id: string) => {
+    setActiveCamIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
   };
 
-  // Auto-cycle every 30s
-  useEffect(() => {
-    if (cycling) {
-      cycleRef.current = setInterval(goNext, 30_000);
-    }
-    return () => {
-      if (cycleRef.current) clearInterval(cycleRef.current);
-    };
-  }, [cycling, goNext]);
+  const removeCam = (id: string) => {
+    setActiveCamIds((prev) => prev.filter((c) => c !== id));
+  };
 
-  const embedUrl = playing
-    ? `https://www.youtube.com/embed/${activeCam.youtubeId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0`
-    : "";
+  // Grid columns based on count
+  const gridCols =
+    activeCams.length <= 1 ? "grid-cols-1" :
+    activeCams.length <= 2 ? "grid-cols-2" :
+    activeCams.length <= 4 ? "grid-cols-2 md:grid-cols-2" :
+    activeCams.length <= 6 ? "grid-cols-2 md:grid-cols-3" :
+    activeCams.length <= 9 ? "grid-cols-3" :
+    "grid-cols-3 md:grid-cols-4";
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Region filter */}
+    <div className="flex flex-col h-full relative">
+      {/* Header */}
       <div className="flex items-center gap-0 border-b border-navy-700 shrink-0">
-        {regions.map((r) => (
-          <button
-            key={r}
-            onClick={() => setRegionFilter(r)}
-            className={cn(
-              "px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-wider transition-colors",
-              regionFilter === r
-                ? "text-navy-100 bg-navy-800/60"
-                : "text-navy-600 hover:text-navy-400"
-            )}
-          >
-            {CAM_REGION_LABELS[r] || r.toUpperCase()}
-          </button>
-        ))}
-        <div className="flex-1" />
-        <button
-          onClick={() => setCycling(!cycling)}
-          className={cn(
-            "flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-wider transition-colors",
-            cycling ? "text-accent-cyan" : "text-navy-600 hover:text-navy-400"
-          )}
-        >
-          <RefreshCw className={cn("h-2.5 w-2.5", cycling && "animate-spin")} />
-          Cycle
-        </button>
         <div className="flex items-center gap-1 px-2">
           <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald animate-pulse" />
           <span className="text-[8px] font-mono text-navy-600">LIVE</span>
         </div>
+        <span className="text-[9px] font-mono text-navy-500 px-1">{activeCams.length} feeds</span>
+        <div className="flex-1" />
+        <button
+          onClick={() => setShowPicker(!showPicker)}
+          className={cn(
+            "flex items-center gap-1 px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-wider transition-colors",
+            showPicker ? "text-accent-cyan" : "text-navy-600 hover:text-navy-400"
+          )}
+        >
+          {showPicker ? "Done" : "+ Add Cam"}
+        </button>
       </div>
 
-      {/* Video + cam list */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Video area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 relative bg-black">
-            {playing ? (
-              <iframe
-                src={embedUrl}
-                className="absolute inset-0 w-full h-full"
-                allow="autoplay; encrypted-media"
-                allowFullScreen
-                title={`${activeCam.city} webcam`}
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <button
-                  onClick={() => setPlaying(true)}
-                  className="flex items-center gap-2 text-navy-500 hover:text-navy-300 transition-colors"
-                >
-                  <Play className="h-6 w-6" />
-                  <span className="text-[10px] font-mono uppercase tracking-wider">Resume</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-1 px-2 py-1 border-t border-navy-700 bg-navy-950 shrink-0">
-            <button onClick={goPrev} className="p-0.5 text-navy-600 hover:text-navy-300 transition-colors">
-              <ChevronLeft className="h-3 w-3" />
-            </button>
-            <div className="flex-1 min-w-0 text-center">
-              <span className="text-[9px] font-mono text-accent-cyan tracking-wider">{activeCam.city.toUpperCase()}</span>
-              <span className="text-[9px] font-mono text-navy-600 ml-2">{activeCam.country}</span>
+      {/* Expanded cam overlay */}
+      {expandedCam && (
+        <div className="absolute inset-0 z-20 bg-navy-950 flex flex-col">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-navy-700 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald animate-pulse" />
+              <span className="text-[9px] font-mono text-accent-cyan tracking-wider uppercase">{expandedCam.city}</span>
+              <span className="text-[8px] font-mono text-navy-600">{expandedCam.country}</span>
             </div>
-            <button onClick={goNext} className="p-0.5 text-navy-600 hover:text-navy-300 transition-colors">
-              <ChevronRight className="h-3 w-3" />
-            </button>
-            <div className="w-px h-3 bg-navy-700/30 mx-1" />
             <button
-              onClick={() => setPlaying(!playing)}
-              className="p-0.5 text-navy-600 hover:text-navy-300 transition-colors"
-              title={playing ? "Stop" : "Play"}
+              onClick={() => setExpandedCam(null)}
+              className="text-navy-500 hover:text-navy-300 transition-colors"
             >
-              {playing ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
+          <div className="flex-1 bg-black">
+            <iframe
+              src={`https://www.youtube.com/embed/${expandedCam.youtubeId}?autoplay=1&mute=1&controls=1&modestbranding=1&rel=0`}
+              className="w-full h-full"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+              title={`${expandedCam.city} webcam`}
+            />
+          </div>
         </div>
+      )}
 
-        {/* Cam list sidebar */}
-        <div className="w-28 shrink-0 border-l border-navy-700 overflow-y-auto">
-          {filtered.map((cam) => (
+      {/* Cam picker overlay */}
+      {showPicker && (
+        <div className="absolute inset-0 z-20 bg-navy-950/98 flex flex-col">
+          <div className="flex items-center gap-0 border-b border-navy-700 shrink-0">
+            {regions.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRegionFilter(r)}
+                className={cn(
+                  "px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-wider transition-colors",
+                  regionFilter === r
+                    ? "text-navy-100 bg-navy-800/60"
+                    : "text-navy-600 hover:text-navy-400"
+                )}
+              >
+                {CAM_REGION_LABELS[r] || r.toUpperCase()}
+              </button>
+            ))}
+            <div className="flex-1" />
             <button
-              key={cam.id}
-              onClick={() => { setActiveCam(cam); setPlaying(true); }}
-              className={cn(
-                "w-full flex items-center gap-2 px-2 py-2 text-left transition-colors border-b border-navy-700/40",
-                activeCam.id === cam.id
-                  ? "bg-accent-cyan/5 text-accent-cyan"
-                  : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/20"
-              )}
+              onClick={() => setShowPicker(false)}
+              className="px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-wider text-accent-cyan hover:text-accent-cyan/80 transition-colors"
             >
-              <div className="min-w-0">
-                <div className="text-[9px] font-mono font-medium tracking-wider truncate">{cam.city.toUpperCase()}</div>
-                <div className="text-[8px] text-navy-600 truncate">{cam.country}</div>
-              </div>
-              {activeCam.id === cam.id && (
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-emerald animate-pulse shrink-0" />
-              )}
+              Done
             </button>
-          ))}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+              {filtered.map((cam) => {
+                const active = activeCamIds.includes(cam.id);
+                return (
+                  <button
+                    key={cam.id}
+                    onClick={() => toggleCam(cam.id)}
+                    className={cn(
+                      "flex items-center gap-2 px-2.5 py-2 rounded border text-left transition-all",
+                      active
+                        ? "border-accent-cyan/40 bg-accent-cyan/8 text-navy-200"
+                        : "border-navy-700/30 text-navy-500 hover:text-navy-300 hover:border-navy-600"
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[9px] font-mono font-medium tracking-wider truncate">{cam.city.toUpperCase()}</div>
+                      <div className="text-[8px] text-navy-600 truncate">{cam.country}</div>
+                    </div>
+                    {active && <div className="h-1.5 w-1.5 rounded-full bg-accent-cyan shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Cam grid */}
+      <div className="flex-1 overflow-y-auto p-1">
+        {activeCams.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center">
+              <Camera className="h-5 w-5 text-navy-700 mx-auto mb-2" />
+              <p className="text-[10px] font-mono text-navy-600">No cameras active</p>
+              <button
+                onClick={() => setShowPicker(true)}
+                className="text-[9px] font-mono text-accent-cyan hover:underline mt-1"
+              >
+                Add cameras
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={cn("grid gap-1 h-full", gridCols)}>
+            {activeCams.map((cam) => (
+              <CamTile
+                key={cam.id}
+                cam={cam}
+                onRemove={removeCam}
+                onExpand={setExpandedCam}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

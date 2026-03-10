@@ -138,9 +138,8 @@ export default function DashboardPage() {
 
   // ── Drag state ──
   const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null); // index to insert BEFORE (widgets.length = append)
 
   // ── Fetch widgets ──
 
@@ -223,37 +222,59 @@ export default function DashboardPage() {
 
   // ── Drag handlers ──
 
-  function handleDragStart(idx: number) {
+  function handleDragStart(idx: number, e: React.DragEvent) {
     dragItem.current = idx;
     setDragIdx(idx);
+    e.dataTransfer.effectAllowed = "move";
+    // Invisible ghost so we use our own visual feedback
+    const ghost = document.createElement("div");
+    ghost.style.cssText = "position:fixed;top:-9999px;width:1px;height:1px;opacity:0";
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    requestAnimationFrame(() => ghost.remove());
   }
 
-  function handleDragEnter(idx: number) {
-    dragOverItem.current = idx;
-    setDragOverIdx(idx);
+  function getDropIndex(e: React.DragEvent, targetIdx: number): number {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    // Drop before or after the target based on cursor position
+    return e.clientY < midY ? targetIdx : targetIdx + 1;
   }
 
-  function handleDragEnd() {
-    if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
-      setDragIdx(null);
-      setDragOverIdx(null);
-      dragItem.current = null;
-      dragOverItem.current = null;
+  function handleDragOver(e: React.DragEvent, targetIdx: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const idx = getDropIndex(e, targetIdx);
+    if (idx !== dropTarget) setDropTarget(idx);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    if (dragItem.current === null || dropTarget === null) return;
+
+    const from = dragItem.current;
+    let to = dropTarget;
+    if (from === to || from === to - 1) {
+      // No actual move needed
+      resetDragState();
       return;
     }
 
     const sorted = [...widgets];
-    const draggedWidget = sorted[dragItem.current];
-    sorted.splice(dragItem.current, 1);
-    sorted.splice(dragOverItem.current, 0, draggedWidget);
+    const [dragged] = sorted.splice(from, 1);
+    // Adjust insertion index since we removed an item before the target
+    if (to > from) to--;
+    sorted.splice(to, 0, dragged);
 
     setWidgets(sorted);
     persistOrder(sorted);
+    resetDragState();
+  }
 
+  function resetDragState() {
     setDragIdx(null);
-    setDragOverIdx(null);
+    setDropTarget(null);
     dragItem.current = null;
-    dragOverItem.current = null;
   }
 
   // ── Store install handler ──
@@ -355,7 +376,23 @@ export default function DashboardPage() {
     >
       <UpgradeGate minTier="analyst" feature="Intelligence dashboard" blur>
       {/* Widget Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      <div
+        className={cn(
+          "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 transition-all duration-200",
+          editMode ? "gap-8 select-none" : "gap-4"
+        )}
+        onDragOver={editMode ? (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          // If dragging over the grid background (empty space), drop at end
+          if (e.target === e.currentTarget) setDropTarget(widgets.length);
+        } : undefined}
+        onDrop={editMode ? handleDrop : undefined}
+        onDragLeave={editMode ? (e) => {
+          // Only reset if leaving the grid entirely
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null);
+        } : undefined}
+      >
         {widgets.map((widget, idx) => {
           const colSpan =
             widget.width === 3
@@ -365,45 +402,30 @@ export default function DashboardPage() {
               : "col-span-1";
 
           const isDragging = dragIdx === idx;
-          const isDragOver = dragOverIdx === idx && dragIdx !== idx;
+          const showDropBefore = dropTarget === idx && dragIdx !== null && dragIdx !== idx && dragIdx !== idx - 1;
+          const showDropAfter = idx === widgets.length - 1 && dropTarget === widgets.length && dragIdx !== null && dragIdx !== idx;
 
           return (
             <div
               key={widget.id}
               className={cn(
                 colSpan,
-                "relative transition-all duration-200",
-                isDragging && "opacity-30 scale-[0.97]",
-                isDragOver && "before:absolute before:inset-0 before:rounded-md before:border-2 before:border-accent-cyan/40 before:pointer-events-none before:z-10"
+                "relative transition-all duration-150",
+                isDragging && "opacity-20 scale-[0.96]",
+                editMode && "cursor-grab active:cursor-grabbing",
               )}
               draggable={editMode}
-              onDragStart={(e) => {
-                if (!editMode) return;
-                handleDragStart(idx);
-                e.dataTransfer.effectAllowed = "move";
-                const ghost = document.createElement("div");
-                ghost.style.opacity = "0";
-                document.body.appendChild(ghost);
-                e.dataTransfer.setDragImage(ghost, 0, 0);
-                setTimeout(() => document.body.removeChild(ghost), 0);
-              }}
-              onDragEnter={(e) => {
-                if (!editMode) return;
-                e.preventDefault();
-                handleDragEnter(idx);
-              }}
-              onDragOver={(e) => {
-                if (!editMode) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-              }}
-              onDragEnd={() => {
-                if (!editMode) return;
-                handleDragEnd();
-              }}
+              onDragStart={editMode ? (e) => handleDragStart(idx, e) : undefined}
+              onDragOver={editMode ? (e) => handleDragOver(e, idx) : undefined}
+              onDragEnd={editMode ? resetDragState : undefined}
             >
+              {/* Drop indicator line BEFORE this widget */}
+              {showDropBefore && (
+                <div className="absolute -top-2 left-0 right-0 h-0.5 bg-accent-cyan rounded-full z-20 shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
+              )}
+
               {editMode && (
-                <div className="flex items-center gap-1.5 py-1 px-1 cursor-grab active:cursor-grabbing select-none">
+                <div className="flex items-center gap-1.5 py-1 px-1 select-none">
                   <GripVertical className="h-3 w-3 text-navy-500" />
                   <span className="text-[9px] font-mono text-navy-600 uppercase tracking-wider">
                     Drag
@@ -411,9 +433,38 @@ export default function DashboardPage() {
                 </div>
               )}
               <WidgetRenderer widget={widget} onRemove={removeWidget} />
+
+              {/* Drop indicator line AFTER last widget */}
+              {showDropAfter && (
+                <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-accent-cyan rounded-full z-20 shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
+              )}
             </div>
           );
         })}
+
+        {/* Empty drop zone at end of grid when dragging */}
+        {editMode && dragIdx !== null && (
+          <div
+            className={cn(
+              "col-span-1 rounded-md border-2 border-dashed transition-colors min-h-[8rem] flex items-center justify-center",
+              dropTarget === widgets.length
+                ? "border-accent-cyan/40 bg-accent-cyan/5"
+                : "border-navy-700/20 bg-transparent"
+            )}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setDropTarget(widgets.length);
+            }}
+          >
+            <span className={cn(
+              "text-[10px] font-mono uppercase tracking-wider transition-colors",
+              dropTarget === widgets.length ? "text-accent-cyan/60" : "text-navy-700"
+            )}>
+              Drop here
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Empty state */}

@@ -19,13 +19,25 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // CSRF: validate Origin header against expected domain
+  const origin = request.headers.get("origin");
+  const expectedOrigin = (
+    process.env.NEXTAUTH_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    ""
+  ).replace(/\/+$/, "");
+
+  if (!origin || (expectedOrigin && origin !== expectedOrigin)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await request.json();
-  const { packId, embedded } = body;
+  const { packId } = body;
   const pack = CREDIT_PACKS.find((p) => p.id === packId);
   if (!pack) {
     return NextResponse.json({ error: "Invalid pack" }, { status: 400 });
@@ -42,46 +54,41 @@ export async function POST(request: Request) {
 
   let customerId: string | undefined;
   if (existingSubs.length > 0 && existingSubs[0].stripeCustomerId) {
-    customerId = existingSubs[0].stripeCustomerId;
+    const cid = existingSubs[0].stripeCustomerId;
+    if (cid.startsWith("cus_") && !cid.startsWith("cus_manual") && !cid.startsWith("cus_comped")) {
+      customerId = cid;
+    }
   }
 
-  const origin = request.headers.get("origin") || "http://localhost:3000";
+  // Create or retrieve Stripe customer
+  if (!customerId) {
+    try {
+      const customer = await stripe.customers.create({
+        metadata: { nexusUserId: userId },
+      });
+      customerId = customer.id;
+    } catch {
+      // Proceed without customer, payment still works
+    }
+  }
 
   try {
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer: customerId,
-      ...(embedded
-        ? { ui_mode: "embedded", return_url: `${origin}/settings?tab=credits&status=topup_success` }
-        : { success_url: `${origin}/settings?tab=credits&status=topup_success`, cancel_url: `${origin}/settings?tab=credits` }
-      ),
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: pack.priceCents,
-            product_data: {
-              name: `Nexus Credit Top-Up: ${pack.label}`,
-              description: `${pack.credits.toLocaleString()} AI credits for your Nexus account`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: pack.priceCents,
+      currency: "usd",
+      ...(customerId ? { customer: customerId } : {}),
       metadata: {
         userId,
         type: "credit_topup",
         packId: pack.id,
         credits: String(pack.credits),
       },
+      automatic_payment_methods: { enabled: true },
     });
 
-    if (embedded) {
-      return NextResponse.json({ clientSecret: checkoutSession.client_secret });
-    }
-    return NextResponse.json({ url: checkoutSession.url });
+    return NextResponse.json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
-    console.error("Credit top-up checkout error:", error);
-    return NextResponse.json({ error: "Failed to create checkout" }, { status: 500 });
+    console.error("Credit top-up payment intent error:", error);
+    return NextResponse.json({ error: "Failed to create payment" }, { status: 500 });
   }
 }

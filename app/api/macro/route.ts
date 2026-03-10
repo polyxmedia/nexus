@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMacroSnapshot, getYieldCurve, getFredSeries, FRED_SERIES, type FredSeriesId } from "@/lib/market-data/fred";
-import { requireTier } from "@/lib/auth/require-tier";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/auth";
 
 export async function GET(req: NextRequest) {
-  const tierCheck = await requireTier("operator");
-  if ("response" in tierCheck) return tierCheck.response;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const action = req.nextUrl.searchParams.get("action") || "snapshot";
 
   try {
