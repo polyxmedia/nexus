@@ -15,6 +15,12 @@
     },
     "app/api/calendar/reading/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/admin/tiers/stripe-sync/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/stripe/checkout/route.ts": {
+      "maxDuration": 60
     }
   }
 }
