@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { getStripe } from "@/lib/stripe";
 import { rateLimit } from "@/lib/rate-limit";
 
+export const maxDuration = 30;
+
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
     .select()
@@ -113,7 +115,12 @@ export async function POST(request: Request) {
       stripePriceId: price.id,
     });
   } catch (error) {
-    console.error("Stripe sync error:", error);
+    console.error("Stripe sync error:", JSON.stringify({
+      message: error instanceof Error ? error.message : String(error),
+      type: error && typeof error === "object" && "type" in error ? (error as { type: string }).type : undefined,
+      statusCode: error && typeof error === "object" && "statusCode" in error ? (error as { statusCode: number }).statusCode : undefined,
+      code: error && typeof error === "object" && "code" in error ? (error as { code: string }).code : undefined,
+    }));
     let message = "Stripe sync failed";
     let code = "unknown";
     if (error instanceof Error) {
