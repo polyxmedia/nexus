@@ -581,6 +581,24 @@ ${actionsSummary}`;
     }
   }
 
+  // ── Bayesian N-Player Game Theory Analysis ──
+  // Run full Bayesian analysis with actor type distributions, Fearon bargaining
+  // range, audience costs, and escalation probability computation
+  let bayesianContext = "Bayesian game theory analysis unavailable";
+  let bayesianAnalyses = new Map<string, BayesianAnalysis>();
+  try {
+    const signalInputs = activeSignals.map(s => ({
+      title: s.title,
+      description: s.description ?? "",
+      intensity: s.intensity,
+    }));
+    const bayesianResult = await runBayesianGameTheory(signalInputs);
+    bayesianContext = bayesianResult.context;
+    bayesianAnalyses = bayesianResult.analyses;
+  } catch {
+    // Bayesian analysis is best-effort
+  }
+
   // Build a structured coverage map: what tickers/assets/events are already predicted
   const coverageMap = buildCoverageMap(pendingPredictions.map((p) => p.claim));
 
@@ -673,8 +691,18 @@ ${knowledgeContext}
 ═══ ACTIVE SIGNALS ═══
 ${signalsContext}
 
-═══ GAME THEORY ANALYSIS ═══
+═══ GAME THEORY ANALYSIS (Nash Equilibria) ═══
 ${gameTheoryContext}
+
+═══ BAYESIAN N-PLAYER GAME THEORY (Fearon bargaining, actor types, escalation probability) ═══
+${bayesianContext}
+
+BAYESIAN ANALYSIS INTEGRATION RULES:
+- If bargaining range < 20% for a scenario (Fearon failure), predictions MUST reflect elevated conflict probability. Do not assume diplomatic resolution.
+- If escalation probability > 50%, weight predictions toward conflict/disruption outcomes rather than status quo.
+- Use dominant actor types to inform predictions: hawkish/escalatory dominant types = higher conflict probability; cooperative/calculating = negotiation more likely.
+- Audience cost constraints limit actor strategy space. If an actor cannot back down, factor this into your confidence for escalation scenarios.
+- Bayesian equilibria with "no_agreement" Fearon condition override Nash equilibria from the standard analysis. The Bayesian analysis incorporates incomplete information and is more realistic.
 
 ═══ EXISTING PENDING PREDICTIONS — READ CAREFULLY BEFORE GENERATING ═══
 ${pendingContext}

@@ -186,26 +186,32 @@ export default function ChatSessionPage() {
 
   // Auto-speak assistant response when voice mode is on and streaming completes
   const prevStreamingRef = useRef(false);
+  const voiceEnabledRef = useRef(voice.voiceEnabled);
+  voiceEnabledRef.current = voice.voiceEnabled;
+  const speakRef = useRef(voice.speak);
+  speakRef.current = voice.speak;
+
   useEffect(() => {
-    if (prevStreamingRef.current && !isStreaming && voice.voiceEnabled) {
-      // Streaming just finished - speak the last assistant turn
+    if (prevStreamingRef.current && !isStreaming && voiceEnabledRef.current) {
       const lastTurn = turns[turns.length - 1];
       if (lastTurn?.role === "assistant" && lastTurn.content) {
-        voice.speak(lastTurn.content);
+        speakRef.current(lastTurn.content);
       }
     }
     prevStreamingRef.current = isStreaming;
-  }, [isStreaming, turns, voice]);
+  }, [isStreaming, turns]);
 
   // Voice input handler - sends transcript as a message
+  const sendRef = useRef(sendMessage);
+  sendRef.current = sendMessage;
+
   const handleVoiceStart = useCallback(() => {
     voice.startListening((text: string) => {
       if (text.trim()) {
-        sendMessage(text);
-        voice.stopListening();
+        sendRef.current(text);
       }
     });
-  }, [voice, sendMessage]);
+  }, [voice.startListening]);
 
   return (
     <div className="ml-0 md:ml-48 flex h-screen flex-col pt-12 md:pt-0">

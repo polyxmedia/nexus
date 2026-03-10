@@ -22,12 +22,20 @@ export interface TokenUsage {
   elapsedMs: number;
 }
 
+export interface MetaAnalysisResult {
+  issues_found: Array<{ id: string; severity: "high" | "medium" | "low"; detail: string }>;
+  suggested_adjustment: { original_probability: number; adjusted_probability: number; reason: string } | null;
+  confidence_in_adjustment: "high" | "medium" | "low";
+  missing_data: string[];
+}
+
 export interface ChatTurn {
   id: string;
   role: "user" | "assistant";
   content: string;
   toolCalls: ToolCall[];
   suggestions?: string[];
+  metaAnalysis?: MetaAnalysisResult;
   tokenUsage?: TokenUsage;
   /** File attachments (user turns only, client-side display) */
   files?: Array<{ name: string; type: string; size: number; previewUrl?: string }>;
@@ -201,6 +209,18 @@ export function useChat(sessionId: string) {
                         model: event.model ?? "",
                         elapsedMs: event.elapsedMs ?? 0,
                       },
+                    };
+                  }
+                  return updated;
+                });
+              } else if (event.type === "meta_analysis") {
+                setTurns((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      metaAnalysis: event.result as MetaAnalysisResult,
                     };
                   }
                   return updated;

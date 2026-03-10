@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Copy, Check, FileText, Table2, BarChart3, Code2, Map } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ArtifactData {
   type: "chart" | "table" | "document" | "code" | "briefing";
@@ -130,27 +132,49 @@ function CodeArtifact({ content, language }: { content: unknown; language?: stri
 
 function DocumentArtifact({ content }: { content: unknown }) {
   const text = typeof content === "string" ? content : JSON.stringify(content, null, 2);
-  const sections = text.split(/\n(?=#{1,3}\s)/);
 
   return (
-    <div className="space-y-3 text-sm text-navy-200 leading-relaxed">
-      {sections.map((section, i) => {
-        const headerMatch = section.match(/^(#{1,3})\s+(.+)/);
-        if (headerMatch) {
-          const level = headerMatch[1].length;
-          const title = headerMatch[2];
-          const body = section.slice(headerMatch[0].length).trim();
-          const Tag = level === 1 ? "h2" : level === 2 ? "h3" : "h4";
-          const sizes = { h2: "text-base font-bold", h3: "text-sm font-semibold", h4: "text-xs font-semibold" };
-          return (
-            <div key={i}>
-              <Tag className={`${sizes[Tag]} text-navy-100 mb-1`}>{title}</Tag>
-              {body && <p className="text-navy-300 text-xs">{body}</p>}
+    <div className="prose-artifact text-sm text-navy-200 leading-relaxed">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h2 className="text-base font-bold text-navy-100 mt-4 mb-1.5">{children}</h2>,
+          h2: ({ children }) => <h3 className="text-sm font-semibold text-navy-100 mt-3 mb-1">{children}</h3>,
+          h3: ({ children }) => <h4 className="text-xs font-semibold text-navy-100 mt-2.5 mb-1">{children}</h4>,
+          p: ({ children }) => <p className="text-navy-300 text-xs mb-2">{children}</p>,
+          strong: ({ children }) => <strong className="text-navy-100 font-semibold">{children}</strong>,
+          em: ({ children }) => <em className="text-navy-300 italic">{children}</em>,
+          ul: ({ children }) => <ul className="list-disc list-inside text-navy-300 text-xs space-y-0.5 mb-2 ml-1">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal list-inside text-navy-300 text-xs space-y-0.5 mb-2 ml-1">{children}</ol>,
+          li: ({ children }) => <li className="text-navy-300">{children}</li>,
+          hr: () => <hr className="border-navy-700/50 my-3" />,
+          code: ({ className, children }) => {
+            const isBlock = className?.includes("language-");
+            if (isBlock) {
+              return (
+                <pre className="bg-navy-950 border border-navy-700 rounded p-2.5 overflow-x-auto my-2">
+                  <code className="text-[11px] font-mono text-accent-cyan whitespace-pre">{children}</code>
+                </pre>
+              );
+            }
+            return <code className="text-[11px] font-mono text-accent-cyan bg-navy-800/50 px-1 py-0.5 rounded">{children}</code>;
+          },
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-2">
+              <table className="min-w-full text-xs border-collapse">{children}</table>
             </div>
-          );
-        }
-        return <p key={i} className="text-navy-300 text-xs whitespace-pre-wrap">{section}</p>;
-      })}
+          ),
+          thead: ({ children }) => <thead className="border-b border-navy-700">{children}</thead>,
+          th: ({ children }) => <th className="px-3 py-1.5 text-left font-semibold text-navy-300 text-[10px] font-mono uppercase tracking-wider">{children}</th>,
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr: ({ children }) => <tr className="border-b border-navy-800/50">{children}</tr>,
+          td: ({ children }) => <td className="px-3 py-1.5 text-navy-300 text-xs">{children}</td>,
+          blockquote: ({ children }) => <blockquote className="border-l-2 border-accent-cyan/30 pl-3 my-2 text-navy-400 text-xs italic">{children}</blockquote>,
+          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline">{children}</a>,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }

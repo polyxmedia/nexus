@@ -15,7 +15,7 @@ import {
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
-import type { ActorWithGeo, ScenarioWithAnalysis, AircraftState, VesselState, OsintEvent, WarRoomLayerVisibility } from "@/lib/warroom/types";
+import type { ActorWithGeo, ScenarioWithAnalysis, AircraftState, VesselState, VipAircraftState, OsintEvent, WarRoomLayerVisibility } from "@/lib/warroom/types";
 import type { AllianceLink, ConflictZone, StrategicLocation } from "@/lib/warroom/geo-constants";
 import { ACTOR_COORDS } from "@/lib/warroom/geo-constants";
 import { AircraftLayer } from "./aircraft-layer";
@@ -25,6 +25,7 @@ import { ConflictHeatmapLayer } from "./conflict-heatmap-layer";
 import { MapTileUpdater } from "./map-tile-updater";
 import { CountryClickLayer } from "./country-click-layer";
 import { VesselTrailLayer } from "./vessel-trail-layer";
+import { VipAircraftLayer } from "./vip-aircraft-layer";
 import type { VesselTrailPoint } from "@/lib/warroom/use-vessel-tracker";
 
 interface WarRoomMapProps {
@@ -51,6 +52,8 @@ interface WarRoomMapProps {
   onCountryClick?: (code: string) => void;
   onChokepointClick?: (id: string) => void;
   vesselTrails?: Map<string, VesselTrailPoint[]>;
+  vipAircraft?: VipAircraftState[];
+  onVipAircraftClick?: (aircraft: VipAircraftState) => void;
 }
 
 const ESCALATION_COLORS: Record<number, string> = {
@@ -138,6 +141,8 @@ export default function WarRoomMap({
   onCountryClick,
   onChokepointClick,
   vesselTrails,
+  vipAircraft,
+  onVipAircraftClick,
 }: WarRoomMapProps) {
   const activeActorId = hoveredActorId || selectedActorId;
 
@@ -363,6 +368,11 @@ export default function WarRoomMap({
       {/* Aircraft Layer */}
       {layerVisibility.aircraft && aircraft.length > 0 && (
         <AircraftLayer aircraft={aircraft} onAircraftClick={onAircraftClick} />
+      )}
+
+      {/* VIP Aircraft Layer */}
+      {layerVisibility.vipAircraft && vipAircraft && vipAircraft.length > 0 && (
+        <VipAircraftLayer aircraft={vipAircraft} onAircraftClick={onVipAircraftClick} />
       )}
 
       {/* OSINT Markers Layer */}

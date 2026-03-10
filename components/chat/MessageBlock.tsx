@@ -203,6 +203,72 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBl
         </div>
       )}
 
+      {/* Meta-Analysis calibration audit */}
+      {!isStreaming && turn.metaAnalysis && turn.metaAnalysis.issues_found?.length > 0 && (
+        <div className="mt-3 border border-accent-amber/20 rounded-lg bg-accent-amber/[0.03] overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-accent-amber/10 bg-accent-amber/[0.05]">
+            <div className="h-1.5 w-1.5 rounded-full bg-accent-amber animate-pulse" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-accent-amber/80">
+              Meta-Analysis — Calibration Audit
+            </span>
+          </div>
+          <div className="px-3 py-2.5 space-y-2">
+            {turn.metaAnalysis.issues_found.map((issue, idx) => (
+              <div key={idx} className="flex items-start gap-2">
+                <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5 ${
+                  issue.severity === "high" ? "bg-accent-rose/10 text-accent-rose" :
+                  issue.severity === "medium" ? "bg-accent-amber/10 text-accent-amber" :
+                  "bg-navy-700/30 text-navy-400"
+                }`}>
+                  {issue.severity}
+                </span>
+                <div>
+                  <span className="text-[10px] font-mono text-navy-300 font-semibold uppercase">{issue.id}</span>
+                  <p className="text-xs text-navy-400 mt-0.5">{issue.detail}</p>
+                </div>
+              </div>
+            ))}
+
+            {turn.metaAnalysis.suggested_adjustment && (
+              <div className="mt-2 pt-2 border-t border-accent-amber/10 flex items-center gap-3">
+                <span className="text-[10px] font-mono text-navy-500">Suggested adjustment:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono text-navy-400">
+                    {(turn.metaAnalysis.suggested_adjustment.original_probability * 100).toFixed(0)}%
+                  </span>
+                  <span className="text-navy-600 text-xs">-&gt;</span>
+                  <span className="text-xs font-mono text-accent-amber font-semibold">
+                    {(turn.metaAnalysis.suggested_adjustment.adjusted_probability * 100).toFixed(0)}%
+                  </span>
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                    turn.metaAnalysis.confidence_in_adjustment === "high" ? "bg-accent-emerald/10 text-accent-emerald" :
+                    turn.metaAnalysis.confidence_in_adjustment === "medium" ? "bg-accent-amber/10 text-accent-amber" :
+                    "bg-navy-700/30 text-navy-400"
+                  }`}>
+                    {turn.metaAnalysis.confidence_in_adjustment} confidence
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {turn.metaAnalysis.suggested_adjustment?.reason && (
+              <p className="text-[11px] text-navy-500 italic">{turn.metaAnalysis.suggested_adjustment.reason}</p>
+            )}
+
+            {turn.metaAnalysis.missing_data && turn.metaAnalysis.missing_data.length > 0 && (
+              <div className="mt-1.5 pt-1.5 border-t border-accent-amber/10">
+                <span className="text-[9px] font-mono text-navy-600 uppercase tracking-wider">Missing data:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {turn.metaAnalysis.missing_data.map((d, i) => (
+                    <span key={i} className="text-[10px] font-mono text-navy-500 bg-navy-800/50 px-1.5 py-0.5 rounded">{d}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Follow-up suggestions */}
       {!isStreaming && turn.suggestions && turn.suggestions.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">

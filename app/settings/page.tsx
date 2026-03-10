@@ -186,8 +186,8 @@ export default function SettingsPage() {
   const [aiChatModelSaved, setAiChatModelSaved] = useState("");
   const [jiangMode, setJiangMode] = useState(false);
   const [jiangModeSaved, setJiangModeSaved] = useState(false);
-  const [voiceId, setVoiceId] = useState("pNInz6obpgDQGcFmaJgB");
-  const [voiceIdSaved, setVoiceIdSaved] = useState("pNInz6obpgDQGcFmaJgB");
+  const [voiceId, setVoiceId] = useState("onyx");
+  const [voiceIdSaved, setVoiceIdSaved] = useState("onyx");
   const aiModelsDirty = aiModel !== aiModelSaved || aiChatModel !== aiChatModelSaved || jiangMode !== jiangModeSaved || voiceId !== voiceIdSaved;
 
   // API Keys
@@ -1445,18 +1445,19 @@ export default function SettingsPage() {
                 Voice
               </h3>
               <p className="text-[10px] text-navy-600 mb-4">
-                Select the ElevenLabs voice for text-to-speech in chat. Available on Operator and Institution tiers.
+                Select the OpenAI voice for text-to-speech in chat. Available on Operator and Institution tiers.
               </p>
               <div className="space-y-2">
                 {[
-                  { id: "pNInz6obpgDQGcFmaJgB", label: "Adam", description: "Deep, authoritative male voice" },
-                  { id: "ErXwobaYiN019PkySvjV", label: "Antoni", description: "Well-rounded male voice" },
-                  { id: "VR6AewLTigWG4xSOukaG", label: "Arnold", description: "Crisp, clear male voice" },
-                  { id: "onwK4e9ZLuTAKqWW03F9", label: "Daniel", description: "British male, composed and authoritative" },
-                  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah", description: "Soft, natural female voice" },
-                  { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel", description: "Calm, clear female voice" },
-                  { id: "AZnzlk1XvdvUeBnXmlld", label: "Domi", description: "Strong, confident female voice" },
-                  { id: "MF3mGyEYCl7XYWbV9V6O", label: "Elli", description: "Young, friendly female voice" },
+                  { id: "onyx", label: "Onyx", description: "Deep, authoritative male voice" },
+                  { id: "alloy", label: "Alloy", description: "Neutral, balanced voice" },
+                  { id: "echo", label: "Echo", description: "Warm, clear male voice" },
+                  { id: "fable", label: "Fable", description: "Expressive, British-accented voice" },
+                  { id: "nova", label: "Nova", description: "Friendly, natural female voice" },
+                  { id: "shimmer", label: "Shimmer", description: "Soft, warm female voice" },
+                  { id: "ash", label: "Ash", description: "Calm, composed male voice" },
+                  { id: "coral", label: "Coral", description: "Clear, engaging female voice" },
+                  { id: "sage", label: "Sage", description: "Measured, intelligent voice" },
                 ].map((v) => {
                   const isSelected = voiceId === v.id;
                   return (

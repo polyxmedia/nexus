@@ -7,11 +7,9 @@ import type { VesselTrailPoint } from "@/lib/warroom/use-vessel-tracker";
 
 interface VesselTrailLayerProps {
   trails: Map<string, VesselTrailPoint[]>;
-  /** Force re-render counter (increment when trails update) */
-  tick: number;
 }
 
-export function VesselTrailLayer({ trails, tick }: VesselTrailLayerProps) {
+export function VesselTrailLayer({ trails }: VesselTrailLayerProps) {
   const map = useMap();
   const layerGroup = useRef<L.LayerGroup>(L.layerGroup());
 
@@ -25,7 +23,7 @@ export function VesselTrailLayer({ trails, tick }: VesselTrailLayerProps) {
   useEffect(() => {
     layerGroup.current.clearLayers();
 
-    trails.forEach((points, _mmsi) => {
+    trails.forEach((points) => {
       if (points.length < 2) return;
 
       const latlngs: L.LatLngTuple[] = points.map((p) => [p.lat, p.lng]);
@@ -33,8 +31,8 @@ export function VesselTrailLayer({ trails, tick }: VesselTrailLayerProps) {
       // Main trail line
       const trail = L.polyline(latlngs, {
         color: "#22d3ee",
-        weight: 2,
-        opacity: 0.7,
+        weight: 2.5,
+        opacity: 0.8,
         dashArray: "6 4",
         lineCap: "round",
         lineJoin: "round",
@@ -71,21 +69,12 @@ export function VesselTrailLayer({ trails, tick }: VesselTrailLayerProps) {
           opacity: opacity * 0.8,
         });
 
-        if (isLatest) {
-          dot.bindTooltip(
-            `<div style="font-family:monospace;font-size:10px;color:#e5e5e5;background:#0a0a14;border:1px solid #1e293b;padding:4px 8px;border-radius:4px">
-              <span style="color:#22d3ee">TRACKING</span> &middot; ${points.length} points
-            </div>`,
-            { permanent: false, direction: "top", offset: [0, -6], className: "" }
-          );
-        }
-
         layerGroup.current.addLayer(dot);
       }
 
       layerGroup.current.addLayer(trail);
     });
-  }, [trails, tick]);
+  }, [trails]);
 
   return null;
 }

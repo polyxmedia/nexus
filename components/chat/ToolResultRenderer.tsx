@@ -47,6 +47,7 @@ import { ArtifactWidget } from "./widgets/ArtifactWidget";
 import { MemoryWidget } from "./widgets/MemoryWidget";
 import { DocumentWidget } from "./widgets/DocumentWidget";
 import { DocumentDownloadWidget } from "./widgets/DocumentDownloadWidget";
+import { CustomGameTheoryWidget } from "./widgets/CustomGameTheoryWidget";
 import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
 
 interface ToolResultRendererProps {
@@ -123,6 +124,8 @@ const TOOL_LABELS: Record<string, string> = {
   save_document_to_knowledge: "Document",
   generate_narrative_report: "Narrative Report",
   generate_document: "Document",
+  create_custom_game_theory: "Custom Game Theory",
+  get_vip_movements: "VIP Movements",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -276,6 +279,9 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "generate_document":
       widget = <DocumentDownloadWidget data={data} />;
+      break;
+    case "create_custom_game_theory":
+      widget = <CustomGameTheoryWidget data={data} />;
       break;
     case "get_operator_context":
       return (

@@ -49,27 +49,27 @@ const REGIONS: {
 }[] = [
   {
     name: "Middle East",
-    query: "conflict OR military OR sanctions OR war",
+    query: "(Iran OR Iraq OR Syria OR Israel OR Gaza OR Yemen OR Saudi OR Lebanon) (conflict OR military OR sanctions OR war OR strike)",
     assetExposure: ["OIL", "DEFENSE", "GOLD"],
   },
   {
     name: "East Asia",
-    query: "Taiwan OR China OR semiconductor OR military",
+    query: "(Taiwan OR China OR Japan OR Korea) (military OR semiconductor OR trade OR sanctions OR navy)",
     assetExposure: ["SEMICONDUCTORS", "TECH", "CNY"],
   },
   {
     name: "Europe",
-    query: "NATO OR Russia OR Ukraine OR sanctions",
+    query: "(NATO OR Russia OR Ukraine OR EU) (war OR sanctions OR military OR energy OR frontline)",
     assetExposure: ["EUR", "DEFENSE", "NATURAL GAS"],
   },
   {
     name: "South Asia",
-    query: "India OR Pakistan OR Kashmir OR nuclear",
+    query: "(India OR Pakistan OR Kashmir) (military OR nuclear OR border OR tensions)",
     assetExposure: ["INR", "COMMODITIES"],
   },
   {
     name: "Africa",
-    query: "coup OR conflict OR militia OR sanctions",
+    query: "(Sudan OR Niger OR Mali OR Congo OR Ethiopia OR Libya) (coup OR conflict OR militia OR war OR sanctions)",
     assetExposure: ["MINING", "RARE EARTH", "OIL"],
   },
 ];
@@ -183,6 +183,7 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
       });
 
       if (!res.ok) {
+        console.warn(`[GPR] GDELT ${region.name} returned ${res.status}`);
         results.push({
           region: region.name,
           score: 0,
@@ -208,14 +209,17 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
           t.length > 80 ? t.substring(0, 77) + "..." : t
         );
 
-      // Trend: compare first-half vs second-half of articles by date
+      // Trend: compare article tone between recent and older halves
       let trend: "rising" | "falling" | "stable" = "stable";
-      if (articles.length >= 10) {
+      if (articles.length >= 6) {
         const mid = Math.floor(articles.length / 2);
-        const recentHalf = articles.slice(0, mid).length;
-        const olderHalf = articles.slice(mid).length;
-        if (recentHalf > olderHalf * 1.3) trend = "rising";
-        else if (recentHalf < olderHalf * 0.7) trend = "falling";
+        const recentArticles = articles.slice(0, mid);
+        const olderArticles = articles.slice(mid);
+        // Use negative tone as proxy for escalation (lower tone = more negative = rising risk)
+        const recentTone = recentArticles.reduce((s: number, a: { tone?: number }) => s + (a.tone ?? 0), 0) / recentArticles.length;
+        const olderTone = olderArticles.reduce((s: number, a: { tone?: number }) => s + (a.tone ?? 0), 0) / olderArticles.length;
+        if (recentTone < olderTone - 1) trend = "rising";
+        else if (recentTone > olderTone + 1) trend = "falling";
       }
 
       results.push({

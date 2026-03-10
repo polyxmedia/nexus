@@ -342,15 +342,7 @@ export default function GlobeView({
   const globeRef = useRef<GlobeMethods>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const atmosRef = useRef<THREE.Mesh | null>(null);
-  const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-
-  // Create custom earth material once
-  const earthMaterial = useMemo(() => {
-    const mat = createEarthMaterial();
-    materialRef.current = mat;
-    return mat;
-  }, []);
 
   // Size tracking
   useEffect(() => {
@@ -835,10 +827,13 @@ export default function GlobeView({
         height={dimensions.height}
         rendererConfig={{ antialias: true, alpha: false, preserveDrawingBuffer: false }}
         backgroundColor="rgba(0,0,8,1)"
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-        globeMaterial={earthMaterial}
+        globeTileEngineUrl={(x: number, y: number, l: number) =>
+          `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${l}/${y}/${x}`
+        }
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
-        showAtmosphere={false}
+        showAtmosphere={true}
+        atmosphereColor="#1a3a5c"
+        atmosphereAltitude={0.15}
         // Points
         pointsData={pointsData}
         pointLat="lat"

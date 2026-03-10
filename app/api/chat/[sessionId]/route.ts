@@ -301,6 +301,45 @@ export async function POST(
     }
   }
 
+  // ── Pre-flight: auto-gather intelligence for forecasting questions ──
+  // Detects probability/prediction questions and pre-runs core tools so the
+  // analyst has data injected into context before responding.
+  const forecastingPattern = /\b(probability|probabilit|forecast|predict|will .+ (happen|occur|pass|succeed|fail|win|lose)|chances? of|likelihood|what are the odds|brier|yes or no.*prob|how likely|percent chance|base rate)\b/i;
+  const isForecastingQuestion = forecastingPattern.test(userMessage);
+
+  let preflightContext = "";
+  if (isForecastingQuestion) {
+    try {
+      const preflightResults = await Promise.allSettled([
+        executeTool("get_signals", {}),
+        executeTool("get_change_points", {}),
+        executeTool("search_knowledge", { query: userMessage.slice(0, 200) }),
+        executeTool("search_historical_parallels", { query: userMessage.slice(0, 200) }),
+        executeTool("get_game_theory", {}),
+        executeTool("run_bayesian_analysis", {}),
+        executeTool("get_macro_data", {}),
+      ]);
+
+      const labels = ["SIGNALS", "CHANGE_POINTS", "KNOWLEDGE_BANK", "HISTORICAL_PARALLELS", "GAME_THEORY", "BAYESIAN_ANALYSIS", "MACRO_DATA"];
+      const sections: string[] = [];
+      for (let i = 0; i < preflightResults.length; i++) {
+        const r = preflightResults[i];
+        if (r.status === "fulfilled" && r.value) {
+          const val = typeof r.value === "string" ? r.value : JSON.stringify(r.value);
+          if (val.length > 10 && !val.includes('"error"')) {
+            sections.push(`## ${labels[i]}\n${val.slice(0, 3000)}`);
+          }
+        }
+      }
+
+      if (sections.length > 0) {
+        preflightContext = `\n\n## PRE-FLIGHT INTELLIGENCE (auto-gathered for forecasting question)\nThe following data was automatically retrieved. You MUST reference this data in your analysis. Do NOT re-call these tools — the data is already here. Focus on calling any ADDITIONAL tools needed (web_search, get_actor_profile, get_live_quote, get_options_flow) and then structure your Tetlock-method answer.\n\n${sections.join("\n\n")}`;
+      }
+    } catch (err) {
+      console.error("[Chat] preflight intelligence gathering failed:", err);
+    }
+  }
+
   // Credit check before streaming
   const creditCheck = await hasCredits(username, tierInfo.isAdmin ? "institution" : tierInfo.tier, tierInfo.isAdmin);
   if (!creditCheck.allowed) {
@@ -331,7 +370,7 @@ export async function POST(
           const response = await client.messages.create({
             model: chatModel,
             max_tokens: 4096,
-            system: await getSystemPromptWithMode(username, session.projectId),
+            system: (await getSystemPromptWithMode(username, session.projectId)) + preflightContext,
             tools: filteredTools,
             messages,
             stream: true,
@@ -422,6 +461,76 @@ export async function POST(
         maybeCompressSession(client, id, sessionSummary, summarizedUntilId).catch((err) => {
           console.error("Compression background error:", err);
         });
+
+        // ── Meta-Analysis: validate forecasting responses ──
+        // After the analyst generates a probability estimate, a separate model
+        // reviews the reasoning for anchoring errors, structural mismatches,
+        // missing falsification, and calibration issues. Streams as a distinct card.
+        if (isForecastingQuestion && fullText.length > 200) {
+          try {
+            const metaResponse = await client.messages.create({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 1500,
+              system: `You are the NEXUS Meta-Analyst, a calibration auditor that reviews forecasting analyses for systematic errors. You are NOT the analyst — you are the red team.
+
+Review the analyst's response and check for these specific failure modes:
+
+1. **Anchoring on base rates with poor structural fit**: Did the analyst use a historical parallel as a base rate without checking whether the structural parameters actually match? If the parallel differs by >3x on any key dimension (scale, duration, legal authority, mechanism), flag it.
+
+2. **Insufficient adjustment from base rate**: Did the analyst list structural differences but then barely move the probability away from the base rate? Count the major differences. If 3+, the final probability should be 15+ points from the raw base rate.
+
+3. **Missing falsification**: Did the analyst identify what specific data would change the estimate? If not, flag it.
+
+4. **Pre-mortem absence**: Did the analyst consider the most likely way they could be wrong? If not, run one.
+
+5. **Hard data cross-check**: For questions involving numbers (spending, rates, prices), did the analyst verify against the most recent actual reported figures?
+
+6. **Overconfidence/underconfidence**: Is the stated probability suspiciously round (50%, 80%, 90%) or extreme (<5% or >95%) without extraordinary evidence?
+
+7. **Missing evidence**: What data sources were NOT consulted that could materially change the estimate?
+
+Output format — return ONLY valid JSON:
+{
+  "issues_found": [{"id": "anchoring|adjustment|falsification|premortem|crosscheck|confidence|missing", "severity": "high|medium|low", "detail": "..."}],
+  "suggested_adjustment": {"original_probability": 0.0, "adjusted_probability": 0.0, "reason": "..."},
+  "confidence_in_adjustment": "high|medium|low",
+  "missing_data": ["..."]
+}
+
+If the analysis is solid and you find no issues, return: {"issues_found": [], "suggested_adjustment": null, "confidence_in_adjustment": "low", "missing_data": []}
+
+Be ruthlessly honest. The whole point is to catch errors the analyst missed.`,
+              messages: [
+                { role: "user", content: `Original question: ${userMessage.slice(0, 1000)}\n\nAnalyst's response:\n${fullText.slice(0, 6000)}` },
+              ],
+            });
+
+            const metaText = metaResponse.content[0].type === "text" ? metaResponse.content[0].text : "";
+            const metaJsonMatch = metaText.match(/\{[\s\S]*\}/);
+            if (metaJsonMatch) {
+              try {
+                const metaResult = JSON.parse(metaJsonMatch[0]);
+                if (metaResult.issues_found?.length > 0 || metaResult.suggested_adjustment) {
+                  sendEvent({ type: "meta_analysis", result: metaResult });
+
+                  // Also append to the stored message for history
+                  const metaSummary = `\n\n---\n**Meta-Analysis** (calibration audit):\n${metaResult.issues_found?.map((i: { severity: string; id: string; detail: string }) => `- [${i.severity.toUpperCase()}] ${i.id}: ${i.detail}`).join("\n") || "No issues found."}\n${metaResult.suggested_adjustment ? `\nSuggested adjustment: ${(metaResult.suggested_adjustment.original_probability * 100).toFixed(0)}% -> ${(metaResult.suggested_adjustment.adjusted_probability * 100).toFixed(0)}% (${metaResult.suggested_adjustment.reason})` : ""}`;
+                  await db.update(schema.chatMessages)
+                    .set({ content: fullText + metaSummary })
+                    .where(and(eq(schema.chatMessages.sessionId, id), eq(schema.chatMessages.role, "assistant")));
+                }
+              } catch (err) {
+                console.error("[Chat] meta-analysis JSON parse failed:", err);
+              }
+            }
+
+            if (metaResponse.usage) {
+              debitCredits(username, "claude-haiku-4-5-20251001", metaResponse.usage.input_tokens, metaResponse.usage.output_tokens, "meta_analysis", sessionId).catch((err) => console.error("[Chat] debit meta-analysis credits failed:", err));
+            }
+          } catch (err) {
+            console.error("[Chat] meta-analysis failed:", err);
+          }
+        }
 
         // Generate follow-up suggestions (use Haiku to save credits)
         try {

@@ -2,47 +2,15 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 
-// Web Speech API types (not in all TS libs)
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number;
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-  message: string;
-}
-
-interface SpeechRecognitionInstance extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-  onend: (() => void) | null;
-}
-
-interface SpeechRecognitionConstructor {
-  new (): SpeechRecognitionInstance;
-}
-
-interface VoiceState {
-  /** Whether voice mode is enabled (TTS auto-play) */
+export interface VoiceState {
   voiceEnabled: boolean;
-  /** Whether mic is actively recording */
   isListening: boolean;
-  /** Whether TTS audio is currently playing */
   isSpeaking: boolean;
-  /** Whether the user's tier supports voice */
   voiceAvailable: boolean;
-  /** Interim transcript while speaking */
   transcript: string;
 }
 
-interface UseVoiceModeReturn extends VoiceState {
+export interface UseVoiceModeReturn extends VoiceState {
   toggleVoice: () => void;
   startListening: (onResult: (text: string) => void) => void;
   stopListening: () => void;
@@ -50,34 +18,18 @@ interface UseVoiceModeReturn extends VoiceState {
   stopSpeaking: () => void;
 }
 
-// Strip markdown/special chars for cleaner TTS
+// Strip markdown for cleaner TTS
 function cleanForTTS(text: string): string {
   return text
-    // Remove code blocks
     .replace(/```[\s\S]*?```/g, "Code block omitted.")
-    // Remove inline code
     .replace(/`[^`]+`/g, "")
-    // Remove markdown headers
     .replace(/^#{1,6}\s+/gm, "")
-    // Remove bold/italic markers
     .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
-    // Remove markdown links, keep text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    // Remove bullet points
     .replace(/^[-*]\s+/gm, "")
-    // Remove numbered list markers
     .replace(/^\d+\.\s+/gm, "")
-    // Collapse whitespace
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-// Check for SpeechRecognition support
-function getSpeechRecognition(): SpeechRecognitionConstructor | null {
-  if (typeof window === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const w = window as any;
-  return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 
 export function useVoiceMode(): UseVoiceModeReturn {
@@ -87,18 +39,19 @@ export function useVoiceMode(): UseVoiceModeReturn {
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [transcript, setTranscript] = useState("");
 
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const onResultRef = useRef<((text: string) => void) | null>(null);
-  const voiceIdRef = useRef("pNInz6obpgDQGcFmaJgB");
+  const voiceIdRef = useRef("onyx");
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Check tier + load voice setting on mount
   useEffect(() => {
     fetch("/api/subscription")
       .then((r) => r.json())
       .then((data) => {
-        // Admin or tier level >= operator
         const tierName = (data.tier?.name || "free").toLowerCase();
         const isHighTier = ["operator", "institution"].includes(tierName);
         const isAdmin = data.isAdmin === true;
@@ -106,7 +59,6 @@ export function useVoiceMode(): UseVoiceModeReturn {
       })
       .catch(() => setVoiceAvailable(false));
 
-    // Load voice_id setting
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
@@ -114,13 +66,12 @@ export function useVoiceMode(): UseVoiceModeReturn {
         const voiceSetting = s.find((x: { key: string }) => x.key === "voice_id");
         if (voiceSetting?.value) voiceIdRef.current = voiceSetting.value;
       })
-      .catch((err) => console.error("[VoiceMode] fetch voice settings failed:", err));
+      .catch(() => {});
   }, []);
 
   const toggleVoice = useCallback(() => {
     setVoiceEnabled((prev) => {
       if (prev) {
-        // Turning off - stop any playback
         if (audioRef.current) {
           audioRef.current.pause();
           audioRef.current = null;
@@ -146,7 +97,6 @@ export function useVoiceMode(): UseVoiceModeReturn {
     const cleaned = cleanForTTS(text);
     if (!cleaned || cleaned.length < 3) return;
 
-    // Truncate very long responses
     const toSpeak = cleaned.length > 4000 ? cleaned.slice(0, 4000) + "..." : cleaned;
 
     stopSpeaking();
@@ -197,76 +147,136 @@ export function useVoiceMode(): UseVoiceModeReturn {
     }
   }, [stopSpeaking]);
 
-  const startListening = useCallback((onResult: (text: string) => void) => {
-    const SpeechRec = getSpeechRecognition();
-    if (!SpeechRec) {
-      console.warn("[Voice] SpeechRecognition not supported");
-      return;
-    }
-
-    // Stop any existing recognition
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-
-    onResultRef.current = onResult;
-    const recognition = new SpeechRec();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      let finalTranscript = "";
-      let interimTranscript = "";
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript;
-        } else {
-          interimTranscript += result[0].transcript;
-        }
-      }
-
-      setTranscript(interimTranscript || finalTranscript);
-
-      if (finalTranscript) {
-        onResultRef.current?.(finalTranscript.trim());
-        setTranscript("");
-      }
-    };
-
-    recognition.onerror = (event) => {
-      if (event.error !== "aborted") {
-        console.error("[Voice] Recognition error:", event.error);
-      }
-      setIsListening(false);
-      setTranscript("");
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      setTranscript("");
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-  }, []);
-
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
     }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    mediaRecorderRef.current = null;
     setIsListening(false);
     setTranscript("");
   }, []);
 
+  const startListening = useCallback((onResult: (text: string) => void) => {
+    // Stop any existing recording
+    if (mediaRecorderRef.current) {
+      stopListening();
+    }
+
+    onResultRef.current = onResult;
+    chunksRef.current = [];
+
+    setTranscript("Requesting microphone...");
+
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        streamRef.current = stream;
+
+        // Pick a supported mime type
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : MediaRecorder.isTypeSupported("audio/mp4")
+            ? "audio/mp4"
+            : "audio/webm";
+
+        const recorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunksRef.current.push(e.data);
+          }
+        };
+
+        recorder.onstop = async () => {
+          // Stop all mic tracks
+          stream.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+
+          if (chunksRef.current.length === 0) {
+            setIsListening(false);
+            setTranscript("");
+            return;
+          }
+
+          const audioBlob = new Blob(chunksRef.current, { type: mimeType });
+          chunksRef.current = [];
+
+          // Skip very short recordings (< 0.5s of audio, roughly < 8KB)
+          if (audioBlob.size < 8000) {
+            setIsListening(false);
+            setTranscript("");
+            return;
+          }
+
+          setTranscript("Transcribing...");
+
+          try {
+            const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+            const formData = new FormData();
+            formData.append("audio", audioBlob, `recording.${ext}`);
+
+            const res = await fetch("/api/chat/transcribe", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({ error: "Transcription failed" }));
+              console.error("[Voice] Transcription error:", err);
+              setTranscript("");
+              setIsListening(false);
+              return;
+            }
+
+            const data = await res.json();
+            const text = (data.text || "").trim();
+
+            setTranscript("");
+            setIsListening(false);
+
+            if (text) {
+              onResultRef.current?.(text);
+            }
+          } catch (err) {
+            console.error("[Voice] Transcription error:", err);
+            setTranscript("");
+            setIsListening(false);
+          }
+        };
+
+        recorder.onerror = () => {
+          console.error("[Voice] MediaRecorder error");
+          stream.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+          setIsListening(false);
+          setTranscript("");
+        };
+
+        recorder.start();
+        setIsListening(true);
+        setTranscript("Listening...");
+      })
+      .catch((err) => {
+        console.error("[Voice] Microphone access denied:", err);
+        setIsListening(false);
+        setTranscript("");
+      });
+  }, [stopListening]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
       audioRef.current?.pause();
       abortRef.current?.abort();
     };

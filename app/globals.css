@@ -461,6 +461,23 @@ body {
   border-top-color: var(--color-navy-700);
 }
 
+/* ── VIP aircraft tooltip ── */
+.vip-tooltip {
+  background: var(--color-navy-900) !important;
+  border: 1px solid #fbbf2440 !important;
+  color: var(--color-navy-100) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  padding: 8px 10px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 15px rgba(251, 191, 36, 0.1) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.vip-tooltip::before {
+  border-top-color: #fbbf2440 !important;
+}
+
 /* ── Chokepoint marker ── */
 .chokepoint-marker {
   cursor: pointer !important;

@@ -206,6 +206,26 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_vip_movements",
+    description:
+      "Get current positions of high-profile aircraft (heads of state, government, oligarch, military VIP jets). Returns live flight data from ADS-B tracking cross-referenced with the plane-alert-db of 15,000+ known VIP aircraft. Use when analysing geopolitical movements, diplomatic activity, or when specific leaders/governments are relevant to the discussion. Can filter by category or search for specific owners/operators.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["Head of State", "Dictator Alert", "Oligarch", "Governments", "Da Comrade", "Royal Aircraft", "Agency", "all"],
+          description: "Filter by VIP category. Use 'all' or omit for everything.",
+        },
+        search: {
+          type: "string",
+          description: "Search owner, operator, or registration. E.g. 'Putin', 'Saudi', 'Air Force One'.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "get_prediction_feedback",
     description:
       "Get the prediction system's self-learning performance report. Returns Brier score, log-loss, calibration analysis by confidence band, category-level accuracy, timeframe performance, failure patterns, resolution bias detection, and trend direction. Use this to answer questions about prediction accuracy, calibration quality, or which categories/timeframes perform best.",
@@ -915,6 +935,8 @@ export async function executeTool(
       return executeGetPredictions(input);
     case "get_prediction_feedback":
       return executeGetPredictionFeedback();
+    case "get_vip_movements":
+      return executeGetVipMovements(input);
     case "get_portfolio":
       return executeGetPortfolio();
     case "get_live_quote":
@@ -1402,6 +1424,105 @@ async function executeGetPredictionFeedback() {
     recentTrend: report.recentTrend,
     resolutionBias: report.resolutionBias,
   };
+}
+
+async function executeGetVipMovements(input: Record<string, unknown>) {
+  const category = input.category as string | undefined;
+  const search = input.search as string | undefined;
+
+  try {
+    const { getVipDatabase, getVipLabel, getVipPriority } = await import("@/lib/vip-aircraft/database");
+    const db = await getVipDatabase();
+
+    if (db.size === 0) {
+      return { error: "VIP aircraft database unavailable", aircraft: [] };
+    }
+
+    // Query adsb.lol for military + PIA + LADD
+    const endpoints = [
+      "https://api.adsb.lol/v2/mil",
+      "https://api.adsb.lol/v2/pia",
+      "https://api.adsb.lol/v2/ladd",
+    ];
+
+    const allAc: Record<string, unknown>[] = [];
+    const results = await Promise.allSettled(
+      endpoints.map((url) => fetch(url).then((r) => r.ok ? r.json() : null))
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value?.ac) {
+        allAc.push(...r.value.ac);
+      }
+    }
+
+    // Cross-reference against VIP database
+    const matched: Array<{
+      icao24: string;
+      callsign: string;
+      registration: string;
+      owner: string;
+      operator: string;
+      category: string;
+      aircraftType: string;
+      lat: number;
+      lng: number;
+      altitude: number;
+      velocity: number;
+      heading: number;
+      priority: number;
+    }> = [];
+
+    const seen = new Set<string>();
+    for (const ac of allAc) {
+      const hex = String(ac.hex || "").toLowerCase().trim();
+      if (!hex || seen.has(hex)) continue;
+      const entry = db.get(hex);
+      if (!entry) continue;
+      seen.add(hex);
+
+      const lat = ac.lat as number | undefined;
+      const lon = ac.lon as number | undefined;
+      if (lat == null || lon == null) continue;
+
+      const owner = getVipLabel(entry);
+
+      // Apply filters
+      if (category && category !== "all" && entry.category !== category) continue;
+      if (search) {
+        const q = search.toLowerCase();
+        const searchable = `${owner} ${entry.operator} ${entry.registration} ${entry.tag1} ${entry.tag2} ${entry.category}`.toLowerCase();
+        if (!searchable.includes(q)) continue;
+      }
+
+      matched.push({
+        icao24: hex,
+        callsign: String(ac.flight || "").trim(),
+        registration: entry.registration,
+        owner,
+        operator: entry.operator,
+        category: entry.category,
+        aircraftType: entry.type || entry.icaoType,
+        lat,
+        lng: lon,
+        altitude: (ac.alt_baro as number) || 0,
+        velocity: (ac.gs as number) || 0,
+        heading: (ac.track as number) || 0,
+        priority: getVipPriority(entry.category),
+      });
+    }
+
+    matched.sort((a, b) => a.priority - b.priority);
+
+    return {
+      totalTracked: matched.length,
+      totalInDatabase: db.size,
+      aircraft: matched.slice(0, 50), // Cap at 50 for context window
+      filters: { category: category || "all", search: search || null },
+    };
+  } catch (err) {
+    console.error("[VIP Movements] Tool error:", err);
+    return { error: "Failed to fetch VIP aircraft data", aircraft: [] };
+  }
 }
 
 async function executeGetPortfolio() {

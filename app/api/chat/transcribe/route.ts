@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { getUserTier } from "@/lib/auth/require-tier";
 
-const OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech";
-const DEFAULT_VOICE = "onyx";
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,47 +28,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { text, voiceId } = await req.json();
-    if (!text || typeof text !== "string" || text.length > 5000) {
-      return NextResponse.json(
-        { error: "Text required (max 5000 chars)" },
-        { status: 400 }
-      );
+    const formData = await req.formData();
+    const audioFile = formData.get("audio") as File | null;
+    if (!audioFile) {
+      return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
     }
 
-    const voice = voiceId || DEFAULT_VOICE;
+    // Forward to OpenAI Whisper API
+    const openaiForm = new FormData();
+    openaiForm.append("file", audioFile);
+    openaiForm.append("model", "whisper-1");
 
-    const response = await fetch(OPENAI_TTS_URL, {
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: "tts-1",
-        input: text,
-        voice,
-        response_format: "mp3",
-      }),
+      body: openaiForm,
     });
 
     if (!response.ok) {
       const err = await response.text();
-      console.error("[TTS] OpenAI error:", response.status, err);
+      console.error("[Transcribe] OpenAI error:", response.status, err);
       return NextResponse.json(
-        { error: "TTS generation failed" },
+        { error: "Transcription failed" },
         { status: 502 }
       );
     }
 
-    return new Response(response.body, {
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Cache-Control": "no-cache",
-      },
-    });
+    const data = await response.json();
+    return NextResponse.json({ text: data.text || "" });
   } catch (err) {
-    console.error("[TTS] Error:", err);
+    console.error("[Transcribe] Error:", err);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

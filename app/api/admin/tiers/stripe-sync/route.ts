@@ -114,7 +114,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Stripe sync error:", error);
-    const message = error instanceof Error ? error.message : "Stripe sync failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    let message = "Stripe sync failed";
+    let code = "unknown";
+    if (error instanceof Error) {
+      message = error.message;
+      if ("type" in error) code = (error as { type: string }).type;
+      if ("statusCode" in error) code = `http_${(error as { statusCode: number }).statusCode}`;
+    }
+    return NextResponse.json({ error: message, code }, { status: 500 });
   }
 }

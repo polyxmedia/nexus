@@ -8,6 +8,7 @@ import { IntelPanel } from "@/components/warroom/intel-panel";
 import { ActorDetailModal } from "@/components/warroom/actor-detail-modal";
 import { OsintEventModal } from "@/components/warroom/osint-event-modal";
 import { AircraftDetailModal } from "@/components/warroom/aircraft-detail-modal";
+import { VipAircraftModal } from "@/components/warroom/vip-aircraft-modal";
 import { VesselDetailModal } from "@/components/warroom/vessel-detail-modal";
 import { ChokepointDetailModal } from "@/components/warroom/chokepoint-detail-modal";
 import { CHOKEPOINT_INTEL } from "@/lib/warroom/geo-constants";
@@ -26,7 +27,8 @@ import { useAircraftData } from "@/lib/warroom/use-aircraft-data";
 import { useVesselData } from "@/lib/warroom/use-vessel-data";
 import { useOsintData } from "@/lib/warroom/use-osint-data";
 import { useSatelliteData } from "@/lib/warroom/use-satellite-data";
-import type { WarRoomData, WarRoomLayerVisibility, OsintEvent, AircraftState, VesselState } from "@/lib/warroom/types";
+import { useVipAircraftData } from "@/lib/warroom/use-vip-aircraft-data";
+import type { WarRoomData, WarRoomLayerVisibility, OsintEvent, AircraftState, VesselState, VipAircraftState } from "@/lib/warroom/types";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { useVesselTracker } from "@/lib/warroom/use-vessel-tracker";
 
@@ -50,6 +52,7 @@ export default function WarRoomPage() {
   const [modalActorId, setModalActorId] = useState<string | null>(null);
   const [selectedOsintEvent, setSelectedOsintEvent] = useState<OsintEvent | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<AircraftState | null>(null);
+  const [selectedVipAircraft, setSelectedVipAircraft] = useState<VipAircraftState | null>(null);
   const [selectedVessel, setSelectedVessel] = useState<VesselState | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
@@ -77,12 +80,14 @@ export default function WarRoomPage() {
     osintMarkers: true,
     conflictHeatmap: false,
     satellites: false,
+    vipAircraft: false,
   });
 
   const { data: aircraftData } = useAircraftData(layerVisibility.aircraft);
   const { data: vesselData } = useVesselData(layerVisibility.vessels);
   const { data: osintData } = useOsintData();
   const { data: satelliteData } = useSatelliteData(layerVisibility.satellites);
+  const { data: vipAircraftData } = useVipAircraftData(layerVisibility.vipAircraft);
 
   useEffect(() => {
     fetch("/api/warroom")
@@ -166,6 +171,10 @@ export default function WarRoomPage() {
 
   const handleVesselClick = useCallback((v: VesselState) => {
     setSelectedVessel(v);
+  }, []);
+
+  const handleVipAircraftClick = useCallback((ac: VipAircraftState) => {
+    setSelectedVipAircraft(ac);
   }, []);
 
   const handleChokepointClick = useCallback((id: string) => {
@@ -342,6 +351,8 @@ export default function WarRoomPage() {
               onCountryClick={handleCountryClick}
               onChokepointClick={handleChokepointClick}
               vesselTrails={snapshot}
+              vipAircraft={vipAircraftData?.aircraft ?? []}
+              onVipAircraftClick={handleVipAircraftClick}
             />
           ) : (
             <GlobeView
@@ -384,6 +395,7 @@ export default function WarRoomPage() {
           osintCount={osintData?.totalCount ?? 0}
           satelliteCount={satelliteData?.totalCount ?? 0}
           satelliteMilitaryCount={satelliteData?.militaryCount ?? 0}
+          vipCount={vipAircraftData?.totalCount ?? 0}
         />
 
         {/* Intel Panel (right) */}
@@ -416,6 +428,12 @@ export default function WarRoomPage() {
           onClose={() => setSelectedAircraft(null)}
           onWatch={handleWatchAircraft}
           isWatched={!!selectedAircraft && watchlist.some((w) => w.id === selectedAircraft.icao24)}
+        />
+
+        {/* VIP Aircraft Modal */}
+        <VipAircraftModal
+          aircraft={selectedVipAircraft}
+          onClose={() => setSelectedVipAircraft(null)}
         />
 
         {/* Vessel Detail Modal */}

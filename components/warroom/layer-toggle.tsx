@@ -6,7 +6,7 @@ import {
   GlobeAltIcon,
   FireIcon,
 } from "@heroicons/react/24/solid";
-import { Plane, Ship, Satellite } from "lucide-react";
+import { Plane, Ship, Satellite, Crown } from "lucide-react";
 import type { WarRoomLayerVisibility } from "@/lib/warroom/types";
 
 interface LayerToggleProps {
@@ -19,6 +19,7 @@ interface LayerToggleProps {
   osintCount: number;
   satelliteCount: number;
   satelliteMilitaryCount: number;
+  vipCount: number;
 }
 
 const LAYERS = [
@@ -72,6 +73,16 @@ const LAYERS = [
     activeBorder: "border-purple-500/25",
     dotColor: "bg-purple-400",
   },
+  {
+    key: "vipAircraft" as const,
+    label: "VIP",
+    Icon: Crown,
+    heroIcon: null,
+    activeColor: "text-amber-400",
+    activeBg: "bg-amber-500/8",
+    activeBorder: "border-amber-500/25",
+    dotColor: "bg-amber-400",
+  },
 ];
 
 export function LayerToggle({
@@ -84,6 +95,7 @@ export function LayerToggle({
   osintCount,
   satelliteCount,
   satelliteMilitaryCount,
+  vipCount,
 }: LayerToggleProps) {
   function getCount(key: string): string | null {
     if (key === "aircraft" && visibility.aircraft && aircraftCount > 0) {
@@ -97,6 +109,9 @@ export function LayerToggle({
     }
     if (key === "satellites" && visibility.satellites && satelliteCount > 0) {
       return satelliteMilitaryCount > 0 ? `${satelliteCount} / ${satelliteMilitaryCount}M` : `${satelliteCount}`;
+    }
+    if (key === "vipAircraft" && visibility.vipAircraft && vipCount > 0) {
+      return `${vipCount}`;
     }
     return null;
   }

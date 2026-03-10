@@ -129,6 +129,35 @@ export interface SatelliteResponse {
   militaryCount: number;
 }
 
+// ── VIP Aircraft Tracking ──
+
+export interface VipAircraftState {
+  icao24: string;
+  callsign: string;
+  registration: string;
+  lat: number;
+  lng: number;
+  altitude: number;
+  velocity: number;
+  heading: number;
+  onGround: boolean;
+  owner: string;
+  operator: string;
+  category: string;
+  aircraftType: string;
+  icaoType: string;
+  cmpg: string;
+  tag1: string;
+  tag2: string;
+  priority: number;
+}
+
+export interface VipAircraftResponse {
+  aircraft: VipAircraftState[];
+  timestamp: number;
+  totalCount: number;
+}
+
 // ── Layer Visibility ──
 
 export interface WarRoomLayerVisibility {
@@ -137,6 +166,7 @@ export interface WarRoomLayerVisibility {
   osintMarkers: boolean;
   conflictHeatmap: boolean;
   satellites: boolean;
+  vipAircraft: boolean;
 }
 
 // -- Live Vessel Tracking (AIS) --
