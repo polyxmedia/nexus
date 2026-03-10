@@ -183,6 +183,11 @@ export const chatMessages = pgTable("chat_messages", {
   content: text("content").notNull(),
   toolUses: text("tool_uses"), // JSON array of { toolName, toolUseId, input }
   toolResults: text("tool_results"), // JSON array of { toolName, toolUseId, result }
+  model: text("model"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  creditsUsed: integer("credits_used"),
+  elapsedMs: integer("elapsed_ms"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 

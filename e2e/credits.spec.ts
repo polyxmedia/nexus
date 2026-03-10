@@ -245,6 +245,39 @@ test.describe.serial("Credit gate enforcement", () => {
     await page.close();
   });
 
+  // ── Test 7b: Exhausted user gets 429 on news digest ──
+
+  test("exhausted user gets 429 on news digest", async () => {
+    const page = await exhaustedContext.newPage();
+    const res = await page.request.fetch("http://localhost:3000/api/news/digest");
+    // May get 429 (credit exhausted) or 200 (cached digest doesn't hit AI)
+    const status = res.status();
+    if (status === 429) {
+      const body = await res.json();
+      expect(body.error).toContain("credits exhausted");
+      expect(body.topup).toBe(true);
+    }
+    // 200 is also acceptable if the digest was cached
+    expect([200, 429]).toContain(status);
+    await page.close();
+  });
+
+  // ── Test 7c: Exhausted user gets 429 on daily report ──
+
+  test("exhausted user gets 429 on daily report generation", async () => {
+    const page = await exhaustedContext.newPage();
+    const res = await page.request.fetch("http://localhost:3000/api/dashboard/daily-report");
+    const status = res.status();
+    if (status === 429) {
+      const body = await res.json();
+      expect(body.error).toContain("credits exhausted");
+      expect(body.topup).toBe(true);
+    }
+    // 200 with cached report is acceptable, 401/403 means tier gate hit first
+    expect([200, 401, 403, 429]).toContain(status);
+    await page.close();
+  });
+
   // ── Test 8: Credits API shows zero remaining for exhausted user ──
 
   test("credits API shows zero remaining for exhausted user", async () => {

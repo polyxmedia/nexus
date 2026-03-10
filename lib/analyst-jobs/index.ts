@@ -2,9 +2,8 @@
 // Manages the full lifecycle: job creation, applications, delivery, scoring, payment.
 
 import { db, schema } from "@/lib/db";
-import { eq, desc, and, isNull, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { addKnowledge } from "@/lib/knowledge/engine";
-import { broadcastAlert } from "@/lib/telegram/alerts";
 
 // ── Profiles ──
 
@@ -96,13 +95,19 @@ export async function getJob(id: number) {
 }
 
 export async function listJobs(filters?: { status?: string; category?: string }) {
-  const conditions = [];
-  if (filters?.status) conditions.push(eq(schema.analystJobs.status, filters.status));
-  if (filters?.category) conditions.push(eq(schema.analystJobs.category, filters.category));
-
-  if (conditions.length > 0) {
+  if (filters?.status && filters?.category) {
     return db.select().from(schema.analystJobs)
-      .where(and(...conditions))
+      .where(and(eq(schema.analystJobs.status, filters.status), eq(schema.analystJobs.category, filters.category)))
+      .orderBy(desc(schema.analystJobs.id));
+  }
+  if (filters?.status) {
+    return db.select().from(schema.analystJobs)
+      .where(eq(schema.analystJobs.status, filters.status))
+      .orderBy(desc(schema.analystJobs.id));
+  }
+  if (filters?.category) {
+    return db.select().from(schema.analystJobs)
+      .where(eq(schema.analystJobs.category, filters.category))
       .orderBy(desc(schema.analystJobs.id));
   }
   return db.select().from(schema.analystJobs)
@@ -281,6 +286,16 @@ export async function approveDelivery(
 }
 
 /**
+ * Reject/decline an application.
+ */
+export async function rejectApplication(applicationId: number) {
+  const app = await getApplication(applicationId);
+  if (!app) throw new Error("Application not found");
+  if (app.status !== "pending") throw new Error("Can only reject pending applications");
+  return updateApplication(applicationId, { status: "rejected" });
+}
+
+/**
  * Request revision: send back for more work.
  */
 export async function requestRevision(applicationId: number, notes: string) {
@@ -304,7 +319,8 @@ async function processPayment(
   // Try Stripe Connect payout first
   if (profile.stripeConnectId && profile.payoutsEnabled) {
     try {
-      const stripe = (await import("@/lib/stripe")).default;
+      const { getStripe } = await import("@/lib/stripe");
+      const stripe = getStripe();
       const transfer = await stripe.transfers.create({
         amount: job.paymentAmount,
         currency: "usd",

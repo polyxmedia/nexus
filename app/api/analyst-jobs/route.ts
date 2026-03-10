@@ -43,9 +43,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Tier gate: operator and above
-    const { getUserTier } = await import("@/lib/auth/tier");
-    const tier = await getUserTier(session.user.name);
-    const isAdmin = (session.user as Record<string, unknown>).role === "admin";
+    const { getUserTier } = await import("@/lib/auth/require-tier");
+    const { tier, isAdmin } = await getUserTier();
     if (!isAdmin && tier !== "operator" && tier !== "institution") {
       return NextResponse.json({ error: "Operator tier or above required to post jobs" }, { status: 403 });
     }

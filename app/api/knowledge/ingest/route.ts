@@ -5,8 +5,12 @@ import { ingestFinalKnowledge, FINAL_ENTRY_COUNT } from "@/lib/knowledge/ingest-
 import { ingestEpsteinNetwork } from "@/lib/knowledge/ingest-epstein-network";
 import { ingestDeepGeopolitical, DEEP_GEOPOLITICAL_ENTRY_COUNT } from "@/lib/knowledge/ingest-geopolitical-deep";
 import { ingestStructuralKnowledge, STRUCTURAL_ENTRY_COUNT } from "@/lib/knowledge/ingest-structural";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
 export async function POST(request: NextRequest) {
+  const denied = await requireCronOrAdmin(request);
+  if (denied) return denied;
+
   try {
     const { searchParams } = new URL(request.url);
     const pack = searchParams.get("pack") || "all";

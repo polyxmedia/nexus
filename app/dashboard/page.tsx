@@ -318,22 +318,6 @@ export default function DashboardPage() {
     return keys.has(`${item.type}:${metric || symbol}`);
   }
 
-  // ── Loading state ──
-
-  if (loading) {
-    return (
-      <PageContainer title="Dashboard" subtitle="Intelligence overview">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-32 w-full rounded" />
-          ))}
-          <Skeleton className="h-48 sm:col-span-2 rounded" />
-          <Skeleton className="h-48 rounded" />
-        </div>
-      </PageContainer>
-    );
-  }
-
   // ── Render ──
 
   return (
@@ -376,8 +360,19 @@ export default function DashboardPage() {
       }
     >
       <UpgradeGate minTier="analyst" feature="Intelligence dashboard" blur>
+      {/* Loading skeletons */}
+      {loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-32 w-full rounded" />
+          ))}
+          <Skeleton className="h-48 sm:col-span-2 rounded" />
+          <Skeleton className="h-48 rounded" />
+        </div>
+      )}
+
       {/* Widget Grid */}
-      <div
+      {!loading && <div
         className={cn(
           "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 transition-all duration-200",
           editMode ? "gap-8 select-none" : "gap-4"
@@ -466,10 +461,10 @@ export default function DashboardPage() {
             </span>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Empty state */}
-      {widgets.length === 0 && (
+      {!loading && widgets.length === 0 && (
         <div className="text-center py-16">
           <p className="text-sm text-navy-500 mb-3">No widgets configured.</p>
           <button

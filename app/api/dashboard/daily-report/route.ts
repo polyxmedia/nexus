@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { requireTier } from "@/lib/auth/require-tier";
 import { db, schema } from "@/lib/db";
 import { eq, and, desc } from "drizzle-orm";
+import { creditGate } from "@/lib/credits/gate";
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -167,13 +168,18 @@ export async function GET() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ report: null, error: "No API key configured" });
 
+  // Credit gate: check before AI call
+  const gate = await creditGate();
+  if (gate.response) return gate.response;
+
   const dataContext = JSON.stringify({ signals, thesis, predictions, alerts, portfolio, trades }, null, 2);
 
   const client = new Anthropic({ apiKey });
+  const model = "claude-sonnet-4-20250514";
 
   try {
     const msg = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model,
       max_tokens: 4000,
       messages: [
         {
@@ -213,6 +219,9 @@ Output ONLY the JSON array, no other text.`,
         },
       ],
     });
+
+    // Debit credits
+    await gate.debit(model, msg.usage.input_tokens, msg.usage.output_tokens, "daily_report");
 
     const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : null;
     if (!text) return NextResponse.json({ report: null });

@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { evaluateAlerts } from "@/lib/alerts/engine";
 import { resolvePredictions } from "@/lib/predictions/engine";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
 // POST - master monitoring endpoint, designed for 5-minute cron calls
 // Runs alert evaluation + prediction resolution in one sweep
 export async function POST(req: NextRequest) {
-  try {
-    // Optional auth for external cron
-    const authHeader = req.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
 
+  try {
     const results: Record<string, unknown> = {
       timestamp: new Date().toISOString(),
     };

@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const snapshots = await db
       .select({

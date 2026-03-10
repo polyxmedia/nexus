@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { generatePredictions, resolvePredictions, resolveByData, autoExpirePastDeadline, invalidateOnRegimeChange } from "@/lib/predictions/engine";
 import { runWartimeCheck } from "@/lib/game-theory/wartime";
 import { notifyNewPredictions } from "@/lib/predictions/notify";
 import { db, schema } from "@/lib/db";
 import { desc, and, gte, lt } from "drizzle-orm";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
+
   try {
     // Step 0: Housekeeping — expire stale, invalidate on regime change, check wartime thresholds
     const autoExpired = await autoExpirePastDeadline();

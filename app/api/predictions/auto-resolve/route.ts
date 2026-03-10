@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolvePredictions } from "@/lib/predictions/engine";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
 // POST - callable by cron or scheduler to auto-resolve expired predictions
 export async function POST(req: NextRequest) {
-  try {
-    // Optional auth for external cron services
-    const authHeader = req.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
 
+  try {
     const results = await resolvePredictions();
 
     const summary = {

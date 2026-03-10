@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { generatePredictions } from "@/lib/predictions/engine";
 import { notifyNewPredictions } from "@/lib/predictions/notify";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
+
   try {
     const predictions = await generatePredictions();
     let notified = 0;

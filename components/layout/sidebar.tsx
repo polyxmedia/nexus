@@ -41,6 +41,7 @@ import {
   Target,
   TrendingUp,
   Users,
+  Briefcase,
   X,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -76,6 +77,7 @@ const toolsNav: NavItem[] = [
   { name: "Graph", href: "/graph", icon: Network },
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Alerts", href: "/alerts", icon: Bell },
+  { name: "Jobs", href: "/jobs", icon: Briefcase },
   { name: "Support", href: "/support", icon: LifeBuoy },
 ];
 

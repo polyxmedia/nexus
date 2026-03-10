@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoinbaseClient } from "@/lib/coinbase/get-client";
 import { requireTier } from "@/lib/auth/require-tier";
+import { safeError } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("operator");
@@ -20,7 +21,6 @@ export async function GET(request: NextRequest) {
     const products = await client.getProducts("SPOT");
     return NextResponse.json(products);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("Coinbase", error);
   }
 }

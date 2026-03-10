@@ -5,6 +5,7 @@
 import { getFredSeries } from "@/lib/market-data/fred";
 import { saveRegimeState, loadRegimeState, appendToHistory } from "./store";
 import { getRegimePerformanceContext } from "@/lib/backtest/feedback-loops";
+import { getGPRSnapshot } from "@/lib/gpr";
 
 export interface RegimeDimension {
   regime: string;
@@ -21,6 +22,7 @@ export interface RegimeState {
   riskAppetite: RegimeDimension & { creditSpread: number | null };
   dollar: RegimeDimension & { dxy: number | null; trend: string };
   commodity: RegimeDimension & { oil: number | null; gold: number | null };
+  geopolitical: RegimeDimension & { gprComposite: number | null; hotRegion: string | null };
   composite: string;
   compositeScore: number; // -1 (max risk-off) to +1 (max risk-on)
 }
@@ -250,15 +252,51 @@ function classifyCommodity(
   return { regime, score: clamped };
 }
 
+function classifyGeopolitical(
+  gprComposite: number | null,
+  hotRegion: string | null,
+  hotRegionScore: number
+): { regime: string; score: number } {
+  if (gprComposite === null && hotRegionScore === 0) return { regime: "stable", score: 0 };
+
+  let score = 0;
+
+  // GPR composite index thresholds (Caldara & Iacoviello scale)
+  // Historical average ~100, Gulf War peaked ~450, 9/11 ~350, Ukraine invasion ~250
+  if (gprComposite !== null) {
+    if (gprComposite >= 300) score = -1.0;       // extreme - active major conflict
+    else if (gprComposite >= 200) score = -0.8;   // crisis - war/major escalation
+    else if (gprComposite >= 150) score = -0.5;   // elevated - significant tensions
+    else if (gprComposite >= 120) score = -0.2;   // above normal
+    else score = 0.1;                              // calm
+  }
+
+  // Regional GDELT reinforcement: if a hot region is scoring very high
+  // (50 articles in 7 days = score 100), that's a strong signal
+  if (hotRegionScore >= 150) score = Math.min(score, -0.8);
+  else if (hotRegionScore >= 100) score = Math.min(score - 0.2, -0.3);
+
+  score = Math.max(-1, Math.min(1, score));
+
+  let regime: string;
+  if (score <= -0.8) regime = "conflict";       // active war / extreme crisis
+  else if (score <= -0.5) regime = "crisis";    // major escalation
+  else if (score <= -0.2) regime = "elevated";  // heightened tensions
+  else regime = "stable";
+
+  return { regime, score };
+}
+
 function computeComposite(state: Omit<RegimeState, "composite" | "compositeScore" | "timestamp">): { label: string; score: number } {
   // Weighted average of all dimensions
   const weights = {
-    volatility: 0.2,
-    growth: 0.25,
-    monetary: 0.15,
-    riskAppetite: 0.2,
-    dollar: 0.1,
-    commodity: 0.1,
+    volatility: 0.18,
+    growth: 0.20,
+    monetary: 0.12,
+    riskAppetite: 0.18,
+    dollar: 0.07,
+    commodity: 0.10,
+    geopolitical: 0.15,
   };
 
   const score =
@@ -267,17 +305,31 @@ function computeComposite(state: Omit<RegimeState, "composite" | "compositeScore
     state.monetary.score * weights.monetary +
     state.riskAppetite.score * weights.riskAppetite +
     state.dollar.score * weights.dollar +
-    state.commodity.score * weights.commodity;
+    state.commodity.score * weights.commodity +
+    state.geopolitical.score * weights.geopolitical;
 
   const clamped = Math.max(-1, Math.min(1, score));
 
   // Generate human-readable label
-  const riskLabel = clamped > 0.3 ? "Risk-On" : clamped > -0.3 ? "Neutral" : "Risk-Off";
+  // Geopolitical crisis overrides the risk label when severe
+  const geoRegime = state.geopolitical.regime;
+  const geoOverride = geoRegime === "conflict" || geoRegime === "crisis";
+
+  let riskLabel: string;
+  if (geoOverride) {
+    riskLabel = geoRegime === "conflict" ? "WARTIME" : "CRISIS";
+  } else {
+    riskLabel = clamped > 0.3 ? "Risk-On" : clamped > -0.3 ? "Neutral" : "Risk-Off";
+  }
+
   const growthLabel = state.growth.regime;
   const volLabel = state.volatility.regime !== "unknown" ? `, ${state.volatility.regime} vol` : "";
+  const geoSuffix = geoOverride && state.geopolitical.inputs?.["Hot Region"]
+    ? ` [${state.geopolitical.inputs["Hot Region"].source}]`
+    : "";
 
   return {
-    label: `${riskLabel} ${growthLabel}${volLabel}`,
+    label: `${riskLabel} ${growthLabel}${volLabel}${geoSuffix}`,
     score: Math.round(clamped * 100) / 100,
   };
 }

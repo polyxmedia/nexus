@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { embedAllKnowledge } from "@/lib/knowledge/embeddings";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
+
   try {
     const result = await embedAllKnowledge();
     return NextResponse.json(result);

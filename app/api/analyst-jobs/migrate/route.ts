@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
 // One-time migration to create analyst marketplace tables
 // POST /api/analyst-jobs/migrate
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
+
   try {
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS analyst_profiles (

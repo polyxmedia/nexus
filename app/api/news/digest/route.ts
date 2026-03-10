@@ -3,6 +3,7 @@ import { getNewsFeed } from "@/lib/news/feeds";
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { creditGate } from "@/lib/credits/gate";
 
 const DIGEST_KEY = "cache:news_digest";
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -44,10 +45,15 @@ export async function GET() {
       }
     }
 
+    // Credit gate: check before AI call
+    const gate = await creditGate();
+    if (gate.response) return gate.response;
+
     // Headlines changed or cache expired, generate new digest
+    const model = "claude-haiku-4-5-20251001";
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model,
       max_tokens: 300,
       messages: [
         {
@@ -61,6 +67,9 @@ Write the digest now:`,
         },
       ],
     });
+
+    // Debit credits
+    await gate.debit(model, msg.usage.input_tokens, msg.usage.output_tokens, "news_digest");
 
     const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : null;
     if (!text) return NextResponse.json({ digest: null });

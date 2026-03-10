@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { getT212Client } from "@/lib/trading212/client";
 import { requireTier } from "@/lib/auth/require-tier";
+import { safeError } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("operator");
@@ -27,7 +28,6 @@ export async function GET(request: NextRequest) {
     const history = await t212.client.getOrderHistory(cursor, limit);
     return NextResponse.json(history);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("Trading212", error);
   }
 }

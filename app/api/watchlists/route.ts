@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, asc, and } from "drizzle-orm";
 import { getQuoteData } from "@/lib/market-data/yahoo";
 
 // GET - list all watchlists with items and live quotes
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const withQuotes = searchParams.get("quotes") !== "false";
@@ -96,6 +103,11 @@ export async function GET(req: NextRequest) {
 
 // POST - create watchlist or add item
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { action } = body;
@@ -126,18 +138,14 @@ export async function POST(req: NextRequest) {
       // Try to fetch initial quote
       let initialPrice: Record<string, unknown> = {};
       try {
-        try {
-          const quote = await getQuoteData(symbol.toUpperCase());
-          initialPrice = {
-            lastPrice: quote.price,
-            lastChange: quote.change,
-            lastChangePercent: quote.changePercent,
-            lastVolume: quote.volume,
-            lastUpdated: new Date().toISOString(),
-          };
-        } catch {
-          // No initial price available
-        }
+        const quote = await getQuoteData(symbol.toUpperCase());
+        initialPrice = {
+          lastPrice: quote.price,
+          lastChange: quote.change,
+          lastChangePercent: quote.changePercent,
+          lastVolume: quote.volume,
+          lastUpdated: new Date().toISOString(),
+        };
       } catch {
         // No initial price available
       }
@@ -175,6 +183,11 @@ export async function POST(req: NextRequest) {
 
 // PATCH - rename watchlist or reorder items
 export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { action } = body;
@@ -216,6 +229,11 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE - delete watchlist or remove item
 export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.name) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { action } = body;

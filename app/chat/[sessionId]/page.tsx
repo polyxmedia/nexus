@@ -28,17 +28,12 @@ import { useSubscription } from "@/lib/hooks/useSubscription";
 function AutoPrompt({ sendMessage, historyLoaded, isStreaming }: { sendMessage: (msg: string) => void; historyLoaded: boolean; isStreaming: boolean }) {
   const searchParams = useSearchParams();
   const sent = useRef(false);
-  const promptRef = useRef<string | null>(null);
   const sendRef = useRef(sendMessage);
   sendRef.current = sendMessage;
 
-  // Capture prompt on first render before anything can clear it
-  if (promptRef.current === null) {
-    promptRef.current = searchParams.get("prompt") || "";
-  }
+  const prompt = searchParams.get("prompt") || "";
 
   useEffect(() => {
-    const prompt = promptRef.current;
     if (prompt && !sent.current && historyLoaded && !isStreaming) {
       sent.current = true;
 
@@ -53,7 +48,7 @@ function AutoPrompt({ sendMessage, historyLoaded, isStreaming }: { sendMessage: 
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [historyLoaded, isStreaming]);
+  }, [prompt, historyLoaded, isStreaming]);
 
   return null;
 }

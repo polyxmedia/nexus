@@ -145,8 +145,9 @@ const TELEGRAM_ALERT_TYPES = [
 ];
 
 const AI_MODELS = [
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", tier: "balanced" as const, description: "Fast and capable. Great balance of quality and cost." },
   { id: "claude-opus-4-6", label: "Claude Opus 4.6", tier: "flagship" as const, description: "Most capable model. Best for critical analysis, predictions, and complex reasoning." },
-  { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", tier: "balanced" as const, description: "Fast and capable. Good for routine tasks and chat." },
+  { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", tier: "balanced" as const, description: "Previous generation Sonnet. Reliable and cost-effective." },
   { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", tier: "fast" as const, description: "Fastest model. Use only for simple, non-critical tasks." },
 ];
 
@@ -180,8 +181,8 @@ export default function SettingsPage() {
   const [portalLoading, setPortalLoading] = useState(false);
 
   // AI Model
-  const [aiModel, setAiModel] = useState("claude-opus-4-6");
-  const [aiModelSaved, setAiModelSaved] = useState("claude-opus-4-6");
+  const [aiModel, setAiModel] = useState("claude-sonnet-4-6");
+  const [aiModelSaved, setAiModelSaved] = useState("claude-sonnet-4-6");
   const [aiChatModel, setAiChatModel] = useState("");
   const [aiChatModelSaved, setAiChatModelSaved] = useState("");
   const [jiangMode, setJiangMode] = useState(false);
@@ -712,14 +713,14 @@ export default function SettingsPage() {
           window.history.replaceState({}, "", url.toString());
         }}
       >
-        <Tabs.List className="flex gap-0 border-b border-navy-700 mb-6">
+        <Tabs.List className="flex flex-wrap gap-x-0 gap-y-1 border-b border-navy-700 mb-6">
           {TABS.map((tab) => (
             <Tabs.Trigger
               key={tab.id}
               value={tab.id}
-              className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-navy-500 border-b-2 border-transparent transition-colors data-[state=active]:text-navy-100 data-[state=active]:border-navy-100 hover:text-navy-300"
+              className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-navy-500 border-b-2 border-transparent transition-colors data-[state=active]:text-navy-100 data-[state=active]:border-navy-100 hover:text-navy-300"
             >
-              <tab.icon className="h-3.5 w-3.5" />
+              <tab.icon className="h-3 w-3" />
               {tab.label}
             </Tabs.Trigger>
           ))}
@@ -1287,9 +1288,11 @@ export default function SettingsPage() {
               <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-1">
                 Primary AI Model
               </h3>
-              <p className="text-[10px] text-navy-600 mb-4">
+              <p className="text-[10px] text-navy-600 mb-2">
                 Used for analysis, predictions, thesis generation, calendar readings, and alert suggestions.
-                Defaults to Opus 4.6 for maximum intelligence on critical decisions.
+              </p>
+              <p className="text-[10px] text-accent-amber/80 mb-4">
+                Sonnet 4.6 delivers near-identical analytical quality at a fraction of the cost. Opus 4.6 offers marginally deeper reasoning on edge cases but uses 5x more credits. Most users won&apos;t notice a difference.
               </p>
               <div className="space-y-2">
                 {AI_MODELS.map((model) => {

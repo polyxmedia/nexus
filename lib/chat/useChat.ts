@@ -48,6 +48,11 @@ export interface ChatMessage {
   content: string;
   toolUses: string | null;
   toolResults: string | null;
+  model: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  creditsUsed: number | null;
+  elapsedMs: number | null;
   createdAt: string;
 }
 
@@ -333,12 +338,24 @@ function dbMessagesToTurns(messages: ChatMessage[]): ChatTurn[] {
         }
       }
 
-      turns.push({
+      const turn: ChatTurn = {
         id: `db-${msg.id}`,
         role: "assistant",
         content: msg.content,
         toolCalls,
-      });
+      };
+
+      if (msg.creditsUsed != null && msg.model) {
+        turn.tokenUsage = {
+          inputTokens: msg.inputTokens ?? 0,
+          outputTokens: msg.outputTokens ?? 0,
+          creditsUsed: msg.creditsUsed,
+          model: msg.model,
+          elapsedMs: msg.elapsedMs ?? 0,
+        };
+      }
+
+      turns.push(turn);
     }
   }
 

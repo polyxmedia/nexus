@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTier } from "@/lib/auth/require-tier";
+import { safeError } from "@/lib/security/csrf";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import {
@@ -45,7 +46,6 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("PredictionMarkets", error);
   }
 }

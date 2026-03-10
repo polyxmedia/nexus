@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { requireTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
-import { validateOrigin } from "@/lib/security/csrf";
+import { validateOrigin, safeError } from "@/lib/security/csrf";
 import {
   placeKalshiOrder,
   cancelKalshiOrder,
@@ -39,8 +39,7 @@ export async function GET() {
 
     return NextResponse.json(results);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("PredictionMarkets", error);
   }
 }
 
@@ -145,8 +144,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: "platform must be 'kalshi' or 'polymarket'" }, { status: 400 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("PredictionMarkets", error);
   }
 }
 
@@ -178,7 +176,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, orderId });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("PredictionMarkets", error);
   }
 }

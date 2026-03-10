@@ -8,6 +8,7 @@ import {
   ArrowUp,
   BarChart3,
   Brain,
+  ChevronDown,
   Crosshair,
   DollarSign,
   FlaskConical,
@@ -714,6 +715,24 @@ export default function TradeLabPage() {
   const [enriching, setEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"flowchart" | "intel">("flowchart");
+  const [predictions, setPredictions] = useState<Array<{
+    id: number; uuid: string; claim: string; confidence: number;
+    direction: string | null; priceTarget: number | null;
+    referenceSymbol: string | null; timeframe: string; deadline: string;
+    category: string;
+  }>>([]);
+  const [loadingPreds, setLoadingPreds] = useState(false);
+  const [predsOpen, setPredsOpen] = useState(false);
+  const predsRef = useRef<HTMLDivElement>(null);
+
+  // Close prediction dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (predsRef.current && !predsRef.current.contains(e.target as Node)) setPredsOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const updateSetup = useCallback((patch: Partial<TradeSetup>) => {
     setSetup(prev => ({ ...prev, ...patch }));
@@ -770,6 +789,74 @@ export default function TradeLabPage() {
     setEnriching(false);
   }, [setup.ticker, setup.entryPrice, updateSetup]);
 
+  const fetchPredictions = useCallback(async () => {
+    if (predsOpen) { setPredsOpen(false); return; }
+    setLoadingPreds(true);
+    try {
+      const res = await fetch("/api/predictions?status=pending");
+      if (res.ok) {
+        const data = await res.json();
+        const withSymbol = (Array.isArray(data) ? data : []).filter(
+          (p: { referenceSymbol: string | null }) => p.referenceSymbol
+        );
+        setPredictions(withSymbol);
+      }
+    } catch { /* silent */ }
+    setLoadingPreds(false);
+    setPredsOpen(true);
+  }, [predsOpen]);
+
+  const loadPrediction = useCallback((pred: typeof predictions[number]) => {
+    const symbol = pred.referenceSymbol?.toUpperCase() || "";
+    const dir: "long" | "short" = pred.direction === "down" ? "short" : "long";
+
+    // Parse timeframe to days
+    const tfMatch = pred.timeframe.match(/(\d+)\s*(day|week|month)/i);
+    let days = 30;
+    if (tfMatch) {
+      const n = parseInt(tfMatch[1]);
+      const unit = tfMatch[2].toLowerCase();
+      days = unit.startsWith("week") ? n * 7 : unit.startsWith("month") ? n * 30 : n;
+    }
+
+    // Build scenarios from prediction
+    const baseTarget = pred.priceTarget || 0;
+    const newScenarios: Scenario[] = [
+      {
+        id: "pred-bull", name: "Prediction Confirms", probability: Math.round(pred.confidence * 100),
+        targetPrice: baseTarget, stopPrice: 0, timeframeDays: days,
+        catalyst: pred.claim.slice(0, 120), icon: dir === "long" ? "bull" : "bear",
+      },
+      {
+        id: "pred-base", name: "Base / Flat", probability: Math.round((1 - pred.confidence) * 60),
+        targetPrice: 0, stopPrice: 0, timeframeDays: days,
+        catalyst: "No significant move", icon: "base",
+      },
+      {
+        id: "pred-bear", name: "Prediction Denied", probability: Math.round((1 - pred.confidence) * 30),
+        targetPrice: 0, stopPrice: 0, timeframeDays: days,
+        catalyst: "Counter-thesis plays out", icon: dir === "long" ? "bear" : "bull",
+      },
+      {
+        id: "pred-swan", name: "Black Swan", probability: Math.max(1, Math.round((1 - pred.confidence) * 10)),
+        targetPrice: 0, stopPrice: 0, timeframeDays: days,
+        catalyst: "Tail risk event", icon: "blackswan",
+      },
+    ];
+
+    // Normalize probabilities to 100%
+    const rawTotal = newScenarios.reduce((s, sc) => s + sc.probability, 0);
+    if (rawTotal !== 100) {
+      const diff = 100 - rawTotal;
+      newScenarios[1].probability += diff; // adjust base case
+    }
+
+    updateSetup({ ticker: symbol, direction: dir, entryPrice: 0, positionSize: 0 });
+    setScenarios(newScenarios);
+    setIntel(null);
+    setPredsOpen(false);
+  }, [updateSetup]);
+
   const totalProb = scenarios.reduce((s, sc) => s + sc.probability, 0);
   const probValid = totalProb === 100;
   const validScenarios = scenarios.filter(s => s.targetPrice > 0);
@@ -819,6 +906,61 @@ export default function TradeLabPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div ref={predsRef} className="relative">
+              <button
+                onClick={fetchPredictions}
+                disabled={loadingPreds}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent-amber/10 border border-accent-amber/30 text-xs text-accent-amber hover:bg-accent-amber/20 transition-colors disabled:opacity-40"
+              >
+                {loadingPreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}
+                Load Prediction
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {predsOpen && (
+                <div className="absolute z-50 top-full right-0 mt-1.5 w-[380px] max-h-80 overflow-y-auto bg-navy-800 border border-navy-700 rounded-lg shadow-2xl">
+                  {predictions.length === 0 ? (
+                    <div className="px-4 py-6 text-center">
+                      <Target className="h-6 w-6 text-navy-600 mx-auto mb-2" />
+                      <p className="text-xs text-navy-500">No pending predictions with a reference symbol</p>
+                      <p className="text-[10px] text-navy-600 mt-1">Predictions need a referenceSymbol to load here</p>
+                    </div>
+                  ) : (
+                    <div className="py-1">
+                      <div className="px-3 py-2 border-b border-navy-700/50">
+                        <span className="text-[9px] font-mono text-navy-500 uppercase tracking-widest">
+                          {predictions.length} prediction{predictions.length !== 1 ? "s" : ""} with symbols
+                        </span>
+                      </div>
+                      {predictions.map((pred) => (
+                        <button key={pred.id} onClick={() => loadPrediction(pred)}
+                          className="w-full text-left px-3 py-2.5 hover:bg-navy-700/50 transition-colors border-b border-navy-800/50 last:border-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono font-bold text-accent-cyan">{pred.referenceSymbol}</span>
+                              {pred.direction && (
+                                <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                  pred.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald" : pred.direction === "down" ? "bg-accent-rose/10 text-accent-rose" : "bg-navy-700 text-navy-400"
+                                }`}>
+                                  {pred.direction.toUpperCase()}
+                                </span>
+                              )}
+                              <span className="text-[9px] font-mono text-navy-500">{Math.round(pred.confidence * 100)}%</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {pred.priceTarget && (
+                                <span className="text-[10px] font-mono text-navy-400">${pred.priceTarget.toLocaleString()}</span>
+                              )}
+                              <span className="text-[9px] font-mono text-navy-600">{pred.timeframe}</span>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-navy-300 line-clamp-2 leading-tight">{pred.claim}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <button
               onClick={enrich}
               disabled={!setup.ticker || enriching}

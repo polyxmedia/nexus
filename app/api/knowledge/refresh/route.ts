@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { refreshLiveKnowledge, expireStaleKnowledge } from "@/lib/knowledge/live-ingest";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
+
   try {
     // Expire stale entries first
     const expired = await expireStaleKnowledge();
@@ -16,8 +20,10 @@ export async function POST() {
   }
 }
 
-export async function GET() {
-  // Return status of live knowledge entries
+export async function GET(req: NextRequest) {
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
+
   try {
     const { db, schema } = await import("@/lib/db");
     const { eq } = await import("drizzle-orm");

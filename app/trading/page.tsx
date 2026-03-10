@@ -1592,7 +1592,7 @@ function TradingPageInner() {
           Manual Portfolio
         </button>
       </div>
-      {hasAnyBroker !== false && <>
+      {hasAnyBroker !== false && (<>
 
       {/* ── Equity Curve ── */}
       <EquityCurve />
@@ -1672,7 +1672,7 @@ function TradingPageInner() {
       )}
 
       {/* ── Stocks content ── */}
-      {activeTab === "stocks" && <>
+      {activeTab === "stocks" && (<>
       {/* ── Metrics Row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
         {loading ? (
@@ -1804,13 +1804,13 @@ function TradingPageInner() {
           </div>
         </div>
       </div>
-      </>}
+      </>)}
+      </>)}
 
-      {/* ── Manual Portfolio Tab ── */}
+      {/* ── Manual Portfolio Tab (always available, no broker required) ── */}
       {activeTab === "manual" && (
         <ManualPortfolioPanel onOpenChart={(s) => addPanel(s)} />
       )}
-      </>}
     </PageContainer>
     </UpgradeGate>
   );

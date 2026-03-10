@@ -197,7 +197,7 @@ export function ChatInput({
     <div className="px-4 pb-5 pt-2">
       <div
         className={cn(
-          "rounded-2xl border bg-navy-900/80 backdrop-blur-sm overflow-hidden transition-all duration-150",
+          "rounded-2xl border bg-navy-900/80 backdrop-blur-sm transition-all duration-150",
           isDragging
             ? "border-accent-cyan/50 ring-1 ring-accent-cyan/30 bg-accent-cyan/[0.03]"
             : "border-navy-700/50 focus-within:border-accent-cyan/30 focus-within:ring-1 focus-within:ring-accent-cyan/20"

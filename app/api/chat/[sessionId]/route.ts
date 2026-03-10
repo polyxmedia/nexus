@@ -452,14 +452,21 @@ export async function POST(
             continueLoop = false;
           }
         }
+        const totalCredits = calculateCredits(chatModel, totalInputTokens, totalOutputTokens);
+        const elapsedMs = Date.now() - requestStartTime;
+
         await db.insert(schema.chatMessages).values({
           sessionId: id, role: "assistant", content: fullText,
           toolUses: allToolUses.length > 0 ? JSON.stringify(allToolUses) : null,
           toolResults: allToolResults.length > 0 ? JSON.stringify(allToolResults) : null,
+          model: chatModel,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          creditsUsed: totalCredits,
+          elapsedMs,
         });
 
         // Debit credits
-        const totalCredits = calculateCredits(chatModel, totalInputTokens, totalOutputTokens);
         const debitResult = await debitCredits(username, chatModel, totalInputTokens, totalOutputTokens, "chat_request", sessionId).catch(() => null);
 
         // Non-blocking compression check after response is stored
