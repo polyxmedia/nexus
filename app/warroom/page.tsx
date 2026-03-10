@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 // Status indicators are inline in the top bar
 import { ScenarioPanel } from "@/components/warroom/scenario-panel";
 import { IntelPanel } from "@/components/warroom/intel-panel";
@@ -34,12 +34,12 @@ import type { WarRoomData, WarRoomLayerVisibility, OsintEvent, AircraftState, Ve
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { useVesselTracker } from "@/lib/warroom/use-vessel-tracker";
 
-const WarRoomMap = dynamic(
+const WarRoomMap = nextDynamic(
   () => import("@/components/warroom/war-room-map"),
   { ssr: false }
 );
 
-const GlobeView = dynamic(
+const GlobeView = nextDynamic(
   () => import("@/components/warroom/globe-view"),
   { ssr: false }
 );
