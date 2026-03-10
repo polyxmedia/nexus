@@ -10,7 +10,6 @@ const PUBLIC_API_PATHS = [
   "/api/analytics/track",
   "/api/referrals/click",
   "/api/health",
-  "/api/debug/anthropic",
 ];
 
 // API v1 uses its own Bearer token auth (withApiAuth HOF), not session auth

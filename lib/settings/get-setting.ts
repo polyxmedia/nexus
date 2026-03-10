@@ -16,8 +16,8 @@ export async function getSettingValue(
     .where(eq(schema.settings.key, key));
 
   if (rows[0]?.value) {
-    return decrypt(rows[0].value);
+    return decrypt(rows[0].value).trim();
   }
 
-  return fallback;
+  return fallback?.trim();
 }
