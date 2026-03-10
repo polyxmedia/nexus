@@ -82,26 +82,30 @@ export async function GET(
     }
 
     // Build unified transaction list
-    const transactions = invoices.data.map((inv) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const transactions: any[] = invoices.data.map((_inv) => {
+      // Cast to any to handle Stripe SDK type changes across versions
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const invAny = inv as any;
-      const chargeId = typeof invAny.charge === "string" ? invAny.charge : invAny.charge?.id;
+      const inv = _inv as any;
+      const chargeId = typeof inv.charge === "string" ? inv.charge : inv.charge?.id;
+      const piField = inv.payment_intent;
+      const paymentIntentId = typeof piField === "string" ? piField : piField?.id || null;
       const refund = chargeId ? refundMap.get(chargeId) : null;
 
       return {
         id: inv.id,
-        type: "invoice" as const,
+        type: "invoice",
         amount: inv.amount_paid,
         currency: inv.currency,
         status: inv.status,
-        description: inv.lines.data[0]?.description || "Subscription payment",
+        description: inv.lines?.data?.[0]?.description || "Subscription payment",
         created: inv.created,
         periodStart: inv.period_start,
         periodEnd: inv.period_end,
         invoiceUrl: inv.hosted_invoice_url,
         invoicePdf: inv.invoice_pdf,
         chargeId: chargeId || null,
-        paymentIntentId: typeof inv.payment_intent === "string" ? inv.payment_intent : inv.payment_intent?.id || null,
+        paymentIntentId,
         refunded: refund ? refund.status : null,
         refundedAmount: refund ? refund.amount : 0,
       };
@@ -109,9 +113,12 @@ export async function GET(
 
     // Add one-off payment intents that aren't tied to invoices
     const invoicePaymentIntents = new Set(
-      invoices.data.map((inv) =>
-        typeof inv.payment_intent === "string" ? inv.payment_intent : inv.payment_intent?.id
-      ).filter(Boolean)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      invoices.data.map((inv) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const piField = (inv as any).payment_intent;
+        return typeof piField === "string" ? piField : piField?.id;
+      }).filter(Boolean)
     );
 
     for (const pi of paymentIntents.data) {
@@ -142,11 +149,16 @@ export async function GET(
     // Sort by date descending
     transactions.sort((a, b) => b.created - a.created);
 
+    const totalPaid = transactions.reduce((sum: number, t: { status: string; amount: number }) =>
+      sum + (t.status === "paid" || t.status === "succeeded" ? t.amount : 0), 0);
+    const totalRefunded = transactions.reduce((sum: number, t: { refundedAmount: number }) =>
+      sum + t.refundedAmount, 0);
+
     return NextResponse.json({
       transactions,
       stripeCustomerId,
-      totalPaid: transactions.reduce((sum, t) => sum + (t.status === "paid" || t.status === "succeeded" ? t.amount : 0), 0),
-      totalRefunded: transactions.reduce((sum, t) => sum + t.refundedAmount, 0),
+      totalPaid,
+      totalRefunded,
     });
   } catch (error) {
     console.error("Transaction fetch error:", error);
