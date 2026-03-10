@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 // Status indicators are inline in the top bar

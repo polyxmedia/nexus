@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useRef, useEffect } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
