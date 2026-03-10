@@ -27,6 +27,7 @@ export async function GET() {
   diag.envKeyExists = !!process.env.ANTHROPIC_API_KEY;
   if (process.env.ANTHROPIC_API_KEY) {
     diag.envKeyPrefix = process.env.ANTHROPIC_API_KEY.slice(0, 10) + "...";
+    diag.envKeyLength = process.env.ANTHROPIC_API_KEY.length;
   }
 
   // 3. Check what getSettingValue returns
@@ -44,7 +45,7 @@ export async function GET() {
   // 4. Check SETTINGS_ENCRYPTION_KEY
   diag.encryptionKeySet = !!process.env.SETTINGS_ENCRYPTION_KEY;
 
-  // 5. Test Anthropic connection
+  // 5. Test Anthropic connection via SDK
   try {
     const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
     if (apiKey) {
@@ -55,15 +56,62 @@ export async function GET() {
         max_tokens: 10,
         messages: [{ role: "user", content: "Say hi" }],
       });
-      diag.anthropicTest = "success";
-      diag.anthropicModel = res.model;
+      diag.sdkTest = "success";
+      diag.sdkModel = res.model;
     } else {
-      diag.anthropicTest = "no_key";
+      diag.sdkTest = "no_key";
+    }
+  } catch (err: unknown) {
+    diag.sdkTest = "failed";
+    diag.sdkError = err instanceof Error ? err.message : String(err);
+    diag.sdkErrorType = err?.constructor?.name;
+    // Get the cause chain
+    const cause = (err as { cause?: Error })?.cause;
+    if (cause) {
+      diag.sdkCause = cause.message || String(cause);
+      diag.sdkCauseType = cause.constructor?.name;
+      const innerCause = (cause as { cause?: Error })?.cause;
+      if (innerCause) {
+        diag.sdkInnerCause = innerCause.message || String(innerCause);
+      }
+    }
+    // Check status if it's an API error
+    const status = (err as { status?: number })?.status;
+    if (status) diag.sdkStatus = status;
+  }
+
+  // 6. Raw fetch test to Anthropic API (bypass SDK)
+  try {
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
+    if (apiKey) {
+      const rawRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 10,
+          messages: [{ role: "user", content: "Say hi" }],
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      diag.rawFetchStatus = rawRes.status;
+      diag.rawFetchOk = rawRes.ok;
+      if (!rawRes.ok) {
+        const errText = await rawRes.text().catch(() => "could not read body");
+        diag.rawFetchError = errText.slice(0, 500);
+      } else {
+        const data = await rawRes.json();
+        diag.rawFetchModel = data.model;
+        diag.rawFetchContent = data.content?.[0]?.text;
+      }
     }
   } catch (err) {
-    diag.anthropicTest = "failed";
-    diag.anthropicError = err instanceof Error ? err.message : String(err);
-    diag.anthropicErrorType = err?.constructor?.name;
+    diag.rawFetchError = err instanceof Error ? err.message : String(err);
+    diag.rawFetchErrorType = err?.constructor?.name;
   }
 
   return NextResponse.json(diag);
