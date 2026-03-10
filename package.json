@@ -55,7 +55,7 @@
     "clsx": "^2.1.0",
     "cobe": "^0.6.5",
     "drizzle-orm": "^0.38.0",
-    "ethers": "^5.8.0",
+    "ethers": "^6.16.0",
     "exceljs": "^4.4.0",
     "hijri-converter": "^1.1.1",
     "leaflet": "^1.9.4",
@@ -76,6 +76,7 @@
     "react-globe.gl": "^2.37.0",
     "react-leaflet": "^5.0.0",
     "react-markdown": "^10.1.0",
+    "read-excel-file": "^7.0.2",
     "recharts": "^2.15.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.9.3",
@@ -88,7 +89,6 @@
     "trading212-api": "^1.1.0",
     "voyageai": "^0.2.1",
     "world-atlas": "^2.0.2",
-    "xlsx": "^0.18.5",
     "yahoo-finance2": "^3.13.2"
   },
   "devDependencies": {

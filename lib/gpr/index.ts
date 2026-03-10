@@ -1,7 +1,7 @@
 // Geopolitical Risk Index Engine
 // Data: Official GPR daily index (Caldara & Iacoviello) + GDELT regional proxies
 
-import * as XLSX from "xlsx";
+import readXlsxFile from "read-excel-file/node";
 
 export interface GPRReading {
   date: string;
@@ -74,21 +74,16 @@ const REGIONS: {
   },
 ];
 
-// --- XLS Parser (SheetJS - handles legacy .xls binary format) ---
+// --- XLS Parser (read-excel-file) ---
 
-function parseGPRXLS(buffer: ArrayBuffer): GPRReading[] {
+async function parseGPRXLS(buffer: Buffer): Promise<GPRReading[]> {
   try {
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!sheet) return [];
-
-    // Parse to array of arrays with raw values
-    const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
+    const rows = await readXlsxFile(buffer);
     if (rows.length < 2) return [];
 
     // Build header map from first row
-    const headerRow = rows[0] as string[];
     const headers: Record<string, number> = {};
+    const headerRow = rows[0];
     headerRow.forEach((val, idx) => {
       headers[String(val || "").trim().toLowerCase()] = idx;
     });
@@ -112,13 +107,16 @@ function parseGPRXLS(buffer: ArrayBuffer): GPRReading[] {
       const dateRaw = row[dateCol];
       let dateStr: string;
 
-      if (typeof dateRaw === "number") {
-        // Excel serial date number - use SheetJS utility
-        const parsed = XLSX.SSF.parse_date_code(dateRaw);
-        dateStr = `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+      if (dateRaw instanceof Date) {
+        dateStr = dateRaw.toISOString().split("T")[0];
       } else if (typeof dateRaw === "string") {
         const d = new Date(dateRaw);
         dateStr = !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : dateRaw;
+      } else if (typeof dateRaw === "number") {
+        // Excel serial date: days since 1900-01-01 (with the 1900 leap year bug)
+        const epoch = new Date(1899, 11, 30);
+        const d = new Date(epoch.getTime() + dateRaw * 86400000);
+        dateStr = d.toISOString().split("T")[0];
       } else {
         continue;
       }
@@ -155,7 +153,7 @@ async function fetchGPRDaily(): Promise<GPRReading[]> {
       { next: { revalidate: 1800 } }
     );
     if (!res.ok) throw new Error(`GPR XLS fetch failed: ${res.status}`);
-    const buffer = await res.arrayBuffer();
+    const buffer = Buffer.from(await res.arrayBuffer());
     return parseGPRXLS(buffer);
   } catch (err) {
     console.error("[GPR] Failed to fetch daily XLS:", err);

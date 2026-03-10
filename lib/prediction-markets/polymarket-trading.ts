@@ -3,6 +3,15 @@
 
 import { ClobClient, Side, OrderType } from "@polymarket/clob-client";
 import { Wallet } from "ethers";
+
+// Ethers v6 renamed _signTypedData to signTypedData. Adapt to ClobClient's EthersSigner interface.
+function toEthersSigner(wallet: Wallet) {
+  return {
+    _signTypedData: (domain: Record<string, unknown>, types: Record<string, Array<{ name: string; type: string }>>, value: Record<string, unknown>) =>
+      wallet.signTypedData(domain, types, value),
+    getAddress: () => Promise.resolve(wallet.address),
+  };
+}
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { decrypt } from "@/lib/encryption";
@@ -61,7 +70,8 @@ async function getClient(username: string): Promise<{ client: ClobClient; addres
   if (cached && cached.keyHash === keyHash) return cached;
 
   try {
-    const signer = new Wallet(privateKey);
+    const wallet = new Wallet(privateKey);
+    const signer = toEthersSigner(wallet);
 
     // Derive L2 API credentials from the wallet
     const tempClient = new ClobClient(POLY_HOST, CHAIN_ID, signer);
@@ -74,10 +84,10 @@ async function getClient(username: string): Promise<{ client: ClobClient; addres
       signer,
       apiCreds,
       0, // EOA signature type
-      signer.address,
+      wallet.address,
     );
 
-    const entry = { client, address: signer.address, keyHash };
+    const entry = { client, address: wallet.address, keyHash };
     clientCache.set(username, entry);
     return entry;
   } catch (err) {
