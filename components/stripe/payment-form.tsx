@@ -13,7 +13,7 @@ import { Loader2 } from "lucide-react";
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface PaymentFormInnerProps {
-  onSuccess?: () => void;
+  onSuccess?: (paymentIntentId?: string) => void;
   onError?: (message: string) => void;
   submitLabel?: string;
   returnUrl?: string;
@@ -59,19 +59,19 @@ function PaymentFormInner({ onSuccess, onError, submitLabel = "Pay now", returnU
         onSuccess?.();
       }
     } else {
-      const { error: confirmError } = await stripe.confirmPayment({
+      const result = await stripe.confirmPayment({
         elements,
         confirmParams: { return_url: confirmUrl },
         redirect: "if_required",
       });
 
-      if (confirmError) {
-        setError(confirmError.message || "Payment failed");
+      if (result.error) {
+        setError(result.error.message || "Payment failed");
         setProcessing(false);
-        onError?.(confirmError.message || "Payment failed");
+        onError?.(result.error.message || "Payment failed");
       } else {
         setProcessing(false);
-        onSuccess?.();
+        onSuccess?.(result.paymentIntent?.id);
       }
     }
   };
@@ -168,7 +168,7 @@ const ELEMENTS_APPEARANCE = {
 
 interface PaymentFormProps {
   clientSecret: string;
-  onSuccess?: () => void;
+  onSuccess?: (paymentIntentId?: string) => void;
   onError?: (message: string) => void;
   submitLabel?: string;
   returnUrl?: string;

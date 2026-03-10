@@ -174,12 +174,15 @@ export async function getWalkForwardCredibility(): Promise<WalkForwardCredibilit
   const lines: string[] = [];
   lines.push("WALK-FORWARD VALIDATION (backtest credibility check):");
   lines.push(`  Out-of-sample accuracy: ${(wf.oosAccuracy * 100).toFixed(1)}%`);
-  lines.push(`  Overfit ratio: ${wf.overfitRatio.toFixed(2)} ${wf.overfitRatio < 0.8 ? "(WARNING: possible overfitting)" : "(acceptable)"}`);
+  lines.push(`  Temporal stability ratio: ${wf.overfitRatio.toFixed(2)} ${wf.overfitRatio < 0.8 ? "(WARNING: accuracy degrades in later periods)" : "(stable)"}`);
   lines.push(`  Statistical significance: ${wf.oosSignificant ? "YES" : "NO"} (p=${wf.oosPValue.toFixed(4)})`);
+  if (wf.oosAccuracyCI) {
+    lines.push(`  OOS accuracy 95% CI: [${(wf.oosAccuracyCI.lower * 100).toFixed(1)}%, ${(wf.oosAccuracyCI.upper * 100).toFixed(1)}%]`);
+  }
   lines.push(`  Credibility score: ${(credibility * 100).toFixed(0)}%`);
 
   if (wf.overfitRatio < 0.8) {
-    lines.push("  CAUTION: The model may be overfit. Reduce confidence in forward-looking claims.");
+    lines.push("  CAUTION: Accuracy degrades in later time periods. This may indicate regime sensitivity or concept drift. Reduce confidence in forward-looking claims.");
   }
 
   if (!wf.oosSignificant) {
@@ -452,9 +455,12 @@ export async function getBacktestFeedbackPromptSection(): Promise<string> {
   if (results.walkForward) {
     const wf = results.walkForward;
     lines.push("");
-    lines.push(`Walk-Forward OOS: ${(wf.oosAccuracy * 100).toFixed(1)}% accuracy, overfit ratio ${wf.overfitRatio.toFixed(2)}`);
+    lines.push(`Walk-Forward OOS: ${(wf.oosAccuracy * 100).toFixed(1)}% accuracy, temporal stability ${wf.overfitRatio.toFixed(2)}`);
+    if (wf.oosAccuracyCI) {
+      lines.push(`  OOS 95% CI: [${(wf.oosAccuracyCI.lower * 100).toFixed(1)}%, ${(wf.oosAccuracyCI.upper * 100).toFixed(1)}%]`);
+    }
     if (wf.overfitRatio < 0.8) {
-      lines.push("  WARNING: Overfit ratio below 0.8, predictions may be less reliable than in-sample suggests.");
+      lines.push("  WARNING: Temporal stability below 0.8, accuracy degrades in later periods. Predictions may be less reliable than earlier results suggest.");
     }
   }
 
@@ -490,6 +496,12 @@ export async function getBacktestFeedbackPromptSection(): Promise<string> {
       lines.push("");
       lines.push(`Cost sensitivity: Sharpe ${at10.sharpeRatio.toFixed(2)} at 10bps${at30 ? `, ${at30.sharpeRatio.toFixed(2)} at 30bps` : ""}`);
     }
+  }
+
+  // LLM leakage warning
+  if (results.llmLeakageWarning) {
+    lines.push("");
+    lines.push(`LLM LEAKAGE: ${results.llmLeakageWarning}`);
   }
 
   lines.push("");

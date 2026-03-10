@@ -791,6 +791,7 @@ export default function TradeLabPage() {
 
   const fetchPredictions = useCallback(async () => {
     if (predsOpen) { setPredsOpen(false); return; }
+    if (loadingPreds) return;
     setLoadingPreds(true);
     try {
       const res = await fetch("/api/predictions?status=pending");
@@ -804,7 +805,7 @@ export default function TradeLabPage() {
     } catch { /* silent */ }
     setLoadingPreds(false);
     setPredsOpen(true);
-  }, [predsOpen]);
+  }, [predsOpen, loadingPreds]);
 
   const loadPrediction = useCallback((pred: typeof predictions[number]) => {
     const symbol = pred.referenceSymbol?.toUpperCase() || "";

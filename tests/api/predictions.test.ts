@@ -40,11 +40,13 @@ vi.mock("@/lib/predictions/engine", () => ({
   autoExpirePastDeadline: vi.fn().mockResolvedValue({ expired: 0 }),
   invalidateOnRegimeChange: vi.fn().mockResolvedValue({ invalidated: 0 }),
   resolveByData: vi.fn().mockResolvedValue({ resolved: 0 }),
+  toBayesianScenario: vi.fn().mockReturnValue({ id: "test", actors: [], strategies: {}, payoffMatrix: [] }),
 }));
 
 vi.mock("@/lib/predictions/feedback", () => ({
-  computePerformanceReport: vi.fn().mockReturnValue({
+  computePerformanceReport: vi.fn().mockResolvedValue({
     totalResolved: 10,
+    sampleSufficient: true,
     brierScore: 0.2,
     logLoss: 0.5,
     binaryAccuracy: 0.7,
@@ -52,6 +54,10 @@ vi.mock("@/lib/predictions/feedback", () => ({
     calibrationGap: 0.05,
     calibration: [],
     byCategory: [],
+    timeframeAccuracy: {},
+    recentTrend: null,
+    failurePatterns: [],
+    resolutionBias: { biasWarning: null },
   }),
 }));
 
@@ -61,6 +67,10 @@ vi.mock("@/lib/predictions/notify", () => ({
 
 vi.mock("@/lib/game-theory/wartime", () => ({
   runWartimeCheck: vi.fn().mockResolvedValue({ fired: false }),
+}));
+
+vi.mock("@/lib/auth/require-cron", () => ({
+  requireCronOrAdmin: vi.fn().mockResolvedValue(null),
 }));
 
 import { createRequest, parseResponse } from "../helpers";
@@ -158,8 +168,10 @@ describe("POST /api/predictions", () => {
       },
     });
     const res = await POST(req);
-    const { status } = await parseResponse(res);
+    const { status, data } = await parseResponse<{ id: number; claim: string }>(res);
     expect(status).toBe(200);
+    expect(data.id).toBeDefined();
+    expect(data.claim).toBe("Test prediction");
   });
 
   it("returns 400 if required fields missing", async () => {
@@ -277,8 +289,9 @@ describe("POST /api/predictions/resolve", () => {
     const { POST } = await import("@/app/api/predictions/resolve/route");
     const req = createRequest("/api/predictions/resolve", { method: "POST" });
     const res = await POST(req);
-    const { status } = await parseResponse(res);
+    const { status, data } = await parseResponse<{ results: unknown }>(res);
     expect(status).toBe(200);
+    expect(data.results).toBeDefined();
   });
 });
 
@@ -325,7 +338,8 @@ describe("POST /api/predictions/generate", () => {
     const { POST } = await import("@/app/api/predictions/generate/route");
     const req = createRequest("/api/predictions/generate", { method: "POST" });
     const res = await POST(req);
-    const { status } = await parseResponse(res);
+    const { status, data } = await parseResponse<{ predictions: unknown }>(res);
     expect(status).toBe(200);
+    expect(data.predictions).toBeDefined();
   });
 });

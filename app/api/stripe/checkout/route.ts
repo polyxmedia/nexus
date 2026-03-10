@@ -93,6 +93,28 @@ export async function POST(request: Request) {
       },
     });
 
+    // Persist Stripe customer + subscription IDs immediately so portal works right away
+    if (existingSubs.length > 0) {
+      await db.update(schema.subscriptions)
+        .set({
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscription.id,
+          status: subscription.status,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.subscriptions.userId, userId));
+    } else {
+      await db.insert(schema.subscriptions).values({
+        userId,
+        tierId,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscription.id,
+        status: subscription.status,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
     // With trial: no PaymentIntent (invoice is $0), use SetupIntent instead
     // Without trial: PaymentIntent on the latest invoice
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,7 +123,7 @@ export async function POST(request: Request) {
     let type: "payment" | "setup" = "payment";
 
     if (subAny.pending_setup_intent?.client_secret) {
-      // Trial subscription: SetupIntent to collect payment method for later
+      // Trial subscription: SetupIntent auto-created by Stripe
       clientSecret = subAny.pending_setup_intent.client_secret;
       type = "setup";
     } else if (subAny.latest_invoice?.payment_intent?.client_secret) {
@@ -110,7 +132,29 @@ export async function POST(request: Request) {
       type = "payment";
     }
 
+    // Fallback: if trial but no pending_setup_intent (Stripe API version edge case),
+    // create a standalone SetupIntent attached to the customer
+    if (!clientSecret && subscription.status === "trialing") {
+      const setupIntent = await stripe.setupIntents.create({
+        customer: customerId,
+        metadata: {
+          subscriptionId: subscription.id,
+          userId,
+          tierId: String(tierId),
+        },
+      });
+      clientSecret = setupIntent.client_secret;
+      type = "setup";
+    }
+
     if (!clientSecret) {
+      console.error("Checkout: no clientSecret found.", {
+        status: subscription.status,
+        hasPendingSetupIntent: !!subAny.pending_setup_intent,
+        hasLatestInvoice: !!subAny.latest_invoice,
+        hasPaymentIntent: !!subAny.latest_invoice?.payment_intent,
+        hadSub,
+      });
       return NextResponse.json({ error: "Failed to initialize payment" }, { status: 500 });
     }
 

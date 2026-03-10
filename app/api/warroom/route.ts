@@ -4,6 +4,8 @@ import { signals as signalsTable, theses } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { ACTORS, SCENARIOS } from "@/lib/game-theory/actors";
 import { analyzeScenario } from "@/lib/game-theory/analysis";
+import { runBayesianAnalysis, initializeBeliefs, summarizeBayesianAnalysis } from "@/lib/game-theory/bayesian";
+import { toBayesianScenario } from "@/lib/predictions/engine";
 import {
   ACTOR_COORDS,
   ACTOR_COLORS,
@@ -26,11 +28,19 @@ export async function GET() {
       colorGroup: ACTOR_COLORS[actor.id]?.group || "neutral",
     }));
 
-    // Scenarios with live analysis
-    const scenarios: ScenarioWithAnalysis[] = SCENARIOS.map((scenario) => ({
-      scenario,
-      analysis: analyzeScenario(scenario),
-    }));
+    // Scenarios with live analysis (basic + Bayesian)
+    const scenarios: ScenarioWithAnalysis[] = SCENARIOS.map((scenario) => {
+      const analysis = analyzeScenario(scenario);
+      let bayesian: ScenarioWithAnalysis["bayesian"];
+      try {
+        const bs = toBayesianScenario(scenario);
+        const beliefs = initializeBeliefs(scenario.actors);
+        bayesian = summarizeBayesianAnalysis(runBayesianAnalysis(bs, beliefs));
+      } catch {
+        // Bayesian analysis failure is non-fatal
+      }
+      return { scenario, analysis, bayesian };
+    });
 
     // Signals from DB (recent, sorted by intensity)
     const dbSignals = await db

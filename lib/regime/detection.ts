@@ -289,6 +289,8 @@ function classifyGeopolitical(
 
 function computeComposite(state: Omit<RegimeState, "composite" | "compositeScore" | "timestamp">): { label: string; score: number } {
   // Weighted average of all dimensions
+  // Original 6-dim weights: vol 0.20, growth 0.25, monetary 0.15, risk 0.20, dollar 0.10, commodity 0.10
+  // Redistributed to make room for geopolitical (0.15) without losing proportional balance
   const weights = {
     volatility: 0.18,
     growth: 0.20,
@@ -324,8 +326,8 @@ function computeComposite(state: Omit<RegimeState, "composite" | "compositeScore
 
   const growthLabel = state.growth.regime;
   const volLabel = state.volatility.regime !== "unknown" ? `, ${state.volatility.regime} vol` : "";
-  const geoSuffix = geoOverride && state.geopolitical.inputs?.["Hot Region"]
-    ? ` [${state.geopolitical.inputs["Hot Region"].source}]`
+  const geoSuffix = geoOverride && state.geopolitical.hotRegion
+    ? ` [${state.geopolitical.hotRegion}]`
     : "";
 
   return {
@@ -340,6 +342,7 @@ export async function detectCurrentRegime(): Promise<RegimeState> {
     vix, fedFunds, gdp, claims, sentiment, creditSpread,
     yieldCurve, dxy, oil, gold, indpro,
     fedDir, dxyDir,
+    gprSnapshot,
   ] = await Promise.all([
     fredLatest("VIXCLS"),
     fredLatest("FEDFUNDS"),
@@ -354,6 +357,7 @@ export async function detectCurrentRegime(): Promise<RegimeState> {
     fredLatest("INDPRO"),
     fredDirection("FEDFUNDS"),
     fredDirection("DTWEXBGS"),
+    getGPRSnapshot().catch(() => null),
   ]);
 
   const volClass = classifyVolatility(vix);
@@ -362,6 +366,13 @@ export async function detectCurrentRegime(): Promise<RegimeState> {
   const riskClass = classifyRiskAppetite(creditSpread, vix, yieldCurve);
   const dollarClass = classifyDollar(dxy, dxyDir);
   const commodityClass = classifyCommodity(oil, gold);
+
+  // Geopolitical dimension from GPR index + GDELT regional data
+  const gprComposite = gprSnapshot?.current?.composite ?? null;
+  const hotRegion = (gprSnapshot?.regional?.length ?? 0) > 0
+    ? gprSnapshot!.regional.reduce((max, r) => r.score > max.score ? r : max, gprSnapshot!.regional[0])
+    : null;
+  const geoClass = classifyGeopolitical(gprComposite, hotRegion?.region ?? null, hotRegion?.score ?? 0);
 
   const dimensions = {
     volatility: {
@@ -420,6 +431,20 @@ export async function detectCurrentRegime(): Promise<RegimeState> {
         "Gold": { value: gold, weight: 0.5, source: "FRED:GOLDAMGBD228NLBM" },
       },
     },
+    geopolitical: {
+      ...geoClass,
+      gprComposite,
+      hotRegion: hotRegion?.region ?? null,
+      confidence: gprComposite !== null ? 0.85 : (hotRegion ? 0.6 : 0.2),
+      inputs: {
+        "GPR Index": { value: gprComposite, weight: 0.6, source: "Caldara-Iacoviello GPR" },
+        "Hot Region": {
+          value: hotRegion?.score ?? null,
+          weight: 0.4,
+          source: hotRegion?.region ?? "GDELT",
+        },
+      },
+    },
   };
 
   const { label, score } = computeComposite(dimensions);
@@ -467,13 +492,14 @@ export async function detectCurrentRegime(): Promise<RegimeState> {
 
 export function detectRegimeShifts(current: RegimeState, previous: RegimeState): RegimeShift[] {
   const shifts: RegimeShift[] = [];
-  const dims: Array<{ key: keyof Pick<RegimeState, "volatility" | "growth" | "monetary" | "riskAppetite" | "dollar" | "commodity">; label: string }> = [
+  const dims: Array<{ key: keyof Pick<RegimeState, "volatility" | "growth" | "monetary" | "riskAppetite" | "dollar" | "commodity" | "geopolitical">; label: string }> = [
     { key: "volatility", label: "Volatility" },
     { key: "growth", label: "Growth" },
     { key: "monetary", label: "Monetary Policy" },
     { key: "riskAppetite", label: "Risk Appetite" },
     { key: "dollar", label: "US Dollar" },
     { key: "commodity", label: "Commodities" },
+    { key: "geopolitical", label: "Geopolitical" },
   ];
 
   const interpretations: Record<string, Record<string, string>> = {
@@ -499,11 +525,25 @@ export function detectRegimeShifts(current: RegimeState, previous: RegimeState):
       "panic->risk-off": "Worst may be over. Selective re-entry into quality assets.",
       "risk-off->risk-on": "Risk appetite returning. Credit and equities rally.",
     },
+    geopolitical: {
+      "stable->elevated": "Geopolitical tensions rising. Defense, oil, gold likely beneficiaries.",
+      "stable->crisis": "Rapid geopolitical escalation from baseline. Flight to safety, oil spike risk.",
+      "stable->conflict": "Active military conflict erupted. Maximum defensive positioning warranted.",
+      "elevated->crisis": "Major geopolitical escalation. Flight to safety, oil spike risk.",
+      "elevated->conflict": "Geopolitical situation escalated to active conflict. Maximum defensive positioning.",
+      "crisis->conflict": "Active military conflict detected. Maximum defensive positioning warranted.",
+      "conflict->crisis": "Conflict intensity may be decreasing. Watch for ceasefire signals.",
+      "conflict->elevated": "Conflict winding down. Cautious risk re-entry warranted.",
+      "crisis->elevated": "Geopolitical de-escalation underway. Risk assets may recover.",
+      "crisis->stable": "Geopolitical crisis resolved. Risk-on rotation likely.",
+      "elevated->stable": "Geopolitical tensions normalizing. Risk-on rotation likely.",
+    },
   };
 
   for (const dim of dims) {
     const curr = current[dim.key];
     const prev = previous[dim.key];
+    if (!curr || !prev) continue;
     if (curr.regime !== prev.regime) {
       const transitionKey = `${prev.regime}->${curr.regime}`;
       const interp = interpretations[dim.key]?.[transitionKey] || `${dim.label} regime shifted from ${prev.regime} to ${curr.regime}.`;

@@ -134,6 +134,29 @@ function ResultsDashboard({ run }: { run: BacktestRun }) {
 
   return (
     <div className="space-y-6">
+      {/* ── Warnings ── */}
+      {r.sampleWarning && (
+        <div className="border border-amber-500/30 rounded-lg bg-amber-500/5 px-4 py-3">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-amber-500 mb-1">Sample Size Warning</p>
+          <p className="font-sans text-xs text-navy-300">{r.sampleWarning}</p>
+        </div>
+      )}
+      {r.llmLeakageWarning && r.postCutoffCount !== undefined && r.postCutoffCount < (r.totalValidated || 0) && (
+        <div className="border border-rose-500/30 rounded-lg bg-rose-500/5 px-4 py-3">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-rose-500 mb-1">LLM Knowledge Leakage</p>
+          <p className="font-sans text-xs text-navy-300">{r.llmLeakageWarning}</p>
+        </div>
+      )}
+      {r.accuracyCI && (r.totalValidated || 0) > 0 && (
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/40 px-4 py-3">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-1">Accuracy 95% Confidence Interval (Wilson)</p>
+          <p className="font-sans text-xs text-navy-300">
+            [{(r.accuracyCI.lower * 100).toFixed(1)}%, {(r.accuracyCI.upper * 100).toFixed(1)}%]
+            {r.accuracyCI.lower > 0.5 ? " — lower bound exceeds random baseline" : r.accuracyCI.upper < 0.5 ? " — upper bound below random baseline" : " — interval includes random baseline (50%)"}
+          </p>
+        </div>
+      )}
+
       {/* ── Headline metrics ── */}
       <div>
         <div className="flex items-center gap-3 mb-4">
@@ -164,7 +187,8 @@ function ResultsDashboard({ run }: { run: BacktestRun }) {
           <Metric
             label="Sample Size"
             value={`n=${r.totalValidated || 0}`}
-            subtitle={`${r.totalPredictions || 0} total, ${r.yearsSpanned || 0}yr span`}
+            subtitle={r.effectiveSampleSize ? `nEff=${r.effectiveSampleSize}, ${r.yearsSpanned || 0}yr` : `${r.totalPredictions || 0} total, ${r.yearsSpanned || 0}yr span`}
+            color={(r.totalValidated || 0) < 30 ? "#f59e0b" : undefined}
           />
           <Metric
             label="Calibration Gap"
@@ -894,7 +918,7 @@ function ResultsDashboard({ run }: { run: BacktestRun }) {
                 Test Statistic
               </span>
               <p className="font-sans text-xs text-navy-400">
-                Binomial proportion test (normal approximation, n={r.totalValidated || 0})
+                Binomial proportion test (autocorrelation-adjusted, n<sub>eff</sub>={r.effectiveSampleSize || r.totalValidated || 0}{r.effectiveSampleSize && r.rawSampleSize && r.effectiveSampleSize < r.rawSampleSize ? `, raw n=${r.rawSampleSize}` : ""})
               </p>
             </div>
             <div>
@@ -916,12 +940,14 @@ function ResultsDashboard({ run }: { run: BacktestRun }) {
             </span>
             <ul className="space-y-1.5">
               {[
-                "All predictions generated with strict temporal isolation - the AI has zero access to data after the prediction date",
-                "Signal convergence events are computed from deterministic calendar, celestial, and geopolitical algorithms with no future information leakage",
-                "Market validation uses actual historical price data from Alpha Vantage with nearest-trading-day matching",
+                "Price data is time-gated: the AI receives only market data available before the prediction date. Signal convergences are deterministic (calendar/celestial/geopolitical algorithms) with no future information leakage",
+                "IMPORTANT: The LLM's training data includes knowledge of events after simulation dates. Backtest accuracy for pre-training-cutoff dates is likely inflated. Post-cutoff accuracy (if available) is the most trustworthy metric",
+                "Statistical significance uses effective sample size (autocorrelation-adjusted) to account for temporally clustered predictions that are not independent",
+                "Confidence intervals use the Wilson method, which is more accurate than normal approximation for small samples or extreme proportions",
                 "Brier scoring penalises overconfidence: confident wrong predictions are scored more harshly than uncertain wrong predictions",
+                "Walk-forward validation measures temporal stability (accuracy consistency across time periods), not traditional model overfitting, because the LLM is not retrained between folds",
                 "No parameter tuning, optimisation, or cherry-picking was applied to the results after generation",
-                "Hypothetical P&L is illustrative only and does not account for transaction costs, slippage, liquidity, or market impact",
+                "Portfolio P&L includes round-trip transaction costs. Cost sensitivity analysis sweeps 5-50bps to test strategy robustness",
               ].map((note) => (
                 <li
                   key={note}

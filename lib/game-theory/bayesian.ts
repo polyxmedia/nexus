@@ -948,3 +948,35 @@ export function createSignalFromOSINT(
     source,
   };
 }
+
+// ── Summary Helper ──
+
+export interface BayesianScenarioSummary {
+  bargainingRange: number;
+  fearonAssessment: string;
+  escalationProbability: number;
+  dominantTypes: Record<string, { type: ActorType; probability: number }>;
+  equilibriaCount: number;
+  marketDirection: "bullish" | "bearish" | "mixed";
+  marketConfidence: number;
+  coalitions: { name: string; stability: number; fractureRisk: string }[];
+  audienceCostConstraints: Record<string, string[]>;
+}
+
+export function summarizeBayesianAnalysis(ba: BayesianAnalysis): BayesianScenarioSummary {
+  return {
+    bargainingRange: ba.bargainingRange,
+    fearonAssessment: ba.fearonAssessment,
+    escalationProbability: ba.escalationProbability,
+    dominantTypes: ba.dominantTypes,
+    equilibriaCount: ba.equilibria.length,
+    marketDirection: ba.marketAssessment.direction,
+    marketConfidence: ba.marketAssessment.confidence,
+    coalitions: ba.coalitionAssessment.map(c => ({
+      name: c.name,
+      stability: c.currentStability,
+      fractureRisk: c.fractureRisk,
+    })),
+    audienceCostConstraints: ba.audienceCostConstraints,
+  };
+}

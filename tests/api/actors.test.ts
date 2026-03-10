@@ -15,6 +15,10 @@ vi.mock("@/lib/actors/auto-update", () => ({
   runActorProfileUpdate: vi.fn().mockResolvedValue({ updated: 5, errors: 0 }),
 }));
 
+vi.mock("@/lib/auth/require-cron", () => ({
+  requireCronOrAdmin: vi.fn().mockResolvedValue(null),
+}));
+
 import { createRequest, parseResponse } from "../helpers";
 
 describe("GET /api/actors", () => {

@@ -65,8 +65,10 @@ describe("POST /api/thesis", () => {
       body: { symbols: ["AAPL", "GOOGL"] },
     });
     const res = await POST(req);
-    const { status } = await parseResponse(res);
+    const { status, data } = await parseResponse<{ thesis: { id: number; uuid: string } }>(res);
     expect(status).toBe(200);
+    expect(data.thesis).toBeDefined();
+    expect(data.thesis.uuid).toBeDefined();
   });
 
   it("returns 400 if no symbols", async () => {
@@ -114,10 +116,18 @@ describe("GET /api/thesis/[id]", () => {
 
 describe("PATCH /api/thesis/[id]", () => {
   it("updates thesis status", async () => {
+    const { db } = await import("@/lib/db");
+    const existing = { id: 1, uuid: "t-123", title: "Test", status: "active" };
+    const chain = (db.select as ReturnType<typeof vi.fn>)();
+    Object.defineProperty(chain, "then", {
+      value: (resolve: (v: unknown) => void) => resolve([existing]),
+      writable: true, configurable: true,
+    });
+
     const { PATCH } = await import("@/app/api/thesis/[id]/route");
     const req = createRequest("/api/thesis/t-123", {
       method: "PATCH",
-      body: { status: "invalidated" },
+      body: { status: "expired" },
     });
     const res = await PATCH(req, { params: Promise.resolve({ id: "t-123" }) });
     const { status } = await parseResponse(res);

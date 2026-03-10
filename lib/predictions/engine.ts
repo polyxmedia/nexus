@@ -361,11 +361,12 @@ async function classifyCurrentRegime(): Promise<RegimeLabel> {
     const composite = state.compositeScore ?? 0;
     const volRegime = state.volatility?.regime ?? "unknown";
     const riskRegime = state.riskAppetite?.regime ?? "unknown";
+    const geoRegime = state.geopolitical?.regime ?? "stable";
 
-    // Wartime: crisis-level volatility + panic risk appetite
-    if (volRegime === "crisis" || riskRegime === "panic") return "wartime";
-    // Transitional: elevated vol or risk-off
-    if (volRegime === "elevated" || volRegime === "high-vol" || riskRegime === "risk-off") return "transitional";
+    // Wartime: crisis-level volatility, panic risk appetite, OR active geopolitical conflict
+    if (volRegime === "crisis" || riskRegime === "panic" || geoRegime === "conflict") return "wartime";
+    // Transitional: elevated vol, risk-off, OR geopolitical crisis/elevated
+    if (volRegime === "elevated" || volRegime === "high-vol" || riskRegime === "risk-off" || geoRegime === "crisis" || geoRegime === "elevated") return "transitional";
     // Also check composite score: deeply negative = wartime
     if (composite < -0.6) return "wartime";
     if (composite < -0.3) return "transitional";

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertCircle,
   CheckCircle2,
   CreditCard,
   ExternalLink,
@@ -178,6 +179,11 @@ export default function SettingsPage() {
   const [allTiers, setAllTiers] = useState<Record<string, unknown>[]>([]);
   const [subLoading, setSubLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null);
+  const [checkoutTierId, setCheckoutTierId] = useState<number | null>(null);
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
+  const [checkoutIntentType, setCheckoutIntentType] = useState<"payment" | "setup">("payment");
+  const [checkoutSubId, setCheckoutSubId] = useState<string | null>(null);
+  const [checkoutResult, setCheckoutResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
 
   // AI Model
@@ -289,6 +295,7 @@ export default function SettingsPage() {
   const [topupLoading, setTopupLoading] = useState<string | null>(null);
   const [topupPackId, setTopupPackId] = useState<string | null>(null);
   const [topupClientSecret, setTopupClientSecret] = useState<string | null>(null);
+  const [topupResult, setTopupResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Data Sources
   const [newsPollingInterval, setNewsPollingInterval] = useState("300");
@@ -490,6 +497,62 @@ export default function SettingsPage() {
       })
       .catch(() => setCreditsLoading(false));
   }, []);
+
+  // Auto-fetch Stripe client secret when a credit pack is selected
+  useEffect(() => {
+    if (!topupPackId) return;
+    setTopupClientSecret(null);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/credits/topup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ packId: topupPackId }),
+        });
+        const data = await res.json();
+        if (!cancelled && res.ok && data.clientSecret) {
+          setTopupClientSecret(data.clientSecret);
+        }
+      } catch {
+        // graceful - user sees loading state
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [topupPackId]);
+
+  // Auto-fetch Stripe client secret when a subscription tier is selected for upgrade
+  useEffect(() => {
+    if (!checkoutTierId) return;
+    setCheckoutClientSecret(null);
+    setCheckoutLoading(checkoutTierId);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tierId: checkoutTierId }),
+        });
+        const data = await res.json();
+        if (!cancelled && res.ok && data.clientSecret) {
+          setCheckoutClientSecret(data.clientSecret);
+          setCheckoutIntentType(data.type || "payment");
+          setCheckoutSubId(data.subscriptionId || null);
+        } else if (!cancelled) {
+          setCheckoutResult({ type: "error", message: data.error || "Failed to initialize checkout" });
+          setCheckoutTierId(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setCheckoutResult({ type: "error", message: "Failed to connect to payment service" });
+          setCheckoutTierId(null);
+        }
+      }
+      if (!cancelled) setCheckoutLoading(null);
+    })();
+    return () => { cancelled = true; };
+  }, [checkoutTierId]);
 
   // Load platform API keys
   useEffect(() => {
@@ -960,22 +1023,11 @@ export default function SettingsPage() {
                                   variant="outline"
                                   size="sm"
                                   className="w-full"
-                                  disabled={checkoutLoading === (tier.id as number) || price === 0}
-                                  onClick={async () => {
+                                  disabled={checkoutTierId !== null || price === 0}
+                                  onClick={() => {
                                     if (price === 0) return;
-                                    setCheckoutLoading(tier.id as number);
-                                    try {
-                                      const res = await fetch("/api/stripe/checkout", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ tierId: tier.id }),
-                                      });
-                                      const data = await res.json();
-                                      if (data.url) window.location.href = data.url;
-                                    } catch {
-                                      // ignore
-                                    }
-                                    setCheckoutLoading(null);
+                                    setCheckoutResult(null);
+                                    setCheckoutTierId(tier.id as number);
                                   }}
                                 >
                                   {checkoutLoading === (tier.id as number) ? (
@@ -991,6 +1043,75 @@ export default function SettingsPage() {
                           );
                         })}
                     </div>
+
+                    {/* Inline payment form for subscription upgrade */}
+                    {checkoutTierId && (
+                      <div className="mt-4 border border-navy-700/50 rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-navy-700/50">
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">
+                            Subscribe to {allTiers.find((t) => (t.id as number) === checkoutTierId)?.name as string}
+                          </span>
+                          <button
+                            onClick={() => { setCheckoutTierId(null); setCheckoutClientSecret(null); setCheckoutLoading(null); }}
+                            className="text-navy-500 hover:text-navy-300 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="p-4">
+                          {checkoutClientSecret ? (
+                            <PaymentForm
+                              clientSecret={checkoutClientSecret}
+                              intentType={checkoutIntentType}
+                              submitLabel={(() => {
+                                const t = allTiers.find((t) => (t.id as number) === checkoutTierId);
+                                const p = t?.price as number;
+                                return checkoutIntentType === "setup"
+                                  ? "Start free trial"
+                                  : `Pay $${(p / 100).toFixed(0)}/${t?.interval as string}`;
+                              })()}
+                              onSuccess={async () => {
+                                setCheckoutTierId(null);
+                                setCheckoutClientSecret(null);
+                                setCheckoutResult({ type: "success", message: "Subscription activated successfully." });
+                                // Refresh subscription data
+                                try {
+                                  const subRes = await fetch("/api/subscription");
+                                  const subData = await subRes.json();
+                                  setSubscription(subData);
+                                } catch { /* will refresh on next load */ }
+                              }}
+                              onError={(msg) => {
+                                setCheckoutResult({ type: "error", message: msg });
+                              }}
+                              returnUrl={`${window.location.origin}/settings?tab=subscription&status=sub_success`}
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="h-4 w-4 animate-spin text-navy-500" />
+                              <span className="ml-2 text-[11px] text-navy-500 font-mono">Preparing checkout...</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {checkoutResult && (
+                      <div className={`mt-3 border rounded p-3 ${
+                        checkoutResult.type === "success"
+                          ? "border-accent-emerald/30 bg-accent-emerald/5"
+                          : "border-accent-rose/30 bg-accent-rose/5"
+                      }`}>
+                        {checkoutResult.type === "success" ? (
+                          <CheckCircle2 className="h-4 w-4 text-accent-emerald inline mr-2" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-accent-rose inline mr-2" />
+                        )}
+                        <span className={`text-xs ${checkoutResult.type === "success" ? "text-accent-emerald" : "text-accent-rose"}`}>
+                          {checkoutResult.message}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -1146,45 +1267,49 @@ export default function SettingsPage() {
                             <PaymentForm
                               clientSecret={topupClientSecret}
                               submitLabel={`Pay $${((creditPacks.find((p) => p.id === topupPackId)?.priceCents || 0) / 100).toFixed(0)}`}
-                              onSuccess={() => {
+                              onSuccess={async (paymentIntentId) => {
+                                const pack = creditPacks.find((p) => p.id === topupPackId);
                                 setTopupPackId(null);
                                 setTopupClientSecret(null);
-                                fetch("/api/credits").then(r => r.json()).then(data => {
-                                  if (data && !data.error) setCreditBalance(data);
+                                if (!paymentIntentId) {
+                                  setTopupResult({ type: "error", message: "Payment completed but could not verify. Credits will be added shortly via webhook." });
+                                  return;
+                                }
+                                // Confirm and grant credits immediately
+                                try {
+                                  const confirmRes = await fetch("/api/credits/topup/confirm", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ paymentIntentId }),
+                                  });
+                                  const confirmData = await confirmRes.json();
+                                  if (confirmRes.ok && confirmData.success) {
+                                    setTopupResult({ type: "success", message: `${(confirmData.credits || pack?.credits || 0).toLocaleString()} credits added to your account.` });
+                                  } else {
+                                    setTopupResult({ type: "error", message: confirmData.error || "Failed to confirm payment. Credits will be added shortly." });
+                                  }
+                                } catch {
+                                  setTopupResult({ type: "error", message: "Could not verify payment. Credits will be added shortly via webhook." });
+                                }
+                                // Refresh balance and ledger
+                                Promise.all([
+                                  fetch("/api/credits").then(r => r.json()),
+                                  fetch("/api/credits/ledger").then(r => r.json()),
+                                ]).then(([bal, ledger]) => {
+                                  if (bal && !bal.error) setCreditBalance(bal);
+                                  if (Array.isArray(ledger)) setCreditLedger(ledger);
                                 });
+                              }}
+                              onError={(msg) => {
+                                setTopupResult({ type: "error", message: msg });
                               }}
                               returnUrl={`${window.location.origin}/settings?tab=credits&status=topup_success`}
                             />
                           ) : (
-                            <button
-                              onClick={async () => {
-                                setTopupLoading(topupPackId);
-                                try {
-                                  const res = await fetch("/api/credits/topup", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ packId: topupPackId }),
-                                  });
-                                  const data = await res.json();
-                                  if (res.ok && data.clientSecret) {
-                                    setTopupClientSecret(data.clientSecret);
-                                  }
-                                } finally {
-                                  setTopupLoading(null);
-                                }
-                              }}
-                              disabled={topupLoading !== null}
-                              className="w-full py-2.5 px-4 font-mono text-[11px] uppercase tracking-widest text-navy-950 bg-navy-100 hover:bg-white rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                              {topupLoading ? (
-                                <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  Loading
-                                </>
-                              ) : (
-                                `Continue to payment`
-                              )}
-                            </button>
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="w-4 h-4 animate-spin text-accent-cyan" />
+                              <span className="ml-2 font-mono text-[11px] text-navy-400">Loading payment form...</span>
+                            </div>
                           )}
                         </div>
                         <p className="px-4 py-2 font-mono text-[9px] text-navy-600 tracking-wider text-center border-t border-navy-700/50">
@@ -1193,7 +1318,31 @@ export default function SettingsPage() {
                       </div>
                     )}
 
-                    {!topupPackId && (
+                    {/* Success/Error feedback */}
+                    {topupResult && (
+                      <div className={`mt-4 flex items-center gap-3 px-4 py-3 rounded border ${
+                        topupResult.type === "success"
+                          ? "border-accent-emerald/30 bg-accent-emerald/5"
+                          : "border-accent-rose/30 bg-accent-rose/5"
+                      }`}>
+                        {topupResult.type === "success" ? (
+                          <CheckCircle2 className="h-4 w-4 text-accent-emerald flex-shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-accent-rose flex-shrink-0" />
+                        )}
+                        <span className={`text-xs ${topupResult.type === "success" ? "text-accent-emerald" : "text-accent-rose"}`}>
+                          {topupResult.message}
+                        </span>
+                        <button
+                          onClick={() => setTopupResult(null)}
+                          className="ml-auto text-navy-500 hover:text-navy-300"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+
+                    {!topupPackId && !topupResult && (
                       <p className="text-[9px] text-navy-600 mt-3">
                         Top-up credits are added to your current balance immediately. They do not expire at end of month.
                       </p>

@@ -5,6 +5,8 @@ import { getDailySeries } from "../market-data/alpha-vantage";
 import { getMarketSentiment } from "../market-data/sentiment";
 import { SCENARIOS } from "../game-theory/actors";
 import { analyzeScenario } from "../game-theory/analysis";
+import { runBayesianAnalysis, initializeBeliefs, createSignalFromOSINT, type BayesianAnalysis } from "../game-theory/bayesian";
+import { toBayesianScenario } from "../predictions/engine";
 import { db, schema } from "../db";
 import { eq, desc, and, gte } from "drizzle-orm";
 import type {
@@ -131,6 +133,33 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
     }
   }
 
+  // 5b. Run Bayesian N-player game theory analysis
+  const bayesianResults: { scenarioTitle: string; analysis: BayesianAnalysis }[] = [];
+  const beliefUpdateSignals = activeSignals
+    .filter(s => s.geopoliticalContext || s.title)
+    .flatMap(s => {
+      const text = `${s.title} ${s.geopoliticalContext || ""}`;
+      return SCENARIOS.flatMap(sc =>
+        sc.actors
+          .filter(a => text.toLowerCase().includes(a))
+          .map(a => createSignalFromOSINT(text, a, "osint"))
+      );
+    });
+
+  for (const scenario of SCENARIOS) {
+    try {
+      const bayesianScenario = toBayesianScenario(scenario);
+      const beliefs = initializeBeliefs(scenario.actors);
+      const relevantSignals = beliefUpdateSignals.filter(s =>
+        s.actorId && scenario.actors.includes(s.actorId)
+      );
+      const analysis = runBayesianAnalysis(bayesianScenario, beliefs, relevantSignals);
+      bayesianResults.push({ scenarioTitle: scenario.title, analysis });
+    } catch {
+      // Individual scenario failure is non-fatal
+    }
+  }
+
   // 6. Compute quantitative assessments
   const marketRegime = computeMarketRegime(technicalSnapshots, sentiment);
   const volatilityOutlook = computeVolatilityOutlook(
@@ -138,10 +167,12 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
     sentiment
   );
   const convergenceDensity = Math.min(10, convergenceIntensity * 2);
+  const bayesianAnalyses = bayesianResults.map(r => r.analysis);
   const overallConfidence = await computeOverallConfidence(
     technicalSnapshots,
     gameTheoryAnalyses,
-    convergenceIntensity
+    convergenceIntensity,
+    bayesianAnalyses
   );
 
   // 7. Derive trading actions from rules
@@ -186,6 +217,7 @@ export async function generateThesis(symbols: string[]): Promise<Thesis> {
     gameTheory: {
       activeScenarios: SCENARIOS.map((s) => s.id),
       analyses: gameTheoryAnalyses,
+      bayesianContext: formatBayesianContext(bayesianResults),
     },
   };
 
@@ -342,7 +374,8 @@ function computeVolatilityOutlook(
 async function computeOverallConfidence(
   snapshots: TechnicalSnapshot[],
   gameTheoryAnalyses: GameTheoryAnalysis[],
-  convergenceIntensity: number
+  convergenceIntensity: number,
+  bayesianAnalyses: BayesianAnalysis[] = []
 ): Promise<number> {
   let confidence = 0.5;
 
@@ -361,6 +394,20 @@ async function computeOverallConfidence(
         ) / gameTheoryAnalyses.length
       : 0;
   confidence += avgGTConfidence * 0.2;
+
+  // Bayesian N-player consensus: Fearon bargaining failures reduce confidence
+  if (bayesianAnalyses.length > 0) {
+    const avgBargainingRange = bayesianAnalyses.reduce((sum, a) => sum + a.bargainingRange, 0) / bayesianAnalyses.length;
+    const avgEscalation = bayesianAnalyses.reduce((sum, a) => sum + a.escalationProbability, 0) / bayesianAnalyses.length;
+    // Narrow bargaining range = less predictable = lower confidence
+    if (avgBargainingRange < 0.2) confidence *= 0.85;
+    else if (avgBargainingRange < 0.4) confidence *= 0.93;
+    // High escalation probability increases uncertainty
+    if (avgEscalation > 0.6) confidence *= 0.9;
+    // Bayesian market assessment consensus boosts confidence
+    const avgBayesianConfidence = bayesianAnalyses.reduce((sum, a) => sum + a.marketAssessment.confidence, 0) / bayesianAnalyses.length;
+    confidence += avgBayesianConfidence * 0.1;
+  }
 
   // Adjust based on prediction track record (if available)
   // If predictions have been poorly calibrated, dampen thesis confidence
@@ -575,8 +622,11 @@ GEOPOLITICAL EVENTS:
 ${layerInputs.geopolitical.activeEvents.length > 0 ? layerInputs.geopolitical.activeEvents.join(", ") : "None active"}
 Escalation Risk: ${(layerInputs.geopolitical.escalationRisk * 100).toFixed(0)}%
 
-GAME THEORY ANALYSIS:
+GAME THEORY ANALYSIS (2-Player Nash/Schelling):
 ${gameTheorySummary}
+
+BAYESIAN N-PLAYER ANALYSIS (Fearon bargaining, belief updating, audience costs):
+${layerInputs.gameTheory.bayesianContext || "Bayesian analysis unavailable"}
 
 PRE-DETERMINED TRADING ACTIONS:
 ${actionsSummary || "No trading actions generated from current data"}
@@ -630,6 +680,43 @@ async function buildBacktestFeedbackSection(): Promise<string> {
   } catch {
     return "";
   }
+}
+
+// ── Bayesian Context Formatter ──
+
+function formatBayesianContext(results: { scenarioTitle: string; analysis: BayesianAnalysis }[]): string {
+  if (results.length === 0) return "Bayesian analysis unavailable";
+
+  return results.map(({ scenarioTitle, analysis }) => {
+    const label = scenarioTitle;
+    const dominantTypes = Object.entries(analysis.dominantTypes)
+      .map(([a, t]) => `${a}: ${t.type} (${(t.probability * 100).toFixed(0)}%)`)
+      .join(", ");
+
+    const topEq = analysis.equilibria[0];
+    let eqLine = "";
+    if (topEq) {
+      const strats = Object.entries(topEq.strategyProfile).map(([a, s]) => `${a}: ${s}`).join(", ");
+      eqLine = `\n  Most likely equilibrium: ${strats} (p=${(topEq.probability * 100).toFixed(0)}%, stability: ${topEq.stability}, Fearon: ${topEq.fearonCondition})`;
+      eqLine += `\n  Market impact: ${topEq.marketImpact.direction}, magnitude: ${topEq.marketImpact.magnitude}`;
+    }
+
+    const coalitionLine = analysis.coalitionAssessment.length > 0
+      ? `\n  Coalitions: ${analysis.coalitionAssessment.map(c => `${c.name}: stability ${(c.currentStability * 100).toFixed(0)}%, fracture risk: ${c.fractureRisk}`).join("; ")}`
+      : "";
+
+    const constraintLine = Object.keys(analysis.audienceCostConstraints).length > 0
+      ? `\n  Audience cost constraints: ${Object.entries(analysis.audienceCostConstraints).map(([a, strats]) => `${a} cannot ${strats.join("/")}`).join("; ")}`
+      : "";
+
+    return `- ${label}:
+  Bargaining range: ${(analysis.bargainingRange * 100).toFixed(0)}% (${analysis.bargainingRange < 0.2 ? "FEARON FAILURE - conflict structurally likely" : analysis.bargainingRange < 0.4 ? "NARROW - fragile" : "sufficient for agreement"})
+  Escalation probability: ${(analysis.escalationProbability * 100).toFixed(0)}%
+  Dominant actor types: ${dominantTypes}
+  Bayesian equilibria: ${analysis.equilibria.length}${eqLine}${coalitionLine}${constraintLine}
+  Fearon assessment: ${analysis.fearonAssessment}
+  Market assessment: ${analysis.marketAssessment.mostLikelyOutcome} (${analysis.marketAssessment.direction}, confidence: ${(analysis.marketAssessment.confidence * 100).toFixed(0)}%)`;
+  }).join("\n\n");
 }
 
 // ── Narrative Parser ──

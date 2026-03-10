@@ -97,6 +97,24 @@ export interface BacktestResults {
   /** Is the result statistically significant at 95% confidence after correction? */
   significant: boolean;
 
+  // ── Confidence intervals (Wilson) ──
+  accuracyCI: { lower: number; upper: number };
+
+  // ── Effective sample size (autocorrelation-adjusted) ──
+  effectiveSampleSize: number;
+  /** Raw sample size before autocorrelation adjustment */
+  rawSampleSize: number;
+
+  // ── Sample size warning ──
+  sampleWarning: string | null;
+
+  // ── LLM knowledge leakage disclaimer ──
+  llmLeakageWarning: string;
+  /** Count of predictions for dates after the LLM training cutoff (no leakage) */
+  postCutoffCount: number;
+  /** Accuracy for post-cutoff predictions only (most trustworthy metric) */
+  postCutoffAccuracy: number | null;
+
   // ── Walk-forward validation ──
   walkForward?: WalkForwardResults;
 
@@ -133,11 +151,19 @@ export interface WalkForwardResults {
   oosAccuracy: number;
   /** Out-of-sample aggregate Brier score */
   oosBrierScore: number;
-  /** Ratio: OOS accuracy / in-sample accuracy (< 1 = overfit) */
+  /**
+   * Temporal stability ratio: OOS accuracy / in-sample accuracy.
+   * < 1 means accuracy degrades in later periods (regime sensitivity or concept drift).
+   * NOTE: This is NOT a traditional overfit ratio because the LLM is not retrained
+   * between folds. It measures whether prediction quality is stable across time.
+   * Named `overfitRatio` for backward compatibility with existing backtest results in DB.
+   */
   overfitRatio: number;
   /** Is OOS accuracy significantly above random? */
   oosSignificant: boolean;
   oosPValue: number;
+  /** Wilson 95% CI on OOS accuracy */
+  oosAccuracyCI?: { lower: number; upper: number };
 }
 
 export interface WalkForwardFold {

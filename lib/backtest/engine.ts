@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { generateSignals } from "../signals/engine";
-import { getHistoricalData } from "../market-data/yahoo";
+import { getHistoricalData, getHistoricalDataRange } from "../market-data/yahoo";
 import { invalidateBacktestCache } from "./feedback-loops";
 
 // Unified bar type matching yahoo output
@@ -155,13 +155,20 @@ export async function getAllBacktestRuns(): Promise<BacktestRun[]> {
 // ── Historical price cache (persists across runs) ──
 const priceCache = new Map<string, DailyBar[]>();
 
-async function getHistoricalPrices(symbol: string): Promise<DailyBar[]> {
-  if (priceCache.has(symbol)) return priceCache.get(symbol)!;
+async function getHistoricalPrices(
+  symbol: string,
+  startDate?: string,
+  endDate?: string
+): Promise<DailyBar[]> {
+  const cacheKey = `${symbol}:${startDate || ""}:${endDate || ""}`;
+  if (priceCache.has(cacheKey)) return priceCache.get(cacheKey)!;
 
   try {
-    // Yahoo Finance: no API key needed, full history available
-    const data = await getHistoricalData(symbol, "5y");
-    priceCache.set(symbol, data);
+    // Use date-range fetch for backtests, period-based for general use
+    const data = startDate
+      ? await getHistoricalDataRange(symbol, startDate, endDate)
+      : await getHistoricalData(symbol, "5y");
+    priceCache.set(cacheKey, data);
     return data;
   } catch (e) {
     console.error(`Failed to fetch historical data for ${symbol}:`, e);
@@ -284,10 +291,13 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   await flushPhase();
 
   // Fetch all instruments in parallel — Yahoo Finance has no rate limits
+  // Use full backtest date range (+ buffer for timeframe validation)
+  const maxTimeframe = Math.max(...config.timeframes, 30);
+  const fetchEndDate = addDays(config.endDate, maxTimeframe + 7); // buffer for validation window
   const priceData: Record<string, DailyBar[]> = {};
-  run.progressMessage = `Fetching historical data for ${config.instruments.length} instruments...`;
+  run.progressMessage = `Fetching historical data for ${config.instruments.length} instruments (${config.startDate} to ${fetchEndDate})...`;
   const fetches = await Promise.allSettled(
-    config.instruments.map((symbol) => getHistoricalPrices(symbol))
+    config.instruments.map((symbol) => getHistoricalPrices(symbol, config.startDate, fetchEndDate))
   );
   fetches.forEach((result, i) => {
     const symbol = config.instruments[i];
@@ -672,9 +682,11 @@ Generate a single prediction based on this convergence event.`;
   }
 }
 
-// ── Walk-Forward Validation ──
+// ── Walk-Forward Temporal Stability Validation ──
 // Expanding window: train on [0..k], test on [k+1..k+fold_size]
-// This prevents in-sample overfitting, a requirement for any institutional backtest.
+// NOTE: The LLM is not retrained between folds, so the "overfit ratio" is actually
+// a temporal stability ratio. A value < 1 indicates accuracy degrades in later periods
+// (regime sensitivity or concept drift), not traditional model overfitting.
 
 function computeWalkForward(
   predictions: BacktestPrediction[],
@@ -746,7 +758,8 @@ function computeWalkForward(
   const oosBrierScore = allOosTotal > 0 ? allOosBrier / allOosTotal : 0;
   const avgTrainAccuracy = folds.length > 0 ? allTrainAccuracy / folds.length : 0;
 
-  // Overfit ratio: OOS / in-sample. < 1 = overfit, 1 = no overfit
+  // Temporal stability ratio (labelled overfitRatio for backward compat):
+  // OOS / in-sample. < 1 means later periods are less accurate.
   const overfitRatio = avgTrainAccuracy > 0 ? oosAccuracy / avgTrainAccuracy : 0;
 
   // Statistical significance of OOS accuracy
@@ -754,6 +767,9 @@ function computeWalkForward(
     ? (allOosCorrect - allOosTotal * 0.5) / Math.sqrt(allOosTotal * 0.25)
     : 0;
   const oosPValue = 1 - normalCDF(Math.abs(zScore));
+
+  // Wilson CI on OOS accuracy
+  const oosAccuracyCI = wilsonInterval(allOosCorrect, allOosTotal);
 
   return {
     foldCount: folds.length,
@@ -763,6 +779,7 @@ function computeWalkForward(
     overfitRatio,
     oosSignificant: oosPValue < 0.05,
     oosPValue,
+    oosAccuracyCI,
   };
 }
 
@@ -912,6 +929,74 @@ function holmBonferroniCorrection(pValue: number, hypothesisCount: number): numb
   return Math.min(1, pValue * hypothesisCount);
 }
 
+// ── Wilson Confidence Interval ──
+// More accurate than the normal approximation for small n or extreme proportions.
+// Returns 95% CI by default (z=1.96).
+
+function wilsonInterval(successes: number, n: number, z = 1.96): { lower: number; upper: number } {
+  if (n === 0) return { lower: 0, upper: 1 };
+  const p = successes / n;
+  const denom = 1 + z * z / n;
+  const center = (p + z * z / (2 * n)) / denom;
+  const margin = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / denom;
+  return {
+    lower: Math.max(0, center - margin),
+    upper: Math.min(1, center + margin),
+  };
+}
+
+// ── Effective Sample Size (autocorrelation-adjusted) ──
+// Predictions clustered in time are not independent. A week of convergences
+// during a selloff is effectively one observation. This computes an adjusted N
+// by counting independent temporal clusters (predictions > 7 days apart).
+// Uses geometric mean of raw N and cluster count as a balanced compromise.
+
+function effectiveSampleSize(predictions: BacktestPrediction[]): number {
+  if (predictions.length <= 1) return predictions.length;
+
+  const sorted = [...predictions].sort((a, b) =>
+    a.predictionDate.localeCompare(b.predictionDate)
+  );
+
+  let clusters = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const daysBetween =
+      (new Date(sorted[i].predictionDate).getTime() -
+        new Date(sorted[i - 1].predictionDate).getTime()) /
+      (24 * 60 * 60 * 1000);
+    if (daysBetween > 7) clusters++;
+  }
+
+  // Geometric mean: sqrt(raw_N * clusters)
+  return Math.round(Math.sqrt(sorted.length * clusters));
+}
+
+// ── LLM Training Cutoff ──
+// Claude's training data has a knowledge cutoff. Predictions for dates before
+// this cutoff are subject to look-ahead bias (the model's weights encode
+// knowledge of what actually happened). Predictions after the cutoff are
+// the most trustworthy metric of real forecasting ability.
+const LLM_TRAINING_CUTOFF = "2025-04-01"; // Claude Opus 4 / Sonnet 4 approximate cutoff
+
+function buildLeakageWarning(
+  totalValidated: number,
+  postCutoffCount: number,
+  postCutoffAccuracy: number | null
+): string {
+  if (postCutoffCount >= totalValidated) {
+    return "All predictions are for dates after the LLM training cutoff. No knowledge leakage concern.";
+  }
+
+  const preCutoffCount = totalValidated - postCutoffCount;
+  const preCutoffPct = totalValidated > 0 ? Math.round((preCutoffCount / totalValidated) * 100) : 0;
+
+  const postCutoffNote = postCutoffAccuracy !== null
+    ? `Post-cutoff accuracy (${(postCutoffAccuracy * 100).toFixed(1)}%, n=${postCutoffCount}) is the most trustworthy metric.`
+    : `Only ${postCutoffCount} post-cutoff predictions exist (need 5+ for reliable measurement).`;
+
+  return `${preCutoffPct}% of predictions (${preCutoffCount}/${totalValidated}) are for dates before the LLM training cutoff (${LLM_TRAINING_CUTOFF}). The model's weights encode knowledge of actual outcomes for these dates, so backtest accuracy is likely inflated. ${postCutoffNote}`;
+}
+
 // ── Statistical analysis ──
 
 function computeResults(
@@ -956,11 +1041,19 @@ function computeResults(
   const climatoBrier = climatologicalUp * (1 - climatologicalUp) ** 2 +
     (1 - climatologicalUp) * climatologicalUp ** 2;
 
+  // ── Confidence interval on accuracy (Wilson) ──
+  const successes = validated.filter((p) => p.directionCorrect).length;
+  const accuracyCI = wilsonInterval(successes, n);
+
+  // ── Effective sample size (autocorrelation-adjusted) ──
+  const nEff = effectiveSampleSize(validated);
+
   // ── Statistical significance (binomial test) ──
   // H0: true accuracy = 0.5 (random)
-  // Use normal approximation to binomial
-  const successes = validated.filter((p) => p.directionCorrect).length;
-  const zScore = (successes - n * 0.5) / Math.sqrt(n * 0.5 * 0.5);
+  // Uses effective N to account for temporal clustering of predictions.
+  // Standard binomial test with raw N overstates significance when predictions
+  // are not independent (e.g. multiple predictions during the same market event).
+  const zScore = (successes / n - 0.5) * Math.sqrt(nEff) / 0.5;
   const pValue = 1 - normalCDF(Math.abs(zScore)); // one-tailed
 
   // Multiple testing correction: count how many hypothesis tests are run.
@@ -969,6 +1062,25 @@ function computeResults(
   // This is conservative and prevents p-hacking from running many presets.
   const hypothesisCount = 6; // number of preset scenarios
   const pValueCorrected = holmBonferroniCorrection(pValue, hypothesisCount);
+
+  // ── Sample size warning ──
+  const sampleWarning = n < 30
+    ? `Sample size (n=${n}) is below 30. Statistical metrics are unreliable and should be treated as directional only.`
+    : null;
+
+  // ── LLM knowledge leakage analysis ──
+  // Predictions for dates before the LLM training cutoff are subject to
+  // look-ahead bias: the model's weights encode knowledge of actual outcomes.
+  // Post-cutoff predictions are the most trustworthy accuracy metric.
+  const postCutoffPreds = validated.filter(
+    (p) => p.predictionDate > LLM_TRAINING_CUTOFF
+  );
+  const postCutoffCount = postCutoffPreds.length;
+  const postCutoffAccuracy = postCutoffCount >= 5
+    ? postCutoffPreds.filter((p) => p.directionCorrect).length / postCutoffCount
+    : null;
+
+  const llmLeakageWarning = buildLeakageWarning(n, postCutoffCount, postCutoffAccuracy);
 
   // ── Breakdown by timeframe ──
   const byTimeframe: Record<number, { count: number; correct: number; brierSum: number; confSum: number }> = {};
@@ -1280,6 +1392,14 @@ function computeResults(
     hypothesisCount,
     significant: pValueCorrected < 0.05,
 
+    accuracyCI,
+    effectiveSampleSize: nEff,
+    rawSampleSize: n,
+    sampleWarning,
+    llmLeakageWarning,
+    postCutoffCount,
+    postCutoffAccuracy,
+
     walkForward,
     byRegime,
     costSensitivity,
@@ -1358,6 +1478,13 @@ function emptyResults(config: BacktestConfig): BacktestResults {
     pValueCorrected: 1,
     hypothesisCount: 6,
     significant: false,
+    accuracyCI: { lower: 0, upper: 1 },
+    effectiveSampleSize: 0,
+    rawSampleSize: 0,
+    sampleWarning: "No predictions to analyze.",
+    llmLeakageWarning: "No predictions to analyze.",
+    postCutoffCount: 0,
+    postCutoffAccuracy: null,
     byTimeframe: {},
     byCategory: {},
     byYear: {},
@@ -1383,7 +1510,8 @@ async function generateAiAnalysis(
 WALK-FORWARD VALIDATION (${results.walkForward.foldCount} folds, expanding window):
 - Out-of-sample accuracy: ${(results.walkForward.oosAccuracy * 100).toFixed(1)}%
 - Out-of-sample Brier: ${results.walkForward.oosBrierScore.toFixed(4)}
-- Overfit ratio: ${results.walkForward.overfitRatio.toFixed(2)} (1.0 = no overfit, <0.8 = concerning)
+- Temporal stability ratio: ${results.walkForward.overfitRatio.toFixed(2)} (1.0 = stable across periods, <0.8 = accuracy degrades in later periods)
+- OOS accuracy 95% CI: [${((results.walkForward.oosAccuracyCI?.lower ?? 0) * 100).toFixed(1)}%, ${((results.walkForward.oosAccuracyCI?.upper ?? 1) * 100).toFixed(1)}%]
 - OOS significant: ${results.walkForward.oosSignificant ? "Yes" : "No"} (p=${results.walkForward.oosPValue.toFixed(4)})
 Per fold:
 ${results.walkForward.folds.map(f => `  Fold ${f.foldIndex}: train ${(f.trainAccuracy * 100).toFixed(1)}% (n=${f.trainCount}), test ${(f.testAccuracy * 100).toFixed(1)}% (n=${f.testCount})`).join("\n")}`
@@ -1425,6 +1553,13 @@ RESULTS:
 - p-value (vs random): ${results.pValue.toFixed(6)}
 - p-value (Holm-Bonferroni corrected, m=${results.hypothesisCount}): ${results.pValueCorrected.toFixed(6)}
 - Statistically significant after correction: ${results.significant ? "Yes (p_corrected < 0.05)" : "No"}
+- Accuracy 95% CI (Wilson): [${(results.accuracyCI.lower * 100).toFixed(1)}%, ${(results.accuracyCI.upper * 100).toFixed(1)}%]
+- Effective sample size (autocorrelation-adjusted): ${results.effectiveSampleSize} (raw N=${results.rawSampleSize})
+${results.sampleWarning ? `- SAMPLE WARNING: ${results.sampleWarning}` : ""}
+
+LLM KNOWLEDGE LEAKAGE:
+${results.llmLeakageWarning}
+${results.postCutoffAccuracy !== null ? `- Post-cutoff accuracy: ${(results.postCutoffAccuracy * 100).toFixed(1)}% (n=${results.postCutoffCount}) -- MOST TRUSTWORTHY METRIC` : ""}
 
 BASELINES:
 - Random (coin flip): ${(results.randomBaseline.directionalAccuracy * 100).toFixed(1)}% accuracy, Brier ${results.randomBaseline.brierScore.toFixed(4)}
@@ -1447,17 +1582,18 @@ ${results.calibrationCurve.map((b) => `  ${b.range}: expected ${(b.expectedFrequ
 
 Write a structured analysis with these sections:
 1. EXECUTIVE SUMMARY - 2-3 sentences on headline findings
-2. METHODOLOGY VALIDATION - Assess scientific rigor: time-gating, sample size, walk-forward validation, multiple testing correction, survivorship bias considerations
-3. BASELINE COMPARISON - Compare against BOTH random and climatological baselines. The climatological baseline is the critical one, beating random is trivial.
-4. WALK-FORWARD ANALYSIS - Assess out-of-sample performance and overfit ratio. Flag if OOS accuracy degrades significantly from in-sample.
-5. REGIME ANALYSIS - Comment on whether the model works across all volatility regimes or only in specific conditions
-6. COST SENSITIVITY - At what transaction cost level does the strategy become unprofitable?
-7. TEMPORAL CONSISTENCY - Year-over-year stability
-8. CATEGORY INSIGHTS - Which signal categories perform best/worst
-9. LIMITATIONS AND CAVEATS - Honest assessment including: survivorship bias in ETFs, LLM time-gating reliability, sample size adequacy, non-independence of predictions
-10. CONCLUSIONS - Final assessment of predictive capability with specific reference to walk-forward results
+2. METHODOLOGY VALIDATION - Assess scientific rigor: time-gating, sample size, walk-forward validation, multiple testing correction, survivorship bias considerations. Note the effective vs raw sample size difference.
+3. LLM KNOWLEDGE LEAKAGE - Address the fundamental limitation that the LLM's training data includes events after the simulation dates. Quantify the pre-cutoff vs post-cutoff split. If post-cutoff accuracy is available, highlight it as the most reliable metric.
+4. BASELINE COMPARISON - Compare against BOTH random and climatological baselines. The climatological baseline is the critical one, beating random is trivial. Report whether the accuracy CI overlaps with the baseline.
+5. WALK-FORWARD ANALYSIS - Assess out-of-sample temporal stability. Note that the "stability ratio" measures accuracy consistency across time periods, not traditional model overfitting (the LLM is not retrained between folds). Report OOS confidence intervals.
+6. REGIME ANALYSIS - Comment on whether the model works across all volatility regimes or only in specific conditions
+7. COST SENSITIVITY - At what transaction cost level does the strategy become unprofitable?
+8. TEMPORAL CONSISTENCY - Year-over-year stability
+9. CATEGORY INSIGHTS - Which signal categories perform best/worst
+10. LIMITATIONS AND CAVEATS - Honest assessment including: LLM knowledge leakage (the most important caveat), survivorship bias in ETFs, sample size adequacy, temporal autocorrelation in predictions, and the distinction between temporal stability and true overfitting
+11. CONCLUSIONS - Final assessment of predictive capability. If most predictions are pre-cutoff, state clearly that real-world performance is unproven until sufficient post-cutoff data accumulates.
 
-Use precise, academic language. Be honest about both strengths and weaknesses. Reference specific numbers. Do not overstate findings. If the walk-forward overfit ratio is below 0.85, flag this prominently.`;
+Use precise, academic language. Be honest about both strengths and weaknesses. Reference specific numbers. Do not overstate findings. If the temporal stability ratio is below 0.85, flag this prominently.`;
 
   const response = await client.messages.create({
     model,

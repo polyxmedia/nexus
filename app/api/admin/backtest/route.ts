@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       ],
       stepDays: body.stepDays || 7,
       initialCapital: body.initialCapital || 100000,
-      positionSizePct: body.positionSizePct || 0.05,
+      positionSizePct: body.positionSizePct || 5,
       tradingCostBps: body.tradingCostBps || 10,
     };
 

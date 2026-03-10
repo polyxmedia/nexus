@@ -12,7 +12,8 @@ vi.mock("@/lib/graph/engine", () => ({
 
 vi.mock("@/lib/graph/traversal", () => ({
   traverseFrom: vi.fn().mockResolvedValue({ nodes: [{ id: 1, name: "Test" }] }),
-  findPath: vi.fn().mockResolvedValue({ paths: [] }),
+  findPaths: vi.fn().mockResolvedValue([]),
+  exploreEntity: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   buildContextGraph: vi.fn().mockResolvedValue({ entities: [], relationships: [] }),
 }));
 

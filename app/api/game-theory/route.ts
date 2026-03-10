@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { SCENARIOS, ACTORS } from "@/lib/game-theory/actors";
 import { getWartimeAnalysis } from "@/lib/game-theory/wartime";
 import { analyzeScenario } from "@/lib/game-theory/analysis";
+import { runBayesianAnalysis, initializeBeliefs, summarizeBayesianAnalysis, type BayesianScenarioSummary } from "@/lib/game-theory/bayesian";
+import { toBayesianScenario } from "@/lib/predictions/engine";
 import { requireTier } from "@/lib/auth/require-tier";
 import type { StrategicScenario, PayoffEntry } from "@/lib/thesis/types";
 
@@ -10,7 +12,8 @@ export async function GET() {
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const analyses = await Promise.all(SCENARIOS.map(async (scenario) => {
-      const { analysis, scenarioState, isWartime } = await getWartimeAnalysis(scenario.id);
+      const { analysis, bayesian: bayesianRaw, scenarioState, isWartime } = await getWartimeAnalysis(scenario.id);
+
       return {
         scenario: {
           id: scenario.id,
@@ -29,6 +32,7 @@ export async function GET() {
           timeHorizon: scenario.timeHorizon,
         },
         analysis,
+        bayesian: bayesianRaw ? summarizeBayesianAnalysis(bayesianRaw) : null,
         scenarioState,
         isWartime,
       };
@@ -191,8 +195,16 @@ export async function POST(request: NextRequest) {
       timeHorizon: horizon,
     };
 
-    // Run analysis
+    // Run basic + Bayesian analysis
     const analysis = analyzeScenario(scenario);
+    let bayesian: BayesianScenarioSummary | null = null;
+    try {
+      const bs = toBayesianScenario(scenario);
+      const beliefs = initializeBeliefs(scenario.actors);
+      bayesian = summarizeBayesianAnalysis(runBayesianAnalysis(bs, beliefs));
+    } catch {
+      // Bayesian failure is non-fatal
+    }
 
     return NextResponse.json({
       scenario: {
@@ -208,6 +220,7 @@ export async function POST(request: NextRequest) {
         timeHorizon: horizon,
       },
       analysis,
+      bayesian,
       custom: true,
     });
   } catch (error) {

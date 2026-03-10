@@ -7,6 +7,8 @@ import { db, schema } from "../db";
 import { eq, desc } from "drizzle-orm";
 import { SCENARIOS, getActor } from "./actors";
 import { analyzeScenario } from "./analysis";
+import { runBayesianAnalysis, initializeBeliefs, type BayesianAnalysis } from "./bayesian";
+import { toBayesianScenario } from "../predictions/engine";
 import { loadRegimeState } from "../regime/store";
 import type { RegimeState } from "../regime/detection";
 import type { StrategicScenario, GameTheoryAnalysis } from "../thesis/types";
@@ -256,6 +258,7 @@ export async function handleThresholdFire(threshold: Threshold): Promise<void> {
  */
 export async function getWartimeAnalysis(scenarioId: string): Promise<{
   analysis: GameTheoryAnalysis;
+  bayesian: BayesianAnalysis | null;
   scenarioState: {
     regime: string;
     state: string;
@@ -282,9 +285,17 @@ export async function getWartimeAnalysis(scenarioId: string): Promise<{
   }
 
   if (!isWartime || !scenarioState) {
-    // Peacetime: standard analysis
+    // Peacetime: standard analysis + Bayesian
     const analysis = analyzeScenario(scenario);
-    return { analysis, scenarioState: null, isWartime: false };
+    let bayesian: BayesianAnalysis | null = null;
+    try {
+      const bs = toBayesianScenario(scenario);
+      const beliefs = initializeBeliefs(scenario.actors);
+      bayesian = runBayesianAnalysis(bs, beliefs);
+    } catch {
+      // Bayesian failure is non-fatal
+    }
+    return { analysis, bayesian, scenarioState: null, isWartime: false };
   }
 
   // Wartime: filter invalidated strategies from the scenario
@@ -312,11 +323,20 @@ export async function getWartimeAnalysis(scenarioId: string): Promise<{
     ),
   };
 
-  // Run analysis on filtered scenario
+  // Run basic + Bayesian analysis on filtered scenario
   const analysis = analyzeScenario(filteredScenario);
+  let bayesian: BayesianAnalysis | null = null;
+  try {
+    const bs = toBayesianScenario(filteredScenario);
+    const beliefs = initializeBeliefs(filteredScenario.actors);
+    bayesian = runBayesianAnalysis(bs, beliefs);
+  } catch {
+    // Bayesian failure is non-fatal
+  }
 
   return {
     analysis,
+    bayesian,
     scenarioState: {
       regime: scenarioState.regime,
       state: scenarioState.state,

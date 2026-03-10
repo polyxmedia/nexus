@@ -7,9 +7,22 @@ export interface ActorWithGeo extends GeopoliticalActor {
   colorGroup: "ally" | "adversary" | "neutral";
 }
 
+export interface BayesianSummary {
+  bargainingRange: number;
+  fearonAssessment: string;
+  escalationProbability: number;
+  dominantTypes: Record<string, { type: string; probability: number }>;
+  equilibriaCount: number;
+  marketDirection: "bullish" | "bearish" | "mixed";
+  marketConfidence: number;
+  coalitions: { name: string; stability: number; fractureRisk: string }[];
+  audienceCostConstraints: Record<string, string[]>;
+}
+
 export interface ScenarioWithAnalysis {
   scenario: StrategicScenario;
   analysis: GameTheoryAnalysis;
+  bayesian?: BayesianSummary;
 }
 
 export interface WarRoomSignal {

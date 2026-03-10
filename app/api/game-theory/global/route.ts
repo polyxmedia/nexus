@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTier } from "@/lib/auth/require-tier";
 import { analyzeScenario } from "@/lib/game-theory/analysis";
+import { runBayesianAnalysis, initializeBeliefs, summarizeBayesianAnalysis, type BayesianScenarioSummary } from "@/lib/game-theory/bayesian";
+import { toBayesianScenario } from "@/lib/predictions/engine";
 import {
   COUNTRIES,
   computeTeamPower,
@@ -223,8 +225,16 @@ export async function POST(request: NextRequest) {
       timeHorizon: "medium_term",
     };
 
-    // Run game theory analysis
+    // Run basic + Bayesian game theory analysis
     const analysis = analyzeScenario(scenario);
+    let bayesian: BayesianScenarioSummary | null = null;
+    try {
+      const bs = toBayesianScenario(scenario);
+      const beliefs = initializeBeliefs(scenario.actors);
+      bayesian = summarizeBayesianAnalysis(runBayesianAnalysis(bs, beliefs));
+    } catch {
+      // Bayesian failure is non-fatal
+    }
 
     // ── Intelligence enrichment: pull real data in parallel ──
     const allCountryNames = [...blueTeam, ...redTeam]
@@ -324,6 +334,7 @@ export async function POST(request: NextRequest) {
         timeHorizon: scenario.timeHorizon,
       },
       analysis,
+      bayesian,
       powerBalance: {
         blue: bluePower,
         red: redPower,

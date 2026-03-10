@@ -84,6 +84,36 @@ export async function getHistoricalData(
     interval: "1d",
   });
 
+  return parseChartResult(result, symbol);
+}
+
+/**
+ * Fetch historical data between specific dates (for backtesting).
+ * Unlike the period-based version, this guarantees coverage of the full range.
+ */
+export async function getHistoricalDataRange(
+  symbol: string,
+  startDate: string,
+  endDate?: string
+): Promise<BarData[]> {
+  const ticker = resolveSymbol(symbol);
+
+  // Add 90-day buffer before start to allow lookback calculations (e.g. 90d returns)
+  const bufferedStart = new Date(startDate);
+  if (isNaN(bufferedStart.getTime())) throw new Error(`Invalid startDate: ${startDate}`);
+  bufferedStart.setDate(bufferedStart.getDate() - 90);
+
+  const result = await yf.chart(ticker, {
+    period1: bufferedStart,
+    period2: endDate ? new Date(endDate) : undefined,
+    interval: "1d",
+  });
+
+  return parseChartResult(result, symbol);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseChartResult(result: any, symbol: string): BarData[] {
   const quotes = result.quotes;
   if (!quotes || quotes.length === 0) {
     throw new Error(`No historical data for ${symbol}`);

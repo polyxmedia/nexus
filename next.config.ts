@@ -2,10 +2,10 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdfkit", "pptxgenjs"],
+  serverExternalPackages: ["pdfkit", "pptxgenjs", "read-excel-file"],
   experimental: {
     // Disable Turbopack persistent disk cache to prevent stale module state on HMR
-    turbopackPersistentCaching: false,
+    turbopackFileSystemCacheForDev: false,
   },
 };
 

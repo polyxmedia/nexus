@@ -153,6 +153,7 @@ export interface ThesisLayerInput {
   gameTheory: {
     activeScenarios: string[];
     analyses: GameTheoryAnalysis[];
+    bayesianContext?: string; // Formatted Bayesian N-player analysis for traceability
   };
 }
 

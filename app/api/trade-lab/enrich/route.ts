@@ -140,6 +140,12 @@ export async function GET(request: NextRequest) {
         growth: { regime: regimeData.growth.regime, direction: regimeData.growth.direction },
         riskAppetite: { regime: regimeData.riskAppetite.regime, score: regimeData.riskAppetite.score },
         monetary: { regime: regimeData.monetary.regime, direction: regimeData.monetary.direction },
+        geopolitical: regimeData.geopolitical ? {
+          regime: regimeData.geopolitical.regime,
+          score: regimeData.geopolitical.score,
+          gprComposite: regimeData.geopolitical.gprComposite,
+          hotRegion: regimeData.geopolitical.hotRegion,
+        } : null,
       };
     }
 

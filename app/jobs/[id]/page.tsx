@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,6 +72,7 @@ interface Profile {
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const jobId = Number(params.id);
 
   const [job, setJob] = useState<Job | null>(null);
@@ -230,6 +232,9 @@ export default function JobDetailPage() {
   const expertise: string[] = job.expertise ? JSON.parse(job.expertise) : [];
   const myApplication = applications.find(a => myProfile && a.analystId === myProfile.id);
   const canApply = job.status === "open" && myProfile?.status === "approved" && !myApplication;
+  const isAdmin = (session?.user as Record<string, unknown> | undefined)?.role === "admin";
+  const isOwner = job.createdBy === `user:${session?.user?.name}`;
+  const canManage = isAdmin || isOwner;
   const daysLeft = job.deadline
     ? Math.ceil((new Date(job.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
@@ -449,7 +454,7 @@ export default function JobDetailPage() {
       )}
 
       {/* Applications List (visible to job owner / admin) */}
-      {applications.length > 0 && (
+      {canManage && applications.length > 0 && (
         <div className="rounded border border-navy-800 bg-navy-900/50 p-5">
           <h3 className="text-sm font-bold uppercase tracking-wider text-navy-100 mb-4">
             Applications ({applications.length})

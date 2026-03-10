@@ -293,7 +293,10 @@ export async function getTradingSnapshot(): Promise<TradingSnapshot> {
     lastUpdated: new Date().toISOString(),
   };
 
-  cache.set(cacheKey, { data: result, expiry: Date.now() + CACHE_TTL });
+  // Only cache if we got actual data - don't cache empty results from API failures
+  if (congressional.length > 0 || insiderTrades.length > 0) {
+    cache.set(cacheKey, { data: result, expiry: Date.now() + CACHE_TTL });
+  }
   return result;
 }
 

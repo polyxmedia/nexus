@@ -22,14 +22,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(profile || null);
     }
 
-    // Public: list approved profiles (for job posters to see who's available)
-    const profiles = await listAnalystProfiles(status || "approved");
-    // Strip sensitive fields for public listing
+    const isAdmin = session && (session.user as Record<string, unknown>)?.role === "admin";
+
+    // Admin can list all profiles; public only sees approved
+    const effectiveStatus = isAdmin ? (status || undefined) : (status || "approved");
+    const profiles = await listAnalystProfiles(effectiveStatus);
+
+    // Admin gets full data; public gets stripped fields
+    if (isAdmin) {
+      return NextResponse.json(profiles);
+    }
+
     const publicProfiles = profiles.map(p => ({
       id: p.id,
       displayName: p.displayName,
       bio: p.bio,
-      expertise: p.expertise ? JSON.parse(p.expertise) : [],
+      expertise: p.expertise,
       totalJobs: p.totalJobs,
       avgAccuracy: p.avgAccuracy,
       scoredDeliverables: p.scoredDeliverables,
@@ -92,8 +100,11 @@ export async function PUT(req: NextRequest) {
 
     // Admin action: approve/suspend a profile by ID
     if (body.profileId && isAdmin) {
-      const { profileId, ...updates } = body;
-      const updated = await updateAnalystProfile(profileId, updates);
+      const { profileId, status: newStatus } = body;
+      if (!newStatus || !["approved", "suspended", "pending"].includes(newStatus)) {
+        return NextResponse.json({ error: "status must be approved, suspended, or pending" }, { status: 400 });
+      }
+      const updated = await updateAnalystProfile(profileId, { status: newStatus });
       return NextResponse.json(updated);
     }
 
