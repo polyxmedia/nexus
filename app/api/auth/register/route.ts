@@ -11,17 +11,14 @@ export async function POST(request: Request) {
   const csrfError = validateOrigin(request);
   if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
 
-  // Rate limit: 5 registrations per IP per hour (skipped for localhost dev/test)
+  // Rate limit: 5 registrations per IP per hour
   const ip = getClientIp(request);
-  const isLocalhost = ip === "127.0.0.1" || ip === "::1" || ip === "unknown";
-  if (!isLocalhost) {
-    const rl = await rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
-    if (!rl.allowed) {
-      return NextResponse.json(
-        { error: "Too many registration attempts. Try again later." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
-      );
-    }
+  const rl = await rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
   }
 
   try {

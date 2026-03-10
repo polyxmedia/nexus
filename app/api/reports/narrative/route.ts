@@ -1,22 +1,20 @@
 import { NextResponse } from "next/server";
 import { generateNarrativeReport } from "@/lib/reports/narrative";
-import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { creditGate } from "@/lib/credits/gate";
+import { getSettingValue } from "@/lib/settings/get-setting";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const gate = await creditGate();
     if (gate.response) return gate.response;
     const body = await request.json();
     const topic = body.topic || null;
 
-    const apiKeyRow = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "anthropic_api_key"));
-    const apiKey =
-      apiKeyRow[0]?.value || process.env.ANTHROPIC_API_KEY || "";
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY) || "";
 
     if (!apiKey) {
       return NextResponse.json(

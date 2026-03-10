@@ -1,11 +1,18 @@
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
 import { analyzeSignal } from "@/lib/analysis/claude";
 import { runRedTeamAssessment } from "@/lib/analysis/red-team";
 import { creditGate } from "@/lib/credits/gate";
+import { validateOrigin } from "@/lib/security/csrf";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const gate = await creditGate();
     if (gate.response) return gate.response;
@@ -27,9 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Signal not found" }, { status: 404 });
     }
 
-    const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "anthropic_api_key"));
-
-    const apiKey = apiKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
 
     if (!apiKey) {
       return NextResponse.json(

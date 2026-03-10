@@ -5,15 +5,11 @@ import { HAIKU_MODEL } from "@/lib/ai/model";
 import { db, schema } from "@/lib/db";
 import { eq, desc, and, like } from "drizzle-orm";
 import { creditGate } from "@/lib/credits/gate";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 async function getApiKey(): Promise<string | null> {
   try {
-    if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
-    const rows = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "anthropic_api_key"));
-    return rows[0]?.value || null;
+    return await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY) || null;
   } catch {
     return process.env.ANTHROPIC_API_KEY || null;
   }

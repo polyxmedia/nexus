@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { findHistoricalParallels } from "@/lib/parallels/engine";
-import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { creditGate } from "@/lib/credits/gate";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 export async function POST(request: Request) {
   try {
@@ -16,12 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiKeyRow = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "anthropic_api_key"));
-    const apiKey =
-      apiKeyRow[0]?.value || process.env.ANTHROPIC_API_KEY || "";
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY) || "";
 
     if (!apiKey) {
       return NextResponse.json(

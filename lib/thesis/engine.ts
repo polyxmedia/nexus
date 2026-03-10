@@ -23,12 +23,8 @@ import { getWalkForwardCredibility, getBacktestFeedbackPromptSection } from "@/l
 
 export async function generateThesis(symbols: string[]): Promise<Thesis> {
   // 1. Gather settings
-  const anthropicKeyRows = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "anthropic_api_key"));
-
-  const anthropicApiKey = anthropicKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
+  const { getSettingValue } = await import("@/lib/settings/get-setting");
+  const anthropicApiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
 
   if (!anthropicApiKey) {
     throw new Error("Anthropic API key not configured");

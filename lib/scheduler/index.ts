@@ -185,6 +185,69 @@ registerJob("actor-profile-update", 6 * 60 * 60_000, async () => {
   if (!res.ok) throw new Error(`Actor profile update failed: ${res.status}`);
 });
 
+registerJob("ig-token-refresh", 45 * 60_000, async () => {
+  // IG OAuth tokens expire after 60s, but refresh tokens last longer.
+  // Proactively refresh to keep the connection alive.
+  try {
+    const { db, schema } = await import("@/lib/db");
+    const { eq } = await import("drizzle-orm");
+    const { decrypt, encrypt } = await import("@/lib/encryption");
+
+    const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, "ig_oauth_refresh_token"));
+    if (rows.length === 0) return; // IG not connected
+
+    const refreshToken = decrypt(rows[0].value);
+    if (!refreshToken) return;
+
+    const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "ig_api_key"));
+    const apiKey = apiKeyRows.length > 0 ? decrypt(apiKeyRows[0].value) : process.env.IG_API_KEY;
+    if (!apiKey) return;
+
+    const envRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "trading_environment"));
+    const env = envRows.length > 0 ? decrypt(envRows[0].value) : (process.env.IG_ENVIRONMENT || "demo");
+    const baseUrl = env === "live" ? "https://api.ig.com/gateway/deal" : "https://demo-api.ig.com/gateway/deal";
+
+    const res = await fetch(`${baseUrl}/session/refresh-token`, {
+      method: "POST",
+      headers: {
+        "X-IG-API-KEY": apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=UTF-8",
+        Version: "1",
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      console.error(`[scheduler] IG token refresh failed: ${res.status}`);
+      return;
+    }
+
+    const data = await res.json();
+    if (!data.access_token || !data.refresh_token) {
+      console.error("[scheduler] IG token refresh returned incomplete data:", Object.keys(data));
+      return;
+    }
+
+    const updates = [
+      { key: "ig_oauth_access_token", value: encrypt(data.access_token) },
+      { key: "ig_oauth_refresh_token", value: encrypt(data.refresh_token) },
+      { key: "ig_oauth_expires_at", value: String(Date.now() + (data.expires_in || 60) * 1000) },
+    ];
+
+    for (const entry of updates) {
+      await db.insert(schema.settings).values(entry).onConflictDoUpdate({
+        target: schema.settings.key,
+        set: { value: entry.value, updatedAt: new Date().toISOString() },
+      });
+    }
+  } catch (err) {
+    // Don't throw - IG may not be configured for all users
+    console.error("[scheduler] IG token refresh error:", err);
+  }
+});
+
 function getBaseUrl() {
   return process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 }

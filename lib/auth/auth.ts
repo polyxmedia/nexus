@@ -22,12 +22,20 @@ export const authOptions: AuthOptions = {
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.username || !credentials?.password) return null;
 
         // Rate limit: 10 login attempts per username per 15 minutes
         const rl = await rateLimit(`login:${credentials.username.toLowerCase()}`, 10, 15 * 60 * 1000);
-        if (!rl.allowed) return null; // Return null (not an error) so NextAuth shows generic "Sign in failed"
+        if (!rl.allowed) return null;
+
+        // Rate limit: 20 login attempts per IP per 15 minutes (prevents credential stuffing across usernames)
+        const forwarded = req?.headers?.["x-forwarded-for"];
+        const ip = (typeof forwarded === "string" ? forwarded.split(",")[0].trim() : null)
+          || req?.headers?.["x-real-ip"]
+          || "unknown";
+        const ipRl = await rateLimit(`login-ip:${ip}`, 20, 15 * 60 * 1000);
+        if (!ipRl.allowed) return null;
 
         try {
           let users = await db

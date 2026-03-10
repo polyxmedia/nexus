@@ -7,6 +7,9 @@ const PUBLIC_API_PATHS = [
   "/api/telegram/webhook",
   "/api/stripe/webhook",
   "/api/subscription/tiers",
+  "/api/analytics/track",
+  "/api/referrals/click",
+  "/api/health",
 ];
 
 // API v1 uses its own Bearer token auth (withApiAuth HOF), not session auth

@@ -1758,12 +1758,8 @@ Respond ONLY with a JSON array:
 // ── Helpers ──
 
 async function getAnthropicKey(): Promise<string> {
-  const rows = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "anthropic_api_key"));
-
-  const key = rows[0]?.value || process.env.ANTHROPIC_API_KEY;
+  const { getSettingValue } = await import("@/lib/settings/get-setting");
+  const key = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
   if (!key) throw new Error("Anthropic API key not configured");
   return key;
 }

@@ -236,7 +236,10 @@ export function withApiAuth(handler: ApiHandler, options?: WithApiAuthOptions) {
             { requiredScope: scope, keyScopes: allowed },
           );
         }
-      } catch { /* invalid JSON scopes = allow all */ }
+      } catch {
+        // Invalid JSON in scopes - deny access as a safe default
+        return apiError("invalid_scopes", "API key has malformed scope configuration", 403);
+      }
     }
 
     // 4. Resolve user

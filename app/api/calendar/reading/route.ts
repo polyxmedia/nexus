@@ -1,15 +1,21 @@
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { HDate, HebrewCalendar } from "@hebcal/core";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { getEsotericReading } from "@/lib/signals/numerology";
 import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getModel } from "@/lib/ai/model";
 import { requireTier } from "@/lib/auth/require-tier";
 import { creditGate } from "@/lib/credits/gate";
+import { validateOrigin } from "@/lib/security/csrf";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   const gate = await creditGate();
@@ -20,10 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "date required" }, { status: 400 });
     }
 
-    const apiKeyRows = await db.select().from(schema.settings)
-      .where(eq(schema.settings.key, "anthropic_api_key"));
-
-    const apiKey = apiKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
     if (!apiKey) {
       return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 400 });
     }

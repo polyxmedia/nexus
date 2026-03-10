@@ -1,3 +1,5 @@
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { getEffectiveUsername } from "@/lib/auth/effective-user";
 import { db, schema } from "@/lib/db";
@@ -11,6 +13,8 @@ import { getUserTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
 import { hasCredits, debitCredits, calculateCredits } from "@/lib/credits";
 import { buildMemoryContext, touchMemories } from "@/lib/memory/engine";
+import { validateOrigin } from "@/lib/security/csrf";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 // ── Conversation compression ──
 // When a session exceeds COMPRESS_THRESHOLD messages, older messages are
@@ -177,6 +181,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -235,9 +242,7 @@ export async function POST(
   }
   const id = session.id;
 
-  const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "anthropic_api_key"));
-  const apiKeySetting = apiKeyRows[0];
-  const apiKey = apiKeySetting?.value || process.env.ANTHROPIC_API_KEY;
+  const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
   if (!apiKey) return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 500 });
 
   // Build DB-stored content: text + file references (no binary data in DB)

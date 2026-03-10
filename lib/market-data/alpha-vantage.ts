@@ -84,7 +84,7 @@ async function drainQueue() {
 
     lastRequestTime = Date.now();
     try {
-      const res = await fetch(req.url);
+      const res = await fetch(req.url, { signal: AbortSignal.timeout(15_000) });
       if (!res.ok) {
         req.reject(new Error(`Alpha Vantage HTTP ${res.status}`));
         continue;

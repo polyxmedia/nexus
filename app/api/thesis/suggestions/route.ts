@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
 import { eq, desc, gte } from "drizzle-orm";
 import { creditGate } from "@/lib/credits/gate";
+import { getSettingValue } from "@/lib/settings/get-setting";
 
 export interface ThesisSuggestion {
   title: string;
@@ -16,11 +17,7 @@ export async function GET() {
     const gate = await creditGate();
     if (gate.response) return gate.response;
 
-    const anthropicKeyRows = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "anthropic_api_key"));
-    const apiKey = anthropicKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
     if (!apiKey) {
       return NextResponse.json({ suggestions: [] });
     }

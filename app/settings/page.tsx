@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { PaymentForm } from "@/components/stripe/payment-form";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   CreditCard,
   ExternalLink,
@@ -37,6 +38,10 @@ import {
   Plus,
   User,
   Upload,
+  Download,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface SettingEntry {
@@ -164,6 +169,250 @@ const TIER_BADGE = {
   fast: "bg-navy-700 text-navy-400",
 };
 
+
+function ChangePasswordSection() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const handleChange = async () => {
+    if (newPassword !== confirmPassword) {
+      setResult({ type: "error", message: "Passwords do not match" });
+      return;
+    }
+    setChanging(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/account/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResult({ type: "success", message: "Password changed successfully" });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        setResult({ type: "error", message: data.error || "Failed to change password" });
+      }
+    } catch {
+      setResult({ type: "error", message: "Network error" });
+    }
+    setChanging(false);
+  };
+
+  return (
+    <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Lock className="h-3.5 w-3.5 text-navy-400" />
+        <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Change Password</h3>
+      </div>
+      <div className="space-y-3 max-w-sm">
+        <div className="relative">
+          <Input
+            type={showCurrent ? "text" : "password"}
+            placeholder="Current password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="text-[11px] pr-8"
+          />
+          <button
+            type="button"
+            onClick={() => setShowCurrent(!showCurrent)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-navy-500 hover:text-navy-300"
+          >
+            {showCurrent ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+        <div className="relative">
+          <Input
+            type={showNew ? "text" : "password"}
+            placeholder="New password (min 10 characters)"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="text-[11px] pr-8"
+          />
+          <button
+            type="button"
+            onClick={() => setShowNew(!showNew)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-navy-500 hover:text-navy-300"
+          >
+            {showNew ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+        <Input
+          type="password"
+          placeholder="Confirm new password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className="text-[11px]"
+        />
+        {result && (
+          <div className={cn(
+            "text-[11px] font-mono px-3 py-2 rounded border",
+            result.type === "success"
+              ? "text-accent-emerald bg-accent-emerald/10 border-accent-emerald/20"
+              : "text-accent-rose bg-accent-rose/10 border-accent-rose/20"
+          )}>
+            {result.message}
+          </div>
+        )}
+        <Button
+          size="sm"
+          onClick={handleChange}
+          disabled={changing || !currentPassword || !newPassword || !confirmPassword || newPassword.length < 10}
+        >
+          {changing ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Lock className="h-3 w-3 mr-1.5" />}
+          Change password
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DataExportSection() {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/account/export");
+      if (!res.ok) {
+        console.error("Export failed:", res.status);
+        setExporting(false);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.split("filename=")[1]?.replace(/"/g, "") || "nexus-export.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      console.error("Export error:", err);
+    }
+    setExporting(false);
+  };
+
+  return (
+    <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Download className="h-3.5 w-3.5 text-navy-400" />
+        <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Export Your Data</h3>
+      </div>
+      <p className="text-[11px] text-navy-400 leading-relaxed mb-3">
+        Download a JSON file containing your profile, settings, predictions, trades, and chat history.
+      </p>
+      <Button size="sm" onClick={handleExport} disabled={exporting}>
+        {exporting ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Download className="h-3 w-3 mr-1.5" />}
+        {exporting ? "Exporting..." : "Download my data"}
+      </Button>
+    </div>
+  );
+}
+
+function CloseAccountSection({ username }: { username: string }) {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [closing, setClosing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClose = async () => {
+    if (confirmText !== username) return;
+    setClosing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/account/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmUsername: confirmText }),
+      });
+      if (res.ok) {
+        signOut({ callbackUrl: "/" });
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to close account");
+      }
+    } catch {
+      setError("Network error");
+    }
+    setClosing(false);
+  };
+
+  return (
+    <div className="border border-accent-rose/20 rounded-lg bg-accent-rose/[0.02] p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertTriangle className="h-3.5 w-3.5 text-accent-rose" />
+        <h3 className="text-[10px] font-mono uppercase tracking-wider text-accent-rose/70">Close Account</h3>
+      </div>
+
+      {!showConfirm ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-navy-400 leading-relaxed">
+            Permanently delete your account and all associated data. If you have an active subscription, it will be cancelled immediately. This action cannot be undone.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowConfirm(true)}
+            className="text-accent-rose/60 hover:text-accent-rose hover:bg-accent-rose/10 border border-accent-rose/20"
+          >
+            <Trash2 className="h-3 w-3 mr-1.5" />
+            Close my account
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-[11px] text-navy-300 leading-relaxed">
+            Type your username <span className="font-mono text-accent-rose">{username}</span> to confirm. This will:
+          </p>
+          <ul className="text-[10px] text-navy-400 space-y-1 ml-3">
+            <li>Cancel any active subscription</li>
+            <li>Delete all your settings and preferences</li>
+            <li>Remove your account permanently</li>
+          </ul>
+
+          {error && (
+            <div className="text-[11px] font-mono text-accent-rose bg-accent-rose/10 px-3 py-2 rounded border border-accent-rose/20">
+              {error}
+            </div>
+          )}
+
+          <Input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={`Type "${username}" to confirm`}
+            className="text-[11px] font-mono"
+          />
+
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => { setShowConfirm(false); setConfirmText(""); setError(null); }}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleClose}
+              disabled={confirmText !== username || closing}
+              className="bg-accent-rose/15 text-accent-rose border-accent-rose/25 hover:bg-accent-rose/25 disabled:opacity-40"
+            >
+              {closing ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Trash2 className="h-3 w-3 mr-1.5" />}
+              Permanently close account
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { data: session } = useSession();
@@ -860,6 +1109,10 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            <ChangePasswordSection />
+            <DataExportSection />
+            <CloseAccountSection username={username} />
           </div>
         </Tabs.Content>
 

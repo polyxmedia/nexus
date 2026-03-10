@@ -39,12 +39,13 @@ export async function GET() {
   try {
     const res = await fetch("https://opensky-network.org/api/states/all", {
       next: { revalidate: 15 },
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) {
       return NextResponse.json(
-        { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0 },
-        { status: 200 }
+        { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0, error: "upstream_unavailable" },
+        { status: 502 }
       );
     }
 
@@ -91,8 +92,8 @@ export async function GET() {
   } catch (error) {
     console.error("Aircraft API error:", error);
     return NextResponse.json(
-      { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0 } as AircraftResponse,
-      { status: 200 }
+      { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0, error: "fetch_failed" },
+      { status: 502 }
     );
   }
 }

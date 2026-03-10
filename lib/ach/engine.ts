@@ -327,8 +327,8 @@ export async function aiAssistAnalysis(analysisId: number): Promise<{
   const evidence = allEvidence.filter(e => e.analysisId === analysisId);
 
   // Get API key
-  const apiKeyRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "anthropic_api_key")).limit(1);
-  const apiKey = apiKeyRows[0]?.value || process.env.ANTHROPIC_API_KEY;
+  const { getSettingValue } = await import("@/lib/settings/get-setting");
+  const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
   if (!apiKey) throw new Error("No Anthropic API key configured");
 
   const client = new Anthropic({ apiKey });

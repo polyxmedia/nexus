@@ -115,12 +115,8 @@ export async function runActorProfileUpdate(): Promise<{
   updatesFound: number;
   errors: number;
 }> {
-  const apiKeyRow = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, "anthropic_api_key"));
-  const apiKey =
-    apiKeyRow[0]?.value || process.env.ANTHROPIC_API_KEY || "";
+  const { getSettingValue } = await import("@/lib/settings/get-setting");
+  const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY) || "";
 
   if (!apiKey) {
     return { actorsChecked: 0, updatesFound: 0, errors: 1 };

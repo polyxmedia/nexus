@@ -2662,11 +2662,8 @@ async function executeSearchParallels(input: Record<string, unknown>) {
     const query = input.query as string;
     if (!query) return { error: "Query is required" };
 
-    const apiKeyRow = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "anthropic_api_key"));
-    const apiKey = apiKeyRow[0]?.value || process.env.ANTHROPIC_API_KEY || "";
+    const { getSettingValue } = await import("@/lib/settings/get-setting");
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY) || "";
 
     if (!apiKey) return { error: "Anthropic API key not configured" };
 
@@ -2698,11 +2695,8 @@ async function executeGenerateReport(input: Record<string, unknown>) {
   try {
     const topic = input.topic as string | undefined;
 
-    const apiKeyRow = await db
-      .select()
-      .from(schema.settings)
-      .where(eq(schema.settings.key, "anthropic_api_key"));
-    const apiKey = apiKeyRow[0]?.value || process.env.ANTHROPIC_API_KEY || "";
+    const { getSettingValue } = await import("@/lib/settings/get-setting");
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY) || "";
 
     if (!apiKey) return { error: "Anthropic API key not configured" };
 

@@ -16,7 +16,17 @@ function initDb() {
   } else {
     const { Pool } = require("pg");
     const { drizzle } = require("drizzle-orm/node-postgres");
-    const pool = new Pool({ connectionString: url });
+    const pool = new Pool({
+      connectionString: url,
+      max: 20,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+    });
+
+    pool.on("error", (err: Error) => {
+      console.error("[DB] Unexpected pool error:", err.message);
+    });
+
     return drizzle(pool, { schema });
   }
 }

@@ -1,8 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { desc, isNotNull } from "drizzle-orm";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const ip = getClientIp(request);
+  const rl = await rateLimit(`public:predictions:${ip}`, 30, 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
   try {
     const resolved = await db
       .select({
@@ -24,7 +30,7 @@ export async function GET() {
 
     return NextResponse.json({ predictions: resolved });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Recent resolved predictions error:", error);
+    return NextResponse.json({ error: "Failed to fetch predictions" }, { status: 500 });
   }
 }
