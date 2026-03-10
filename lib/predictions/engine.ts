@@ -7,6 +7,15 @@ import { getActiveKnowledge } from "../knowledge/engine";
 import { computePerformanceReport } from "./feedback";
 import { getWartimeAnalysis } from "../game-theory/wartime";
 import { SCENARIOS } from "../game-theory/actors";
+import {
+  runBayesianAnalysis,
+  initializeBeliefs,
+  createSignalFromOSINT,
+  type NPlayerScenario,
+  type Coalition,
+  type BayesianAnalysis,
+} from "../game-theory/bayesian";
+import type { StrategicScenario } from "../thesis/types";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { SONNET_MODEL, HAIKU_MODEL } from "@/lib/ai/model";
 import { getBaseRateContext, adjustForBaseRate, getBaseRate, updateObservedRates } from "./base-rates";
@@ -16,7 +25,147 @@ import { getCategoryCalibrationAdjustment, applyCalibrationCorrection } from "..
 // ── Constants ──
 
 const MAX_ACTIVE_PREDICTIONS = 500;
-const REGIME_PRICE_DISTANCE_THRESHOLD = 0.20; // 20%
+
+// ── Strategic → Bayesian Scenario Bridge ──
+
+/**
+ * Convert a StrategicScenario (payoff-matrix-based) to an NPlayerScenario
+ * (utility-function-based) so the Bayesian N-player engine can analyze it.
+ */
+function toBayesianScenario(scenario: StrategicScenario): NPlayerScenario {
+  const actors = scenario.actors;
+
+  // Build utility function from the payoff matrix
+  const utilityFn = (strategies: Record<string, string>, _types: Record<string, string>): Record<string, number> => {
+    const entry = scenario.payoffMatrix.find(e =>
+      actors.every(a => e.strategies[a] === strategies[a])
+    );
+    if (entry) return entry.payoffs;
+    // Fallback: slight negative payoff for unknown combinations
+    const fallback: Record<string, number> = {};
+    for (const a of actors) fallback[a] = -1;
+    return fallback;
+  };
+
+  // Derive coalitions from actor alliance data
+  const coalitions: Coalition[] = [];
+  const alliancePairs = new Set<string>();
+  for (const actorId of actors) {
+    const actor = SCENARIOS.find(s => s.actors.includes(actorId));
+    if (!actor) continue;
+    // Check if the two scenario actors are allied
+    const otherActor = actors.find(a => a !== actorId);
+    if (otherActor) {
+      const key = [actorId, otherActor].sort().join("-");
+      if (!alliancePairs.has(key)) {
+        alliancePairs.add(key);
+        // Adversarial scenarios have no coalition between the two actors
+        // but we still model it for the engine
+        coalitions.push({
+          id: `${key}-interaction`,
+          name: `${actorId}-${otherActor} interaction`,
+          members: [actorId, otherActor],
+          stability: 0.3,
+          fractureProbability: 0.5,
+          fractureCondition: "Escalation beyond expected thresholds",
+        });
+      }
+    }
+  }
+
+  return {
+    id: scenario.id,
+    title: scenario.title,
+    description: scenario.description,
+    actors,
+    moveOrder: actors, // sequential, one round
+    strategies: scenario.strategies,
+    utilityFn,
+    coalitions,
+    marketSectors: scenario.marketSectors,
+    timeHorizon: scenario.timeHorizon as NPlayerScenario["timeHorizon"],
+  };
+}
+
+/**
+ * Run Bayesian N-player analysis for all scenarios, incorporating
+ * recent signals as belief updates. Returns formatted context for the prompt.
+ */
+async function runBayesianGameTheory(
+  activeSignals: Array<{ title: string; description: string; intensity: number }>
+): Promise<{ context: string; analyses: Map<string, BayesianAnalysis> }> {
+  const analyses = new Map<string, BayesianAnalysis>();
+  const lines: string[] = [];
+
+  for (const scenario of SCENARIOS) {
+    try {
+      const bayesianScenario = toBayesianScenario(scenario);
+      const beliefs = initializeBeliefs(scenario.actors);
+
+      // Convert active signals to Bayesian signal updates for belief updating
+      const signalUpdates = activeSignals
+        .filter(s => {
+          const text = `${s.title} ${s.description}`.toLowerCase();
+          return scenario.actors.some(a => text.includes(a)) ||
+            scenario.marketSectors.some(sec => text.includes(sec));
+        })
+        .flatMap(s => {
+          return scenario.actors
+            .filter(a => `${s.title} ${s.description}`.toLowerCase().includes(a))
+            .map(a => createSignalFromOSINT(`${s.title}: ${s.description}`, a, "osint"));
+        });
+
+      const analysis = runBayesianAnalysis(bayesianScenario, beliefs, signalUpdates);
+      analyses.set(scenario.id, analysis);
+
+      // Format for prompt injection
+      const eq = analysis.equilibria;
+      const topEq = eq.length > 0 ? eq[0] : null;
+      const dominantTypesSummary = Object.entries(analysis.dominantTypes)
+        .map(([a, t]) => `${a}: ${t.type} (${(t.probability * 100).toFixed(0)}%)`)
+        .join(", ");
+
+      let line = `- ${scenario.title}:`;
+      line += `\n  Bargaining range: ${(analysis.bargainingRange * 100).toFixed(0)}% (${analysis.bargainingRange < 0.2 ? "FEARON FAILURE - conflict structurally likely" : analysis.bargainingRange < 0.4 ? "NARROW - fragile" : "sufficient for agreement"})`;
+      line += `\n  Escalation probability: ${(analysis.escalationProbability * 100).toFixed(0)}%`;
+      line += `\n  Dominant actor types: ${dominantTypesSummary}`;
+      line += `\n  Bayesian equilibria: ${eq.length}`;
+
+      if (topEq) {
+        const strats = Object.entries(topEq.strategyProfile).map(([a, s]) => `${a}: ${s}`).join(", ");
+        line += `\n  Most likely equilibrium: ${strats} (p=${(topEq.probability * 100).toFixed(0)}%, stability: ${topEq.stability}, Fearon: ${topEq.fearonCondition})`;
+        line += `\n  Market impact: ${topEq.marketImpact.direction}, magnitude: ${topEq.marketImpact.magnitude}`;
+      }
+
+      // Coalition assessment
+      if (analysis.coalitionAssessment.length > 0) {
+        const coalitionSummary = analysis.coalitionAssessment
+          .map(c => `${c.name}: stability ${(c.currentStability * 100).toFixed(0)}%, fracture risk: ${c.fractureRisk}`)
+          .join("; ");
+        line += `\n  Coalitions: ${coalitionSummary}`;
+      }
+
+      // Audience cost constraints
+      const constrainedActors = Object.entries(analysis.audienceCostConstraints);
+      if (constrainedActors.length > 0) {
+        line += `\n  Audience cost constraints: ${constrainedActors.map(([a, strats]) => `${a} cannot ${strats.join("/")}`).join("; ")}`;
+      }
+
+      line += `\n  Fearon assessment: ${analysis.fearonAssessment}`;
+      line += `\n  Market assessment: ${analysis.marketAssessment.mostLikelyOutcome} (${analysis.marketAssessment.direction}, confidence: ${(analysis.marketAssessment.confidence * 100).toFixed(0)}%)`;
+
+      lines.push(line);
+    } catch {
+      // Individual scenario failure is non-fatal
+    }
+  }
+
+  return {
+    context: lines.length > 0 ? lines.join("\n\n") : "Bayesian analysis unavailable",
+    analyses,
+  };
+}
+const REGIME_PRICE_DISTANCE_THRESHOLD = 0.10; // 10% — tighter threshold for faster invalidation
 const REFERENCE_SYMBOLS = ["SPY", "USO", "GLD"] as const;
 
 // ── Regime Classification ──
@@ -908,10 +1057,11 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
 
   if (pending.length === 0) return [];
 
-  // Only pick up market predictions with clear price targets whose deadline has passed
+  // Pick up ALL market predictions with price targets -- both past deadline AND still active.
+  // Past deadline: score normally (confirmed/partial/denied)
+  // Still active: early-confirm if target already hit, early-deny if target now impossible
   const candidates = pending.filter(
     (p) =>
-      p.deadline <= today &&
       p.category === "market" &&
       p.priceTarget != null &&
       p.referenceSymbol != null &&
@@ -958,22 +1108,23 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
     const direction = p.direction!;
     const createdDate = p.createdAt.split("T")[0];
     const deadlineDate = p.deadline;
+    const isPastDeadline = deadlineDate <= today;
 
-    // Get price bars within the prediction window
-    const windowBars = data.history.filter((b) => b.date >= createdDate && b.date <= deadlineDate);
+    // Get price bars within the prediction window (up to today if not past deadline)
+    const endDate = isPastDeadline ? deadlineDate : today;
+    const windowBars = data.history.filter((b) => b.date >= createdDate && b.date <= endDate);
     if (windowBars.length === 0) continue;
 
-    // Check if target was hit during the window
-    let targetHit = false;
-    let directionCorrect = false;
     const refPrices = safeParse(p.referencePrices, {}) as Record<string, number>;
     const startPrice = refPrices[p.referenceSymbol!] || windowBars[0]?.close;
-
     if (!startPrice) continue;
 
-    const lastPrice = windowBars[windowBars.length - 1].close;
+    const lastPrice = data.current;
 
-    // Direction check
+    // Check if target was hit at any point during the window
+    let targetHit = false;
+    let directionCorrect = false;
+
     if (direction === "up") {
       directionCorrect = lastPrice > startPrice;
       targetHit = windowBars.some((b) => b.high >= target || b.close >= target);
@@ -982,6 +1133,47 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
       targetHit = windowBars.some((b) => b.low <= target || b.close <= target);
     }
 
+    // ── Early resolution for predictions still before deadline ──
+    if (!isPastDeadline) {
+      if (targetHit) {
+        // Target already hit before deadline -- early confirm
+        const hitDates = windowBars
+          .filter((b) => direction === "up" ? (b.high >= target || b.close >= target) : (b.low <= target || b.close <= target))
+          .map((b) => b.date);
+
+        const notes = `Early-confirmed: ${p.referenceSymbol} hit target ${direction === "up" ? "above" : "below"} ${target} on ${hitDates.join(", ")}. Current price: ${lastPrice.toFixed(2)} (started at ${startPrice.toFixed(2)}).`;
+
+        await db.update(schema.predictions)
+          .set({ outcome: "confirmed", score: 1.0, outcomeNotes: notes, resolvedAt: new Date().toISOString(), directionCorrect: 1, levelCorrect: 1 })
+          .where(eq(schema.predictions.id, p.id));
+        results.push({ id: p.id, outcome: "confirmed", score: 1.0, notes });
+        continue;
+      }
+
+      // Check if target is now impossible: price has moved so far in the wrong direction
+      // that reaching the target by deadline is implausible (>30% move required)
+      const distanceToTarget = Math.abs(lastPrice - target) / lastPrice;
+      const wrongDirection = (direction === "up" && lastPrice > target * 1.30) ||
+                             (direction === "down" && lastPrice < target * 0.70);
+      // Also check: price moved >30% away from target in opposite direction from start
+      const movedAway = (direction === "up" && lastPrice < startPrice * 0.85 && target > lastPrice * 1.30) ||
+                        (direction === "down" && lastPrice > startPrice * 1.15 && target < lastPrice * 0.70);
+
+      if (wrongDirection || movedAway) {
+        const notes = `Early-denied: ${p.referenceSymbol} at ${lastPrice.toFixed(2)} has moved too far from target ${direction === "up" ? "above" : "below"} ${target} (started at ${startPrice.toFixed(2)}, distance to target: ${(distanceToTarget * 100).toFixed(1)}%). Target is no longer reachable within deadline.`;
+
+        await db.update(schema.predictions)
+          .set({ outcome: "denied", score: 0.0, outcomeNotes: notes, resolvedAt: new Date().toISOString(), directionCorrect: directionCorrect ? 1 : 0, levelCorrect: 0 })
+          .where(eq(schema.predictions.id, p.id));
+        results.push({ id: p.id, outcome: "denied", score: 0.0, notes });
+        continue;
+      }
+
+      // Still active and target reachable -- skip, let it run
+      continue;
+    }
+
+    // ── Past deadline: standard resolution ──
     let outcome: string;
     let score: number;
 

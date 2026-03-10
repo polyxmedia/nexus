@@ -450,8 +450,8 @@ describe("resolveByData", () => {
     expect(mockUpdateObservedRates).not.toHaveBeenCalled();
   });
 
-  // 9. Skips predictions whose deadline has not yet passed
-  it("skips predictions whose deadline is in the future", async () => {
+  // 9. Early-confirms future predictions when target already hit
+  it("early-confirms predictions whose deadline is in the future when target already hit", async () => {
     const pred = makePrediction({
       id: 50,
       deadline: "2026-12-31", // future
@@ -464,8 +464,27 @@ describe("resolveByData", () => {
 
     const result = await resolveByData();
 
+    expect(result).toEqual([
+      expect.objectContaining({ id: 50, outcome: "confirmed", score: 1.0 }),
+    ]);
+  });
+
+  // 9b. Skips future predictions when target is still reachable
+  it("skips future predictions when target is not yet hit and still reachable", async () => {
+    const pred = makePrediction({
+      id: 51,
+      deadline: "2026-12-31", // future
+      priceTarget: 600, // target above current price of 505, not yet hit
+    });
+
+    setupDbChain(
+      [{ key: "alpha_vantage_api_key", value: "test-key" }],
+      [pred],
+    );
+
+    const result = await resolveByData();
+
     expect(result).toEqual([]);
-    expect(mockedGetQuote).not.toHaveBeenCalled();
   });
 
   // 10. Uses startPrice from referencePrices when available
