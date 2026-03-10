@@ -15,7 +15,7 @@ import { getCategoryCalibrationAdjustment, applyCalibrationCorrection } from "..
 
 // ── Constants ──
 
-const MAX_ACTIVE_PREDICTIONS = 75;
+const MAX_ACTIVE_PREDICTIONS = 500;
 const REGIME_PRICE_DISTANCE_THRESHOLD = 0.20; // 20%
 const REFERENCE_SYMBOLS = ["SPY", "USO", "GLD"] as const;
 
@@ -72,28 +72,76 @@ async function fetchReferencePrices(alphaVantageKey: string): Promise<Record<str
 // ── Base Rate Confidence Adjustment ──
 
 async function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): Promise<number> {
-  const clamped = Math.max(0.1, Math.min(0.95, rawConfidence));
+  const clamped = Math.max(0.05, Math.min(0.90, rawConfidence));
 
-  // Infer evidence strength from the raw confidence:
-  // low confidence = weak evidence, high confidence = strong evidence
-  const evidenceStrength = clamped < 0.3 ? 1 : clamped < 0.5 ? 2 : clamped < 0.7 ? 3 : clamped < 0.85 ? 4 : 5;
+  // ── Overconfidence shrinkage ──
+  // Analysis showed systematic overconfidence that increases monotonically with
+  // stated confidence. Apply shrinkage toward 0.30 (empirical base rate for
+  // prediction systems). Stronger shrinkage at higher confidence levels.
+  const ANCHOR = 0.30;
+  const shrinkage = clamped > 0.50 ? 0.40 : 0.20; // pull harder above 0.50
+  const shrunk = clamped * (1 - shrinkage) + ANCHOR * shrinkage;
+
+  // ── Compound probability detection ──
+  // If claim is conditional on a scenario (Hormuz closure, Taiwan escalation, etc.),
+  // the confidence should be P(scenario) * P(outcome | scenario), not just the latter.
+  const compoundDiscount = detectCompoundProbability(claim);
+  const compounded = shrunk * compoundDiscount;
+
+  // Infer evidence strength conservatively:
+  // Only high raw confidence (>0.70) with specific price targets earns strong evidence
+  const hasTarget = /\$[\d,]+|\d+\.\d{2}/.test(claim);
+  const evidenceStrength = clamped < 0.3 ? 1
+    : clamped < 0.5 ? 2
+    : (clamped < 0.7 || !hasTarget) ? 2  // cap at 2 without specific target
+    : clamped < 0.85 ? 3
+    : 4; // never assign max strength from LLM confidence alone
 
   // Get best matching base rate from DB (keyword-scored, with observed rate blending)
   const { rate: baseRate } = await getBaseRate(category, claim);
 
-  const baseRateAdjusted = adjustForBaseRate(clamped, baseRate, evidenceStrength);
+  const baseRateAdjusted = adjustForBaseRate(compounded, baseRate, evidenceStrength);
 
   // Apply backtest calibration correction on top of base rate adjustment
   try {
     const catAdj = await getCategoryCalibrationAdjustment(category);
     if (catAdj.reliable) {
-      return Math.max(0.05, Math.min(0.95, baseRateAdjusted * catAdj.multiplier));
+      return Math.max(0.05, Math.min(0.85, baseRateAdjusted * catAdj.multiplier));
     }
   } catch {
     // Backtest data unavailable, proceed with base rate adjustment only
   }
 
-  return baseRateAdjusted;
+  return Math.max(0.05, Math.min(0.85, baseRateAdjusted));
+}
+
+// ── Compound Probability Detection ──
+// Predictions conditional on a scenario happening should discount by P(scenario).
+// Returns a multiplier in (0, 1].
+function detectCompoundProbability(claim: string): number {
+  const lower = claim.toLowerCase();
+
+  // Scenario-conditional patterns and their approximate P(scenario)
+  const scenarioTriggers: Array<{ pattern: RegExp; pScenario: number }> = [
+    { pattern: /hormuz.*(clos|block|shut)|strait.*(clos|block)/i, pScenario: 0.15 },
+    { pattern: /full.*(war|conflict|invasion)/i, pScenario: 0.10 },
+    { pattern: /nuclear.*(test|strike|weapon)/i, pScenario: 0.15 },
+    { pattern: /taiwan.*(invas|blockade|war)/i, pScenario: 0.10 },
+    { pattern: /regime.*(change|collapse|fall)/i, pScenario: 0.15 },
+    { pattern: /wartime|crisis.level|full.scale/i, pScenario: 0.20 },
+    { pattern: /strait.*closure|blockade/i, pScenario: 0.15 },
+    { pattern: /force majeure/i, pScenario: 0.20 },
+  ];
+
+  for (const { pattern, pScenario } of scenarioTriggers) {
+    if (pattern.test(lower)) return pScenario;
+  }
+
+  // Mild discount for claims referencing escalation / tension as triggers
+  if (/escalat|tension.*intensif|conflict.*spread/i.test(lower)) return 0.60;
+
+  // No compound discount
+  return 1.0;
 }
 
 // ── Direction/Level Extraction ──
@@ -508,6 +556,13 @@ STRICT UNIQUENESS RULES — violations will be rejected:
 4. Every prediction must cover a DIFFERENT underlying asset or a materially different event from all pending ones.
 5. If all meaningful signals are already covered by existing predictions, return an empty array [].
 
+CONFIDENCE CALIBRATION RULES — your track record shows systematic overconfidence:
+- COMPOUND PROBABILITY: If your prediction requires a scenario to happen first (e.g., "Hormuz closes THEN oil spikes"), your confidence must be P(scenario) * P(outcome | scenario). Do NOT assign the conditional probability alone.
+- BASE RATES: Specific price targets within narrow windows confirm ~25-35% of the time. Geopolitical "at least one announcement" claims confirm ~40-60%. Celestial-triggered claims have NO causal mechanism — assign the same confidence as the underlying market/geo claim without celestial bonus.
+- OVERCONFIDENCE CHECK: Before assigning confidence above 0.60, ask: "What specific evidence makes this MORE likely than the base rate?" If you cannot articulate strong, specific evidence, cap at 0.50.
+- RANGE: Use the full 0.10-0.80 range. Many predictions should be in the 0.15-0.40 range. Clustering everything around 0.50-0.70 is a calibration failure.
+- NO CONTRADICTIONS: Do not predict opposite outcomes for the same asset (e.g., BTC above $100k AND BTC below $60k).
+
 DIRECTION + LEVEL RULES:
 - For market predictions, always specify a DIRECTION (up/down/flat) and, where possible, a specific PRICE TARGET.
 - Include the reference symbol (ticker) for any price target.
@@ -520,9 +575,9 @@ Respond ONLY with a JSON array. Each prediction must include all fields:
     "claim": "Specific falsifiable claim with measurable threshold",
     "timeframe": "7 days" | "14 days" | "30 days" | "90 days",
     "deadline": "YYYY-MM-DD",
-    "confidence": 0.3-0.95,
+    "confidence": 0.10-0.80,
     "category": "market" | "geopolitical" | "celestial",
-    "grounding": "Derived from: [specific thesis element / signal / game theory outcome]",
+    "grounding": "Derived from: [specific thesis element / signal / game theory outcome]. Compound probability: P(trigger) * P(outcome|trigger) = X",
     "direction": "up" | "down" | "flat" | null,
     "price_target": number | null,
     "reference_symbol": "TICKER" | null

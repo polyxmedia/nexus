@@ -45,30 +45,10 @@ export async function runAlertChain(
     thesisTriggered: false,
   };
 
-  // ── Step 1: Auto-generate prediction for intensity 4+ signals ──
-  if (intensity >= 4) {
-    try {
-      const sectors = marketSectors ? JSON.parse(marketSectors) : [];
-      const sectorText = sectors.length > 0 ? ` affecting ${sectors.join(", ")}` : "";
-      const deadline = new Date(Date.now() + 14 * 86_400_000).toISOString().split("T")[0];
-
-      await db.insert(schema.predictions).values({
-        signalId,
-        claim: `Signal "${signalTitle}" (L${intensity}) will produce measurable market impact${sectorText} within 14 days`,
-        confidence: intensity === 5 ? 0.75 : 0.6,
-        category: category === "convergence" ? "market" : category === "geopolitical" ? "geopolitical" : "market",
-        timeframe: "14 days",
-        deadline,
-        direction: "down", // high-intensity signals typically signal risk
-        regimeAtCreation: "transitional",
-        preEvent: 1,
-        createdBy: "system",
-      });
-      result.predictionsCreated = 1;
-    } catch (err) {
-      console.error("[alert-chain] Failed to auto-create prediction:", err);
-    }
-  }
+  // ── Step 1: Removed — alerts no longer auto-create predictions ──
+  // Predictions are generated exclusively by the prediction engine which applies
+  // proper calibration, deduplication, compound probability, and junk filtering.
+  // Alert signals feed into the prediction engine's context via the signals table.
 
   // ── Step 2: Trigger thesis generation for intensity 5 signals ──
   if (intensity >= 5) {
