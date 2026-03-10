@@ -5,8 +5,12 @@ import { eq } from "drizzle-orm";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/email/templates";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   // Rate limit: 5 registrations per IP per hour (skipped for localhost dev/test)
   const ip = getClientIp(request);
   const isLocalhost = ip === "127.0.0.1" || ip === "::1" || ip === "unknown";

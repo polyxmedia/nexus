@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/auth/auth";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET — validate token
 export async function GET(request: Request) {
@@ -45,6 +46,9 @@ export async function GET(request: Request) {
 
 // POST — reset password
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const ip = getClientIp(request);
     const rl = rateLimit(`reset-password:${ip}`, 10, 15 * 60 * 1000);

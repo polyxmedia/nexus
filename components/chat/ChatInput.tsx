@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback, type ChangeEvent, type DragEvent } from "react";
-import { ArrowUp, Square, Paperclip, X, FileText, Image as ImageIcon, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEvent } from "react";
+import { ArrowUp, Square, Paperclip, X, FileText, Image as ImageIcon, Mic, MicOff, Phone, PhoneOff, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VoiceWaveform } from "./VoiceWaveform";
 
@@ -15,11 +15,20 @@ export interface FileAttachment {
   previewUrl?: string;
 }
 
+export const CHAT_MODELS = [
+  { id: "claude-sonnet-4-6", label: "Sonnet 4.6", shortLabel: "S4.6" },
+  { id: "claude-opus-4-6", label: "Opus 4.6", shortLabel: "O4.6" },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5", shortLabel: "H4.5" },
+] as const;
+
 interface ChatInputProps {
   onSend: (message: string, files?: FileAttachment[]) => void;
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
+  /** Model selection */
+  selectedModel?: string;
+  onModelChange?: (model: string) => void;
   /** Voice mode props (operator+ only) */
   voiceAvailable?: boolean;
   voiceEnabled?: boolean;
@@ -74,10 +83,25 @@ async function readFile(file: File): Promise<FileAttachment | null> {
 
 export function ChatInput({
   onSend, onStop, isStreaming, disabled,
+  selectedModel, onModelChange,
   voiceAvailable, voiceEnabled, isListening, isSpeaking, transcript,
   onToggleVoice, onStartListening, onStopListening, onStopSpeaking,
   onCallToggle, audioStream,
 }: ChatInputProps) {
+  const [modelOpen, setModelOpen] = useState(false);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close model menu on outside click
+  useEffect(() => {
+    if (!modelOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setModelOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [modelOpen]);
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -358,6 +382,52 @@ export function ChatInput({
                 )}
               </button>
             </>
+          )}
+
+          {/* Model selector */}
+          {onModelChange && (
+            <div className="relative" ref={modelMenuRef}>
+              <button
+                type="button"
+                onClick={() => setModelOpen((v) => !v)}
+                disabled={isStreaming}
+                className={cn(
+                  "flex items-center gap-1 h-7 rounded-md px-2 transition-all",
+                  "font-mono text-[10px] uppercase tracking-wider",
+                  "text-navy-500 hover:text-navy-300 hover:bg-navy-800/70",
+                  "disabled:opacity-40 disabled:cursor-not-allowed"
+                )}
+              >
+                {CHAT_MODELS.find((m) => m.id === selectedModel)?.shortLabel ?? "S4.6"}
+                <ChevronDown className="h-2.5 w-2.5" />
+              </button>
+              {modelOpen && (
+                <div className="absolute bottom-full left-0 mb-1 w-40 rounded-lg border border-navy-700/60 bg-navy-900 shadow-lg overflow-hidden z-50">
+                  {CHAT_MODELS.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        onModelChange(m.id);
+                        setModelOpen(false);
+                      }}
+                      className={cn(
+                        "flex items-center justify-between w-full px-3 py-2 text-left transition-colors",
+                        "font-mono text-[11px]",
+                        m.id === selectedModel
+                          ? "text-accent-cyan bg-accent-cyan/5"
+                          : "text-navy-400 hover:text-navy-200 hover:bg-navy-800/60"
+                      )}
+                    >
+                      {m.label}
+                      {m.id === selectedModel && (
+                        <span className="text-[9px] text-accent-cyan">active</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="flex-1" />

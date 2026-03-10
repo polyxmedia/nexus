@@ -7,7 +7,7 @@ import { checkDuplicate } from "@/lib/trading212/client";
 import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
-import { validateOrigin } from "@/lib/security/csrf";
+import { validateOrigin, safeError } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("operator");
@@ -22,8 +22,7 @@ export async function GET(request: NextRequest) {
     const orders = await client.getOrders({ productId, limit });
     return NextResponse.json(orders);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("Coinbase", error);
   }
 }
 
@@ -132,8 +131,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ order: orderResult, trade });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("Coinbase", error);
   }
 }
 
@@ -163,7 +161,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, orderId });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("Coinbase", error);
   }
 }

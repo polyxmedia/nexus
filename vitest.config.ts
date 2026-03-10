@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     exclude: ["e2e/**", "node_modules/**", "**/node_modules/**", "mcp-server/**"],
+    setupFiles: ["./tests/setup.ts"],
   },
   resolve: {
     alias: {

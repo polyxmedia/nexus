@@ -45,7 +45,7 @@ const DEFAULT_TIERS = [
   },
   {
     name: "Operator",
-    price: 75000,
+    price: 45000,
     interval: "month",
     features: [
       "Everything in Analyst",

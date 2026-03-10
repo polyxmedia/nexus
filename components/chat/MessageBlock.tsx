@@ -36,9 +36,11 @@ interface MessageBlockProps {
   turn: ChatTurn;
   isStreaming?: boolean;
   onSuggestionClick?: (suggestion: string) => void;
+  /** Running credit total up to this turn (admin only) */
+  cumulativeCredits?: number;
 }
 
-export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBlockProps) {
+export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeCredits }: MessageBlockProps) {
   if (turn.role === "user") {
     return (
       <div className="group flex justify-end items-start gap-1.5 mb-4">
@@ -199,6 +201,20 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick }: MessageBl
                 </span>
               </>
             ) : null
+          )}
+          {cumulativeCredits != null && cumulativeCredits > 0 && (
+            <>
+              <span className="text-navy-700">|</span>
+              <span className="text-navy-500">
+                session: {cumulativeCredits.toLocaleString()} credits
+              </span>
+              <span className="text-navy-700">|</span>
+              <span className={cumulativeCredits * 0.001 > 1 ? "text-accent-amber" : "text-navy-400"}>
+                ${(cumulativeCredits * 0.001) < 0.01
+                  ? (cumulativeCredits * 0.001).toFixed(4)
+                  : (cumulativeCredits * 0.001).toFixed(2)}
+              </span>
+            </>
           )}
         </div>
       )}

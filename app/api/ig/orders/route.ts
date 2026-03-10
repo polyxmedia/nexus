@@ -7,6 +7,7 @@ import { getIGClient, checkDuplicate, type IGDealConfirmation } from "@/lib/ig/c
 import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin, safeError } from "@/lib/security/csrf";
 
 // GET — list working orders
 export async function GET() {
@@ -43,13 +44,15 @@ export async function GET() {
 
     return NextResponse.json({ orders });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("IG", error);
   }
 }
 
 // POST — open a position
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
 
@@ -134,13 +137,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ trade, igResult: confirmation || dealResult });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("IG", error);
   }
 }
 
 // DELETE — close position or cancel working order
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
 
@@ -179,7 +184,6 @@ export async function DELETE(request: NextRequest) {
     const result = await ig.client.closePosition(dealId, closeDirection, size);
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("IG", error);
   }
 }

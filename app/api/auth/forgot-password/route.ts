@@ -5,8 +5,12 @@ import { eq, like } from "drizzle-orm";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import { passwordResetEmail } from "@/lib/email/templates";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const ip = getClientIp(request);
     const rl = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000);

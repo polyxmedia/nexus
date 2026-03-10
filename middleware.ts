@@ -1,10 +1,12 @@
 import { withAuth } from "next-auth/middleware";
 
-// Public API paths that skip auth (used by public research pages)
+// Public API paths that skip auth (used by public research pages, webhooks)
 const PUBLIC_API_PATHS = [
   "/api/predictions/feedback",
   "/api/predictions/recent-resolved",
   "/api/telegram/webhook",
+  "/api/stripe/webhook",
+  "/api/subscription/tiers",
 ];
 
 // API v1 uses its own Bearer token auth (withApiAuth HOF), not session auth
@@ -34,42 +36,11 @@ export default withAuth({
 });
 
 export const config = {
+  // Deny-by-default: match ALL /api/ routes and app pages.
+  // Public routes (auth, stripe webhook, etc.) are handled in the authorized callback above
+  // or are excluded by Next.js (e.g. /api/auth/* is handled by NextAuth directly).
   matcher: [
-    // Protect all API routes except auth, stripe webhook, and public endpoints
-    "/api/chat/:path*",
-    "/api/signals/:path*",
-    "/api/predictions/:path*",
-    "/api/trading212/:path*",
-    "/api/coinbase/:path*",
-    "/api/ibkr/:path*",
-    "/api/ig/:path*",
-    "/api/settings/:path*",
-    "/api/knowledge/:path*",
-    "/api/warroom/:path*",
-    "/api/portfolio/:path*",
-    "/api/scheduler/:path*",
-    "/api/thesis/:path*",
-    "/api/analysis/:path*",
-    "/api/alerts/:path*",
-    "/api/dashboard/:path*",
-    "/api/market-data/:path*",
-    "/api/markets/:path*",
-    "/api/macro/:path*",
-    "/api/options/:path*",
-    "/api/osint/:path*",
-    "/api/news/:path*",
-    "/api/calendar/:path*",
-    "/api/esoteric/:path*",
-    "/api/game-theory/:path*",
-    "/api/attribution/:path*",
-    "/api/contagion/:path*",
-    "/api/graph/:path*",
-    "/api/timeline/:path*",
-    "/api/watchlists/:path*",
-    "/api/admin/:path*",
-    "/api/v1/:path*",
-    "/api/referrals/:path*",
-    "/api/telegram/:path*",
+    "/api/((?!auth|_next).*)",
     // Protect app pages
     "/chat/:path*",
     "/dashboard/:path*",
@@ -87,5 +58,9 @@ export const config = {
     "/markets/:path*",
     "/admin/:path*",
     "/settings/:path*",
+    "/actors/:path*",
+    "/bocpd/:path*",
+    "/support/:path*",
+    "/reports/:path*",
   ],
 };

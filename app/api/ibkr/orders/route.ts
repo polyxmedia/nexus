@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { getIBKRClient, checkDuplicate } from "@/lib/ibkr/client";
 import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
+import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin, safeError } from "@/lib/security/csrf";
 
 export async function GET() {
   const tierCheck = await requireTier("operator");
@@ -23,18 +25,29 @@ export async function GET() {
     const orders = await ibkr.client.getOrders();
     return NextResponse.json(orders);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("IBKR", error);
   }
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const username = session.user.name;
+
+  // Rate limit: 30 orders per hour per user
+  const rl = rateLimit(`ibkr:${username}`, 30, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Trading rate limit exceeded. Max 30 orders per hour." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
 
   try {
     const body = await request.json();
@@ -123,12 +136,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ trade, ibkrResult: orderResult });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("IBKR", error);
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
 
@@ -163,7 +178,6 @@ export async function DELETE(request: NextRequest) {
     const result = await client.cancelOrder(activeAccountId, orderId);
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return safeError("IBKR", error);
   }
 }

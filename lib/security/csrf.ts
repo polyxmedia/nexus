@@ -4,6 +4,8 @@
  * Call this at the top of POST/PUT/DELETE handlers on sensitive routes.
  */
 
+import { NextResponse } from "next/server";
+
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:3000",
   "https://localhost:3000",
@@ -48,4 +50,21 @@ export function validateOrigin(request: Request): string | null {
   }
 
   return `Origin not allowed: ${origin || referer || "unknown"}`;
+}
+
+/**
+ * Return a safe error response that never leaks internal details.
+ * Logs the full error server-side, returns a generic message to the client.
+ */
+export function safeError(
+  context: string,
+  error: unknown,
+  status = 500,
+): NextResponse {
+  const raw = error instanceof Error ? error.message : String(error);
+  console.error(`[${context}]`, raw);
+  return NextResponse.json(
+    { error: "An unexpected error occurred. Please try again." },
+    { status },
+  );
 }

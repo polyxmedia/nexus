@@ -71,6 +71,12 @@ export function useChat(sessionId: string) {
     }
   }, [sessionId]);
 
+  const modelRef = useRef<string | undefined>(undefined);
+
+  const setModel = useCallback((model: string | undefined) => {
+    modelRef.current = model;
+  }, []);
+
   const sendMessage = useCallback(
     async (message: string, files?: FileAttachment[]) => {
       if (isStreaming || (!message.trim() && !files?.length)) return;
@@ -103,7 +109,7 @@ export function useChat(sessionId: string) {
         const res = await fetch(`/api/chat/${sessionId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, files: apiFiles?.length ? apiFiles : undefined }),
+          body: JSON.stringify({ message, files: apiFiles?.length ? apiFiles : undefined, model: modelRef.current }),
           signal: controller.signal,
         });
 
@@ -286,7 +292,7 @@ export function useChat(sessionId: string) {
     abortRef.current?.abort();
   }, []);
 
-  return { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired };
+  return { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, setModel };
 }
 
 function dbMessagesToTurns(messages: ChatMessage[]): ChatTurn[] {

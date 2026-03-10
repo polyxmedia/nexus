@@ -25,9 +25,9 @@ Integrated geopolitical-market intelligence platform. Four primary signal layers
 - If ISE after code changes, it's stale turbopack cache. Restart dev server.
 
 ### Design System
-- Dark theme only. Navy palette: navy-950 (#000) through navy-100 (#d4d4d4)
-- Signal colors: signal-1 (blue) through signal-5 (red)
-- Accents: accent-cyan, accent-amber, accent-emerald, accent-rose
+- Dark theme default (+ dim, soft, light modes). Navy palette: navy-950 (#000000) through navy-100 (#e0e0e0)
+- Signal colors: signal-1 (#4a5568) through signal-5 (#8b5c5c) - muted palette
+- Accents: accent-cyan (#06b6d4), accent-amber (#f59e0b), accent-emerald (#10b981), accent-rose (#f43f5e)
 - No emojis in UI
 - Font mono labels (`text-[10px] font-mono uppercase tracking-wider`)
 - Components are `"use client"` when using hooks/interactivity
@@ -63,7 +63,7 @@ app/
     stripe/             # checkout, portal, webhook
     subscription/       # Current user subscription
     settings/           # Settings CRUD + prompts
-    chat/               # Chat API with 20+ tool definitions
+    chat/               # Chat API with 59 tool definitions
     signals/            # Signal engine
     predictions/        # Prediction engine
     warroom/            # War room data (aircraft, OSINT)
@@ -81,12 +81,12 @@ components/
 
 lib/
   db/
-    schema.ts           # Drizzle schema (23 tables)
+    schema.ts           # Drizzle schema (40 tables)
     index.ts            # DB connection (Neon or local pg)
   auth/auth.ts          # NextAuth config
   stripe/index.ts       # Stripe client
   chat/
-    tools.ts            # 20+ chat tool definitions
+    tools.ts            # 59 chat tool definitions
     prompt.ts           # System prompts
   signals/              # Signal detection engines
   predictions/          # Prediction engine
@@ -121,3 +121,16 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
 STRIPE_SECRET_KEY=sk_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
+
+## Detailed Documentation
+
+Full platform documentation lives in `.context/`:
+
+- [`.context/OVERVIEW.md`](.context/OVERVIEW.md) - Platform summary, capabilities, tech stack, subscription tiers, design system
+- [`.context/ARCHITECTURE.md`](.context/ARCHITECTURE.md) - Project structure, architectural patterns, auth flow, middleware, deployment
+- [`.context/DATABASE.md`](.context/DATABASE.md) - All 40 tables, connection details, credit system
+- [`.context/API-ROUTES.md`](.context/API-ROUTES.md) - Every API endpoint organized by domain
+- [`.context/SYSTEMS.md`](.context/SYSTEMS.md) - Core engines: signals, predictions, regime detection, game theory, thesis, knowledge, chat, backtest, war room, alerts
+- [`.context/COMPONENTS.md`](.context/COMPONENTS.md) - All ~140+ components across layout, chat widgets, war room, trading, graph, dashboard, and UI primitives
+- [`.context/CONFIGURATION.md`](.context/CONFIGURATION.md) - Config files, scripts, env vars, Tailwind theme, Vercel, Sentry, Capacitor
+- [`.context/METHODOLOGY.md`](.context/METHODOLOGY.md) - Full analytical methodology from research pages and whitepaper: signal theory, prediction calibration, game theory framework, actor-belief profiles, calendar correlations, documented limitations

@@ -557,6 +557,76 @@ export const dailyReports = pgTable("daily_reports", {
 export type DailyReport = typeof dailyReports.$inferSelect;
 export type NewDailyReport = typeof dailyReports.$inferInsert;
 
+// ── Analyst Jobs Marketplace ──
+
+export const analystProfiles = pgTable("analyst_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(), // user:{username}
+  displayName: text("display_name").notNull(),
+  bio: text("bio"), // short professional summary
+  expertise: text("expertise"), // JSON array: ["geopolitical", "energy", "china", ...]
+  credentials: text("credentials"), // free-text: experience, clearances, affiliations
+  stripeConnectId: text("stripe_connect_id"), // for payouts
+  payoutsEnabled: integer("payouts_enabled").notNull().default(0),
+  totalJobs: integer("total_jobs").notNull().default(0),
+  totalEarnings: integer("total_earnings").notNull().default(0), // in cents
+  avgAccuracy: doublePrecision("avg_accuracy"), // 0-1, computed from scored deliverables
+  scoredDeliverables: integer("scored_deliverables").notNull().default(0),
+  status: text("status").notNull().default("pending"), // pending | approved | suspended
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+export const analystJobs = pgTable("analyst_jobs", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(), // full brief: what's needed, context, deliverable format
+  category: text("category").notNull(), // geopolitical | market | actor | event | technical | osint
+  expertise: text("expertise"), // JSON array of required expertise tags
+  priority: text("priority").notNull().default("standard"), // standard | urgent | critical
+  paymentAmount: integer("payment_amount").notNull(), // in cents
+  paymentType: text("payment_type").notNull().default("fixed"), // fixed | per_hour (future)
+  deadline: text("deadline"), // ISO date: when deliverable is due
+  maxApplications: integer("max_applications").notNull().default(5),
+  status: text("status").notNull().default("open"), // open | in_progress | completed | cancelled
+  createdBy: text("created_by").notNull(), // user:{username} or "system"
+  assignedTo: text("assigned_to"), // analyst_profiles.userId
+  sourceType: text("source_type"), // prediction | signal | convergence | manual
+  sourceId: text("source_id"), // ID of the prediction/signal that triggered this job
+  deliverableFormat: text("deliverable_format").notNull().default("analysis"), // analysis | assessment | profile | briefing
+  knowledgeEntryId: integer("knowledge_entry_id"), // populated after delivery is approved
+  completedAt: text("completed_at"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+export const analystApplications = pgTable("analyst_applications", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").notNull().references(() => analystJobs.id),
+  analystId: integer("analyst_id").notNull().references(() => analystProfiles.id),
+  userId: text("user_id").notNull(), // user:{username}
+  coverNote: text("cover_note"), // why they're qualified for this job
+  proposedApproach: text("proposed_approach"), // how they'd tackle it
+  estimatedHours: integer("estimated_hours"),
+  status: text("status").notNull().default("pending"), // pending | accepted | rejected | withdrawn
+  deliverable: text("deliverable"), // the actual analysis/report content
+  deliveredAt: text("delivered_at"),
+  reviewScore: doublePrecision("review_score"), // 0-1 quality score from admin
+  reviewNotes: text("review_notes"),
+  paymentStatus: text("payment_status").notNull().default("unpaid"), // unpaid | paid | failed
+  paymentReference: text("payment_reference"), // Stripe transfer ID
+  paidAt: text("paid_at"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+export type AnalystProfile = typeof analystProfiles.$inferSelect;
+export type NewAnalystProfile = typeof analystProfiles.$inferInsert;
+export type AnalystJob = typeof analystJobs.$inferSelect;
+export type NewAnalystJob = typeof analystJobs.$inferInsert;
+export type AnalystApplication = typeof analystApplications.$inferSelect;
+export type NewAnalystApplication = typeof analystApplications.$inferInsert;
+
 // ── Social: Analyst Follows ──
 
 export const analystFollows = pgTable("analyst_follows", {

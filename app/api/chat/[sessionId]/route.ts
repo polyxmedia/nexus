@@ -212,6 +212,7 @@ export async function POST(
   const body = await req.json();
   const userMessage = (body.message as string) || "";
   const attachedFiles = body.files as Array<{ name: string; type: string; data: string }> | undefined;
+  const requestedModel = body.model as string | undefined;
   if (!userMessage?.trim() && !attachedFiles?.length) return NextResponse.json({ error: "Message required" }, { status: 400 });
 
   // Input validation: max message length (16K chars)
@@ -357,7 +358,7 @@ export async function POST(
       }
       try {
         const client = new Anthropic({ apiKey });
-        const chatModel = await getChatModel();
+        const chatModel = await getChatModel(requestedModel);
         let messages = [...anthropicMessages];
         let fullText = "";
         const allToolUses: Array<{ toolName: string; toolUseId: string; input: unknown }> = [];

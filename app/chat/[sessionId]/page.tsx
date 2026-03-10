@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PaymentForm } from "@/components/stripe/payment-form";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 function AutoPrompt({ sendMessage, historyLoaded, isStreaming }: { sendMessage: (msg: string) => void; historyLoaded: boolean; isStreaming: boolean }) {
   const searchParams = useSearchParams();
@@ -120,8 +121,15 @@ function ChatCheckoutForm({ tierId, onClose }: { tierId: number; onClose: () => 
 export default function ChatSessionPage() {
   const params = useParams();
   const sessionId = params.sessionId as string;
-  const { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired } = useChat(sessionId);
+  const { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, setModel } = useChat(sessionId);
   const voice = useVoiceMode();
+  const { isAdmin } = useSubscription();
+  const [selectedModel, setSelectedModel] = useState("claude-sonnet-4-6");
+
+  const handleModelChange = useCallback((model: string) => {
+    setSelectedModel(model);
+    setModel(model);
+  }, [setModel]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState("New Chat");
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -381,18 +389,25 @@ export default function ChatSessionPage() {
           </div>
         ) : (
           <div className="max-w-4xl mx-auto px-6 py-6">
-            {turns.map((turn, i) => (
-              <MessageBlock
-                key={turn.id}
-                turn={turn}
-                isStreaming={
-                  isStreaming &&
-                  turn.role === "assistant" &&
-                  i === turns.length - 1
-                }
-                onSuggestionClick={sendMessage}
-              />
-            ))}
+            {turns.map((turn, i) => {
+              // Running credit total up to and including this turn
+              const cumulativeCredits = isAdmin
+                ? turns.slice(0, i + 1).reduce((sum, t) => sum + (t.tokenUsage?.creditsUsed ?? 0), 0)
+                : undefined;
+              return (
+                <MessageBlock
+                  key={turn.id}
+                  turn={turn}
+                  isStreaming={
+                    isStreaming &&
+                    turn.role === "assistant" &&
+                    i === turns.length - 1
+                  }
+                  onSuggestionClick={sendMessage}
+                  cumulativeCredits={cumulativeCredits}
+                />
+              );
+            })}
           </div>
         )}
       </div>}
@@ -416,6 +431,8 @@ export default function ChatSessionPage() {
             onSend={(msg: string, files?: FileAttachment[]) => sendMessage(msg, files)}
             onStop={stop}
             isStreaming={isStreaming}
+            selectedModel={selectedModel}
+            onModelChange={handleModelChange}
             voiceAvailable={voice.voiceAvailable}
             voiceEnabled={voice.voiceEnabled}
             isListening={voice.isListening}
