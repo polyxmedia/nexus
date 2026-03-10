@@ -44,7 +44,7 @@ export function AnalyticsTracker() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path: prevPath, duration }),
-      }).catch(() => {});
+      }).catch((err) => console.error("[Analytics] duration update failed:", err));
     }
 
     // Track new pageview
@@ -58,7 +58,7 @@ export function AnalyticsTracker() {
         screenHeight: window.screen.height,
         visitorId: getVisitorId(),
       }),
-    }).catch(() => {});
+    }).catch((err) => console.error("[Analytics] pageview tracking failed:", err));
   }, [pathname]);
 
   // Send duration on page unload

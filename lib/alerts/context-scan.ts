@@ -512,7 +512,7 @@ export async function runContextScan(): Promise<{
             ``,
             `<a href="${match.article.url}">Read article</a> | <a href="https://nexushq.xyz/alerts">View in NEXUS</a>`,
           ].join("\n");
-          sendMessage({ chatId: row.value, text }).catch(() => {});
+          sendMessage({ chatId: row.value, text }).catch((err) => console.error("[ContextScan] Telegram alert send failed:", err));
         }
       }
 
@@ -523,7 +523,7 @@ export async function runContextScan(): Promise<{
         for (const row of phoneRows) {
           if (!row.value) continue;
           const smsText = `NEXUS: ${match.article.title.slice(0, 120)} | Affects: ${sourceLabel}${tickerLabel} (${match.relevanceScore}/5)`;
-          sendSms(row.value, smsText).catch(() => {});
+          sendSms(row.value, smsText).catch((err) => console.error("[ContextScan] SMS alert send failed:", err));
         }
       }
 

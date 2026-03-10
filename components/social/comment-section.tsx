@@ -142,7 +142,7 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
     fetch(`/api/comments?targetType=${targetType}&targetId=${targetId}`)
       .then((r) => (r.ok ? r.json() : { comments: [] }))
       .then((d) => setComments(d.comments || []))
-      .catch(() => {})
+      .catch((err) => console.error("[CommentSection] load comments failed:", err))
       .finally(() => setLoading(false));
   }, [targetType, targetId]);
 
@@ -169,7 +169,8 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
         setReplyTo(null);
         loadComments();
       }
-    } catch {
+    } catch (err) {
+      console.error("[CommentSection] submit comment failed:", err);
     } finally {
       setSubmitting(false);
     }
@@ -183,7 +184,7 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
         body: JSON.stringify({ id: commentId }),
       });
       if (res.ok) loadComments();
-    } catch {}
+    } catch (err) { console.error("[CommentSection] delete comment failed:", err); }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

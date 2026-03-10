@@ -30,91 +30,92 @@ export function OsintEventModal({ event, onClose }: OsintEventModalProps) {
   if (!event) return null;
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-40 animate-[slideUp_200ms_ease-out]">
-      <div className="mx-auto max-w-3xl border border-navy-700/60 rounded-lg bg-navy-950/95 backdrop-blur-md wr-shadow-lg">
-        {/* Terminal header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-navy-800/60">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-navy-500">
-              osint event
-            </span>
-            <span className="font-mono text-[10px] text-navy-600">
-              //
-            </span>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider ${EVENT_BADGE_STYLES[event.eventType]}`}
-            >
-              {EVENT_LABELS[event.eventType]}
-            </span>
-            {event.fatalities > 0 && (
-              <span className="text-[10px] text-signal-5 font-mono font-medium">
-                {event.fatalities} fatalities
-              </span>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="text-navy-400 hover:text-white hover:bg-navy-700/80 rounded p-1.5 transition-colors border border-navy-700/50 hover:border-navy-600"
+    <div className="absolute top-0 right-0 bottom-0 z-40 w-96 border-l border-navy-700/40 bg-navy-950/95 backdrop-blur-md wr-shadow-lg animate-[slideInRight_200ms_ease-out] overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-navy-800/60 sticky top-0 bg-navy-950/95 backdrop-blur-md z-10">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-navy-500">
+            osint event
+          </span>
+          <span
+            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider ${EVENT_BADGE_STYLES[event.eventType]}`}
           >
-            <X className="h-4 w-4" />
-          </button>
+            {EVENT_LABELS[event.eventType]}
+          </span>
         </div>
+        <button
+          onClick={onClose}
+          className="text-navy-400 hover:text-white hover:bg-navy-700/80 rounded p-1.5 transition-colors border border-navy-700/50 hover:border-navy-600"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
-        {/* Content */}
-        <div className="p-4 pb-6 max-h-[50vh] overflow-y-auto">
-          {/* Location header */}
-          <div className="mb-3">
-            <div className="text-sm font-semibold text-navy-100">
-              {event.location}
-            </div>
-            <div className="text-[10px] text-navy-500 font-mono mt-0.5">
-              {event.country} | {new Date(event.date).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })} | {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
-            </div>
+      {/* Content */}
+      <div className="p-4 space-y-4">
+        {/* Location */}
+        <div>
+          <div className="text-sm font-semibold text-navy-100">
+            {event.location}
           </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            {/* Actors */}
-            {event.actors && (
-              <section>
-                <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
-                  Actors
-                </h4>
-                <p className="text-[11px] text-navy-300 leading-snug">{event.actors}</p>
-              </section>
-            )}
-
-            {/* Details */}
-            {event.notes && (
-              <section className={event.actors ? "" : "col-span-2"}>
-                <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
-                  Details
-                </h4>
-                <p className="text-[11px] text-navy-300 leading-relaxed">{event.notes}</p>
-              </section>
-            )}
-
-            {/* Source */}
-            {event.sourceUrl && (
-              <section>
-                <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
-                  Source
-                </h4>
-                <a
-                  href={event.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-accent-cyan hover:text-accent-cyan/80 transition-colors break-all font-mono"
-                >
-                  {event.source || event.sourceUrl}
-                </a>
-              </section>
-            )}
+          <div className="text-[10px] text-navy-500 font-mono mt-1">
+            {event.country}
+          </div>
+          <div className="text-[10px] text-navy-600 font-mono mt-0.5">
+            {new Date(event.date).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </div>
+          <div className="text-[10px] text-navy-600 font-mono mt-0.5">
+            {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
           </div>
         </div>
+
+        {event.fatalities > 0 && (
+          <div className="px-3 py-2 rounded bg-signal-5/10 border border-signal-5/20">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Fatalities</span>
+            <div className="text-lg font-bold text-signal-5 font-mono">{event.fatalities}</div>
+          </div>
+        )}
+
+        {/* Actors */}
+        {event.actors && (
+          <div>
+            <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
+              Actors
+            </h4>
+            <p className="text-[11px] text-navy-300 leading-relaxed">{event.actors}</p>
+          </div>
+        )}
+
+        {/* Details */}
+        {event.notes && (
+          <div>
+            <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
+              Details
+            </h4>
+            <p className="text-[11px] text-navy-300 leading-relaxed">{event.notes}</p>
+          </div>
+        )}
+
+        {/* Source */}
+        {event.sourceUrl && (
+          <div>
+            <h4 className="text-[9px] uppercase tracking-wider text-navy-600 mb-1.5 font-mono">
+              Source
+            </h4>
+            <a
+              href={event.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-accent-cyan hover:text-accent-cyan/80 transition-colors break-all font-mono"
+            >
+              {event.source || event.sourceUrl}
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );

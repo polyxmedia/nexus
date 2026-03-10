@@ -250,7 +250,7 @@ export async function startBacktest(config: BacktestConfig): Promise<string> {
   executeBacktest(run).catch(async (err) => {
     run.status = "failed";
     run.error = err.message;
-    await dbUpdateRunProgress(run).catch(() => {});
+    await dbUpdateRunProgress(run).catch((e) => console.error("[Backtest] failed to persist error state:", e));
     activeRuns.delete(id);
   });
 
@@ -262,7 +262,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   const id = run.id;
 
   // Helper: persist current phase to DB (non-blocking, best-effort)
-  const flushPhase = () => dbUpdateRunProgress(run).catch(() => {});
+  const flushPhase = () => dbUpdateRunProgress(run).catch((err) => console.error("[Backtest] phase progress flush failed:", err));
 
   // Get Anthropic key — DB settings first, then env fallback
   const anthropicKey =
@@ -491,7 +491,7 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.completedAt = new Date().toISOString();
 
   // Persist full results (predictions + results JSON) to DB
-  await dbFinaliseRun(run).catch(() => {});
+  await dbFinaliseRun(run).catch((err) => console.error("[Backtest] finalise run persist failed:", err));
 
   // Invalidate feedback loop cache so downstream systems pick up new results
   invalidateBacktestCache();

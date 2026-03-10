@@ -491,6 +491,16 @@ ${feedbackContext}
 ═══ BASE RATE ANCHORS (start from these, adjust with evidence) ═══
 ${baseRateContext}${actorBeliefContext}
 
+CRITICAL FORMAT RULES — every claim MUST be a falsifiable prediction about what WILL happen:
+- CORRECT: "SPY will close below $500 within 14 days" (states what will happen, measurable)
+- WRONG: "Execute regime change to TRANSITION" (action command, not a prediction)
+- WRONG: "Monitor USD/JPY for 152.00 break" (monitoring instruction, not a prediction)
+- WRONG: "Increase WTI allocation to 80%" (portfolio action, not a prediction)
+- WRONG: "Activate European energy protocols" (action command, not a prediction)
+- WRONG: "Track VIX for spike above 20" (tracking instruction, not a prediction)
+- Every claim must start with a SUBJECT (asset, country, entity) followed by "will" + measurable outcome
+- NEVER start claims with imperative verbs: execute, activate, initiate, monitor, track, watch, implement, increase, decrease, adjust, deploy, hedge, rotate, buy, sell
+
 STRICT UNIQUENESS RULES — violations will be rejected:
 1. Do NOT generate any prediction on a ticker or asset that already has an open prediction above (e.g., if SPY already has a pending prediction, do not add another SPY prediction).
 2. Do NOT generate geopolitical predictions on countries or actors already covered above (e.g., if Iran already has a pending prediction, skip Iran).
@@ -1325,7 +1335,7 @@ export function buildCoverageMap(claims: string[]): CoverageMap {
   return { tickers, events };
 }
 
-// Meta-system junk detector — catches recursive loop contamination
+// Meta-system junk detector — catches recursive loop contamination AND action commands
 const META_SYSTEM_BLOCKLIST = [
   "system shutdown",
   "quarantine",
@@ -1386,9 +1396,50 @@ const META_SYSTEM_BLOCKLIST = [
   "manual verify",
 ];
 
+// Action-command patterns: claims that start with imperative verbs giving instructions
+// rather than stating falsifiable predictions about what WILL happen
+const ACTION_COMMAND_PREFIXES = [
+  "execute ",
+  "activate ",
+  "initiate ",
+  "implement ",
+  "monitor ",
+  "track ",
+  "watch ",
+  "revise ",
+  "increase ",
+  "decrease ",
+  "reduce ",
+  "alert ",
+  "deploy ",
+  "switch ",
+  "rebalance ",
+  "hedge ",
+  "rotate ",
+  "sell ",
+  "buy ",
+  "close ",
+  "open ",
+  "adjust ",
+  "set ",
+];
+
 export function isMetaSystemJunk(claim: string): boolean {
   const lower = claim.toLowerCase();
-  return META_SYSTEM_BLOCKLIST.some((phrase) => lower.includes(phrase));
+
+  // Check blocklist phrases anywhere in claim
+  if (META_SYSTEM_BLOCKLIST.some((phrase) => lower.includes(phrase))) return true;
+
+  // Check action-command prefixes (imperative instructions, not predictions)
+  if (ACTION_COMMAND_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true;
+
+  // Check for allocation/position sizing instructions anywhere
+  if (/\b(allocation|position size)\b.*\b(from|to|increase|decrease)\b/i.test(claim)) return true;
+
+  // Check for regime change commands (not predictions about regime)
+  if (/\b(execute|revise|change)\b.*\bregime\b/i.test(claim)) return true;
+
+  return false;
 }
 
 function safeParse(json: string | null, fallback: unknown): Record<string, unknown> | unknown {

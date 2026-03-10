@@ -11,7 +11,7 @@ interface ViewModeToggleProps {
 
 export function ViewModeToggle({ mode, onModeChange }: ViewModeToggleProps) {
   return (
-    <div className="absolute bottom-3 left-[21rem] z-20 pointer-events-auto">
+    <div>
       <div className="flex bg-navy-900/95 backdrop-blur-md border border-navy-700 rounded overflow-hidden font-mono">
         <button
           onClick={() => onModeChange("2d")}

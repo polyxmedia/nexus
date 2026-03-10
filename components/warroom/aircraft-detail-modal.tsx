@@ -180,7 +180,7 @@ export function AircraftDetailModal({
     : aircraft.altitude;
 
   return (
-    <div className="absolute bottom-3 left-[21rem] z-40 pointer-events-auto w-96 rounded-lg border border-navy-700/40 bg-navy-900/95 backdrop-blur-md wr-shadow-lg overflow-hidden max-h-[calc(100vh-6rem)] overflow-y-auto">
+    <div className="absolute bottom-0 left-[21rem] z-40 pointer-events-auto w-96 rounded-t-lg border border-b-0 border-navy-700/40 bg-navy-900/95 backdrop-blur-md wr-shadow-lg overflow-hidden max-h-[calc(100vh-6rem)] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-navy-700/20 sticky top-0 bg-navy-900/95 backdrop-blur-md z-10">
         <div className="flex items-center gap-2.5 min-w-0">

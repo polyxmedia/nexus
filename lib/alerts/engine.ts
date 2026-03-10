@@ -307,7 +307,7 @@ export async function evaluateAlerts(): Promise<number> {
             ``,
             `<a href="https://nexushq.xyz/alerts">View in NEXUS</a>`,
           ].join("\n");
-          sendMessage({ chatId: row.value, text }).catch(() => {});
+          sendMessage({ chatId: row.value, text }).catch((err) => console.error("[Alerts] Telegram notification send failed:", err));
         }
       }
 
@@ -318,7 +318,7 @@ export async function evaluateAlerts(): Promise<number> {
         for (const row of phoneRows) {
           if (!row.value) continue;
           const smsText = `NEXUS ALERT: ${title} - ${message} (Severity ${severity}/5)`;
-          sendSms(row.value, smsText).catch(() => {});
+          sendSms(row.value, smsText).catch((err) => console.error("[Alerts] SMS notification send failed:", err));
         }
       }
 

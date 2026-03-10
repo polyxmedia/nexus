@@ -1083,7 +1083,7 @@ export default function BacktestDetailPage() {
             clearInterval(poll);
           }
         }
-      } catch {}
+      } catch (err) { console.error("[Backtest] poll status failed:", err); }
     }, 3000);
 
     return () => clearInterval(poll);

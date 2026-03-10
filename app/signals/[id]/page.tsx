@@ -141,7 +141,7 @@ export default function SignalDetailPage() {
                 setAnalysis(analyses[0]);
               }
             })
-            .catch(() => {});
+            .catch((err) => console.error("[SignalDetail] analysis fetch failed:", err));
         }
 
         // Fetch backtest if signal is in the past
@@ -164,7 +164,7 @@ export default function SignalDetailPage() {
           .then((lin) => {
             if (lin.signal) setLineage(lin);
           })
-          .catch(() => {});
+          .catch((err) => console.error("[SignalDetail] lineage fetch failed:", err));
 
         setLoading(false);
       })

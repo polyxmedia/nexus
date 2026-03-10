@@ -76,7 +76,7 @@ export default function LeaderboardPage() {
     fetch("/api/leaderboard")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setData(d))
-      .catch(() => {})
+      .catch((err) => console.error("[Leaderboard] data fetch failed:", err))
       .finally(() => setLoading(false));
   }, []);
 

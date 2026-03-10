@@ -250,10 +250,10 @@ export default function PredictionsPage() {
         fetch(`/api/comments?view=counts&targetType=prediction&ids=${ids}`)
           .then((r) => r.ok ? r.json() : { counts: {} })
           .then((d) => setCommentCounts(d.counts || {}))
-          .catch(() => {});
+          .catch((err) => console.error("[Predictions] comment counts fetch failed:", err));
       }
-    } catch {
-      // silent
+    } catch (err) {
+      console.error("[Predictions] fetch predictions failed:", err);
     } finally {
       setLoading(false);
     }
@@ -272,8 +272,8 @@ export default function PredictionsPage() {
         setStatusMessage({ text: `Auto-resolved ${data.count} overdue prediction${data.count > 1 ? "s" : ""}`, type: "info" });
         fetchPredictions();
       }
-    } catch {
-      // silent
+    } catch (err) {
+      console.error("[Predictions] auto-resolve failed:", err);
     } finally {
       setResolving(false);
     }
@@ -284,8 +284,8 @@ export default function PredictionsPage() {
       const res = await fetch("/api/predictions/feedback");
       const data = await res.json();
       setFeedbackReport(data.report || null);
-    } catch {
-      // silent
+    } catch (err) {
+      console.error("[Predictions] feedback fetch failed:", err);
     }
   }, []);
 
@@ -319,7 +319,7 @@ export default function PredictionsPage() {
       setDeadline("");
       setShowForm(false);
       fetchPredictions();
-    } catch {} finally { setSubmitting(false); }
+    } catch (err) { console.error("[Predictions] submit prediction failed:", err); } finally { setSubmitting(false); }
   };
 
   const aiGenerate = async () => {

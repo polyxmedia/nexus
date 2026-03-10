@@ -83,7 +83,7 @@ export async function creditGate(): Promise<CreditGateResult> {
     tier,
     isAdmin,
     debit: async (model: string, inputTokens: number, outputTokens: number, reason = "ai_request") => {
-      await debitCredits(username, model, inputTokens, outputTokens, reason).catch(() => {});
+      await debitCredits(username, model, inputTokens, outputTokens, reason).catch((err) => console.error("[Credits] debit failed:", err));
     },
   };
 }

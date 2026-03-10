@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Ship, Eye } from "lucide-react";
+import { X, Ship, Eye, Route } from "lucide-react";
 import type { VesselState } from "@/lib/warroom/types";
 
 interface VesselDetailPanelProps {
@@ -8,6 +8,9 @@ interface VesselDetailPanelProps {
   onClose: () => void;
   onWatch?: (vessel: VesselState) => void;
   isWatched?: boolean;
+  onTrack?: (vessel: VesselState) => void;
+  isTracked?: boolean;
+  trackPointCount?: number;
 }
 
 const VESSEL_TYPE_LABELS: Record<string, string> = {
@@ -33,13 +36,16 @@ export function VesselDetailModal({
   onClose,
   onWatch,
   isWatched,
+  onTrack,
+  isTracked,
+  trackPointCount,
 }: VesselDetailPanelProps) {
   if (!vessel) return null;
 
   return (
-    <div className="absolute bottom-3 left-[21rem] z-40 pointer-events-auto w-80 rounded-lg border border-navy-700/40 bg-navy-900/95 backdrop-blur-md wr-shadow-lg overflow-hidden max-h-[calc(100vh-6rem)] overflow-y-auto">
+    <div className="absolute top-0 right-0 bottom-0 z-40 w-80 border-l border-navy-700/40 bg-navy-950/95 backdrop-blur-md wr-shadow-lg animate-[slideInRight_200ms_ease-out] flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-navy-700/20 sticky top-0 bg-navy-900/95 backdrop-blur-md z-10">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-navy-700/20 shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className={`p-1.5 rounded ${vessel.vesselType === "military" ? "bg-accent-rose/10" : "bg-accent-cyan/10"}`}>
             <Ship className={`h-4 w-4 ${VESSEL_TYPE_COLORS[vessel.vesselType] || "text-navy-400"}`} />
@@ -54,6 +60,19 @@ export function VesselDetailModal({
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
+          {onTrack && (
+            <button
+              onClick={() => onTrack(vessel)}
+              className={`p-1 rounded transition-colors ${
+                isTracked
+                  ? "bg-accent-emerald/15 text-accent-emerald"
+                  : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/60"
+              }`}
+              title={isTracked ? "Stop tracking path" : "Track vessel path"}
+            >
+              <Route className="h-3.5 w-3.5" />
+            </button>
+          )}
           {onWatch && (
             <button
               onClick={() => onWatch(vessel)}
@@ -76,7 +95,8 @@ export function VesselDetailModal({
         </div>
       </div>
 
-      <div className="px-3 py-2.5 space-y-3">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto px-3 py-2.5 space-y-3">
         {/* Identity */}
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
           <span className="text-navy-500">Name</span>
@@ -121,6 +141,24 @@ export function VesselDetailModal({
           <div className="border-t border-navy-700/20 pt-2 text-[11px]">
             <span className="text-navy-500">Destination: </span>
             <span className="text-accent-cyan font-medium">{vessel.destination}</span>
+          </div>
+        )}
+
+        {/* Tracking status */}
+        {isTracked && (
+          <div className="border-t border-navy-700/20 pt-2">
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald animate-pulse" />
+              <span className="text-[10px] font-mono uppercase tracking-wider text-accent-emerald">
+                Tracking
+              </span>
+              <span className="text-[10px] font-mono text-navy-500">
+                {trackPointCount ?? 0} points
+              </span>
+            </div>
+            <p className="text-[10px] text-navy-500 mt-1">
+              Path recording active. Trail updates every 30s as new positions arrive.
+            </p>
           </div>
         )}
       </div>

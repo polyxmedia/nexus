@@ -42,7 +42,7 @@ export function MapTypeSelector({
   onTypeChange,
 }: MapTypeSelectorProps) {
   return (
-    <div className="absolute bottom-3 left-[25rem] z-20 pointer-events-auto">
+    <div>
       <div className="flex bg-navy-900/95 backdrop-blur-md border border-navy-700 rounded overflow-hidden font-mono">
         {TILE_KEYS.map((type, idx) => (
           <button

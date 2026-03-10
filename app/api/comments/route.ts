@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
           const data = JSON.parse(row.value);
           const username = row.key.replace("user:", "");
           profileImages[username] = data.profileImage || null;
-        } catch {}
+        } catch (err) { console.error("[Comments] profile image parse failed:", err); }
       }
     }
 
@@ -153,7 +153,7 @@ export async function DELETE(req: NextRequest) {
     try {
       const body = await req.json();
       commentId = body.id ? String(body.id) : null;
-    } catch {}
+    } catch (err) { console.error("[Comments] request body parse failed:", err); }
   }
 
   if (!commentId) {

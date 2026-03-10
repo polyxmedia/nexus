@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
         const userData = JSON.parse(userRows[0].value);
         profileImage = userData.profileImage || null;
       }
-    } catch {}
+    } catch (err) { console.error("[Analysts] profile image lookup failed:", err); }
 
     return NextResponse.json({
       username,

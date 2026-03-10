@@ -589,7 +589,7 @@ export async function getShippingSnapshot(
   cachedSnapshot = { data: snapshot, expiry: Date.now() + CACHE_TTL_MS };
 
   // Check for chokepoint status changes and alert subscribers
-  checkAndAlertStatusChanges(chokepoints).catch(() => {});
+  checkAndAlertStatusChanges(chokepoints).catch((err) => console.error("[Shipping] chokepoint alert check failed:", err));
 
   // Apply filter if requested
   if (filterChokepoint) {

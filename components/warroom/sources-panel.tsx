@@ -692,7 +692,7 @@ export function SourcesPanel() {
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "absolute bottom-3 right-3 z-30 pointer-events-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded border transition-all",
+          "absolute bottom-12 right-3 z-30 pointer-events-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded border transition-all",
           open
             ? "bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan"
             : "bg-navy-900/90 border-navy-700 text-navy-500 hover:text-navy-300 hover:border-navy-600"

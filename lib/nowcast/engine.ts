@@ -469,7 +469,7 @@ async function saveNowcast(report: NowcastReport): Promise<void> {
   const histRows = await db.select().from(schema.settings).where(eq(schema.settings.key, historyKey)).limit(1);
   let history: NowcastReport[] = [];
   if (histRows.length > 0 && histRows[0].value) {
-    try { history = JSON.parse(histRows[0].value); } catch {}
+    try { history = JSON.parse(histRows[0].value); } catch (err) { console.error("[Nowcast] history parse failed:", err); }
   }
   history.push(report);
   history = history.slice(-90);

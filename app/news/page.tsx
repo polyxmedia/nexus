@@ -100,6 +100,10 @@ function BiasIndicator({ bias, compact }: { bias: PoliticalBias; compact?: boole
   );
 }
 
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, "").replace(/&[a-z]+;/gi, " ").trim();
+}
+
 function timeAgo(dateStr: string): string {
   const now = new Date();
   const date = new Date(dateStr);
@@ -324,7 +328,7 @@ export default function NewsPage() {
                       </h3>
                       {idx === 0 && article.description && (
                         <p className="text-[11px] text-navy-400 font-sans leading-relaxed line-clamp-2 mt-1.5">
-                          {article.description}
+                          {stripHtml(article.description)}
                         </p>
                       )}
                     </div>
@@ -353,7 +357,7 @@ export default function NewsPage() {
                     </h3>
                     {article.description && (
                       <p className="text-[11px] font-sans text-navy-600 leading-snug line-clamp-1 mt-0.5">
-                        {article.description}
+                        {stripHtml(article.description)}
                       </p>
                     )}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">

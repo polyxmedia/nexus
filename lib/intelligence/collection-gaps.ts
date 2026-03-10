@@ -126,7 +126,7 @@ export async function assessCoverage(): Promise<CoverageReport> {
     if (prevRows.length > 0 && prevRows[0].value) {
       previousCoverage = JSON.parse(prevRows[0].value);
     }
-  } catch {}
+  } catch (err) { console.error("[CollectionGaps] previous coverage parse failed:", err); }
 
   for (const area of REQUIRED_COVERAGE) {
     const knowledge = await getKnowledgeForArea(area);
@@ -226,7 +226,7 @@ export async function assessCoverage(): Promise<CoverageReport> {
     } else {
       await db.insert(schema.settings).values({ key, value: JSON.stringify(report), updatedAt: now });
     }
-  } catch {}
+  } catch (err) { console.error("[CollectionGaps] coverage snapshot persist failed:", err); }
 
   return report;
 }

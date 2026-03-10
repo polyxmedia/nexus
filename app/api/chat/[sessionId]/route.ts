@@ -58,7 +58,7 @@ async function getSystemPromptWithMode(username?: string, projectId?: number | n
       if (memoryContext) {
         prompt += "\n\n" + memoryContext;
         // Touch memories in background (don't block)
-        touchMemories(memoryIds).catch(() => {});
+        touchMemories(memoryIds).catch((err) => console.error("[Chat] touch memories failed:", err));
       }
     } catch {
       // Memory not critical
@@ -445,7 +445,7 @@ export async function POST(
           }
           // Debit suggestion credits too (small, Haiku)
           if (sugResponse.usage) {
-            debitCredits(username, "claude-haiku-4-5-20251001", sugResponse.usage.input_tokens, sugResponse.usage.output_tokens, "suggestions", sessionId).catch(() => {});
+            debitCredits(username, "claude-haiku-4-5-20251001", sugResponse.usage.input_tokens, sugResponse.usage.output_tokens, "suggestions", sessionId).catch((err) => console.error("[Chat] debit suggestion credits failed:", err));
           }
         } catch {
           // Suggestions are best-effort, don't block the response

@@ -47,6 +47,7 @@ async function generatePptx(
   title: string,
   sections: Array<{ heading: string; content: string; bullets?: string[] }>
 ) {
+  const PptxGenJS = (await import("pptxgenjs")).default;
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "NEXUS Intelligence Platform";
@@ -89,7 +90,7 @@ async function generatePptx(
     color: textSecondary,
   });
   // Bottom line accent
-  titleSlide.addShape("rect" as unknown as PptxGenJS.ShapeType, {
+  titleSlide.addShape("rect" as unknown as Parameters<typeof titleSlide.addShape>[0], {
     x: 0.8,
     y: 4.2,
     w: 2.5,
@@ -115,7 +116,7 @@ async function generatePptx(
     });
 
     // Accent line under heading
-    slide.addShape("rect" as unknown as PptxGenJS.ShapeType, {
+    slide.addShape("rect" as unknown as Parameters<typeof titleSlide.addShape>[0], {
       x: 0.8,
       y: 0.95,
       w: 1.5,
@@ -185,6 +186,7 @@ async function generatePdf(
   title: string,
   sections: Array<{ heading: string; content: string; bullets?: string[] }>
 ) {
+  const PDFDocument = (await import("pdfkit")).default;
   return new Promise<Response>((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -217,11 +219,17 @@ async function generatePdf(
       const textPrimary = "#E5E5E5";
       const textSecondary = "#8B8B9E";
       const accent = "#22D3EE";
+      const pageW = doc.page.width;
+      const pageH = doc.page.height;
 
-      // Background
-      doc.rect(0, 0, doc.page.width, doc.page.height).fill(bg);
+      const fillBg = () => {
+        doc.save();
+        doc.rect(0, 0, pageW, pageH).fill(bg);
+        doc.restore();
+      };
 
       // Title page
+      fillBg();
       doc.fontSize(10).font("Courier").fillColor(accent).text("NEXUS", 60, 80, { characterSpacing: 4 });
       doc.moveTo(60, 100).lineTo(140, 100).strokeColor(accent).lineWidth(1.5).stroke();
       doc.fontSize(28).font("Helvetica-Bold").fillColor(textPrimary).text(title, 60, 140, { width: 470 });
@@ -235,29 +243,50 @@ async function generatePdf(
           doc.y + 20
         );
 
-      // Sections
+      // Sections - flow content continuously, only add page when needed
+      let firstSection = true;
       for (const section of sections) {
-        doc.addPage();
-        doc.rect(0, 0, doc.page.width, doc.page.height).fill(bg);
+        if (firstSection) {
+          doc.addPage();
+          fillBg();
+          doc.y = 60;
+          firstSection = false;
+        } else {
+          // Check if we need a new page (less than 120pt remaining)
+          if (doc.y > pageH - 120) {
+            doc.addPage();
+            fillBg();
+            doc.y = 60;
+          } else {
+            doc.moveDown(1.5);
+          }
+        }
 
         // Section heading
-        doc.fontSize(10).font("Courier").fillColor(accent).text(section.heading.toUpperCase(), 60, 60, { characterSpacing: 3 });
-        doc.moveTo(60, doc.y + 6).lineTo(150, doc.y + 6).strokeColor(accent).lineWidth(1).stroke();
+        doc.fontSize(10).font("Courier").fillColor(accent).text(section.heading.toUpperCase(), 60, doc.y, { characterSpacing: 3 });
+        const lineY = doc.y + 6;
+        doc.moveTo(60, lineY).lineTo(150, lineY).strokeColor(accent).lineWidth(1).stroke();
 
         // Content
         doc
           .fontSize(12)
           .font("Helvetica")
           .fillColor(textPrimary)
-          .text(section.content, 60, doc.y + 18, {
+          .text(section.content, 60, lineY + 12, {
             width: 470,
             lineGap: 4,
           });
 
         // Bullets
         if (section.bullets?.length) {
-          doc.moveDown(0.8);
+          doc.moveDown(0.5);
           for (const bullet of section.bullets) {
+            // Check if we need a page break mid-bullets
+            if (doc.y > pageH - 80) {
+              doc.addPage();
+              fillBg();
+              doc.y = 60;
+            }
             doc
               .fontSize(10)
               .font("Helvetica")
@@ -265,17 +294,17 @@ async function generatePdf(
               .text("\u2022  ", 70, doc.y, { continued: true })
               .fillColor(textSecondary)
               .text(bullet, { width: 440, lineGap: 3 });
-            doc.moveDown(0.3);
+            doc.moveDown(0.2);
           }
         }
-
-        // Footer
-        doc
-          .fontSize(7)
-          .font("Courier")
-          .fillColor("#4A4A5E")
-          .text("NEXUS Intelligence Platform", 60, doc.page.height - 40);
       }
+
+      // Footer on last page
+      doc
+        .fontSize(7)
+        .font("Courier")
+        .fillColor("#4A4A5E")
+        .text("NEXUS Intelligence Platform", 60, pageH - 40);
 
       doc.end();
     } catch (err) {

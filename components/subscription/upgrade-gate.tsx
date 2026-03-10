@@ -90,7 +90,7 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
           setMatchedTierId(match.id);
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error("[UpgradeGate] fetch tier data failed:", err));
   }, [minTier]);
 
   // Poll for subscription activation after checkout

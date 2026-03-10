@@ -114,6 +114,18 @@ export function ThesisWidget({ data }: { data: ThesisData }) {
         </BriefingCard>
       )}
 
+      {data.situationAssessment && (
+        <BriefingCard title="Situation Assessment">
+          <Markdown>{data.situationAssessment}</Markdown>
+        </BriefingCard>
+      )}
+
+      {data.riskScenarios && (
+        <BriefingCard title="Risk Scenarios">
+          <Markdown>{data.riskScenarios}</Markdown>
+        </BriefingCard>
+      )}
+
       {data.tradingActions && data.tradingActions.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-wider text-navy-500 font-mono mb-1.5">

@@ -50,7 +50,7 @@ export const authOptions: AuthOptions = {
                   resolvedUsername = row.key.replace("user:", "");
                   break;
                 }
-              } catch {}
+              } catch (err) { console.error("[Auth] user data parse failed:", err); }
             }
           }
 

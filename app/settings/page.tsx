@@ -305,7 +305,7 @@ export default function SettingsPage() {
     fetch("/api/profile")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => d && setProfileImage(d.profileImage || null))
-      .catch(() => {});
+      .catch((err) => console.error("[Settings] profile fetch failed:", err));
   }, []);
 
   const handleProfileImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -407,13 +407,13 @@ export default function SettingsPage() {
     fetch("/api/coinbase/oauth/status")
       .then((r) => r.json())
       .then((data) => setCoinbaseOAuth(data))
-      .catch(() => {});
+      .catch((err) => console.error("[Settings] Coinbase OAuth status check failed:", err));
 
     // Check Alpaca OAuth status
     fetch("/api/alpaca/oauth/status")
       .then((r) => r.json())
       .then((data) => setAlpacaOAuth(data))
-      .catch(() => {});
+      .catch((err) => console.error("[Settings] Alpaca OAuth status check failed:", err));
 
     // Handle OAuth callback params
     const callbackParams = new URLSearchParams(window.location.search);
@@ -443,7 +443,7 @@ export default function SettingsPage() {
     fetch("/api/ig/connect")
       .then((r) => r.json())
       .then((data) => setIgConnected(!!data.connected))
-      .catch(() => {});
+      .catch((err) => console.error("[Settings] IG connection status check failed:", err));
 
     // Check prediction market connection status
     fetch("/api/prediction-markets/portfolio")
@@ -452,7 +452,7 @@ export default function SettingsPage() {
         if (data.polymarket?.configured) setPolymarketKey("configured");
         if (data.kalshi?.configured) setKalshiKeyId("configured");
       })
-      .catch(() => {});
+      .catch((err) => console.error("[Settings] prediction markets status check failed:", err));
 
     // Handle OAuth callback params (IG redirect back)
     const params = new URLSearchParams(window.location.search);
@@ -1925,7 +1925,7 @@ export default function SettingsPage() {
                       setBrokerRequest("");
                       setConnectStatus(s => ({ ...s, broker_request: { ok: true, message: "Request submitted" } }));
                       setTimeout(() => setConnectStatus(s => ({ ...s, broker_request: null })), 3000);
-                    } catch {}
+                    } catch (err) { console.error("[Settings] broker request submit failed:", err); }
                   }}
                   className="px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-[10px] font-mono text-navy-300 transition-all disabled:opacity-40"
                 >

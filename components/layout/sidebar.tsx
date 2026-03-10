@@ -144,14 +144,14 @@ function CreditMeter() {
     fetch("/api/credits")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => d && setData(d))
-      .catch(() => {});
+      .catch((err) => console.error("[Sidebar] credits fetch failed:", err));
 
     // Refresh every 60s
     const interval = setInterval(() => {
       fetch("/api/credits")
         .then((r) => r.ok ? r.json() : null)
         .then((d) => d && setData(d))
-        .catch(() => {});
+        .catch((err) => console.error("[Sidebar] credits refresh failed:", err));
     }, 60_000);
     return () => clearInterval(interval);
   }, []);

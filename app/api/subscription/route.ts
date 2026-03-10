@@ -23,7 +23,7 @@ export async function GET() {
       try {
         const userData = JSON.parse(userRows[0].value);
         isAdmin = userData.role === "admin" || userData.role === "super_admin";
-      } catch {}
+      } catch (err) { console.error("[Subscription] user data parse failed:", err); }
     }
 
     const subs = await db

@@ -82,7 +82,7 @@ export default function SignalsPage() {
           fetch(`/api/comments?view=counts&targetType=signal&ids=${ids}`)
             .then((r) => r.ok ? r.json() : { counts: {} })
             .then((d) => setCommentCounts(d.counts || {}))
-            .catch(() => {});
+            .catch((err) => console.error("[Signals] comment counts fetch failed:", err));
         }
       })
       .catch(() => setLoading(false));
@@ -112,7 +112,7 @@ export default function SignalsPage() {
         layers.forEach((l) => {
           layerCounts[l] = (layerCounts[l] || 0) + 1;
         });
-      } catch {}
+      } catch (err) { console.error("[Signals] layer parse failed:", err); }
     });
 
     // Monthly timeline
@@ -431,9 +431,9 @@ export default function SignalsPage() {
         <div className="space-y-2">
           {filtered.map((signal) => {
             let layers: string[] = [];
-            try { layers = JSON.parse(signal.layers); } catch {}
+            try { layers = JSON.parse(signal.layers); } catch (err) { console.error("[Signals] layers parse failed:", err); }
             let sectors: string[] = [];
-            try { if (signal.marketSectors) sectors = JSON.parse(signal.marketSectors); } catch {}
+            try { if (signal.marketSectors) sectors = JSON.parse(signal.marketSectors); } catch (err) { console.error("[Signals] sectors parse failed:", err); }
             const statusCfg = STATUS_CONFIG[signal.status] || STATUS_CONFIG.passed;
             const isHighIntensity = signal.intensity >= 4;
             const intensityColor = INTENSITY_COLORS[signal.intensity - 1] || "#6b7280";

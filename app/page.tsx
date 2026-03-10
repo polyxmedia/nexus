@@ -648,7 +648,7 @@ export default function LandingPage() {
     fetch("/api/warroom")
       .then((r) => r.json())
       .then((d) => setStatus(d?.metrics || null))
-      .catch(() => {});
+      .catch((err) => console.error("[Landing] warroom status fetch failed:", err));
   }, []);
 
   useEffect(() => {

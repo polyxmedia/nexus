@@ -1377,7 +1377,7 @@ function TradingPageInner() {
             fetch("/api/trading212/instruments")
               .then((r) => r.json())
               .then((d) => { if (Array.isArray(d)) setInstruments(d); })
-              .catch(() => {})
+              .catch((err) => console.error("[Trading] instruments fetch failed:", err))
               .finally(() => setInstrumentsLoading(false));
           });
         } else {

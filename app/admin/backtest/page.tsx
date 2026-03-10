@@ -400,7 +400,7 @@ export default function BacktestPage() {
       .then((data: Array<{ id: string; status: string; createdAt: string; predictionCount: number }>) => {
         setRuns(data);
       })
-      .catch(() => {});
+      .catch((err) => console.error("[Backtest] runs fetch failed:", err));
   }, []);
 
   const handleStart = async (config: Record<string, unknown>) => {

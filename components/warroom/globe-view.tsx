@@ -150,15 +150,16 @@ const atmosphereFragmentShader = `
 
 function createEarthMaterial(): THREE.ShaderMaterial {
   const loader = new THREE.TextureLoader();
-  const dayTex = loader.load("/textures/earth_day.jpg");
-  const nightTex = loader.load("/textures/earth_night.jpg");
+  const dayTex = loader.load("/textures/earth_day_hq.jpg");
+  const nightTex = loader.load("/textures/earth_night_hq.jpg");
   const cloudsTex = loader.load("/textures/earth_clouds.jpg");
 
-  // Set texture quality
+  // Set texture quality - max anisotropy for crisp zoomed-in rendering
   for (const tex of [dayTex, nightTex, cloudsTex]) {
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
-    tex.anisotropy = 8;
+    tex.anisotropy = 16;
+    tex.generateMipmaps = true;
   }
 
   // Sun position - top-right for good day/night split
@@ -258,6 +259,7 @@ interface GlobeViewProps {
   layerVisibility: WarRoomLayerVisibility;
   onActorClick: (id: string) => void;
   onOsintEventClick: (event: OsintEvent) => void;
+  onAircraftClick?: (aircraft: AircraftState) => void;
 }
 
 // ── Helper types for globe data ──
@@ -335,6 +337,7 @@ export default function GlobeView({
   layerVisibility,
   onActorClick,
   onOsintEventClick,
+  onAircraftClick,
 }: GlobeViewProps) {
   const globeRef = useRef<GlobeMethods>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -364,10 +367,16 @@ export default function GlobeView({
     return () => ro.disconnect();
   }, []);
 
-  // Set initial camera position + add atmosphere
+  // Set initial camera position + add atmosphere + boost renderer quality
   useEffect(() => {
     if (globeRef.current) {
       globeRef.current.pointOfView({ lat: 25, lng: 45, altitude: 2.5 }, 0);
+
+      // Boost renderer pixel ratio for crisp rendering
+      const renderer = globeRef.current.renderer();
+      if (renderer) {
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
+      }
 
       // Add atmosphere glow to the scene
       const scene = globeRef.current.scene();
@@ -472,6 +481,7 @@ export default function GlobeView({
     lng: number;
     alt: number;
     // aircraft fields
+    icao24?: string;
     callsign?: string;
     heading?: number;
     isMilitary?: boolean;
@@ -500,6 +510,7 @@ export default function GlobeView({
           lat: ac.lat,
           lng: ac.lng,
           alt: 0.01,
+          icao24: ac.icao24,
           callsign: ac.callsign,
           heading: ac.heading,
           isMilitary: ac.isMilitary,
@@ -618,6 +629,16 @@ export default function GlobeView({
         const tip = el.querySelector(".globe-tip") as HTMLDivElement;
         if (tip) tip.style.display = "none";
       });
+
+      // Click to open aircraft detail
+      el.addEventListener("click", () => {
+        if (onAircraftClick) {
+          const ac = aircraft.find(
+            (a) => a.icao24 === m.icao24 || a.callsign === m.callsign
+          );
+          if (ac) onAircraftClick(ac);
+        }
+      });
     } else {
       // Satellite: small colored dot
       const color = m.color || "#6b7280";
@@ -671,7 +692,7 @@ export default function GlobeView({
     }
 
     return el;
-  }, []);
+  }, [aircraft, onAircraftClick]);
 
   // ── Arcs (alliance/adversary links) ──
 
@@ -812,6 +833,7 @@ export default function GlobeView({
         ref={globeRef}
         width={dimensions.width}
         height={dimensions.height}
+        rendererConfig={{ antialias: true, alpha: false, preserveDrawingBuffer: false }}
         backgroundColor="rgba(0,0,8,1)"
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
         globeMaterial={earthMaterial}

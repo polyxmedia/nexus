@@ -367,6 +367,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 /* ── Tab Animated Underline ── */
 [data-radix-collection-item][role="tab"] {
   outline: none;

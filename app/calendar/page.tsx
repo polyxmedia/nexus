@@ -251,7 +251,7 @@ export default function CalendarPage() {
     fetch("/api/calendar/overlay")
       .then((r) => r.json())
       .then((d) => setOverlay(d))
-      .catch(() => {});
+      .catch((err) => console.error("[Calendar] overlay fetch failed:", err));
   }, [todayStr]);
 
   // Fetch market snapshot when selecting a past date

@@ -28,6 +28,7 @@ import { useOsintData } from "@/lib/warroom/use-osint-data";
 import { useSatelliteData } from "@/lib/warroom/use-satellite-data";
 import type { WarRoomData, WarRoomLayerVisibility, OsintEvent, AircraftState, VesselState } from "@/lib/warroom/types";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
+import { useVesselTracker } from "@/lib/warroom/use-vessel-tracker";
 
 const WarRoomMap = dynamic(
   () => import("@/components/warroom/war-room-map"),
@@ -54,6 +55,8 @@ export default function WarRoomPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedChokepointId, setSelectedChokepointId] = useState<string | null>(null);
   const [newsArticles, setNewsArticles] = useState<{ title: string; url: string; source: string; date: string }[]>([]);
+  const [trackedVessels, setTrackedVessels] = useState<Set<string>>(new Set());
+  const { record, snapshot, getPointCount, clear } = useVesselTracker();
 
   const { theme } = useTheme();
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
@@ -97,6 +100,25 @@ export default function WarRoomPage() {
       });
   }, []);
 
+  // Record vessel positions for tracked vessels
+  useEffect(() => {
+    if (trackedVessels.size === 0 || !vesselData?.vessels?.length) return;
+    record(vesselData.vessels, trackedVessels);
+  }, [vesselData, trackedVessels, record]);
+
+  const handleTrackVessel = useCallback((v: VesselState) => {
+    setTrackedVessels((prev) => {
+      const next = new Set(prev);
+      if (next.has(v.mmsi)) {
+        next.delete(v.mmsi);
+        clear(v.mmsi);
+      } else {
+        next.add(v.mmsi);
+      }
+      return next;
+    });
+  }, [clear]);
+
   // Fetch news once for the country panel
   useEffect(() => {
     fetch("/api/news?limit=100")
@@ -104,7 +126,7 @@ export default function WarRoomPage() {
       .then((data) => {
         if (Array.isArray(data)) setNewsArticles(data);
       })
-      .catch(() => {});
+      .catch((err) => console.error("[WarRoom] news fetch failed:", err));
   }, []);
 
   const handleCountryClick = useCallback((code: string) => {
@@ -319,6 +341,7 @@ export default function WarRoomPage() {
               onVesselClick={handleVesselClick}
               onCountryClick={handleCountryClick}
               onChokepointClick={handleChokepointClick}
+              vesselTrails={snapshot}
             />
           ) : (
             <GlobeView
@@ -334,6 +357,18 @@ export default function WarRoomPage() {
               layerVisibility={layerVisibility}
               onActorClick={handleActorClick}
               onOsintEventClick={handleOsintEventClick}
+              onAircraftClick={handleAircraftClick}
+            />
+          )}
+        </div>
+
+        {/* Bottom Control Bar */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-40 pointer-events-auto flex items-center gap-2">
+          <ViewModeToggle mode={viewMode} onModeChange={handleViewModeChange} />
+          {viewMode === "2d" && (
+            <MapTypeSelector
+              activeType={mapTileType}
+              onTypeChange={handleMapTypeChange}
             />
           )}
         </div>
@@ -350,17 +385,6 @@ export default function WarRoomPage() {
           satelliteCount={satelliteData?.totalCount ?? 0}
           satelliteMilitaryCount={satelliteData?.militaryCount ?? 0}
         />
-
-        {/* View Mode Toggle */}
-        <ViewModeToggle mode={viewMode} onModeChange={handleViewModeChange} />
-
-        {/* Map Type Selector (only in 2D mode) */}
-        {viewMode === "2d" && (
-          <MapTypeSelector
-            activeType={mapTileType}
-            onTypeChange={handleMapTypeChange}
-          />
-        )}
 
         {/* Intel Panel (right) */}
         <IntelPanel
@@ -400,6 +424,9 @@ export default function WarRoomPage() {
           onClose={() => setSelectedVessel(null)}
           onWatch={handleWatchVessel}
           isWatched={!!selectedVessel && watchlist.some((w) => w.id === selectedVessel.mmsi)}
+          onTrack={handleTrackVessel}
+          isTracked={!!selectedVessel && trackedVessels.has(selectedVessel.mmsi)}
+          trackPointCount={selectedVessel ? getPointCount(selectedVessel.mmsi) : 0}
         />
 
         {/* Chokepoint Detail Modal */}

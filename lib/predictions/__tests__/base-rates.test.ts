@@ -39,16 +39,12 @@ function makeRate(overrides: Partial<{
 
 // ── Setup ──
 
-beforeEach(() => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  mockExecute.mockReset();
-  // Reset the module-level cache by advancing time past TTL
-  // loadRates checks Date.now() - cacheTime < CACHE_TTL
-  // After module reimport the cache is empty so loadRates will always query DB
-});
+// Single fake timer instance so time accumulates across tests,
+// ensuring each advanceTimersByTime call genuinely pushes past the cached cacheTime.
+vi.useFakeTimers({ shouldAdvanceTime: true });
 
-afterEach(() => {
-  vi.useRealTimers();
+beforeEach(() => {
+  mockExecute.mockReset();
 });
 
 // ── adjustForBaseRate (pure function) ──

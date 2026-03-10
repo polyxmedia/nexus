@@ -24,6 +24,8 @@ import { OsintMarkersLayer } from "./osint-markers-layer";
 import { ConflictHeatmapLayer } from "./conflict-heatmap-layer";
 import { MapTileUpdater } from "./map-tile-updater";
 import { CountryClickLayer } from "./country-click-layer";
+import { VesselTrailLayer } from "./vessel-trail-layer";
+import type { VesselTrailPoint } from "@/lib/warroom/use-vessel-tracker";
 
 interface WarRoomMapProps {
   actors: ActorWithGeo[];
@@ -48,6 +50,7 @@ interface WarRoomMapProps {
   onVesselClick?: (vessel: VesselState) => void;
   onCountryClick?: (code: string) => void;
   onChokepointClick?: (id: string) => void;
+  vesselTrails?: Map<string, VesselTrailPoint[]>;
 }
 
 const ESCALATION_COLORS: Record<number, string> = {
@@ -134,6 +137,7 @@ export default function WarRoomMap({
   onVesselClick,
   onCountryClick,
   onChokepointClick,
+  vesselTrails,
 }: WarRoomMapProps) {
   const activeActorId = hoveredActorId || selectedActorId;
 
@@ -349,6 +353,11 @@ export default function WarRoomMap({
       {/* Vessel Layer */}
       {layerVisibility.vessels && vessels.length > 0 && (
         <VesselLayer vessels={vessels} onVesselClick={onVesselClick} />
+      )}
+
+      {/* Vessel Trail Layer */}
+      {vesselTrails && vesselTrails.size > 0 && (
+        <VesselTrailLayer trails={vesselTrails} />
       )}
 
       {/* Aircraft Layer */}

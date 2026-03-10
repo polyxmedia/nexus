@@ -94,7 +94,7 @@ export async function runAlertChain(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbols }),
-      }).catch(() => {});
+      }).catch((err) => console.error("[AlertChains] thesis generation failed:", err));
       result.thesisTriggered = true;
     } catch {
       // Non-critical

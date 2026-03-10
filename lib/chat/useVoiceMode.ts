@@ -114,7 +114,7 @@ export function useVoiceMode(): UseVoiceModeReturn {
         const voiceSetting = s.find((x: { key: string }) => x.key === "voice_id");
         if (voiceSetting?.value) voiceIdRef.current = voiceSetting.value;
       })
-      .catch(() => {});
+      .catch((err) => console.error("[VoiceMode] fetch voice settings failed:", err));
   }, []);
 
   const toggleVoice = useCallback(() => {

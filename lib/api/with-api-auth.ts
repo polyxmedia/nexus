@@ -288,7 +288,7 @@ export function withApiAuth(handler: ApiHandler, options?: WithApiAuthOptions) {
       .set({ lastUsedAt: new Date().toISOString() })
       .where(eq(schema.apiKeys.id, apiKey.id))
       .then(() => {})
-      .catch(() => {});
+      .catch((err) => console.error("[ApiAuth] update last_used_at failed:", err));
 
     // 9. Build context and call handler
     const ctx: ApiAuthContext = {

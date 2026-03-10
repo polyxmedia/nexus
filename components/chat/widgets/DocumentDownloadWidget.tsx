@@ -21,6 +21,7 @@ interface DocumentData {
 export function DocumentDownloadWidget({ data }: { data: DocumentData }) {
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (data.error) {
     return (
@@ -34,10 +35,10 @@ export function DocumentDownloadWidget({ data }: { data: DocumentData }) {
   const Icon = isPptx ? Presentation : FileText;
   const formatLabel = isPptx ? "PowerPoint" : "PDF";
   const formatExt = isPptx ? ".pptx" : ".pdf";
-  const accentColor = isPptx ? "accent-amber" : "accent-cyan";
 
   const handleDownload = async () => {
     setDownloading(true);
+    setError(null);
     try {
       const res = await fetch("/api/chat/documents", {
         method: "POST",
@@ -50,7 +51,8 @@ export function DocumentDownloadWidget({ data }: { data: DocumentData }) {
       });
 
       if (!res.ok) {
-        throw new Error("Generation failed");
+        const errData = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
+        throw new Error(errData.error || "Generation failed");
       }
 
       const blob = await res.blob();
@@ -65,6 +67,8 @@ export function DocumentDownloadWidget({ data }: { data: DocumentData }) {
       setDownloaded(true);
       setTimeout(() => setDownloaded(false), 3000);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Download failed";
+      setError(msg);
       console.error("[Document] Download failed:", err);
     } finally {
       setDownloading(false);
@@ -72,16 +76,14 @@ export function DocumentDownloadWidget({ data }: { data: DocumentData }) {
   };
 
   return (
-    <div className={`my-3 rounded-lg border border-${accentColor}/20 bg-navy-900/60 overflow-hidden`}>
+    <div className="my-3 rounded-lg border border-navy-700/40 bg-navy-900/40 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-navy-700/30">
-        <div className={`flex items-center justify-center h-9 w-9 rounded-lg bg-${accentColor}/10 border border-${accentColor}/20`}>
-          <Icon className={`h-4.5 w-4.5 text-${accentColor}`} />
-        </div>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <Icon className="h-4 w-4 text-navy-400 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-navy-100 truncate">{data.title}</div>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className={`text-[10px] font-mono uppercase tracking-wider text-${accentColor}`}>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
               {formatLabel}
             </span>
             <span className="text-[10px] text-navy-600">
@@ -92,28 +94,28 @@ export function DocumentDownloadWidget({ data }: { data: DocumentData }) {
         <button
           onClick={handleDownload}
           disabled={downloading}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-mono uppercase tracking-wider transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-mono tracking-wider transition-all disabled:opacity-50 ${
             downloaded
-              ? "bg-accent-emerald/10 border border-accent-emerald/30 text-accent-emerald"
-              : `bg-${accentColor}/10 border border-${accentColor}/30 text-${accentColor} hover:bg-${accentColor}/20`
-          } disabled:opacity-50`}
+              ? "text-accent-emerald"
+              : "text-accent-cyan hover:text-accent-cyan/80"
+          }`}
         >
           {downloading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : downloaded ? (
-            <CheckCircle2 className="h-3.5 w-3.5" />
+            <CheckCircle2 className="h-3 w-3" />
           ) : (
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-3 w-3" />
           )}
-          {downloading ? "Generating..." : downloaded ? "Downloaded" : "Download"}
+          {downloading ? "Generating" : downloaded ? "Done" : "Download"}
         </button>
       </div>
 
       {/* Section preview */}
-      <div className="px-4 py-3 space-y-1.5">
+      <div className="px-4 pb-3 space-y-1">
         {data.sections.slice(0, 5).map((section, i) => (
           <div key={i} className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-navy-600 w-5 text-right">{i + 1}</span>
+            <span className="text-[10px] font-mono text-navy-600 w-4 text-right">{i + 1}</span>
             <span className="text-xs text-navy-400 truncate">{section.heading}</span>
             {section.bullets?.length ? (
               <span className="text-[9px] font-mono text-navy-600 ml-auto flex-shrink-0">
@@ -123,11 +125,18 @@ export function DocumentDownloadWidget({ data }: { data: DocumentData }) {
           </div>
         ))}
         {data.sections.length > 5 && (
-          <div className="text-[10px] text-navy-600 font-mono pl-7">
+          <div className="text-[10px] text-navy-600 font-mono pl-6">
             +{data.sections.length - 5} more sections
           </div>
         )}
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="px-4 pb-3">
+          <p className="text-[10px] text-accent-rose font-mono">{error}</p>
+        </div>
+      )}
     </div>
   );
 }

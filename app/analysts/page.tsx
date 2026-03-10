@@ -80,7 +80,7 @@ function AnalystProfileContent() {
     fetch(`/api/analysts?username=${encodeURIComponent(username)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setProfile(d))
-      .catch(() => {})
+      .catch((err) => console.error("[Analysts] profile fetch failed:", err))
       .finally(() => setLoading(false));
   }, [username]);
 
@@ -112,7 +112,8 @@ function AnalystProfileContent() {
             : prev
         );
       }
-    } catch {
+    } catch (err) {
+      console.error("[Analysts] follow/unfollow failed:", err);
     } finally {
       setFollowLoading(false);
     }

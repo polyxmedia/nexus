@@ -77,7 +77,7 @@ export async function checkAndAlertStatusChanges(chokepoints: Chokepoint[]): Pro
 
         // Send alert
         const message = formatChokepointAlert(cp, prev);
-        await sendMessage({ chatId: row.value, text: message }).catch(() => {});
+        await sendMessage({ chatId: row.value, text: message }).catch((err) => console.error("[Shipping] chokepoint alert send failed:", err));
       }
     }
   } catch (err) {
