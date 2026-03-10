@@ -184,34 +184,78 @@ export default function ChatSessionPage() {
     }
   }, [isStreaming]);
 
-  // Auto-speak assistant response when voice mode is on and streaming completes
-  const prevStreamingRef = useRef(false);
-  const voiceEnabledRef = useRef(voice.voiceEnabled);
-  voiceEnabledRef.current = voice.voiceEnabled;
-  const speakRef = useRef(voice.speak);
-  speakRef.current = voice.speak;
+  // Stable refs for voice call flow
+  const sendRef = useRef(sendMessage);
+  sendRef.current = sendMessage;
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
 
+  // Helper to start listening with auto-send
+  const startCallListening = useCallback(() => {
+    voiceRef.current.startListening((text: string) => {
+      if (text.trim()) {
+        sendRef.current(text);
+      }
+    });
+  }, []);
+
+  // Auto-speak assistant response when voice mode is on and streaming completes
+  // Caps TTS to first ~800 chars for speed - full analysis is on screen
+  const prevStreamingRef = useRef(false);
   useEffect(() => {
-    if (prevStreamingRef.current && !isStreaming && voiceEnabledRef.current) {
+    if (prevStreamingRef.current && !isStreaming && voiceRef.current.voiceEnabled) {
       const lastTurn = turns[turns.length - 1];
       if (lastTurn?.role === "assistant" && lastTurn.content) {
-        speakRef.current(lastTurn.content);
+        voiceRef.current.stopListening();
+        let toSpeak = lastTurn.content;
+        if (toSpeak.length > 800) {
+          // Find last sentence end within ~800 chars
+          const trimmed = toSpeak.slice(0, 800);
+          const lastSentence = trimmed.search(/[.!?][^.!?]*$/);
+          toSpeak = lastSentence > 200 ? trimmed.slice(0, lastSentence + 1) : trimmed;
+        }
+        voiceRef.current.speak(toSpeak);
       }
     }
     prevStreamingRef.current = isStreaming;
   }, [isStreaming, turns]);
 
-  // Voice input handler - sends transcript as a message
-  const sendRef = useRef(sendMessage);
-  sendRef.current = sendMessage;
-
+  // Voice input handler for mic button (one-shot transcription)
   const handleVoiceStart = useCallback(() => {
-    voice.startListening((text: string) => {
-      if (text.trim()) {
-        sendRef.current(text);
-      }
-    });
-  }, [voice.startListening]);
+    startCallListening();
+  }, [startCallListening]);
+
+  // Call mode: toggle TTS + listening together
+  const handleCallToggle = useCallback(() => {
+    if (voice.voiceEnabled) {
+      // End call
+      voice.toggleVoice();
+      voice.stopListening();
+      voice.stopSpeaking();
+    } else {
+      // Start call - enable TTS and start listening
+      voice.toggleVoice();
+      startCallListening();
+    }
+  }, [voice.voiceEnabled, voice.toggleVoice, voice.stopListening, voice.stopSpeaking, startCallListening]);
+
+  // Auto-restart listening after AI finishes speaking in call mode
+  // Only triggers when isSpeaking transitions from true -> false
+  const prevSpeakingRef = useRef(false);
+  useEffect(() => {
+    const wasSpeaking = prevSpeakingRef.current;
+    prevSpeakingRef.current = voice.isSpeaking;
+
+    // Only restart when speaking just finished (not on every render where isSpeaking=false)
+    if (wasSpeaking && !voice.isSpeaking && voice.voiceEnabled && !isStreaming) {
+      const timer = setTimeout(() => {
+        if (voiceRef.current.voiceEnabled && !voiceRef.current.isListening && !voiceRef.current.isSpeaking) {
+          startCallListening();
+        }
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [voice.isSpeaking, voice.voiceEnabled, isStreaming, startCallListening]);
 
   return (
     <div className="ml-0 md:ml-48 flex h-screen flex-col pt-12 md:pt-0">
@@ -381,6 +425,8 @@ export default function ChatSessionPage() {
             onStartListening={handleVoiceStart}
             onStopListening={voice.stopListening}
             onStopSpeaking={voice.stopSpeaking}
+            onCallToggle={handleCallToggle}
+            audioStream={voice.audioStream}
           />
         </div>
       </div>}

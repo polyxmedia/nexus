@@ -544,6 +544,19 @@ export const comments = pgTable("comments", {
   updatedAt: text("updated_at"),
 });
 
+// ── Daily Reports ──
+
+export const dailyReports = pgTable("daily_reports", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  reportDate: text("report_date").notNull(),
+  sections: text("sections").notNull(), // JSON: array of report sections
+  generatedAt: text("generated_at").notNull(),
+});
+
+export type DailyReport = typeof dailyReports.$inferSelect;
+export type NewDailyReport = typeof dailyReports.$inferInsert;
+
 // ── Social: Analyst Follows ──
 
 export const analystFollows = pgTable("analyst_follows", {

@@ -14,6 +14,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_predictions: "Loading prediction tracker",
   get_prediction_feedback: "Analysing prediction accuracy",
   get_vip_movements: "Tracking VIP aircraft movements",
+  get_vessel_tracking: "Tracking vessel movements",
   get_portfolio: "Fetching portfolio positions",
   get_live_quote: "Getting live quote",
   get_price_history: "Pulling price history",

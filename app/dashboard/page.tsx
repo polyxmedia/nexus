@@ -109,6 +109,7 @@ const STORE_ITEMS: StoreItem[] = [
   // AI
   { type: "ai_progression", name: "AI Progression Tracker", description: "Remote Labor Index, AI 2027 timeline, sector risk", category: "ai", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "operator" },
   { type: "quick_chat", name: "Quick Chat", description: "Start a conversation with the AI analyst", category: "ai", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "analyst" },
+  { type: "daily_report", name: "Daily Report", description: "AI-generated daily intelligence briefing with drill-down sections", category: "intelligence", defaultWidth: 3, defaultConfig: {}, accent: "cyan", minTier: "analyst" },
 ];
 
 // Compute category counts

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, type ChangeEvent, type DragEvent } from "react";
-import { ArrowUp, Square, Paperclip, X, FileText, Image as ImageIcon, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { ArrowUp, Square, Paperclip, X, FileText, Image as ImageIcon, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VoiceWaveform } from "./VoiceWaveform";
 
 export interface FileAttachment {
   name: string;
@@ -29,6 +30,8 @@ interface ChatInputProps {
   onStartListening?: () => void;
   onStopListening?: () => void;
   onStopSpeaking?: () => void;
+  onCallToggle?: () => void;
+  audioStream?: MediaStream | null;
 }
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -73,6 +76,7 @@ export function ChatInput({
   onSend, onStop, isStreaming, disabled,
   voiceAvailable, voiceEnabled, isListening, isSpeaking, transcript,
   onToggleVoice, onStartListening, onStopListening, onStopSpeaking,
+  onCallToggle, audioStream,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
@@ -218,18 +222,34 @@ export function ChatInput({
           </div>
         )}
 
-        {/* Voice transcript indicator */}
-        {isListening && transcript && (
-          <div className="px-4 pt-2 pb-0">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-rose opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-rose" />
-              </span>
-              <span className="font-mono text-[11px] text-navy-400 italic truncate">
-                {transcript}
-              </span>
-            </div>
+        {/* Voice waveform + transcript */}
+        {(isListening || voiceEnabled) && (
+          <div className="px-4 pt-3 pb-1 space-y-2">
+            {audioStream && (
+              <VoiceWaveform stream={audioStream} />
+            )}
+            {transcript && (
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-rose opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-rose" />
+                </span>
+                <span className="font-mono text-[11px] text-navy-300 truncate">
+                  {transcript}
+                </span>
+              </div>
+            )}
+            {voiceEnabled && !transcript && !audioStream && (
+              <div className="flex items-center justify-center gap-2 py-1">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-emerald opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-emerald" />
+                </span>
+                <span className="font-mono text-[10px] text-accent-emerald uppercase tracking-wider">
+                  {isSpeaking ? "Speaking..." : "Call active"}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -282,18 +302,21 @@ export function ChatInput({
           {/* Voice controls (operator+ only) */}
           {voiceAvailable && (
             <>
-              {/* Mic button */}
+              {/* Mic button - also interrupts TTS when AI is speaking */}
               <button
                 type="button"
                 onClick={() => {
-                  if (isListening) {
+                  if (isSpeaking) {
+                    onStopSpeaking?.();
+                    onStartListening?.();
+                  } else if (isListening) {
                     onStopListening?.();
                   } else {
                     onStartListening?.();
                   }
                 }}
                 disabled={disabled || isStreaming}
-                title={isListening ? "Stop recording" : "Voice input"}
+                title={isSpeaking ? "Interrupt and speak" : isListening ? "Stop recording" : "Voice input"}
                 className={cn(
                   "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
                   isListening
@@ -309,36 +332,29 @@ export function ChatInput({
                 )}
               </button>
 
-              {/* Voice mode toggle (TTS) */}
+              {/* Voice call toggle (TTS + listening) */}
               <button
                 type="button"
-                onClick={() => {
-                  if (isSpeaking) {
-                    onStopSpeaking?.();
-                  } else {
-                    onToggleVoice?.();
-                  }
-                }}
+                onClick={() => onCallToggle?.()}
+                disabled={disabled || isStreaming}
                 title={
-                  isSpeaking
-                    ? "Stop speaking"
-                    : voiceEnabled
-                    ? "Disable voice responses"
-                    : "Enable voice responses"
+                  voiceEnabled
+                    ? "End voice call"
+                    : "Start voice call"
                 }
                 className={cn(
                   "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
-                  isSpeaking
-                    ? "bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan animate-pulse"
-                    : voiceEnabled
-                    ? "bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan"
-                    : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/70"
+                  voiceEnabled
+                    ? "bg-accent-emerald/10 border border-accent-emerald/30 text-accent-emerald"
+                    : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/70",
+                  isSpeaking && "animate-pulse",
+                  "disabled:opacity-40 disabled:cursor-not-allowed"
                 )}
               >
-                {voiceEnabled || isSpeaking ? (
-                  <Volume2 className="h-[15px] w-[15px]" />
+                {voiceEnabled ? (
+                  <PhoneOff className="h-[15px] w-[15px]" />
                 ) : (
-                  <VolumeX className="h-[15px] w-[15px]" />
+                  <Phone className="h-[15px] w-[15px]" />
                 )}
               </button>
             </>

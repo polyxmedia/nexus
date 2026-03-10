@@ -597,6 +597,30 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   },
   { name: "get_on_chain", description: "On-chain crypto analytics: whale transactions (>100 BTC), exchange flows, DeFi TVL, stablecoin supply. Data from Blockchain.com, CoinGecko, DeFi Llama.", input_schema: { type: "object" as const, properties: { section: { type: "string", enum: ["whales", "flows", "defi", "stablecoins"], description: "Filter to specific section" } }, required: [] } },
   { name: "get_shipping_intelligence", description: "Maritime shipping intelligence: chokepoint status (Hormuz, Suez, Malacca, Bab el-Mandeb, Panama), traffic anomalies, dark fleet alerts, sanctions evasion detection.", input_schema: { type: "object" as const, properties: { chokepoint: { type: "string", enum: ["hormuz", "suez", "malacca", "mandeb", "panama"], description: "Filter to specific chokepoint" } }, required: [] } },
+  {
+    name: "get_vessel_tracking",
+    description: "Get live vessel positions from the war room AIS tracking layer. Returns military and civilian vessels across global chokepoints and strategic waterways. Filter by navy/flag (e.g. 'RU Navy', 'CN Navy', 'IR Navy', 'US Navy'), vessel type (military, tanker, cargo), or geographic region. Use when the user asks about naval movements, fleet deployments, maritime activity, or when correlating sea-based military posture with geopolitical events. Cross-reference results with OSINT events and shipping intelligence for pattern detection.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        flag: {
+          type: "string",
+          description: "Filter by flag/navy. E.g. 'RU Navy', 'CN Navy', 'US Navy', 'IR Navy', 'India', or any country name.",
+        },
+        vesselType: {
+          type: "string",
+          enum: ["military", "tanker", "cargo", "passenger", "fishing", "all"],
+          description: "Filter by vessel type. Use 'military' for warships.",
+        },
+        region: {
+          type: "string",
+          enum: ["hormuz", "suez", "mandeb", "south_china_sea", "taiwan_strait", "mediterranean", "malacca", "all"],
+          description: "Filter by strategic waterway/region.",
+        },
+      },
+      required: [],
+    },
+  },
   { name: "get_narratives", description: "Track narrative shifts across GDELT and Reddit. Shows trending themes, momentum (rising/peaking/fading), sentiment scores, and divergences where narrative contradicts price action.", input_schema: { type: "object" as const, properties: { theme: { type: "string", description: "Filter to specific theme keyword" } }, required: [] } },
   { name: "get_change_points", description: "Bayesian Online Change-Point Detection (Adams & MacKay 2007). Detects structural breaks in VIX, gold, oil, yields, DXY, and signal intensity. Shows run lengths and regime shifts.", input_schema: { type: "object" as const, properties: { stream: { type: "string", enum: ["vix", "gold", "oil", "yield", "dxy", "signals"], description: "Filter to specific data stream" } }, required: [] } },
   { name: "get_short_interest", description: "Aggregate short interest across sector ETFs (SPY, QQQ, IWM, XLF, XLE, XLK, etc). 52-week z-score, contrarian signals, per-sector breakdown.", input_schema: { type: "object" as const, properties: { sector: { type: "string", description: "Filter by sector name" } }, required: [] } },
@@ -997,6 +1021,8 @@ export async function executeTool(
       return executeGetOnChain(input);
     case "get_shipping_intelligence":
       return executeGetShipping(input);
+    case "get_vessel_tracking":
+      return executeGetVesselTracking(input);
     case "get_narratives":
       return executeGetNarratives(input);
     case "get_change_points":
@@ -2481,6 +2507,83 @@ async function executeGetShipping(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Shipping intelligence failed: ${message}` };
+  }
+}
+
+async function executeGetVesselTracking(input: Record<string, unknown>) {
+  try {
+    const { generateVessels } = await import("@/lib/warroom/vessels");
+    const vessels = generateVessels();
+
+    const flagFilter = input.flag as string | undefined;
+    const typeFilter = input.vesselType as string | undefined;
+    const regionFilter = input.region as string | undefined;
+
+    // Region bounding boxes for filtering
+    const REGION_BOUNDS: Record<string, { latMin: number; latMax: number; lngMin: number; lngMax: number }> = {
+      hormuz: { latMin: 24, latMax: 28, lngMin: 54, lngMax: 60 },
+      suez: { latMin: 28, latMax: 32, lngMin: 30, lngMax: 35 },
+      mandeb: { latMin: 11, latMax: 15, lngMin: 41, lngMax: 45 },
+      south_china_sea: { latMin: 5, latMax: 22, lngMin: 105, lngMax: 121 },
+      taiwan_strait: { latMin: 22, latMax: 26, lngMin: 117, lngMax: 122 },
+      mediterranean: { latMin: 30, latMax: 42, lngMin: -5, lngMax: 36 },
+      malacca: { latMin: -1, latMax: 7, lngMin: 98, lngMax: 105 },
+    };
+
+    let filtered = vessels;
+
+    if (flagFilter) {
+      const q = flagFilter.toLowerCase();
+      filtered = filtered.filter((v) => v.flag.toLowerCase().includes(q));
+    }
+
+    if (typeFilter && typeFilter !== "all") {
+      filtered = filtered.filter((v) => v.vesselType === typeFilter);
+    }
+
+    if (regionFilter && regionFilter !== "all") {
+      const bounds = REGION_BOUNDS[regionFilter];
+      if (bounds) {
+        filtered = filtered.filter(
+          (v) => v.lat >= bounds.latMin && v.lat <= bounds.latMax && v.lng >= bounds.lngMin && v.lng <= bounds.lngMax
+        );
+      }
+    }
+
+    // Group by flag for summary
+    const byFlag: Record<string, number> = {};
+    const byType: Record<string, number> = {};
+    for (const v of filtered) {
+      byFlag[v.flag] = (byFlag[v.flag] || 0) + 1;
+      byType[v.vesselType] = (byType[v.vesselType] || 0) + 1;
+    }
+
+    return {
+      totalVessels: filtered.length,
+      militaryCount: filtered.filter((v) => v.vesselType === "military").length,
+      byFlag,
+      byType,
+      vessels: filtered.map((v) => ({
+        name: v.name,
+        mmsi: v.mmsi,
+        flag: v.flag,
+        vesselType: v.vesselType,
+        lat: Number(v.lat.toFixed(4)),
+        lng: Number(v.lng.toFixed(4)),
+        speed: Number(v.speed.toFixed(1)),
+        course: Math.round(v.course),
+        destination: v.destination,
+      })),
+      filters: {
+        flag: flagFilter || "all",
+        vesselType: typeFilter || "all",
+        region: regionFilter || "all",
+      },
+      note: "Cross-reference with get_shipping_intelligence for chokepoint analysis and get_osint_events for correlating naval movements with recent events.",
+    };
+  } catch (err) {
+    console.error("[Vessel Tracking] Tool error:", err);
+    return { error: "Failed to fetch vessel tracking data", vessels: [] };
   }
 }
 

@@ -442,7 +442,11 @@ export async function POST(
               toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(toolResult) });
             }
             messages = [...messages, { role: "assistant" as const, content: assistantContent }, { role: "user" as const, content: toolResultContent }];
-            // Keep accumulating fullText across iterations (don't reset)
+            // Add separator between iterations so text doesn't merge (e.g. "data.Now" -> "data.\n\nNow")
+            if (fullText.length > 0) {
+              fullText += "\n\n";
+              sendEvent({ type: "text_delta", delta: "\n\n" });
+            }
           } else {
             continueLoop = false;
           }

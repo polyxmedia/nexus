@@ -13,7 +13,7 @@ import {
   createSignalFromOSINT,
   type NPlayerScenario,
   type Coalition,
-  type BayesianAnalysis,
+  type ActorType,
 } from "../game-theory/bayesian";
 import type { StrategicScenario } from "../thesis/types";
 import { loadPrompt } from "@/lib/prompts/loader";
@@ -32,11 +32,11 @@ const MAX_ACTIVE_PREDICTIONS = 500;
  * Convert a StrategicScenario (payoff-matrix-based) to an NPlayerScenario
  * (utility-function-based) so the Bayesian N-player engine can analyze it.
  */
-function toBayesianScenario(scenario: StrategicScenario): NPlayerScenario {
+export function toBayesianScenario(scenario: StrategicScenario): NPlayerScenario {
   const actors = scenario.actors;
 
   // Build utility function from the payoff matrix
-  const utilityFn = (strategies: Record<string, string>, _types: Record<string, string>): Record<string, number> => {
+  const utilityFn = (strategies: Record<string, string>, _types: Record<string, ActorType>): Record<string, number> => {
     const entry = scenario.payoffMatrix.find(e =>
       actors.every(a => e.strategies[a] === strategies[a])
     );
@@ -91,10 +91,9 @@ function toBayesianScenario(scenario: StrategicScenario): NPlayerScenario {
  * Run Bayesian N-player analysis for all scenarios, incorporating
  * recent signals as belief updates. Returns formatted context for the prompt.
  */
-async function runBayesianGameTheory(
+export function runBayesianGameTheory(
   activeSignals: Array<{ title: string; description: string; intensity: number }>
-): Promise<{ context: string; analyses: Map<string, BayesianAnalysis> }> {
-  const analyses = new Map<string, BayesianAnalysis>();
+): string {
   const lines: string[] = [];
 
   for (const scenario of SCENARIOS) {
@@ -116,7 +115,6 @@ async function runBayesianGameTheory(
         });
 
       const analysis = runBayesianAnalysis(bayesianScenario, beliefs, signalUpdates);
-      analyses.set(scenario.id, analysis);
 
       // Format for prompt injection
       const eq = analysis.equilibria;
@@ -160,11 +158,189 @@ async function runBayesianGameTheory(
     }
   }
 
-  return {
-    context: lines.length > 0 ? lines.join("\n\n") : "Bayesian analysis unavailable",
-    analyses,
-  };
+  return lines.length > 0 ? lines.join("\n\n") : "Bayesian analysis unavailable";
 }
+
+/**
+ * Generate custom game theory scenarios from the current intelligence picture
+ * for situations not covered by the pre-defined SCENARIOS. Uses a fast LLM call
+ * to identify novel strategic interactions, then runs Bayesian analysis on them.
+ */
+async function generateCustomBayesianScenarios(
+  thesisContext: string,
+  signalsContext: string,
+  anthropicKey: string
+): Promise<string> {
+  // List the pre-defined scenario topics so the LLM knows what's already covered
+  const coveredTopics = SCENARIOS.map(s => s.title).join(", ");
+
+  const client = new Anthropic({ apiKey: anthropicKey });
+
+  const scenarioGenPrompt = `Given the current intelligence picture below, identify 1-3 strategic interactions NOT already covered by these pre-defined scenarios: ${coveredTopics}
+
+═══ ACTIVE THESIS ═══
+${thesisContext}
+
+═══ ACTIVE SIGNALS ═══
+${signalsContext}
+
+For each novel strategic interaction, output a JSON array. Each scenario must have exactly 2 actors with 3 strategies each. Focus on situations where game theory adds real analytical value (competing interests, credible commitments, audience costs, information asymmetry).
+
+If all significant strategic interactions are already covered by the pre-defined scenarios, return an empty array [].
+
+Output ONLY a JSON array:
+[
+  {
+    "title": "Short descriptive title",
+    "description": "One sentence context",
+    "actors": ["actor_a_id", "actor_b_id"],
+    "actor_names": {"actor_a_id": "Full Name A", "actor_b_id": "Full Name B"},
+    "strategies": {
+      "actor_a_id": ["Strategy 1", "Strategy 2", "Strategy 3"],
+      "actor_b_id": ["Strategy 1", "Strategy 2", "Strategy 3"]
+    },
+    "payoffs": [
+      {"a": "Strategy 1", "b": "Strategy 1", "pa": 2, "pb": -3, "market_direction": "bearish", "market_magnitude": "medium", "sectors": ["sector1"], "impact_desc": "Brief market impact"},
+      ...all 9 combinations
+    ],
+    "market_sectors": ["sector1", "sector2"],
+    "actor_types": {
+      "actor_a_id": {"cooperative": 0.2, "hawkish": 0.3, "desperate": 0.05, "calculating": 0.25, "escalatory": 0.1, "defensive": 0.1},
+      "actor_b_id": {"cooperative": 0.3, "hawkish": 0.1, "desperate": 0.05, "calculating": 0.35, "escalatory": 0.1, "defensive": 0.1}
+    }
+  }
+]`;
+
+  try {
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 2000,
+      system: "You are a game theory analyst. Identify novel strategic interactions from the intelligence picture that aren't covered by existing scenarios. Be selective: only generate scenarios where formal game theory adds analytical value. Output only valid JSON.",
+      messages: [{ role: "user", content: scenarioGenPrompt }],
+    });
+
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return "";
+
+    const customScenarios: Array<{
+      title: string;
+      description: string;
+      actors: [string, string];
+      actor_names: Record<string, string>;
+      strategies: Record<string, string[]>;
+      payoffs: Array<{
+        a: string; b: string;
+        pa: number; pb: number;
+        market_direction: string;
+        market_magnitude: string;
+        sectors: string[];
+        impact_desc: string;
+      }>;
+      market_sectors: string[];
+      actor_types?: Record<string, Record<string, number>>;
+    }> = JSON.parse(jsonMatch[0]);
+
+    if (customScenarios.length === 0) return "";
+
+    const lines: string[] = [];
+
+    for (const cs of customScenarios.slice(0, 3)) {
+      try {
+        // Validate structure
+        if (!cs.actors || cs.actors.length !== 2 || !cs.strategies || !cs.payoffs) continue;
+        const [a1, a2] = cs.actors;
+        if (!cs.strategies[a1] || !cs.strategies[a2]) continue;
+
+        // Build NPlayerScenario from LLM output
+        const utilityFn = (strategies: Record<string, string>, _types: Record<string, ActorType>): Record<string, number> => {
+          const match = cs.payoffs.find(p => p.a === strategies[a1] && p.b === strategies[a2]);
+          if (match) return { [a1]: match.pa, [a2]: match.pb };
+          return { [a1]: -1, [a2]: -1 };
+        };
+
+        const bayesianScenario: NPlayerScenario = {
+          id: `custom-${cs.title.toLowerCase().replace(/\s+/g, "-").slice(0, 30)}`,
+          title: cs.title,
+          description: cs.description,
+          actors: cs.actors,
+          moveOrder: cs.actors,
+          strategies: cs.strategies,
+          utilityFn,
+          coalitions: [{
+            id: `${a1}-${a2}-custom`,
+            name: `${cs.actor_names?.[a1] || a1}-${cs.actor_names?.[a2] || a2}`,
+            members: cs.actors,
+            stability: 0.3,
+            fractureProbability: 0.5,
+            fractureCondition: "Escalation or strategic surprise",
+          }],
+          marketSectors: cs.market_sectors || [],
+          timeHorizon: "short_term",
+        };
+
+        // Initialize beliefs with custom type distributions if provided
+        const beliefs = initializeBeliefs(cs.actors);
+
+        // Override with LLM-provided type distributions if available
+        if (cs.actor_types) {
+          for (const actorId of cs.actors) {
+            const customTypes = cs.actor_types[actorId];
+            if (customTypes && beliefs[actorId]) {
+              const sum = Object.values(customTypes).reduce((s, v) => s + (v || 0), 0);
+              if (sum > 0) {
+                beliefs[actorId].typeDistribution = {
+                  cooperative: (customTypes.cooperative || 0) / sum,
+                  hawkish: (customTypes.hawkish || 0) / sum,
+                  desperate: (customTypes.desperate || 0) / sum,
+                  calculating: (customTypes.calculating || 0) / sum,
+                  escalatory: (customTypes.escalatory || 0) / sum,
+                  defensive: (customTypes.defensive || 0) / sum,
+                };
+              }
+            }
+          }
+        }
+
+        const analysis = runBayesianAnalysis(bayesianScenario, beliefs);
+
+        // Format output
+        const eq = analysis.equilibria;
+        const topEq = eq.length > 0 ? eq[0] : null;
+        const dominantTypesSummary = Object.entries(analysis.dominantTypes)
+          .map(([a, t]) => `${cs.actor_names?.[a] || a}: ${t.type} (${(t.probability * 100).toFixed(0)}%)`)
+          .join(", ");
+
+        let line = `- [CUSTOM] ${cs.title}:`;
+        line += `\n  Context: ${cs.description}`;
+        line += `\n  Actors: ${cs.actors.map(a => cs.actor_names?.[a] || a).join(" vs ")}`;
+        line += `\n  Bargaining range: ${(analysis.bargainingRange * 100).toFixed(0)}% (${analysis.bargainingRange < 0.2 ? "FEARON FAILURE" : analysis.bargainingRange < 0.4 ? "NARROW" : "sufficient"})`;
+        line += `\n  Escalation probability: ${(analysis.escalationProbability * 100).toFixed(0)}%`;
+        line += `\n  Dominant types: ${dominantTypesSummary}`;
+
+        if (topEq) {
+          const strats = Object.entries(topEq.strategyProfile)
+            .map(([a, s]) => `${cs.actor_names?.[a] || a}: ${s}`)
+            .join(", ");
+          line += `\n  Most likely equilibrium: ${strats} (p=${(topEq.probability * 100).toFixed(0)}%, Fearon: ${topEq.fearonCondition})`;
+          line += `\n  Market impact: ${topEq.marketImpact.direction}, ${topEq.marketImpact.magnitude}`;
+        }
+
+        line += `\n  Fearon assessment: ${analysis.fearonAssessment}`;
+        line += `\n  Market: ${analysis.marketAssessment.mostLikelyOutcome} (${analysis.marketAssessment.direction}, confidence: ${(analysis.marketAssessment.confidence * 100).toFixed(0)}%)`;
+
+        lines.push(line);
+      } catch {
+        // Individual custom scenario failure is non-fatal
+      }
+    }
+
+    return lines.length > 0 ? lines.join("\n\n") : "";
+  } catch {
+    return "";
+  }
+}
+
 const REGIME_PRICE_DISTANCE_THRESHOLD = 0.10; // 10% — tighter threshold for faster invalidation
 const REFERENCE_SYMBOLS = ["SPY", "USO", "GLD"] as const;
 
@@ -585,18 +761,31 @@ ${actionsSummary}`;
   // Run full Bayesian analysis with actor type distributions, Fearon bargaining
   // range, audience costs, and escalation probability computation
   let bayesianContext = "Bayesian game theory analysis unavailable";
-  let bayesianAnalyses = new Map<string, BayesianAnalysis>();
   try {
     const signalInputs = activeSignals.map(s => ({
       title: s.title,
       description: s.description ?? "",
       intensity: s.intensity,
     }));
-    const bayesianResult = await runBayesianGameTheory(signalInputs);
-    bayesianContext = bayesianResult.context;
-    bayesianAnalyses = bayesianResult.analyses;
+    bayesianContext = runBayesianGameTheory(signalInputs);
   } catch {
     // Bayesian analysis is best-effort
+  }
+
+  // ── Custom Context-Driven Game Theory Scenarios ──
+  // Generate and analyze game theory scenarios for strategic interactions in the
+  // current intelligence picture that aren't covered by pre-defined scenarios
+  try {
+    const customBayesian = await generateCustomBayesianScenarios(
+      thesisContext,
+      signalsContext,
+      anthropicKey
+    );
+    if (customBayesian) {
+      bayesianContext += "\n\n── CONTEXT-DERIVED CUSTOM SCENARIOS ──\n" + customBayesian;
+    }
+  } catch {
+    // Custom scenario generation is best-effort
   }
 
   // Build a structured coverage map: what tickers/assets/events are already predicted
@@ -754,7 +943,7 @@ Respond ONLY with a JSON array. Each prediction must include all fields:
     "deadline": "YYYY-MM-DD",
     "confidence": 0.10-0.80,
     "category": "market" | "geopolitical" | "celestial",
-    "grounding": "Derived from: [specific thesis element / signal / game theory outcome]. Compound probability: P(trigger) * P(outcome|trigger) = X",
+    "grounding": "Derived from: [specific thesis element / signal / game theory outcome / Bayesian equilibrium / Fearon assessment]. Compound probability: P(trigger) * P(outcome|trigger) = X",
     "direction": "up" | "down" | "flat" | null,
     "price_target": number | null,
     "reference_symbol": "TICKER" | null
@@ -776,9 +965,13 @@ ${signalsContext}
 ═══ GAME THEORY ANALYSIS ═══
 ${gameTheoryContext}
 
+═══ BAYESIAN N-PLAYER ANALYSIS ═══
+${bayesianContext}
+
 Your task:
 1. Identify the 3 strongest counterarguments to the current thesis direction.
-2. Identify what would need to be true for the thesis to be completely wrong.
+2. Challenge the Bayesian analysis assumptions: are the actor type distributions plausible? Is the Fearon bargaining assessment too hawkish or dovish?
+3. Identify what would need to be true for the thesis to be completely wrong.
 3. Name the weakest assumptions the thesis relies on.
 
 Output a brief devil's advocate summary.`;

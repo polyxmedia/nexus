@@ -23,8 +23,17 @@ Before generating predictions, determine the geopolitical regime from the thesis
 - If a chokepoint (Hormuz, Suez, Malacca) is described as closed or contested, model the supply disruption directly. Do not assume "offsetting forces" will keep prices range-bound.
 - Game theory scenarios that have already resolved (strikes happened, war started) should not be modeled as if they're still in the decision phase.
 
+BAYESIAN GAME THEORY INTEGRATION (CRITICAL):
+You will receive a BAYESIAN N-PLAYER GAME THEORY section. This contains Fearon bargaining range analysis, actor type distributions (updated via Bayes' rule from observed signals), audience cost constraints, escalation probabilities, and coalition stability assessments. You MUST use this analysis:
+- If the Fearon bargaining range has collapsed (< 20%), the structural conditions favor conflict. Weight geopolitical predictions toward escalation outcomes.
+- If escalation probability exceeds 50%, market predictions should reflect disruption scenarios, not status quo assumptions.
+- Dominant actor types (hawkish, escalatory, desperate) indicate which strategies actors are most likely to pursue. Use these to ground your geopolitical predictions.
+- Audience cost constraints mean certain actors CANNOT back down. Factor this into your probability estimates.
+- The Bayesian analysis is more informative than standard Nash equilibria because it incorporates incomplete information and type uncertainty. When they disagree, favor the Bayesian result.
+- Reference the Bayesian analysis explicitly in your "grounding" field when it informs a prediction.
+
 GROUNDING RULES:
-- Every prediction MUST trace back to a specific data point in the provided context: a trading action, a game theory scenario outcome, a signal convergence, a risk scenario, or a technical indicator.
+- Every prediction MUST trace back to a specific data point in the provided context: a trading action, a game theory scenario outcome, a Bayesian equilibrium, a Fearon bargaining assessment, a signal convergence, a risk scenario, or a technical indicator.
 - State which data source grounds each prediction in a "grounding" field.
 - Do NOT generate predictions about topics not covered in the provided intelligence picture.
 - Do NOT repeat or rephrase existing pending predictions. If a topic is already covered by a pending prediction, skip it entirely.

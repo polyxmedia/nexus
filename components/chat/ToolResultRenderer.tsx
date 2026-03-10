@@ -48,6 +48,7 @@ import { MemoryWidget } from "./widgets/MemoryWidget";
 import { DocumentWidget } from "./widgets/DocumentWidget";
 import { DocumentDownloadWidget } from "./widgets/DocumentDownloadWidget";
 import { CustomGameTheoryWidget } from "./widgets/CustomGameTheoryWidget";
+import { VesselTrackingWidget } from "./widgets/VesselTrackingWidget";
 import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
 
 interface ToolResultRendererProps {
@@ -126,6 +127,7 @@ const TOOL_LABELS: Record<string, string> = {
   generate_document: "Document",
   create_custom_game_theory: "Custom Game Theory",
   get_vip_movements: "VIP Movements",
+  get_vessel_tracking: "Vessel Tracking",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -282,6 +284,9 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "create_custom_game_theory":
       widget = <CustomGameTheoryWidget data={data} />;
+      break;
+    case "get_vessel_tracking":
+      widget = <VesselTrackingWidget data={data} />;
       break;
     case "get_operator_context":
       return (

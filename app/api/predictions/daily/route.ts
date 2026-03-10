@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generatePredictions, resolvePredictions, resolveByData, autoExpirePastDeadline, invalidateOnRegimeChange } from "@/lib/predictions/engine";
 import { runWartimeCheck } from "@/lib/game-theory/wartime";
+import { notifyNewPredictions } from "@/lib/predictions/notify";
 import { db, schema } from "@/lib/db";
 import { desc, and, gte, lt } from "drizzle-orm";
 
@@ -31,15 +32,19 @@ export async function POST() {
     const todaysPredictions = todaysPredictionsAll.filter((p) => !p.outcome);
 
     let generated: Awaited<ReturnType<typeof generatePredictions>> = [];
+    let notified = 0;
     if (todaysPredictions.length === 0) {
       generated = await generatePredictions();
+      if (generated.length > 0) {
+        notified = await notifyNewPredictions(generated);
+      }
     }
 
     return NextResponse.json({
       housekeeping: { autoExpired, regimeInvalidated, wartimeCheck },
       dataResolved: { count: dataResolved.length, results: dataResolved },
       resolved: { count: resolved.length, results: resolved },
-      generated: { count: generated.length, predictions: generated },
+      generated: { count: generated.length, predictions: generated, notified },
       alreadyGenerated: todaysPredictions.length > 0,
     });
   } catch (error) {

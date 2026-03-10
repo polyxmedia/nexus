@@ -34,10 +34,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
     }
 
+    console.log("[Transcribe] Received file:", audioFile.name, "size:", audioFile.size, "type:", audioFile.type);
+
     // Forward to OpenAI Whisper API
     const openaiForm = new FormData();
-    openaiForm.append("file", audioFile);
+    // Must pass filename with extension - Whisper requires it
+    const fileName = audioFile.name || "recording.webm";
+    openaiForm.append("file", audioFile, fileName);
     openaiForm.append("model", "whisper-1");
+    openaiForm.append("language", "en");
 
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
@@ -57,6 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
+    console.log("[Transcribe] Result:", data.text?.slice(0, 100));
     return NextResponse.json({ text: data.text || "" });
   } catch (err) {
     console.error("[Transcribe] Error:", err);

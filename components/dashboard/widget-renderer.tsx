@@ -11,6 +11,7 @@ import { StatusDot } from "@/components/ui/status-dot";
 import { IntensityIndicator } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/markdown";
 import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
+import { DailyReportWidget } from "@/components/dashboard/daily-report-widget";
 
 const CandlestickChart = dynamic(() => import("@/components/charts/candlestick-chart"), { ssr: false });
 
@@ -1767,6 +1768,8 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <CongressionalTradingWidget />;
       case "quick_chat":
         return <QuickChatWidget />;
+      case "daily_report":
+        return <DailyReportWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1809,4 +1812,5 @@ export const AVAILABLE_WIDGETS = [
   { type: "prediction_markets", name: "Prediction Markets", description: "Polymarket + Kalshi probability pricing", defaultWidth: 2, defaultConfig: {} },
   { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider cluster buys", defaultWidth: 2, defaultConfig: {} },
   { type: "quick_chat", name: "Quick Chat", description: "Start a conversation with the AI analyst", defaultWidth: 2, defaultConfig: {} },
+  { type: "daily_report", name: "Daily Report", description: "AI-generated daily intelligence briefing with drill-down", defaultWidth: 3, defaultConfig: {} },
 ];

@@ -223,6 +223,8 @@ export default function PredictionsPage() {
   const [confidenceRange, setConfidenceRange] = useState<[number, number]>([0, 1]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"deadline" | "confidence" | "created">("deadline");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoResolved = useRef(false);
@@ -623,6 +625,12 @@ export default function PredictionsPage() {
         (p.outcomeNotes || "").toLowerCase().includes(q)
       );
     }
+    if (dateFrom) {
+      filtered = filtered.filter((p) => p.deadline >= dateFrom);
+    }
+    if (dateTo) {
+      filtered = filtered.filter((p) => p.deadline <= dateTo);
+    }
     return filtered;
   };
 
@@ -643,7 +651,7 @@ export default function PredictionsPage() {
       )
     : [];
 
-  const hasActiveFilters = activeCategory !== null || activeOutcome !== null || confidenceRange[0] > 0 || confidenceRange[1] < 1 || searchQuery.trim() !== "";
+  const hasActiveFilters = activeCategory !== null || activeOutcome !== null || confidenceRange[0] > 0 || confidenceRange[1] < 1 || searchQuery.trim() !== "" || dateFrom !== "" || dateTo !== "";
 
   const clearFilters = () => {
     setActiveCategory(null);
@@ -651,6 +659,8 @@ export default function PredictionsPage() {
     setConfidenceRange([0, 1]);
     setSearchQuery("");
     setSortBy("deadline");
+    setDateFrom("");
+    setDateTo("");
   };
 
   const daysUntil = (dateStr: string) => {
@@ -658,6 +668,24 @@ export default function PredictionsPage() {
     if (diff < 0) return `${Math.abs(diff)}d overdue`;
     if (diff === 0) return "today";
     return `${diff}d`;
+  };
+
+  /** Compute urgency info for a prediction based on time elapsed vs total window */
+  const getUrgency = (p: Prediction) => {
+    const now = Date.now();
+    const deadlineMs = new Date(p.deadline).getTime();
+    const createdMs = new Date(p.createdAt).getTime();
+    const totalWindow = deadlineMs - createdMs;
+    const elapsed = now - createdMs;
+    const remaining = deadlineMs - now;
+    const daysLeft = Math.ceil(remaining / (1000 * 60 * 60 * 24));
+    const progress = totalWindow > 0 ? Math.min(Math.max(elapsed / totalWindow, 0), 1) : 1;
+
+    if (remaining <= 0) return { label: `${Math.abs(daysLeft)}d overdue`, color: "bg-signal-5", textColor: "text-signal-5", progress: 1, level: "overdue" as const };
+    if (daysLeft === 0) return { label: "Due today", color: "bg-signal-5", textColor: "text-signal-5", progress, level: "critical" as const };
+    if (daysLeft <= 2) return { label: `${daysLeft}d left`, color: "bg-accent-rose", textColor: "text-accent-rose", progress, level: "urgent" as const };
+    if (daysLeft <= 7) return { label: `${daysLeft}d left`, color: "bg-accent-amber", textColor: "text-accent-amber", progress, level: "soon" as const };
+    return { label: `${daysLeft}d left`, color: "bg-accent-cyan", textColor: "text-navy-400", progress, level: "normal" as const };
   };
 
   const confidenceBar = (conf: number) => (
@@ -1751,6 +1779,24 @@ export default function PredictionsPage() {
             </div>
 
             <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-navy-500 uppercase tracking-wider">Deadline:</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-7 bg-navy-900 border border-navy-700/30 rounded text-[10px] text-navy-300 px-1.5 w-[120px]"
+                placeholder="From"
+              />
+              <span className="text-[9px] text-navy-600">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="h-7 bg-navy-900 border border-navy-700/30 rounded text-[10px] text-navy-300 px-1.5 w-[120px]"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
               <span className="text-[9px] text-navy-500 uppercase tracking-wider">Sort:</span>
               <select
                 value={sortBy}
@@ -1844,60 +1890,79 @@ export default function PredictionsPage() {
                   const grounding = parseGrounding(p.metrics);
                   const catConfig = CATEGORY_CONFIG[p.category];
                   const CatIcon = catConfig?.icon || Globe;
+                  const urgency = getUrgency(p);
                   return (
                     <div
                       key={p.id}
                       onClick={() => router.push(`/predictions/${p.uuid}`)}
-                      className={`border rounded-md p-4 transition-colors cursor-pointer hover:border-navy-600/60 ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}
+                      className={`border rounded-md overflow-hidden transition-colors cursor-pointer hover:border-navy-600/60 ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
-                            {grounding && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
+                      {/* Urgency progress bar */}
+                      <div className="h-1 w-full bg-navy-800/40">
+                        <div
+                          className={`h-full transition-all ${urgency.color}`}
+                          style={{ width: `${urgency.progress * 100}%` }}
+                        />
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
+                              {grounding && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            {p.direction && (
+                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                p.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" :
+                                p.direction === "down" ? "bg-accent-rose/10 text-accent-rose border border-accent-rose/20" :
+                                "bg-navy-800/40 text-navy-400 border border-navy-700/20"
+                              }`}>
+                                {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                              </span>
+                            )}
+                            {confidenceBar(p.confidence)}
+                            <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
+                              {p.category}
+                            </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          {p.direction && (
-                            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                              p.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" :
-                              p.direction === "down" ? "bg-accent-rose/10 text-accent-rose border border-accent-rose/20" :
-                              "bg-navy-800/40 text-navy-400 border border-navy-700/20"
+                        <div className="flex items-center gap-4 mt-2.5 ml-6">
+                          <span className="text-[10px] text-navy-500 font-mono">
+                            {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                          {/* Urgency badge */}
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
+                            urgency.level === "overdue" ? "bg-signal-5/15 text-signal-5" :
+                            urgency.level === "critical" ? "bg-signal-5/15 text-signal-5" :
+                            urgency.level === "urgent" ? "bg-accent-rose/10 text-accent-rose" :
+                            urgency.level === "soon" ? "bg-accent-amber/10 text-accent-amber" :
+                            "bg-navy-800/40 text-navy-400"
+                          }`}>
+                            {(urgency.level === "overdue" || urgency.level === "critical") && <AlertTriangle className="h-2.5 w-2.5" />}
+                            {urgency.level === "urgent" && <Zap className="h-2.5 w-2.5" />}
+                            {urgency.level === "soon" && <Clock className="h-2.5 w-2.5" />}
+                            {urgency.label}
+                          </span>
+                          <span className="text-[10px] text-navy-600 font-mono">{p.timeframe}</span>
+                          {p.regimeAtCreation && (
+                            <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
+                              p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
+                              p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
+                              "bg-accent-emerald/10 text-accent-emerald"
                             }`}>
-                              {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                              {p.regimeAtCreation}
                             </span>
                           )}
-                          {confidenceBar(p.confidence)}
-                          <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
-                            {p.category}
-                          </span>
+                          {commentCounts[p.id] > 0 && (
+                            <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
+                              <MessageSquare className="h-3 w-3" />
+                              {commentCounts[p.id]}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4 mt-2.5 ml-6">
-                        <span className="text-[10px] text-navy-500 font-mono">
-                          {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </span>
-                        <span className={`text-[10px] font-mono ${overdue ? "text-accent-rose" : "text-navy-400"}`}>
-                          {overdue && <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5 -mt-px" />}
-                          {daysUntil(p.deadline)}
-                        </span>
-                        <span className="text-[10px] text-navy-600 font-mono">{p.timeframe}</span>
-                        {p.regimeAtCreation && (
-                          <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
-                            p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
-                            p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
-                            "bg-accent-emerald/10 text-accent-emerald"
-                          }`}>
-                            {p.regimeAtCreation}
-                          </span>
-                        )}
-                        {commentCounts[p.id] > 0 && (
-                          <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
-                            <MessageSquare className="h-3 w-3" />
-                            {commentCounts[p.id]}
-                          </span>
-                        )}
                       </div>
                     </div>
                   );
