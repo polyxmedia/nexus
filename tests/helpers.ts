@@ -26,7 +26,8 @@ export function createRequest(
 
   return new NextRequest(
     url.startsWith("http") ? url : `http://localhost:3000${url}`,
-    init
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    init as any
   );
 }
 
