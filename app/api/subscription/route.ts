@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth";
+import { getEffectiveUsername } from "@/lib/auth/effective-user";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
 // GET current user's subscription
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.name) {
+    const username = await getEffectiveUsername();
+    if (!username) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -16,7 +15,7 @@ export async function GET() {
     const userRows = await db
       .select()
       .from(schema.settings)
-      .where(eq(schema.settings.key, `user:${session.user.name}`));
+      .where(eq(schema.settings.key, `user:${username}`));
 
     let isAdmin = false;
     if (userRows.length > 0) {
@@ -29,7 +28,7 @@ export async function GET() {
     const subs = await db
       .select()
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, session.user.name));
+      .where(eq(schema.subscriptions.userId, username));
 
     if (subs.length === 0) {
       return NextResponse.json({ subscription: null, tier: null, isAdmin });

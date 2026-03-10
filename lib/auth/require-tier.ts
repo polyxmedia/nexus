@@ -1,7 +1,6 @@
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { authOptions } from "./auth";
+import { getEffectiveUsername } from "./effective-user";
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 
@@ -72,8 +71,8 @@ export async function requireTier(
     }
   }
 
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.name) {
+  const username = await getEffectiveUsername();
+  if (!username) {
     return {
       response: NextResponse.json(
         { error: "Unauthorized", upgrade: true },
@@ -81,8 +80,6 @@ export async function requireTier(
       ),
     };
   }
-
-  const username = session.user.name;
 
   // Admin always has full access
   const userSettings = await db
@@ -226,12 +223,10 @@ export async function getUserTier(): Promise<{
   isAdmin: boolean;
   username: string | null;
 }> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.name) {
+  const username = await getEffectiveUsername();
+  if (!username) {
     return { tier: "free", tierLevel: 0, limits: DEFAULT_LIMITS, isAdmin: false, username: null };
   }
-
-  const username = session.user.name;
   const userSettings = await db
     .select()
     .from(schema.settings)
