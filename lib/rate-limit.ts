@@ -1,16 +1,55 @@
-// In-memory rate limiter — works for single-server deployments.
-// IMPORTANT: For multi-server (Vercel serverless), swap the Map for Redis.
-// Rate limits reset on cold start and are not shared across instances.
+// Rate limiter with Upstash Redis for production (Vercel serverless) and
+// in-memory fallback for local development.
+//
+// When UPSTASH_REDIS_REST_URL is set, limits are shared across all serverless
+// instances via Redis. Without it, falls back to a per-process Map.
 
-interface RateLimitEntry {
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+}
+
+// ── Upstash Redis (production) ──
+
+const redis =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      })
+    : null;
+
+// Cache of Ratelimit instances keyed by "limit:windowMs"
+const limiters = new Map<string, Ratelimit>();
+
+function getUpstashLimiter(limit: number, windowMs: number): Ratelimit {
+  const cacheKey = `${limit}:${windowMs}`;
+  let limiter = limiters.get(cacheKey);
+  if (!limiter) {
+    limiter = new Ratelimit({
+      redis: redis!,
+      limiter: Ratelimit.slidingWindow(limit, `${windowMs} ms`),
+      prefix: "rl",
+    });
+    limiters.set(cacheKey, limiter);
+  }
+  return limiter;
+}
+
+// ── In-memory fallback (local dev) ──
+
+interface MemEntry {
   count: number;
   resetAt: number;
 }
 
 const MAX_STORE_SIZE = 50_000;
-const store = new Map<string, RateLimitEntry>();
+const store = new Map<string, MemEntry>();
 
-// Lazy cleanup — runs after first rateLimit() call
 let cleanupScheduled = false;
 function scheduleCleanup() {
   if (cleanupScheduled || typeof setInterval === "undefined") return;
@@ -26,11 +65,9 @@ function scheduleCleanup() {
 function evictIfNeeded() {
   if (store.size <= MAX_STORE_SIZE) return;
   const now = Date.now();
-  // First pass: remove expired entries
   for (const [key, entry] of store.entries()) {
     if (entry.resetAt < now) store.delete(key);
   }
-  // If still over limit, remove oldest entries
   if (store.size > MAX_STORE_SIZE) {
     const entries = [...store.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
     const toRemove = Math.ceil(entries.length * 0.1);
@@ -40,19 +77,7 @@ function evictIfNeeded() {
   }
 }
 
-export interface RateLimitResult {
-  allowed: boolean;
-  remaining: number;
-  resetAt: number;
-}
-
-/**
- * Check and increment a rate limit bucket.
- * @param key      Unique key (e.g. "register:127.0.0.1")
- * @param limit    Max requests allowed in the window
- * @param windowMs Window duration in milliseconds
- */
-export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
+function memoryRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   scheduleCleanup();
   evictIfNeeded();
   const now = Date.now();
@@ -66,6 +91,30 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
   entry.count++;
   const allowed = entry.count <= limit;
   return { allowed, remaining: Math.max(0, limit - entry.count), resetAt: entry.resetAt };
+}
+
+// ── Public API ──
+
+/**
+ * Check and increment a rate limit bucket.
+ * Uses Upstash Redis in production, in-memory fallback for local dev.
+ */
+export async function rateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
+  if (redis) {
+    try {
+      const limiter = getUpstashLimiter(limit, windowMs);
+      const result = await limiter.limit(key);
+      return {
+        allowed: result.success,
+        remaining: result.remaining,
+        resetAt: result.reset,
+      };
+    } catch {
+      // Redis unavailable — fall back to in-memory
+      return memoryRateLimit(key, limit, windowMs);
+    }
+  }
+  return memoryRateLimit(key, limit, windowMs);
 }
 
 /** Extract a safe IP identifier from a Next.js request */

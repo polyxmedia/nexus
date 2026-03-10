@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { RADAR_PATHS, RADAR_CIRCLE } from "@/lib/icons/radar-paths";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
@@ -13,21 +14,24 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#000",
-          borderRadius: 36,
+          background: "transparent",
         }}
       >
-        <div
-          style={{
-            fontSize: 100,
-            fontWeight: 800,
-            color: "#06b6d4",
-            letterSpacing: "-0.05em",
-            fontFamily: "system-ui",
-          }}
+        <svg
+          width="140"
+          height="140"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         >
-          N
-        </div>
+          {RADAR_PATHS.map((d) => (
+            <path key={d} d={d} />
+          ))}
+          <circle cx={RADAR_CIRCLE.cx} cy={RADAR_CIRCLE.cy} r={RADAR_CIRCLE.r} />
+        </svg>
       </div>
     ),
     { ...size }

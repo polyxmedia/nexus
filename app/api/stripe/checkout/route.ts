@@ -22,12 +22,52 @@ export async function POST(request: Request) {
       .from(schema.subscriptionTiers)
       .where(eq(schema.subscriptionTiers.id, tierId));
 
-    if (tiers.length === 0 || !tiers[0].stripePriceId) {
+    if (tiers.length === 0) {
       return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
     }
 
-    const tier = tiers[0];
+    let tier = tiers[0];
     const stripe = getStripe();
+
+    // Auto-create Stripe product + price if not yet synced
+    if (!tier.stripePriceId && tier.price > 0) {
+      try {
+        let features: string[] = [];
+        try { features = JSON.parse(tier.features || "[]"); } catch { /* empty */ }
+
+        let productId = tier.stripeProductId;
+        if (!productId) {
+          const product = await stripe.products.create({
+            name: `NEXUS ${tier.name}`,
+            description: features.slice(0, 5).join(" / ") || `NEXUS ${tier.name} subscription`,
+          });
+          productId = product.id;
+        }
+
+        const price = await stripe.prices.create({
+          product: productId,
+          unit_amount: tier.price,
+          currency: "usd",
+          recurring: {
+            interval: (tier.interval === "year" ? "year" : "month") as "month" | "year",
+          },
+        });
+
+        await db
+          .update(schema.subscriptionTiers)
+          .set({ stripeProductId: productId, stripePriceId: price.id })
+          .where(eq(schema.subscriptionTiers.id, tierId));
+
+        tier = { ...tier, stripeProductId: productId, stripePriceId: price.id };
+      } catch (syncErr) {
+        console.error("Auto Stripe sync failed:", syncErr);
+        return NextResponse.json({ error: "Payment setup incomplete. Please contact support." }, { status: 500 });
+      }
+    }
+
+    if (!tier.stripePriceId) {
+      return NextResponse.json({ error: "This tier is not available for purchase" }, { status: 400 });
+    }
     const userId = session.user.name;
 
     // Get user's email from settings
@@ -73,9 +113,19 @@ export async function POST(request: Request) {
       customerId = customer.id;
     }
 
-    // Check if user has ever had a real subscription (no trial for returning users)
-    const hadSub = existingSubs.length > 0 && existingSubs[0].stripeSubscriptionId &&
-      !existingSubs[0].stripeSubscriptionId.startsWith("comped_");
+    // Cancel any existing incomplete/past_due subscriptions for this customer
+    // to prevent orphaned subs from interfering
+    const existingStripeSubs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "incomplete",
+    });
+    await Promise.all(existingStripeSubs.data.map((s) => stripe.subscriptions.cancel(s.id)));
+
+    // Check if user has ever had a completed subscription (no trial for returning users)
+    const hadRealSub = existingSubs.length > 0
+      && existingSubs[0].stripeSubscriptionId
+      && existingSubs[0].stripeSubscriptionId.length > 0
+      && !existingSubs[0].stripeSubscriptionId.startsWith("comped_");
 
     // Create subscription with incomplete payment so Elements can confirm it
     const subscription = await stripe.subscriptions.create({
@@ -85,7 +135,7 @@ export async function POST(request: Request) {
       payment_settings: {
         save_default_payment_method: "on_subscription",
       },
-      ...(!hadSub && { trial_period_days: 2 }),
+      ...(!hadRealSub && { trial_period_days: 2 }),
       expand: ["latest_invoice.payment_intent", "pending_setup_intent"],
       metadata: {
         userId,
@@ -115,26 +165,35 @@ export async function POST(request: Request) {
       });
     }
 
-    // With trial: no PaymentIntent (invoice is $0), use SetupIntent instead
-    // Without trial: PaymentIntent on the latest invoice
+    // Extract clientSecret from the subscription
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subAny = subscription as any;
     let clientSecret: string | null = null;
     let type: "payment" | "setup" = "payment";
 
     if (subAny.pending_setup_intent?.client_secret) {
-      // Trial subscription: SetupIntent auto-created by Stripe
       clientSecret = subAny.pending_setup_intent.client_secret;
       type = "setup";
     } else if (subAny.latest_invoice?.payment_intent?.client_secret) {
-      // Immediate payment subscription
       clientSecret = subAny.latest_invoice.payment_intent.client_secret;
       type = "payment";
     }
 
-    // Fallback: if trial but no pending_setup_intent (Stripe API version edge case),
-    // create a standalone SetupIntent attached to the customer
-    if (!clientSecret && subscription.status === "trialing") {
+    // Fallback: if subscription has an invoice but no expanded PI, fetch the invoice directly
+    if (!clientSecret && subAny.latest_invoice?.id) {
+      const invoice = await stripe.invoices.retrieve(subAny.latest_invoice.id, {
+        expand: ["payment_intent"],
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pi = (invoice as any).payment_intent;
+      if (pi?.client_secret) {
+        clientSecret = pi.client_secret;
+        type = "payment";
+      }
+    }
+
+    // Final fallback: create a standalone SetupIntent to collect payment method
+    if (!clientSecret) {
       const setupIntent = await stripe.setupIntents.create({
         customer: customerId,
         metadata: {
@@ -143,19 +202,11 @@ export async function POST(request: Request) {
           tierId: String(tierId),
         },
       });
+      if (!setupIntent.client_secret) {
+        return NextResponse.json({ error: "Failed to initialize payment" }, { status: 500 });
+      }
       clientSecret = setupIntent.client_secret;
       type = "setup";
-    }
-
-    if (!clientSecret) {
-      console.error("Checkout: no clientSecret found.", {
-        status: subscription.status,
-        hasPendingSetupIntent: !!subAny.pending_setup_intent,
-        hasLatestInvoice: !!subAny.latest_invoice,
-        hasPaymentIntent: !!subAny.latest_invoice?.payment_intent,
-        hadSub,
-      });
-      return NextResponse.json({ error: "Failed to initialize payment" }, { status: 500 });
     }
 
     return NextResponse.json({

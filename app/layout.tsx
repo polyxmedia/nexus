@@ -54,14 +54,10 @@ export const metadata: Metadata = {
     title: "NEXUS Intelligence — Geopolitical-Market Signal Platform",
     description:
       "Four primary signal layers + narrative overlay. AI-driven convergence analysis. Intelligence briefs before consensus. Built for analysts, traders, and institutions.",
-    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "NEXUS Intelligence Platform" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "NEXUS Intelligence — Geopolitical-Market Signal Platform",
-    description:
-      "Four primary signal layers + narrative overlay. AI-driven convergence analysis. Intelligence briefs before consensus.",
-    images: ["/opengraph-image"],
+    site: "@polyxmedia",
     creator: "@polyxmedia",
   },
   alternates: {

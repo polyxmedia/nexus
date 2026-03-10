@@ -8,7 +8,7 @@ import { validateOrigin } from "@/lib/security/csrf";
 // GET — validate token
 export async function GET(request: Request) {
   const ip = getClientIp(request);
-  const rl = rateLimit(`reset-validate:${ip}`, 20, 15 * 60 * 1000);
+  const rl = await rateLimit(`reset-validate:${ip}`, 20, 15 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json({ valid: false }, { status: 429 });
   }
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   try {
     const ip = getClientIp(request);
-    const rl = rateLimit(`reset-password:${ip}`, 10, 15 * 60 * 1000);
+    const rl = await rateLimit(`reset-password:${ip}`, 10, 15 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
     }

@@ -26,7 +26,7 @@ export const authOptions: AuthOptions = {
         if (!credentials?.username || !credentials?.password) return null;
 
         // Rate limit: 10 login attempts per username per 15 minutes
-        const rl = rateLimit(`login:${credentials.username.toLowerCase()}`, 10, 15 * 60 * 1000);
+        const rl = await rateLimit(`login:${credentials.username.toLowerCase()}`, 10, 15 * 60 * 1000);
         if (!rl.allowed) return null; // Return null (not an error) so NextAuth shows generic "Sign in failed"
 
         try {

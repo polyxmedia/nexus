@@ -294,6 +294,7 @@ function TradeRow({ trade }: { trade: OperatorData["trades"][0] }) {
 export default function OperatorDashboard() {
   const [data, setData] = useState<OperatorData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{ upgrade?: boolean; message?: string } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -303,10 +304,17 @@ export default function OperatorDashboard() {
       if (res.ok) {
         const json = await res.json();
         setData(json);
+        setError(null);
         setLastRefresh(new Date());
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setError({
+          upgrade: json.upgrade || res.status === 403,
+          message: json.error || "Failed to load operator data",
+        });
       }
     } catch {
-      // silent
+      setError({ message: "Failed to connect" });
     } finally {
       setLoading(false);
     }
@@ -341,9 +349,22 @@ export default function OperatorDashboard() {
         </div>
       }
     >
-      {loading && !data ? (
+      {loading && !data && !error ? (
         <div className="flex items-center justify-center py-20">
           <RefreshCw className="h-5 w-5 animate-spin text-navy-500" />
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Shield className="h-8 w-8 text-navy-600 mb-4" />
+          <p className="text-sm text-navy-300 mb-2">{error.message}</p>
+          {error.upgrade && (
+            <a
+              href="/settings?tab=subscription"
+              className="mt-3 px-4 py-2 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
+            >
+              Upgrade Plan
+            </a>
+          )}
         </div>
       ) : data ? (
         <div className="space-y-4">

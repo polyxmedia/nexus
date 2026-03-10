@@ -110,7 +110,7 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const rl = rateLimit(`admin:tiers-seed:${session.user.name}`, 5, 60 * 1000);
+    const rl = await rateLimit(`admin:tiers-seed:${session.user.name}`, 5, 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Try again later." },

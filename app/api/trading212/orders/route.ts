@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const username = session.user.name;
 
   // Rate limit: 30 orders per hour per user
-  const rl = rateLimit(`trading:${username}`, 30, 60 * 60 * 1000);
+  const rl = await rateLimit(`trading:${username}`, 30, 60 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Trading rate limit exceeded. Max 30 orders per hour." },

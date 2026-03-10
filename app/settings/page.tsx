@@ -182,7 +182,6 @@ export default function SettingsPage() {
   const [checkoutTierId, setCheckoutTierId] = useState<number | null>(null);
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
   const [checkoutIntentType, setCheckoutIntentType] = useState<"payment" | "setup">("payment");
-  const [checkoutSubId, setCheckoutSubId] = useState<string | null>(null);
   const [checkoutResult, setCheckoutResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -538,7 +537,6 @@ export default function SettingsPage() {
         if (!cancelled && res.ok && data.clientSecret) {
           setCheckoutClientSecret(data.clientSecret);
           setCheckoutIntentType(data.type || "payment");
-          setCheckoutSubId(data.subscriptionId || null);
         } else if (!cancelled) {
           setCheckoutResult({ type: "error", message: data.error || "Failed to initialize checkout" });
           setCheckoutTierId(null);

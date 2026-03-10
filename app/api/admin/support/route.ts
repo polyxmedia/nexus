@@ -25,7 +25,7 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const rl = rateLimit(`admin:support:get:${session.user.name}`, 60, 60 * 1000);
+  const rl = await rateLimit(`admin:support:get:${session.user.name}`, 60, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },
@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const rl = rateLimit(`admin:support:patch:${session.user.name}`, 30, 60 * 1000);
+  const rl = await rateLimit(`admin:support:patch:${session.user.name}`, 30, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const rl = rateLimit(`admin:support:post:${session.user.name}`, 30, 60 * 1000);
+  const rl = await rateLimit(`admin:support:post:${session.user.name}`, 30, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },

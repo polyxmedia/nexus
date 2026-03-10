@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
   try {
     const ip = getClientIp(request);
-    const rl = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000);
+    const rl = await rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000);
     if (!rl.allowed) {
       // Always return success to avoid leaking info
       return NextResponse.json({ ok: true });

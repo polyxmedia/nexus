@@ -60,6 +60,14 @@ Categories:
 - geopolitical: Conflict escalation, sanctions, diplomatic shifts, elections, territorial changes
 - celestial: Pattern-based claims tied to astronomical or Hebrew calendar convergences
 
+CRITICAL OUTPUT RULES:
+- Output ONLY falsifiable predictions about future events. Every item must be verifiable as true or false.
+- Do NOT output action items, recommendations, investigations, regime upgrades, signal hygiene notes, or internal system instructions.
+- Do NOT output items that start with verbs like "Investigate", "Conduct", "Reassess", "Upgrade", "Monitor", "Analyze", or "Review".
+- If you catch yourself writing something that is advice rather than a prediction, discard it.
+- Examples of INVALID outputs: "Upgrade regime from transitioning to active transition", "Signal hygiene overhaul required", "Conduct WTO ETF composition analysis", "Reassess WTI bullish position"
+- Examples of VALID outputs: "VIX will close above 25 within 14 days", "BTC will trade below $60,000 on at least 2 days within 7 days"
+
 Generate 3-5 predictions. Each one must be distinct in topic and timeframe.`;
 
 export const PREDICTION_RESOLVE_DEFAULT = `You are NEXUS, rigorously evaluating whether past predictions came true. You are provided with REAL MARKET DATA and REAL GEOPOLITICAL EVENTS. Your job is to compare each prediction against the FACTS provided.

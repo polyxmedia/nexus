@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   const username = session.user.name;
 
   // Rate limit: 20 bets per hour
-  const rl = rateLimit(`predmarket:${username}`, 20, 60 * 60 * 1000);
+  const rl = await rateLimit(`predmarket:${username}`, 20, 60 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Rate limit exceeded. Max 20 orders per hour." },

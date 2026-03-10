@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Radar, ArrowRight, ArrowUpRight, Lock, Check } from "lucide-react";
 import createGlobe from "cobe";
+import { useTheme } from "@/lib/hooks/useTheme";
 
 // ── 3D Globe ──
 function IntelGlobe() {
@@ -196,6 +197,8 @@ function RegisterForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const router = useRouter();
   const searchParams = useSearchParams();
   const referralCode = searchParams.get("ref") || "";
@@ -277,35 +280,37 @@ function RegisterForm() {
         </div>
       </header>
 
-      {/* ── Globe: fixed background behind everything ── */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute left-1/2 -translate-x-1/2 light-globe-container"
-          style={{ top: "5vh", width: "140vh", height: "140vh" }}
-        >
-          {/* Atmospheric glow */}
-          <div className="absolute inset-[15%] rounded-full bg-accent-cyan/[0.04] blur-[100px]" />
-          <div className="absolute inset-[25%] rounded-full bg-accent-cyan/[0.025] blur-[60px]" />
-
-          {/* Globe */}
+      {/* ── Globe: fixed background behind everything (dark theme only) ── */}
+      {isDark && (
+        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
           <div
-            className={`absolute inset-0 pointer-events-auto ${base} ${mounted ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
-            style={{ transitionDelay: "200ms", transitionDuration: "1500ms" }}
+            className="absolute left-1/2 -translate-x-1/2 light-globe-container"
+            style={{ top: "5vh", width: "140vh", height: "140vh" }}
           >
-            <IntelGlobe />
-          </div>
-        </div>
+            {/* Atmospheric glow */}
+            <div className="absolute inset-[15%] rounded-full bg-accent-cyan/[0.04] blur-[100px]" />
+            <div className="absolute inset-[25%] rounded-full bg-accent-cyan/[0.025] blur-[60px]" />
 
-        {/* Curved shadow cutting off the bottom of the globe */}
-        <div className="absolute left-1/2 -translate-x-1/2" style={{
-          top: "55vh",
-          width: "200vw",
-          height: "120vh",
-          borderRadius: "50% 50% 0 0",
-          background: "var(--color-navy-950)",
-          boxShadow: "0 -40px 80px 20px var(--color-navy-950)",
-        }} />
-      </div>
+            {/* Globe */}
+            <div
+              className={`absolute inset-0 pointer-events-auto ${base} ${mounted ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
+              style={{ transitionDelay: "200ms", transitionDuration: "1500ms" }}
+            >
+              <IntelGlobe />
+            </div>
+          </div>
+
+          {/* Curved shadow cutting off the bottom of the globe */}
+          <div className="absolute left-1/2 -translate-x-1/2" style={{
+            top: "55vh",
+            width: "200vw",
+            height: "120vh",
+            borderRadius: "50% 50% 0 0",
+            background: "var(--color-navy-950)",
+            boxShadow: "0 -40px 80px 20px var(--color-navy-950)",
+          }} />
+        </div>
+      )}
 
       {/* ── Form section ── */}
       <section className="relative z-10 px-6 pb-16 pt-12">
@@ -448,11 +453,11 @@ function RegisterForm() {
             className={`mt-6 text-center ${base} ${mounted ? visible : hidden}`}
             style={{ transitionDelay: "350ms" }}
           >
-            <p className="text-[11px] text-navy-600 font-sans">
+            <p className="text-[11px] text-navy-400 font-sans">
               Already have access?{" "}
               <Link
                 href="/login"
-                className="text-navy-400 hover:text-navy-200 transition-colors font-mono uppercase tracking-wider text-[10px]"
+                className="text-navy-300 hover:text-navy-100 transition-colors font-mono uppercase tracking-wider text-[10px]"
               >
                 Sign in
               </Link>
@@ -466,12 +471,12 @@ function RegisterForm() {
           >
             <div className="flex items-center gap-1.5">
               <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" />
-              <span className="text-[10px] font-mono text-navy-600">System Online</span>
+              <span className="text-[10px] font-mono text-navy-400">System Online</span>
             </div>
-            <span className="text-navy-800">|</span>
-            <span className="text-[10px] font-mono text-navy-600">2-Day Free Trial</span>
-            <span className="text-navy-800">|</span>
-            <span className="text-[10px] font-mono text-navy-600">Encrypted</span>
+            <span className="text-navy-600">|</span>
+            <span className="text-[10px] font-mono text-navy-400">2-Day Free Trial</span>
+            <span className="text-navy-600">|</span>
+            <span className="text-[10px] font-mono text-navy-400">Encrypted</span>
           </div>
         </div>
       </section>

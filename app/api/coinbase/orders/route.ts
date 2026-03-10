@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Rate limit: 30 orders per hour per user
-  const rl = rateLimit(`coinbase:${session.user.name}`, 30, 60 * 60 * 1000);
+  const rl = await rateLimit(`coinbase:${session.user.name}`, 30, 60 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Trading rate limit exceeded. Max 30 orders per hour." },

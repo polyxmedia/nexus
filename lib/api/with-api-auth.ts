@@ -157,12 +157,12 @@ async function resolveUserTier(username: string): Promise<{
 
 // ── Multi-window rate limit check ──
 
-function checkRateLimit(keyId: number, tier: string): {
+async function checkRateLimit(keyId: number, tier: string): Promise<{
   allowed: boolean;
   remaining: number;
   resetAt: number;
   window: string;
-} {
+}> {
   const limits = API_RATE_LIMITS[tier] || API_RATE_LIMITS.analyst;
 
   const windows = [
@@ -175,7 +175,7 @@ function checkRateLimit(keyId: number, tier: string): {
   let tightestResetAt = 0;
 
   for (const w of windows) {
-    const result = rateLimit(w.key, w.limit, w.ms);
+    const result = await rateLimit(w.key, w.limit, w.ms);
     if (!result.allowed) {
       return { allowed: false, remaining: 0, resetAt: result.resetAt, window: w.label };
     }
@@ -269,7 +269,7 @@ export function withApiAuth(handler: ApiHandler, options?: WithApiAuthOptions) {
     }
 
     // 7. Rate limiting
-    const rl = checkRateLimit(apiKey.id, user.tier);
+    const rl = await checkRateLimit(apiKey.id, user.tier);
     if (!rl.allowed) {
       const res = apiError(
         "rate_limited",

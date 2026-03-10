@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const rl = rateLimit(`admin:stripe-sync:${session.user.name}`, 10, 60 * 1000);
+    const rl = await rateLimit(`admin:stripe-sync:${session.user.name}`, 10, 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Try again later." },

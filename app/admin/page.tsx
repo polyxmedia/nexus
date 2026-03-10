@@ -3139,6 +3139,25 @@ export default function AdminPage() {
         <ArrowRight className="w-4 h-4 text-accent-cyan group-hover:translate-x-0.5 transition-transform" />
       </Link>
 
+      {/* OG Image Designer link */}
+      <Link
+        href="/admin/og-designer"
+        className="group flex items-center justify-between mb-6 border border-accent-amber/20 rounded-lg bg-accent-amber/[0.03] px-5 py-4 hover:bg-accent-amber/[0.06] hover:border-accent-amber/30 transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <Eye className="w-4 h-4 text-accent-amber" />
+          <div>
+            <span className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
+              OG Image Designer
+            </span>
+            <p className="font-sans text-[11px] text-navy-400 mt-0.5">
+              Design social share images with AI. Control how NEXUS appears on Twitter, LinkedIn, and Slack.
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-accent-amber group-hover:translate-x-0.5 transition-transform" />
+      </Link>
+
       {/* Whitepaper link */}
       <Link
         href="/research/whitepapers"

@@ -21,7 +21,7 @@ export async function GET() {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
-  const rl = rateLimit(`admin:growth:${session.user.name}`, 60, 60 * 1000);
+  const rl = await rateLimit(`admin:growth:${session.user.name}`, 60, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },

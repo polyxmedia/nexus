@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const rl = rateLimit(`admin:support-messages:${session.user.name}`, 60, 60 * 1000);
+  const rl = await rateLimit(`admin:support-messages:${session.user.name}`, 60, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },

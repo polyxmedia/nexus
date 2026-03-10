@@ -32,7 +32,7 @@ export async function GET() {
   }
 
   const session = await getServerSession(authOptions);
-  const rl = rateLimit(`admin:emails:get:${session!.user!.name}`, 60, 60 * 1000);
+  const rl = await rateLimit(`admin:emails:get:${session!.user!.name}`, 60, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   }
 
   const session = await getServerSession(authOptions);
-  const rl = rateLimit(`admin:emails:post:${session!.user!.name}`, 10, 60 * 1000);
+  const rl = await rateLimit(`admin:emails:post:${session!.user!.name}`, 10, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },

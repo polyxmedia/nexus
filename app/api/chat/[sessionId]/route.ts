@@ -190,7 +190,7 @@ export async function POST(
   }
   if (!tierInfo.isAdmin && tierInfo.limits?.chatMessages && tierInfo.limits.chatMessages > 0) {
     const limit = tierInfo.limits.chatMessages;
-    const rl = rateLimit(`chat:${username}`, limit, 24 * 60 * 60 * 1000); // daily window
+    const rl = await rateLimit(`chat:${username}`, limit, 24 * 60 * 60 * 1000); // daily window
     if (!rl.allowed) {
       return NextResponse.json(
         { error: `Daily message limit reached (${limit}/day). Upgrade for unlimited.`, upgrade: true, requiredTier: "operator", remaining: 0 },
@@ -280,9 +280,16 @@ export async function POST(
   if (attachedFiles?.length) {
     const last = anthropicMessages[anthropicMessages.length - 1];
     if (last?.role === "user") {
-      const richContent: Anthropic.ContentBlockParam[] = [];
+      // Preserve any existing tool_result blocks (from merged tool-calling turns)
+      const existingContent = Array.isArray(last.content) ? last.content : [];
+      const preservedToolResults = existingContent.filter(
+        (block): block is Anthropic.ToolResultBlockParam =>
+          typeof block === "object" && "type" in block && block.type === "tool_result"
+      );
 
-      // Add file blocks first
+      const richContent: Anthropic.ContentBlockParam[] = [...preservedToolResults];
+
+      // Add file blocks
       for (const f of attachedFiles) {
         if (f.type.startsWith("image/")) {
           const mediaType = f.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
@@ -619,17 +626,39 @@ function buildAnthropicMessages(
         result.push({ role: "user", content: msg.content });
       }
     } else if (msg.role === "assistant") {
-      if (msg.toolUses && msg.toolResults) {
-        const toolUses = JSON.parse(msg.toolUses) as Array<{ toolName: string; toolUseId: string; input: unknown }>;
-        const toolResults = JSON.parse(msg.toolResults) as Array<{ toolName: string; toolUseId: string; result: unknown }>;
-        const assistantContent: Anthropic.ContentBlockParam[] = [];
-        if (msg.content) assistantContent.push({ type: "text", text: msg.content });
-        for (const tu of toolUses) assistantContent.push({ type: "tool_use", id: tu.toolUseId, name: tu.toolName, input: tu.input as Record<string, unknown> });
-        result.push({ role: "assistant", content: assistantContent });
-        const toolResultContent: Anthropic.ToolResultBlockParam[] = toolResults.map((tr) => ({ type: "tool_result" as const, tool_use_id: tr.toolUseId, content: JSON.stringify(tr.result) }));
-        result.push({ role: "user", content: toolResultContent });
+      if (msg.toolUses) {
+        let toolUses: Array<{ toolName: string; toolUseId: string; input: unknown }> = [];
+        let toolResults: Array<{ toolName: string; toolUseId: string; result: unknown }> = [];
+        try { toolUses = JSON.parse(msg.toolUses); } catch { /* corrupted JSON, skip tools */ }
+        try { toolResults = msg.toolResults ? JSON.parse(msg.toolResults) : []; } catch { /* corrupted */ }
+
+        if (toolUses.length === 0) {
+          // No valid tool uses, just push text
+          result.push({ role: "assistant", content: msg.content || "(no content)" });
+        } else {
+          // Build a result lookup so we can match every tool_use to its result
+          const resultMap = new Map(toolResults.map((tr) => [tr.toolUseId, tr]));
+
+          const assistantContent: Anthropic.ContentBlockParam[] = [];
+          if (msg.content) assistantContent.push({ type: "text", text: msg.content });
+          for (const tu of toolUses) {
+            assistantContent.push({ type: "tool_use", id: tu.toolUseId, name: tu.toolName, input: tu.input as Record<string, unknown> });
+          }
+          result.push({ role: "assistant", content: assistantContent });
+
+          // Ensure every tool_use has a matching tool_result (synthetic error if missing)
+          const toolResultContent: Anthropic.ToolResultBlockParam[] = toolUses.map((tu) => {
+            const tr = resultMap.get(tu.toolUseId);
+            return {
+              type: "tool_result" as const,
+              tool_use_id: tu.toolUseId,
+              content: tr ? JSON.stringify(tr.result) : JSON.stringify({ error: "Tool execution was interrupted" }),
+            };
+          });
+          result.push({ role: "user", content: toolResultContent });
+        }
       } else {
-        result.push({ role: "assistant", content: msg.content });
+        result.push({ role: "assistant", content: msg.content || "(no content)" });
       }
     }
   }

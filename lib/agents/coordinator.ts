@@ -298,26 +298,13 @@ export async function runIntelligenceCycle(): Promise<CycleResult> {
     agentState.analyst.lastDuration = result.analyst.duration;
   }
 
-  // ── Phase 2.5: Auto-generate predictions from analyst action items ──
-  if (result.analyst.briefing) {
-    const predictionActions = result.analyst.briefing.actionItems.filter(
-      (a) => (a.type === "alert" || a.urgency === "immediate") && !isMetaSystemJunk(a.description)
-    );
-    for (const action of predictionActions) {
-      try {
-        await db.insert(schema.predictions).values({
-          claim: action.description,
-          confidence: result.analyst.briefing.confidence,
-          category: "geopolitical",
-          timeframe: action.urgency === "immediate" ? "7 days" : "30 days",
-          deadline: new Date(Date.now() + (action.urgency === "immediate" ? 7 : 30) * 86400000).toISOString().split("T")[0],
-          createdBy: "system",
-        });
-      } catch {
-        // prediction may already exist, continue
-      }
-    }
-  }
+  // ── Phase 2.5: Action items stay as action items ──
+  // Predictions are ONLY generated through the dedicated generatePredictions() pipeline
+  // which runs on its own 6-hour schedule with proper deduplication, base-rate adjustment,
+  // red-team adversarial challenge, and quality filters.
+  // The analyst's action items (trade, alert, thesis_update) are logged but never
+  // inserted into the predictions table — they are operational instructions, not
+  // falsifiable claims about the future.
 
   // ── Phase 2.6: Auto-create alerts for high-severity sentinel findings ──
   const criticalAlerts = result.sentinel.alerts.filter(

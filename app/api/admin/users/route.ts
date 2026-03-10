@@ -24,7 +24,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const rl = rateLimit(`admin:users:get:${session.user.name}`, 60, 60 * 1000);
+    const rl = await rateLimit(`admin:users:get:${session.user.name}`, 60, 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Try again later." },
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const rl = rateLimit(`admin:users:post:${session.user.name}`, 30, 60 * 1000);
+    const rl = await rateLimit(`admin:users:post:${session.user.name}`, 30, 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Try again later." },

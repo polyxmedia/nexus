@@ -240,6 +240,10 @@ export default function PredictionsPage() {
   const [confidence, setConfidence] = useState("0.5");
   const [category, setCategory] = useState("market");
 
+  const [showRequest, setShowRequest] = useState(false);
+  const [requestTopic, setRequestTopic] = useState("");
+  const [requesting, setRequesting] = useState(false);
+
   const fetchPredictions = useCallback(async () => {
     try {
       const res = await fetch("/api/predictions");
@@ -347,6 +351,29 @@ export default function PredictionsPage() {
       else { setStatusMessage({ text: `Resolved ${data.count} predictions`, type: "success" }); fetchPredictions(); fetchFeedback(); }
     } catch { setStatusMessage({ text: "Failed to resolve predictions", type: "error" }); }
     finally { setResolving(false); }
+  };
+
+  const aiRequest = async () => {
+    if (!requestTopic.trim()) return;
+    setRequesting(true);
+    setStatusMessage(null);
+    try {
+      const res = await fetch("/api/predictions/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: requestTopic.trim() }),
+      });
+      const data = await res.json();
+      if (data.error) setStatusMessage({ text: data.error, type: "error" });
+      else {
+        setStatusMessage({ text: `Generated ${data.count} prediction${data.count !== 1 ? "s" : ""} for "${requestTopic.trim()}"`, type: "success" });
+        setRequestTopic("");
+        setShowRequest(false);
+        fetchPredictions();
+        fetchFeedback();
+      }
+    } catch { setStatusMessage({ text: "Failed to generate requested prediction", type: "error" }); }
+    finally { setRequesting(false); }
   };
 
   // ── Derived data ──
@@ -717,6 +744,10 @@ export default function PredictionsPage() {
             {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
             Generate
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowRequest(!showRequest)} disabled={requesting}>
+            {requesting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Crosshair className="h-3 w-3 mr-1" />}
+            Request
+          </Button>
           {pastDeadline.length > 0 && (
             <Button variant="outline" size="sm" onClick={aiResolve} disabled={resolving}>
               {resolving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Target className="h-3 w-3 mr-1" />}
@@ -738,6 +769,33 @@ export default function PredictionsPage() {
           : "border-accent-cyan/30 bg-accent-cyan/5 text-accent-cyan"
         }`}>
           {statusMessage.text}
+        </div>
+      )}
+
+      {/* ── Request Prediction Form ── */}
+      {showRequest && (
+        <div className="mb-4 rounded-md border border-navy-700/30 bg-navy-900/60 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Crosshair className="h-3.5 w-3.5 text-accent-cyan" />
+            <span className="text-[10px] font-mono uppercase tracking-widest text-navy-400">Request Prediction</span>
+          </div>
+          <p className="text-xs text-navy-400 mb-3">
+            Enter a topic, asset, or question and the system will generate focused predictions using the full intelligence picture.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={requestTopic}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRequestTopic(e.target.value)}
+              placeholder="e.g. SPY, gold prices, will Trump resign, Iran-Israel conflict..."
+              className="flex-1 text-sm"
+              onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && !requesting) aiRequest(); }}
+              disabled={requesting}
+            />
+            <Button variant="primary" size="sm" onClick={aiRequest} disabled={requesting || !requestTopic.trim()}>
+              {requesting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+              {requesting ? "Generating..." : "Generate"}
+            </Button>
+          </div>
         </div>
       )}
 

@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   Eye,
   Radar,
+  HelpCircle,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { HeroTerminal } from "@/components/landing/hero-terminal";
@@ -635,6 +636,110 @@ function Indicator({ label, value, color }: { label: string; value: string; colo
   );
 }
 
+// ── Home FAQ Item ──
+function HomeFAQItem({ question, answer, index }: { question: string; answer: string; index: number }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b border-navy-800/40">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full py-5 flex items-start gap-4 text-left group cursor-pointer"
+      >
+        <span className="text-[10px] font-mono tracking-wider text-accent-cyan mt-0.5 shrink-0 w-6">
+          {String(index + 1).padStart(2, "0")}
+        </span>
+        <span className="flex-1 text-[14px] text-navy-200 font-sans leading-relaxed group-hover:text-white transition-colors">
+          {question}
+        </span>
+        <ChevronDown
+          className="h-4 w-4 text-navy-500 mt-0.5 shrink-0 transition-transform duration-300"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+      <div
+        className="overflow-hidden transition-all duration-400"
+        style={{ maxHeight: open ? "300px" : "0px", opacity: open ? 1 : 0 }}
+      >
+        <div className="pl-10 pb-5 text-[13px] text-navy-400 font-sans leading-relaxed max-w-xl">
+          {answer}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Home FAQ Section ──
+function HomeFAQ() {
+  const { ref, revealed } = useScrollReveal(0.1);
+
+  const base = "transition-all duration-700 ease-out";
+  const hidden = "opacity-0 translate-y-8";
+  const visible = "opacity-100 translate-y-0";
+
+  const faqs = [
+    {
+      question: "How much does analysis cost?",
+      answer: "Every AI-powered operation consumes credits. A quick question to the analyst runs 20-50 credits. A detailed analysis with data pulls runs 80-200 credits. At $0.001 per credit, even complex sessions cost pennies. Your subscription includes a monthly credit allocation, and top-up packs are available if you need more.",
+    },
+    {
+      question: "Does NEXUS use AI? What about hallucinations?",
+      answer: "Yes, AI is central to the platform. We handle hallucination risk by grounding every output in real data: actual signals, market feeds, and OSINT sources. The analyst cites specific data points, and predictions are tracked against real outcomes with published accuracy scores. Where the system is uncertain, it says so.",
+    },
+    {
+      question: "Is there a free trial?",
+      answer: "Every new account receives 5,000 credits at no cost. That is enough for dozens of chat interactions and analysis sessions, giving you a real feel for the platform before committing to a subscription.",
+    },
+    {
+      question: "What happens when I run out of credits?",
+      answer: "AI-powered features pause until you top up or your monthly allocation resets. Non-AI features like the War Room, signal browsing, and news feed remain fully accessible. Top-up packs start at $10.",
+    },
+    {
+      question: "What kind of signals does NEXUS track?",
+      answer: "Four primary layers: Geopolitical (conflicts, sanctions, diplomacy), Market (options flow, volatility, credit spreads), OSINT (flight tracking, shipping, social media), and Systemic Risk (regime detection, macro indicators).",
+    },
+    {
+      question: "How accurate are the predictions?",
+      answer: "Every prediction is tracked with Brier scores and published transparently. The scoring separates directional calls from level estimates and filters stale predictions to maintain statistical rigour. Full methodology is on the Prediction Accuracy research page.",
+    },
+  ];
+
+  return (
+    <section className="relative py-28" ref={ref}>
+      <div className="max-w-3xl mx-auto px-6">
+        <div className="text-center mb-14">
+          <div className={`inline-flex items-center gap-2 border border-navy-700/40 rounded-full px-4 py-1.5 mb-6 ${base} ${revealed ? visible : hidden}`}>
+            <HelpCircle className="h-3 w-3 text-accent-cyan" />
+            <span className="text-[10px] text-navy-400 tracking-[0.2em] uppercase">FAQ</span>
+          </div>
+          <h2 className={`font-sans text-3xl md:text-4xl font-bold text-white mb-4 ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "100ms" }}>
+            Common questions
+          </h2>
+          <p className={`text-sm text-navy-400 max-w-md mx-auto ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "200ms" }}>
+            Quick answers on pricing, credits, and how the platform works.
+          </p>
+        </div>
+
+        <div className={`${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "300ms" }}>
+          {faqs.map((faq, i) => (
+            <HomeFAQItem key={i} question={faq.question} answer={faq.answer} index={i} />
+          ))}
+        </div>
+
+        <div className={`mt-8 text-center ${base} ${revealed ? visible : hidden}`} style={{ transitionDelay: "400ms" }}>
+          <Link
+            href="/research/faq"
+            className="inline-flex items-center gap-2 text-[11px] font-mono tracking-widest uppercase text-navy-500 hover:text-navy-300 transition-colors"
+          >
+            View all FAQ
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ════════════════════════════════════════════════════════════
 // ── MAIN PAGE ──
 // ════════════════════════════════════════════════════════════
@@ -933,6 +1038,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ── FAQ ── */}
+      <HomeFAQ />
 
       {/* ── Final CTA ── */}
       <section className="relative py-28 overflow-hidden">

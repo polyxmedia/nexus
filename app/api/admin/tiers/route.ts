@@ -22,7 +22,7 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const rl = rateLimit(`admin:tiers:get:${session.user.name}`, 60, 60 * 1000);
+  const rl = await rateLimit(`admin:tiers:get:${session.user.name}`, 60, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const rl = rateLimit(`admin:tiers:post:${session.user.name}`, 30, 60 * 1000);
+    const rl = await rateLimit(`admin:tiers:post:${session.user.name}`, 30, 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Try again later." },
@@ -118,7 +118,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const rl = rateLimit(`admin:tiers:delete:${session.user.name}`, 20, 60 * 1000);
+    const rl = await rateLimit(`admin:tiers:delete:${session.user.name}`, 20, 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Try again later." },

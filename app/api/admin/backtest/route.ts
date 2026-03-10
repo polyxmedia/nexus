@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   const session = await getServerSession(authOptions);
-  const rl = rateLimit(`admin:backtest:post:${session!.user!.name}`, 10, 60 * 1000);
+  const rl = await rateLimit(`admin:backtest:post:${session!.user!.name}`, 10, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },
@@ -93,7 +93,7 @@ export async function GET() {
   if (denied) return denied;
 
   const session = await getServerSession(authOptions);
-  const rl = rateLimit(`admin:backtest:get:${session!.user!.name}`, 60, 60 * 1000);
+  const rl = await rateLimit(`admin:backtest:get:${session!.user!.name}`, 60, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },

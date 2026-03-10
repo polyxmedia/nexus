@@ -26,7 +26,7 @@ export async function GET(
   if (denied) return denied;
 
   const session = await getServerSession(authOptions);
-  const rl = rateLimit(`admin:backtest-detail:${session!.user!.name}`, 60, 60 * 1000);
+  const rl = await rateLimit(`admin:backtest-detail:${session!.user!.name}`, 60, 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Try again later." },

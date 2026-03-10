@@ -31,6 +31,9 @@ export function PublicNav() {
           <Link href="/media" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             MEDIA
           </Link>
+          <Link href="/research/faq" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+            FAQ
+          </Link>
           <Link
             href="/login"
             className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block"
