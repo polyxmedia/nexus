@@ -14,11 +14,7 @@
       "schedule": "*/15 * * * *"
     },
     {
-      "path": "/api/scheduler/cron?jobs=osint-entity-extraction,iw-auto-detect",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/scheduler/cron?jobs=prediction-fast-resolve",
+      "path": "/api/scheduler/cron?jobs=osint-entity-extraction,iw-auto-detect,prediction-fast-resolve",
       "schedule": "*/30 * * * *"
     },
     {

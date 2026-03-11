@@ -12,9 +12,10 @@ export async function GET(req: NextRequest) {
   const denied = await requireCronOrAdmin(req);
   if (denied) return denied;
 
-  const jobNames = req.nextUrl.searchParams.get("jobs")?.split(",").filter(Boolean);
+  const raw = req.nextUrl.searchParams.get("jobs");
+  const jobNames = raw?.split(",").filter((n) => /^[a-z0-9-]+$/.test(n)).slice(0, 25);
   if (!jobNames || jobNames.length === 0) {
-    return NextResponse.json({ error: "Missing ?jobs= parameter" }, { status: 400 });
+    return NextResponse.json({ error: "Missing or invalid ?jobs= parameter" }, { status: 400 });
   }
 
   // Import scheduler (triggers job registration at module level)
