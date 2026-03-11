@@ -269,6 +269,13 @@ registerJob("ig-token-refresh", 45 * 60_000, async () => {
   }
 });
 
+registerJob("twitter-analyst", 4 * 60 * 60_000, async () => {
+  if (!aiEnabled()) return; // AI kill switch
+  // Generate and post analyst commentary tweet every 4 hours
+  const res = await internalFetch(`${getBaseUrl()}/api/twitter/analyst`, { method: "POST", headers: internalHeaders() });
+  if (!res.ok) throw new Error(`Twitter analyst tweet failed: ${res.status}`);
+});
+
 registerJob("news-sync", 10 * 60_000, async () => {
   // Fetch news from RSS/GDELT/NewsData and cache in DB every 10 minutes
   const { syncNewsToDb } = await import("@/lib/news/sync");

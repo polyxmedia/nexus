@@ -7,6 +7,7 @@ import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronRight,
+  Info,
   MessageSquare,
   Search,
   Radio,
@@ -56,6 +57,30 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
   active: { color: "text-accent-emerald", bg: "bg-accent-emerald/10" },
   passed: { color: "text-navy-500", bg: "bg-navy-800/50" },
 };
+
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
+        className="text-navy-600 hover:text-navy-400 transition-colors"
+        aria-label="More info"
+      >
+        <Info className="h-3 w-3" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 rounded-lg bg-navy-800 border border-navy-700/50 shadow-xl">
+            <p className="text-[10px] font-sans text-navy-300 leading-relaxed">{text}</p>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 rotate-45 bg-navy-800 border-r border-b border-navy-700/50" />
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
 
 export default function SignalsPage() {
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -239,14 +264,17 @@ export default function SignalsPage() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
             {[
-              { label: "Total Signals", value: analytics.total, sub: "detected" },
-              { label: "Avg Intensity", value: analytics.avgIntensity.toFixed(1), sub: "out of 5" },
-              { label: "Convergences", value: analytics.convergences, sub: "L3+ events" },
-              { label: "Active", value: analytics.statusCounts.active, sub: "in progress" },
-              { label: "Upcoming", value: analytics.statusCounts.upcoming, sub: "pending" },
+              { label: "Total Signals", value: analytics.total, sub: "detected", tip: "Signals are events detected across multiple analytical layers (geopolitical, economic, celestial, calendar). Each signal represents a potential market-moving convergence." },
+              { label: "Avg Intensity", value: analytics.avgIntensity.toFixed(1), sub: "out of 5", tip: "Intensity ranges from 1 (low) to 5 (critical) and reflects how many independent layers align on a single date. Higher intensity means more cross-layer confirmation." },
+              { label: "Convergences", value: analytics.convergences, sub: "L3+ events", tip: "Convergences are signals rated intensity 3 or above, meaning at least 3 independent analytical layers are firing simultaneously. These are the signals most likely to have market relevance." },
+              { label: "Active", value: analytics.statusCounts.active, sub: "in progress", tip: "Signals currently within their active window. The event or convergence is happening now and may be influencing markets." },
+              { label: "Upcoming", value: analytics.statusCounts.upcoming, sub: "pending", tip: "Signals scheduled to occur in the future. These are pre-detected convergences that haven't started yet." },
             ].map((m) => (
               <div key={m.label} className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5 hover:border-navy-700/50 transition-colors">
-                <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-0.5">{m.label}</div>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">{m.label}</span>
+                  <InfoTip text={m.tip} />
+                </div>
                 <div className="text-xl font-mono font-bold text-navy-100 tabular-nums leading-tight">{m.value}</div>
                 <div className="text-[9px] font-mono text-navy-600">{m.sub}</div>
               </div>
@@ -257,7 +285,10 @@ export default function SignalsPage() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
             {/* Intensity Distribution */}
             <div className="md:col-span-3 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Intensity Distribution</div>
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Intensity Distribution</span>
+                <InfoTip text="How signals are distributed across the 5 intensity levels. L1 is a single-layer event, L5 means 5 or more independent layers are converging on the same date. Click a level to filter." />
+              </div>
               <div className="space-y-2">
                 {analytics.intensityDist.map((d) => (
                   <button
@@ -286,7 +317,10 @@ export default function SignalsPage() {
 
             {/* Timeline */}
             <div className="md:col-span-5 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Signal Frequency</div>
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Signal Frequency</span>
+                <InfoTip text="Monthly count of detected signals over time. Spikes often correspond to periods where multiple geopolitical, economic, or calendar events cluster together." />
+              </div>
               <div className="h-28">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={analytics.timeline} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
@@ -311,7 +345,10 @@ export default function SignalsPage() {
 
             {/* Layer & Category Breakdown */}
             <div className="md:col-span-4 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Signal Layers</div>
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Signal Layers</span>
+                <InfoTip text="Layers are independent analytical sources: geopolitical (conflicts, elections), economic (FOMC, NFP), celestial (eclipses, retrogrades), hebrew/islamic (religious calendars). When multiple layers fire on the same date, it creates a convergence. Click a layer to filter." />
+              </div>
               <div className="space-y-1.5">
                 {analytics.layers.slice(0, 7).map((l) => (
                   <button
@@ -414,10 +451,13 @@ export default function SignalsPage() {
 
       {/* Results count */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-mono text-navy-500">
-          {filtered.length} signal{filtered.length !== 1 ? "s" : ""}
-          {hasFilters ? ` (filtered from ${signals.length})` : ""}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-navy-500">
+            {filtered.length} signal{filtered.length !== 1 ? "s" : ""}
+            {hasFilters ? ` (filtered from ${signals.length})` : ""}
+          </span>
+          <InfoTip text="Each signal card shows: the colored bar on the left indicates intensity level, the layer tags show which analytical sources contributed to the signal, and market sectors show which asset classes may be affected. Click any signal to see full analysis." />
+        </div>
       </div>
 
       {/* Signal List */}
