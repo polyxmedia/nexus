@@ -86,7 +86,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.redirect(new URL("/admin?twitter=connected#integrations", req.url));
   } catch (err) {
-    console.error("[twitter] OAuth token exchange or storage failed:", err);
-    return NextResponse.redirect(new URL("/admin?twitter=error&reason=token_exchange#integrations", req.url));
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[twitter] OAuth token exchange or storage failed:", errMsg);
+    return NextResponse.redirect(
+      new URL(`/admin?twitter=error&reason=token_exchange&detail=${encodeURIComponent(errMsg)}#integrations`, req.url)
+    );
   }
 }
