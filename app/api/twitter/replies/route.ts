@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
-import { requireTier } from "@/lib/auth/require-tier";
+import { NextRequest, NextResponse } from "next/server";
+import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 import { runThreadReplies } from "@/lib/twitter/replies";
 
-export async function POST() {
-  const tierCheck = await requireTier("institution");
-  if ("response" in tierCheck) return tierCheck.response;
+export async function POST(req: NextRequest) {
+  const denied = await requireCronOrAdmin(req);
+  if (denied) return denied;
 
   try {
     const result = await runThreadReplies();

@@ -246,7 +246,7 @@ export async function runThreadReplies(): Promise<{ searched: number; replied: n
       totalSearched += tweets.length;
 
       // Filter candidates
-      const candidates = [];
+      const candidates: SearchedTweet[] = [];
       for (const tweet of tweets) {
         // Skip our own tweets
         if (tweet.authorUsername.toLowerCase() === OWN_USERNAME) continue;
@@ -288,7 +288,12 @@ export async function runThreadReplies(): Promise<{ searched: number; replied: n
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (!jsonMatch) continue;
 
-          const result = JSON.parse(jsonMatch[0]);
+          let result: { reply: string | null; reason?: string };
+          try {
+            result = JSON.parse(jsonMatch[0]);
+          } catch {
+            continue;
+          }
           if (!result.reply) {
             console.log(`[twitter-replies] Skipped @${tweet.authorUsername}: ${result.reason || "not worth replying"}`);
             // Record as skipped so we don't re-evaluate next run
