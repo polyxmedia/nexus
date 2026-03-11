@@ -1113,7 +1113,7 @@ export default function CalendarPage() {
                     </span>
                     {(reading.cyclical ?? reading.esoteric) && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-400/10 text-purple-400 border border-purple-400/20 ml-1">
-                        Score {(reading.cyclical ?? reading.esoteric).compositeScore?.toFixed(1)}/10
+                        Score {(reading.cyclical ?? reading.esoteric)?.compositeScore?.toFixed(1)}/10
                       </span>
                     )}
                     {reading.signalCount > 0 && (
