@@ -26,7 +26,6 @@ const OUTCOMES = [
   { value: "confirmed", label: "Confirmed", icon: CheckCircle2, color: "#10b981", score: (conf: number) => conf },
   { value: "denied", label: "Denied", icon: XCircle, color: "#f43f5e", score: (conf: number) => 1 - conf },
   { value: "partial", label: "Partial", icon: MinusCircle, color: "#f59e0b", score: () => 0.5 },
-  { value: "expired", label: "Expired", icon: Clock, color: "#64748b", score: () => 0 },
 ] as const;
 
 function daysOverdue(deadline: string): number {

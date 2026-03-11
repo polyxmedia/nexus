@@ -23,6 +23,11 @@ import { sendSms } from "@/lib/sms";
 const alertedArticles = new Set<string>();
 const MAX_ALERTED_CACHE = 2000;
 
+// Global daily cap to prevent notification fatigue
+let dailyAlertCount = 0;
+let dailyAlertDate = new Date().toISOString().split("T")[0];
+const MAX_DAILY_CONTEXT_ALERTS = 10;
+
 // Ticker -> common name / sector mapping for keyword expansion
 const TICKER_KEYWORDS: Record<string, string[]> = {
   // Energy
@@ -414,8 +419,19 @@ export async function runContextScan(): Promise<{
   // Sort by relevance (highest first)
   matches.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-  // Fire alerts for top matches (max 5 per scan to avoid spam)
-  const toAlert = matches.slice(0, 5);
+  // Only alert on relevance 3+ (skip low-confidence keyword-only matches)
+  const highRelevance = matches.filter(m => m.relevanceScore >= 3);
+
+  // Reset daily counter if new day
+  const today = new Date().toISOString().split("T")[0];
+  if (today !== dailyAlertDate) {
+    dailyAlertCount = 0;
+    dailyAlertDate = today;
+  }
+
+  // Enforce daily cap + max 2 per scan to prevent notification fatigue
+  const dailyRemaining = Math.max(0, MAX_DAILY_CONTEXT_ALERTS - dailyAlertCount);
+  const toAlert = highRelevance.slice(0, Math.min(2, dailyRemaining));
   let alertsFired = 0;
 
   for (const match of toAlert) {
@@ -528,6 +544,7 @@ export async function runContextScan(): Promise<{
       }
 
       alertsFired++;
+      dailyAlertCount++;
     } catch (err) {
       console.error("[context-scan] Failed to record alert:", err);
     }

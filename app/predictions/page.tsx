@@ -403,7 +403,7 @@ export default function PredictionsPage() {
     { name: "Hits", value: hits.length, fill: OUTCOME_CONFIG.confirmed.hex },
     { name: "Misses", value: misses.length, fill: OUTCOME_CONFIG.denied.hex },
     { name: "Partial", value: partials.length, fill: OUTCOME_CONFIG.partial.hex },
-    { name: "Expired", value: resolved.filter((p) => p.outcome === "expired").length, fill: OUTCOME_CONFIG.expired.hex },
+    { name: "Expired (legacy)", value: resolved.filter((p) => p.outcome === "expired").length, fill: OUTCOME_CONFIG.expired.hex },
   ].filter((d) => d.value > 0);
 
   // Category accuracy bar data
@@ -1798,7 +1798,7 @@ export default function PredictionsPage() {
               >
                 Pending
               </button>
-              {(["confirmed", "denied", "partial", "expired"] as const).map((outcome) => {
+              {(["confirmed", "denied", "partial"] as const).map((outcome) => {
                 const cfg = OUTCOME_CONFIG[outcome];
                 return (
                   <button

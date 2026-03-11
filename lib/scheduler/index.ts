@@ -116,8 +116,8 @@ registerJob("osint-entity-extraction", 15 * 60_000, async () => {
   if (!res.ok) throw new Error(`OSINT extraction failed: ${res.status}`);
 });
 
-registerJob("alert-check", 60_000, async () => {
-  // Check alert conditions every minute
+registerJob("alert-check", 5 * 60_000, async () => {
+  // Check alert conditions every 5 minutes
   const res = await internalFetch(`${getBaseUrl()}/api/alerts/check`, { method: "POST", headers: internalHeaders() });
   if (!res.ok && res.status !== 404) throw new Error(`Alert check failed: ${res.status}`);
 });
@@ -173,8 +173,8 @@ registerJob("nowcast-update", 4 * 60 * 60_000, async () => {
   if (!res.ok) throw new Error(`Nowcast update failed: ${res.status}`);
 });
 
-registerJob("context-alert-scan", 15 * 60_000, async () => {
-  // Context-aware alert scan: match news against positions, watchlist, theses, chat topics
+registerJob("context-alert-scan", 60 * 60_000, async () => {
+  // Context-aware alert scan: match news against positions, watchlist, theses, chat topics (hourly)
   const res = await internalFetch(`${getBaseUrl()}/api/alerts/context-scan`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Context alert scan failed: ${res.status}`);
 });

@@ -377,22 +377,128 @@ async function classifyCurrentRegime(): Promise<RegimeLabel> {
   }
 }
 
-async function fetchReferencePrices(alphaVantageKey: string): Promise<Record<string, number>> {
+async function fetchReferencePrices(alphaVantageKey: string, extraSymbols?: string[]): Promise<Record<string, number>> {
   const prices: Record<string, number> = {};
   if (!alphaVantageKey) return prices;
 
-  await Promise.all(
-    REFERENCE_SYMBOLS.map(async (symbol) => {
-      try {
-        const quote = await getQuote(symbol, alphaVantageKey);
-        if (quote) prices[symbol] = quote.price;
-      } catch {
-        // Best effort
-      }
-    })
-  );
+  const allSymbols = [...REFERENCE_SYMBOLS, ...(extraSymbols || [])];
+  const unique = [...new Set(allSymbols)];
+
+  for (let i = 0; i < unique.length; i += 5) {
+    const batch = unique.slice(i, i + 5);
+    await Promise.all(
+      batch.map(async (symbol) => {
+        try {
+          const quote = await getQuote(symbol, alphaVantageKey);
+          if (quote) prices[symbol] = quote.price;
+        } catch {
+          // Best effort
+        }
+      })
+    );
+    if (i + 5 < unique.length) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
 
   return prices;
+}
+
+// ── Symbol Validation & Sanity Checks ──
+
+/**
+ * Known symbol mappings where common names don't resolve correctly in data providers.
+ * Maps prediction-text symbols to canonical data provider symbols.
+ */
+const SYMBOL_CORRECTIONS: Record<string, string> = {
+  // Indices - use ETF equivalents (data providers return wrong instruments for index tickers)
+  "DAX": "EWG",       // iShares MSCI Germany ETF (DAX ticker returns a small ETF, not the index)
+  "FTSE": "EWU",      // iShares MSCI United Kingdom ETF
+  "NIKKEI": "EWJ",    // iShares MSCI Japan ETF
+  "CAC": "EWQ",       // iShares MSCI France ETF
+  // Commodities - use ETF equivalents (futures tickers return wrong units)
+  "HG": "CPER",       // United States Copper Index Fund (HG returns wrong unit from Twelve Data)
+  "NG": "UNG",        // United States Natural Gas Fund (NG returns wrong instrument)
+  "CL": "USO",        // United States Oil Fund
+  "SI": "SLV",        // iShares Silver Trust
+  "ZW": "WEAT",       // Teucrium Wheat Fund
+};
+
+/**
+ * Detect claim types that cannot be resolved by single-instrument threshold checks.
+ * These need AI resolution, not data-driven resolution.
+ */
+function detectUnresolvableClaimType(claim: string): string | null {
+  const lower = claim.toLowerCase();
+
+  // Relative performance: "X will outperform Y", "X vs Y", "relative to"
+  if (/outperform|underperform|relative to/.test(lower)) {
+    return "relative_performance";
+  }
+
+  // New high/low: "new 30-day high", "52-week low"
+  if (/new\s+\d+[\s-]*(day|week|month|year)\s*(high|low)/i.test(lower)) {
+    return "new_high_low";
+  }
+
+  // Percentage gain/loss from current: "gain more than 15%", "decline 10%"
+  if (/\b(gain|lose|rise|fall|decline|drop|surge|crash)\s+(more than\s+)?\d+(\.\d+)?%/i.test(lower) &&
+      !/\$[\d,]+/.test(claim)) {
+    // Has percentage target but no dollar price target -- needs baseline calculation
+    return "percentage_move";
+  }
+
+  return null;
+}
+
+/**
+ * Check if a price target is already met at the current price.
+ * Returns true if the prediction is trivially true right now.
+ */
+function isAlreadyTrueAtIssuance(
+  direction: string,
+  priceTarget: number,
+  currentPrice: number,
+  margin: number = 0 // strict: only reject if target is already met (not "close to met")
+): boolean {
+  if (direction === "up") {
+    return currentPrice >= priceTarget * (1 - margin);
+  } else if (direction === "down") {
+    return currentPrice <= priceTarget * (1 + margin);
+  }
+  return false;
+}
+
+/**
+ * Validate that a data provider returns sensible data for a symbol.
+ * Returns the corrected symbol and current price, or null if invalid.
+ */
+async function validateAndCorrectSymbol(
+  symbol: string,
+  priceTarget: number | null,
+  apiKey: string
+): Promise<{ correctedSymbol: string; price: number } | null> {
+  // Apply known corrections
+  const corrected = SYMBOL_CORRECTIONS[symbol] || symbol;
+
+  try {
+    const quote = await getQuote(corrected, apiKey);
+    if (!quote || !quote.price) return null;
+
+    // Sanity check: if price target exists, the price and target should be in the same order of magnitude
+    // e.g., target $4.25 on a $28 instrument is obviously wrong
+    if (priceTarget && priceTarget > 0) {
+      const ratio = quote.price / priceTarget;
+      if (ratio > 10 || ratio < 0.1) {
+        console.warn(`[predictions] Symbol ${symbol} (resolved to ${corrected}) price ${quote.price} is >10x away from target ${priceTarget}. Likely wrong instrument.`);
+        return null;
+      }
+    }
+
+    return { correctedSymbol: corrected, price: quote.price };
+  } catch {
+    return null;
+  }
 }
 
 // ── Base Rate Confidence Adjustment ──
@@ -533,36 +639,38 @@ function getPendingCount(): Promise<number> {
     .then((rows) => rows.length);
 }
 
-// ── Auto-Expiry for Past Deadline ──
+// ── Auto-Deny for Past Deadline ──
+// Predictions that pass their deadline without being confirmed are denied.
+// No "expired" state — every prediction is either a hit or a miss.
 
 export async function autoExpirePastDeadline(): Promise<number> {
-  const today = new Date().toISOString().split("T")[0];
   const pending = await db
     .select()
     .from(schema.predictions)
     .where(isNull(schema.predictions.outcome));
 
-  // Predictions 7+ days past deadline that haven't been resolved → auto-expire
+  // Predictions 7+ days past deadline that haven't been resolved → denied (missed deadline = miss)
   const graceDays = 7;
   const graceDate = new Date();
   graceDate.setDate(graceDate.getDate() - graceDays);
   const graceDateStr = graceDate.toISOString().split("T")[0];
 
   const stale = pending.filter((p) => p.deadline < graceDateStr);
-  let expired = 0;
+  let resolved = 0;
 
   for (const p of stale) {
     await db.update(schema.predictions)
       .set({
-        outcome: "expired",
-        outcomeNotes: `Auto-expired: ${graceDays}+ days past deadline without resolution.`,
+        outcome: "denied",
+        score: 0,
+        outcomeNotes: `Auto-denied: ${graceDays}+ days past deadline without confirmation. Deadline miss = miss.`,
         resolvedAt: new Date().toISOString(),
       })
       .where(eq(schema.predictions.id, p.id));
-    expired++;
+    resolved++;
   }
 
-  return expired;
+  return resolved;
 }
 
 // ── Regime Invalidation ──
@@ -608,7 +716,8 @@ export async function invalidateOnRegimeChange(): Promise<number> {
         .set({
           regimeInvalidated: 1,
           invalidatedReason: reason,
-          outcome: "expired",
+          outcome: "denied",
+          score: 0,
           outcomeNotes: `Regime change invalidated target: ${reason}`,
           resolvedAt: new Date().toISOString(),
         })
@@ -1097,8 +1206,45 @@ Output a brief devil's advocate summary.`;
     // Fallback: parse direction/level from the claim text itself
     const parsed_dl = extractDirectionLevel(p.claim);
     const direction = llmDirection || parsed_dl.direction;
-    const priceTarget = llmPriceTarget || parsed_dl.priceTarget;
-    const referenceSymbol = llmRefSymbol || parsed_dl.referenceSymbol;
+    let priceTarget = llmPriceTarget || parsed_dl.priceTarget;
+    let referenceSymbol = llmRefSymbol || parsed_dl.referenceSymbol;
+
+    // ── GUARD 1: Detect unresolvable claim types ──
+    // Relative performance, new-high/low, and percentage-move claims cannot be resolved
+    // by single-instrument threshold checks. Clear the price target so they route to AI resolution.
+    const claimType = detectUnresolvableClaimType(p.claim);
+    if (claimType) {
+      console.log(`[predictions] Claim type "${claimType}" detected, clearing price target for AI resolution: ${p.claim.slice(0, 80)}...`);
+      priceTarget = null;
+      // Keep referenceSymbol for context but don't use for data-driven resolution
+    }
+
+    // ── GUARD 2: Symbol validation and correction ──
+    // Verify the reference symbol resolves to a sensible instrument in the data provider.
+    // Apply known corrections (DAX -> EWG, HG -> CPER, NG -> UNG, etc.)
+    if (referenceSymbol && priceTarget && direction) {
+      const validation = await validateAndCorrectSymbol(referenceSymbol, priceTarget, alphaVantageKey);
+      if (validation) {
+        if (validation.correctedSymbol !== referenceSymbol) {
+          console.log(`[predictions] Symbol corrected: ${referenceSymbol} -> ${validation.correctedSymbol}`);
+          referenceSymbol = validation.correctedSymbol;
+        }
+
+        // ── GUARD 3: Already-true-at-issuance rejection ──
+        // If the price target is already met at current price, this is not a forecast.
+        if (isAlreadyTrueAtIssuance(direction, priceTarget, validation.price)) {
+          console.warn(`[predictions] REJECTED: Target already met at issuance. ${referenceSymbol} at ${validation.price}, target ${direction} ${priceTarget}. Claim: ${p.claim.slice(0, 80)}...`);
+          continue;
+        }
+
+        // Store the actual reference symbol price at creation
+        referencePrices[referenceSymbol] = validation.price;
+      } else {
+        // Symbol doesn't resolve or returns nonsensical data -- clear for AI resolution
+        console.warn(`[predictions] Symbol ${referenceSymbol} failed validation, clearing for AI resolution: ${p.claim.slice(0, 80)}...`);
+        priceTarget = null;
+      }
+    }
 
     const rows = await db
       .insert(schema.predictions)
@@ -1109,7 +1255,6 @@ Output a brief devil's advocate summary.`;
         confidence: await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim),
         category,
         metrics: p.grounding ? JSON.stringify({ grounding: p.grounding }) : null,
-        // New fields
         regimeAtCreation: currentRegime,
         referencePrices: JSON.stringify(referencePrices),
         preEvent: 1,
@@ -1369,25 +1514,63 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
 
     const lastPrice = data.current;
 
+    // ── SANITY CHECK 1: Price/target magnitude validation ──
+    // If the current price and target are in wildly different ranges, the data source
+    // is returning the wrong instrument. Skip this prediction for manual review.
+    const priceTargetRatio = lastPrice / target;
+    if (priceTargetRatio > 10 || priceTargetRatio < 0.1) {
+      console.warn(`[resolveByData] Skipping prediction ${p.id}: price ${lastPrice} vs target ${target} ratio ${priceTargetRatio.toFixed(1)}x -- likely wrong instrument for ${p.referenceSymbol}`);
+      continue;
+    }
+
+    // ── SANITY CHECK 2: Already-true-at-issuance detection ──
+    // If the start price already satisfies the target, this prediction was malformed.
+    // Mark as denied with explanation rather than giving a free hit.
+    if (isAlreadyTrueAtIssuance(direction, target, startPrice, 0)) {
+      console.warn(`[resolveByData] Prediction ${p.id} was already true at issuance: ${p.referenceSymbol} start ${startPrice}, target ${direction} ${target}`);
+      const notes = `Invalid: Target was already met at creation. ${p.referenceSymbol} was at ${startPrice.toFixed(2)} when prediction was created, target was ${direction === "up" ? "above" : "below"} ${target}. This is not a valid forecast.`;
+      await db.update(schema.predictions)
+        .set({ outcome: "expired", score: null, outcomeNotes: notes, resolvedAt: new Date().toISOString(), directionCorrect: null, levelCorrect: null })
+        .where(eq(schema.predictions.id, p.id));
+      results.push({ id: p.id, outcome: "expired", score: 0, notes });
+      continue;
+    }
+
     // Check if target was hit at any point during the window
     let targetHit = false;
     let directionCorrect = false;
 
+    // Determine if the claim requires "close" price (stricter) or allows intraday touch
+    const claimLower = p.claim.toLowerCase();
+    const requiresClose = /\bclose[sd]?\s+(above|below|at|over|under)\b/.test(claimLower);
+
+    // Determine if claim requires hitting on multiple days: "on at least N trading days"
+    const multiDayMatch = claimLower.match(/(?:on\s+)?at\s+least\s+(\d+)\s+trading\s+days?/);
+    const requiredDays = multiDayMatch ? parseInt(multiDayMatch[1], 10) : 1;
+
+    // Count hit days (not just any single touch)
+    let hitBars: typeof windowBars;
     if (direction === "up") {
       directionCorrect = lastPrice > startPrice;
-      targetHit = windowBars.some((b) => b.high >= target || b.close >= target);
+      hitBars = requiresClose
+        ? windowBars.filter((b) => b.close >= target)
+        : windowBars.filter((b) => b.high >= target || b.close >= target);
     } else if (direction === "down") {
       directionCorrect = lastPrice < startPrice;
-      targetHit = windowBars.some((b) => b.low <= target || b.close <= target);
+      hitBars = requiresClose
+        ? windowBars.filter((b) => b.close <= target)
+        : windowBars.filter((b) => b.low <= target || b.close <= target);
+    } else {
+      hitBars = [];
     }
+
+    targetHit = hitBars.length >= requiredDays;
 
     // ── Early resolution for predictions still before deadline ──
     if (!isPastDeadline) {
       if (targetHit) {
         // Target already hit before deadline -- early confirm
-        const hitDates = windowBars
-          .filter((b) => direction === "up" ? (b.high >= target || b.close >= target) : (b.low <= target || b.close <= target))
-          .map((b) => b.date);
+        const hitDates = hitBars.map((b) => b.date);
 
         const notes = `Early-confirmed: ${p.referenceSymbol} hit target ${direction === "up" ? "above" : "below"} ${target} on ${hitDates.join(", ")}. Current price: ${lastPrice.toFixed(2)} (started at ${startPrice.toFixed(2)}).`;
 
@@ -1436,14 +1619,8 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
       score = 0.0;
     }
 
-    // Build evidence note
-    const hitDates = windowBars
-      .filter((b) =>
-        direction === "up"
-          ? b.high >= target || b.close >= target
-          : b.low <= target || b.close <= target
-      )
-      .map((b) => b.date);
+    // Build evidence note (reuse hitBars from above)
+    const hitDates = hitBars.map((b) => b.date);
 
     const notes = [
       `Data-resolved: ${p.referenceSymbol} moved from ${startPrice.toFixed(2)} to ${lastPrice.toFixed(2)}`,
@@ -1481,7 +1658,140 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
   return results;
 }
 
-// ── AI-Powered Resolution (runs every 6 hours for complex predictions) ──
+// ── AI-Powered Resolution with Tool-Use Verification ──
+// Multi-step: (1) Claude fetches data via tools, (2) makes initial assessment,
+// (3) verification pass challenges the assessment with the raw data.
+
+const RESOLUTION_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "get_market_price",
+    description: "Fetch current quote and recent daily price history for a stock, ETF, forex pair, or crypto symbol. Use this to verify market predictions with real price data.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        symbol: { type: "string", description: "Ticker symbol (e.g. SPY, GLD, EUR/USD, BTC)" },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "search_news",
+    description: "Search GDELT for recent geopolitical events matching keywords. Use this to verify geopolitical predictions.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Search keywords (e.g. 'Taiwan military drill', 'Iran sanctions')" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "submit_resolution",
+    description: "Submit your final resolution for one or more predictions AFTER you have gathered and verified all evidence. You MUST call get_market_price or search_news first before calling this.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        resolutions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "number", description: "Prediction ID" },
+              outcome: { type: "string", enum: ["confirmed", "denied", "partial", "skip"], description: "confirmed=both direction and level correct, denied=wrong, partial=direction right but level wrong, skip=insufficient data" },
+              score: { type: "number", description: "0.0 (worst) to 1.0 (best). confirmed=1.0, partial=0.5, denied=0.0" },
+              notes: { type: "string", description: "Evidence summary citing specific prices, dates, and data points" },
+              direction_correct: { type: "number", enum: [0, 1], description: "1 if market moved in predicted direction, 0 if not" },
+              level_correct: { type: "number", enum: [0, 1], description: "1 if price target was reached, 0 if not" },
+            },
+            required: ["id", "outcome", "score", "notes"],
+          },
+        },
+      },
+      required: ["resolutions"],
+    },
+  },
+];
+
+async function executeResolutionTool(
+  toolName: string,
+  input: Record<string, unknown>,
+  alphaVantageKey: string
+): Promise<string> {
+  if (toolName === "get_market_price") {
+    const symbol = (input.symbol as string || "").trim();
+    if (!symbol) return JSON.stringify({ error: "No symbol provided" });
+
+    // Apply symbol corrections
+    const corrected = SYMBOL_CORRECTIONS[symbol] || symbol;
+
+    try {
+      const [quote, daily] = await Promise.all([
+        getQuote(corrected, alphaVantageKey).catch(() => null),
+        getDailySeries(corrected, alphaVantageKey).catch(() => []),
+      ]);
+
+      if (!quote) {
+        return JSON.stringify({ error: `No data available for ${symbol} (tried ${corrected})`, corrected_symbol: corrected });
+      }
+
+      // Sanity flag if the corrected symbol differs
+      const correction_note = corrected !== symbol ? `NOTE: "${symbol}" was corrected to "${corrected}" for data lookup.` : undefined;
+
+      return JSON.stringify({
+        symbol: corrected,
+        original_symbol: symbol !== corrected ? symbol : undefined,
+        correction_note,
+        current_price: quote.price,
+        change: quote.change,
+        change_percent: quote.changePercent,
+        timestamp: quote.timestamp,
+        recent_history: daily.slice(-30).map((b) => ({
+          date: b.date,
+          open: b.open,
+          high: b.high,
+          low: b.low,
+          close: b.close,
+        })),
+      });
+    } catch (err) {
+      return JSON.stringify({ error: `Failed to fetch ${symbol}: ${err instanceof Error ? err.message : "unknown error"}` });
+    }
+  }
+
+  if (toolName === "search_news") {
+    const query = (input.query as string || "").trim();
+    if (!query) return JSON.stringify({ error: "No query provided" });
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const encoded = encodeURIComponent(query);
+      const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encoded}&mode=ArtList&maxrecords=30&format=json&timespan=30d`;
+
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (!res.ok) return JSON.stringify({ error: `GDELT returned ${res.status}` });
+
+      const data = await res.json();
+      const articles = (data.articles || []).slice(0, 20);
+
+      return JSON.stringify({
+        query,
+        results_count: articles.length,
+        articles: articles.map((a: { title: string; seendate: string; domain: string; url: string }) => ({
+          date: a.seendate?.slice(0, 8) || "unknown",
+          title: a.title,
+          source: a.domain,
+        })),
+      });
+    } catch {
+      return JSON.stringify({ error: "GDELT unavailable" });
+    }
+  }
+
+  return JSON.stringify({ error: `Unknown tool: ${toolName}` });
+}
 
 export async function resolvePredictions(): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
   const anthropicKey = await getAnthropicKey();
@@ -1505,97 +1815,7 @@ export async function resolvePredictions(): Promise<Array<{ id: number; outcome:
   const due = pending.filter((p) => p.deadline <= today);
   if (due.length === 0) return [];
 
-  // ── Step 1: Extract tickers mentioned in predictions ──
-  const tickerPattern = /\b([A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b/g;
-  const mentionedTickers = new Set<string>();
-  // Common market indices and ETFs to always fetch
-  const coreSymbols = ["SPY", "QQQ", "VIX", "GLD", "TLT", "USO", "XLE", "XLF", "XLK", "IWM"];
-  coreSymbols.forEach((s) => mentionedTickers.add(s));
-
-  for (const p of due) {
-    const matches = p.claim.match(tickerPattern);
-    if (matches) {
-      for (const m of matches) {
-        // Filter out common English words that look like tickers
-        if (!["THE", "AND", "FOR", "NOT", "BUT", "HAS", "WAS", "ARE", "ITS", "GDP", "CPI", "USD", "EUR", "GBP", "JPY", "VIX"].includes(m) || m === "VIX") {
-          mentionedTickers.add(m);
-        }
-      }
-    }
-    // Also add reference symbol if present
-    if (p.referenceSymbol) mentionedTickers.add(p.referenceSymbol);
-  }
-
-  // ── Step 2: Fetch real market data for all relevant tickers ──
-  const marketData: Record<string, { current: { price: number; change: number; changePercent: number; volume: number; date: string }; history: Array<{ date: string; close: number; high: number; low: number }> }> = {};
-
-  if (alphaVantageKey) {
-    const earliestCreation = due.reduce((min, p) => p.createdAt < min ? p.createdAt : min, due[0].createdAt);
-    const symbols = Array.from(mentionedTickers);
-
-    // Fetch in batches of 5 to respect Alpha Vantage rate limits (5 calls/min free tier)
-    for (let i = 0; i < symbols.length; i += 5) {
-      const batch = symbols.slice(i, i + 5);
-      await Promise.all(batch.map(async (symbol) => {
-        try {
-          const [quote, daily] = await Promise.all([
-            getQuote(symbol, alphaVantageKey).catch(() => null),
-            getDailySeries(symbol, alphaVantageKey).catch(() => []),
-          ]);
-
-          if (quote) {
-            const relevantBars = daily
-              .filter((b) => b.date >= earliestCreation.split("T")[0])
-              .map((b) => ({ date: b.date, close: b.close, high: b.high, low: b.low }));
-
-            marketData[symbol] = {
-              current: {
-                price: quote.price,
-                change: quote.change,
-                changePercent: quote.changePercent,
-                volume: quote.volume,
-                date: quote.timestamp,
-              },
-              history: relevantBars,
-            };
-          }
-        } catch {
-          // Skip symbols that fail
-        }
-      }));
-
-      // Wait 12s between batches for rate limiting
-      if (i + 5 < symbols.length) {
-        await new Promise((resolve) => setTimeout(resolve, 12000));
-      }
-    }
-  }
-
-  // ── Step 3: Fetch real geopolitical events from GDELT ──
-  let gdeltSummary = "GDELT data unavailable.";
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const query = encodeURIComponent("conflict OR military OR attack OR sanctions OR election OR summit");
-    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=50&format=json&timespan=14d`;
-
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      const data = await res.json();
-      const articles = (data.articles || []).slice(0, 30);
-      if (articles.length > 0) {
-        gdeltSummary = articles.map((a: { title: string; seendate: string; domain: string }) =>
-          `- [${a.seendate?.slice(0, 8) || "?"}] ${a.title} (${a.domain})`
-        ).join("\n");
-      }
-    }
-  } catch {
-    // GDELT unavailable, proceed without
-  }
-
-  // ── Step 4: Build evidence-based prompt ──
+  // ── Build prediction context for the resolver ──
   const predictionsText = due.map((p) => {
     const metrics = safeParse(p.metrics, null) as Record<string, unknown> | null;
     const grounding = metrics?.grounding ? `\nGrounding: ${metrics.grounding}` : "";
@@ -1607,86 +1827,172 @@ export async function resolvePredictions(): Promise<Array<{ id: number; outcome:
     return `ID: ${p.id}\nClaim: "${p.claim}"\nCategory: ${p.category}\nConfidence: ${(p.confidence * 100).toFixed(0)}%\nDeadline: ${p.deadline}\nCreated: ${p.createdAt}${dirInfo}${targetInfo}${refPrices}${grounding}`;
   }).join("\n\n");
 
-  const marketDataText = Object.keys(marketData).length > 0
-    ? Object.entries(marketData).map(([symbol, data]) => {
-        const historyLines = data.history.slice(-20).map((b) =>
-          `  ${b.date}: close=${b.close.toFixed(2)}, high=${b.high.toFixed(2)}, low=${b.low.toFixed(2)}`
-        ).join("\n");
+  const systemPrompt = `You are a prediction resolution engine. Your job is to evaluate whether predictions came true using REAL DATA ONLY.
 
-        return `${symbol}: Current price ${data.current.price.toFixed(2)} (${data.current.changePercent >= 0 ? "+" : ""}${data.current.changePercent.toFixed(2)}%) as of ${data.current.date}\nRecent history:\n${historyLines}`;
-      }).join("\n\n")
-    : "No market data available. Mark market predictions as 'expired' with note explaining data was unavailable.";
+CRITICAL RULES:
+1. You MUST call get_market_price for EVERY market prediction before resolving it. Never guess prices.
+2. You MUST call search_news for EVERY geopolitical prediction before resolving it. Never assume events happened.
+3. For FX pairs: verify you are reading the quote in the correct direction. EUR/USD = euros per dollar. USD/JPY = yen per dollar. If the claim says "USD will strengthen vs EUR" that means EUR/USD goes DOWN.
+4. For relative performance claims (X outperforms Y): fetch BOTH instruments and compute the relative return yourself.
+5. For "close above/below" claims: check the CLOSE price, not the intraday high/low.
+6. For "on at least N trading days" claims: COUNT the specific days the condition was met.
+7. For percentage move claims: compute the actual percentage from the start price (reference price at creation) to the price during the prediction window.
+8. If any data seems wrong (e.g. a price that's wildly different from what you'd expect for that instrument), note this and mark as "skip".
+9. NEVER confirm a prediction without citing specific prices and dates from tool results.
+10. If the prediction was ALREADY TRUE when it was created (start price already past the target), outcome is "denied" with note "Invalid: target already met at creation."
 
-  const prompt = `Evaluate these predictions using ONLY the real data provided below. Today is ${today}. All deadlines have passed.
+SCORING:
+- confirmed (both direction and level correct): score = 1.0
+- partial (direction correct, level wrong): score = 0.5
+- denied (wrong): score = 0.0
+- skip (insufficient data): will retry later
 
-═══ PREDICTIONS TO EVALUATE ═══
-${predictionsText}
-
-═══ REAL MARKET DATA (from Alpha Vantage) ═══
-${marketDataText}
-
-═══ REAL GEOPOLITICAL EVENTS (from GDELT, last 14 days) ═══
-${gdeltSummary}
-
-INSTRUCTIONS:
-- For MARKET predictions: Compare the claim against the actual price data above. Quote the specific prices and dates.
-- For GEOPOLITICAL predictions: Check if the GDELT headlines corroborate or contradict the claim.
-- For CELESTIAL predictions: These are calendar-based and verifiable. Check if the claimed convergence occurred (the dates are deterministic).
-- If the relevant data is NOT in the evidence above, mark as "skip" with a note explaining what data is needed. Do NOT mark as expired just because data is temporarily unavailable — the prediction will be retried when data becomes available.
-
-DIRECTION vs LEVEL SCORING:
-- If a prediction has both direction AND price_target, evaluate each separately.
-- "direction_correct": 1 if the market moved in the predicted direction, 0 if not.
-- "level_correct": 1 if the price target was reached, 0 if not.
-- If direction is correct but level is wrong, outcome should be "partial".
-- If both are wrong, outcome is "denied".
-- If both are correct, outcome is "confirmed".
-
-Respond ONLY with a JSON array:
-[
-  {
-    "id": <prediction_id>,
-    "outcome": "confirmed" | "denied" | "partial" | "expired" | "skip",
-    "score": 0.0-1.0,
-    "notes": "Evidence: [cite specific data points from above]",
-    "direction_correct": 1 | 0 | null,
-    "level_correct": 1 | 0 | null
-  }
-]`;
+After gathering all evidence, call submit_resolution with your final verdicts.`;
 
   const client = new Anthropic({ apiKey: anthropicKey });
-  const response = await client.messages.create({
-    model: SONNET_MODEL,
-    max_tokens: 2048,
-    system: await loadPrompt("prediction_resolve"),
-    messages: [{ role: "user", content: prompt }],
-  });
 
-  const resText = response.content[0].type === "text" ? response.content[0].text : "";
-  const resJsonMatch = resText.match(/\[[\s\S]*\]/);
-  if (!resJsonMatch) {
-    throw new Error("Failed to parse resolution from Claude response");
-  }
+  // ── Agentic tool-use loop ──
+  const messages: Anthropic.MessageParam[] = [
+    {
+      role: "user",
+      content: `Evaluate these predictions. Today is ${today}. All deadlines have passed. Use the tools to fetch real data before making any judgement.\n\n${predictionsText}`,
+    },
+  ];
 
-  const results: Array<{
+  let finalResolutions: Array<{
     id: number;
     outcome: string;
     score: number;
     notes: string;
     direction_correct?: number | null;
     level_correct?: number | null;
-  }> = JSON.parse(resJsonMatch[0]);
+  }> = [];
 
-  // Validate and update DB
-  // "skip" means insufficient data — leave prediction open for next resolver cycle
-  const validOutcomes = ["confirmed", "denied", "partial", "expired", "post_event"];
+  const MAX_TOOL_ROUNDS = 10; // Safety cap on tool-use iterations
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const response = await client.messages.create({
+      model: SONNET_MODEL,
+      max_tokens: 4096,
+      system: systemPrompt,
+      tools: RESOLUTION_TOOLS,
+      messages,
+    });
+
+    // Check if we're done (no more tool use)
+    if (response.stop_reason === "end_turn") break;
+
+    // Process tool calls
+    const toolUseBlocks = response.content.filter(
+      (b): b is Anthropic.ContentBlockParam & { type: "tool_use"; id: string; name: string; input: Record<string, unknown> } =>
+        b.type === "tool_use"
+    );
+
+    if (toolUseBlocks.length === 0) break;
+
+    // Add assistant response to conversation
+    messages.push({ role: "assistant", content: response.content as Anthropic.ContentBlockParam[] });
+
+    // Execute tools and build tool results
+    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+    for (const toolUse of toolUseBlocks) {
+      if (toolUse.name === "submit_resolution") {
+        // Final submission -- extract resolutions
+        const input = toolUse.input as { resolutions: typeof finalResolutions };
+        finalResolutions = input.resolutions || [];
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: JSON.stringify({ status: "accepted", count: finalResolutions.length }),
+        });
+      } else {
+        // Data-fetching tool -- execute and return results
+        const result = await executeResolutionTool(toolUse.name, toolUse.input, alphaVantageKey);
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: result,
+        });
+      }
+    }
+
+    messages.push({ role: "user", content: toolResults });
+
+    // If we got final resolutions, do verification pass
+    if (finalResolutions.length > 0) break;
+  }
+
+  // ── Verification pass: challenge confirmed predictions ──
+  // Ask a second model call to verify any "confirmed" verdicts against the raw evidence
+  const confirmed = finalResolutions.filter((r) => r.outcome === "confirmed");
+  if (confirmed.length > 0 && messages.length > 2) {
+    try {
+      const verifyPrompt = `VERIFICATION PASS: You previously confirmed these predictions. Double-check each one. Be SKEPTICAL. Look for:
+1. Was the target ALREADY MET at creation (start price vs target)?
+2. Did you check the CORRECT instrument (not an ETF with the same ticker as an index)?
+3. For "close above" claims, did you check closes or intraday highs?
+4. For "at least N days" claims, did you actually count the days?
+5. Is the base rate for this event so high (>80%) that confirmation is trivially expected?
+
+For each confirmed prediction, respond with JSON: [{"id": N, "still_confirmed": true/false, "reason": "..."}]
+Only change verdicts if you find a genuine error. Do not second-guess correct confirmations.
+
+Confirmed predictions to verify:
+${confirmed.map((r) => `ID ${r.id}: ${r.notes}`).join("\n\n")}`;
+
+      const verifyResponse = await client.messages.create({
+        model: SONNET_MODEL,
+        max_tokens: 1024,
+        system: "You are a verification auditor. Be skeptical of confirmed predictions. Check for common errors: wrong instruments, inverted FX pairs, targets already met at creation, intraday vs close confusion, and trivial base rates.",
+        messages: [{ role: "user", content: verifyPrompt }],
+      });
+
+      const verifyText = verifyResponse.content[0].type === "text" ? verifyResponse.content[0].text : "";
+      const verifyMatch = verifyText.match(/\[[\s\S]*\]/);
+      if (verifyMatch) {
+        const verifications: Array<{ id: number; still_confirmed: boolean; reason: string }> = JSON.parse(verifyMatch[0]);
+        for (const v of verifications) {
+          if (!v.still_confirmed) {
+            const res = finalResolutions.find((r) => r.id === v.id);
+            if (res) {
+              res.outcome = "denied";
+              res.score = 0;
+              res.notes = `Verification failed: ${v.reason}. Original assessment: ${res.notes}`;
+              if (res.direction_correct !== undefined) res.direction_correct = 0;
+              if (res.level_correct !== undefined) res.level_correct = 0;
+              console.log(`[resolvePredictions] Verification overturned prediction ${v.id}: ${v.reason}`);
+            }
+          }
+        }
+      }
+    } catch {
+      // Verification is best-effort; proceed with original assessments
+    }
+  }
+
+  // ── Persist results to DB ──
+  const validOutcomes = ["confirmed", "denied", "partial", "post_event"];
   const updated: Array<{ id: number; outcome: string; score: number; notes: string }> = [];
 
-  for (const r of results) {
+  for (const r of finalResolutions) {
     const pred = due.find((p) => p.id === r.id);
     if (!pred) continue;
     if (r.outcome === "skip") continue; // Retry next cycle when data may be available
     if (!validOutcomes.includes(r.outcome)) continue;
+
+    // ── Final sanity checks before persisting ──
+    // Check if this prediction was already true at issuance (belt-and-suspenders)
+    if (r.outcome === "confirmed" && pred.priceTarget && pred.direction && pred.referenceSymbol) {
+      const refPrices = safeParse(pred.referencePrices, {}) as Record<string, number>;
+      const startPrice = refPrices[pred.referenceSymbol];
+      if (startPrice && isAlreadyTrueAtIssuance(pred.direction, pred.priceTarget, startPrice)) {
+        console.warn(`[resolvePredictions] Blocking confirmation for ${pred.id}: target already met at issuance (${pred.referenceSymbol} was ${startPrice}, target ${pred.direction} ${pred.priceTarget})`);
+        r.outcome = "expired";
+        r.score = 0;
+        r.notes = `Invalid: Target was already met at creation. ${pred.referenceSymbol} was at ${startPrice} when prediction was created, target was ${pred.direction === "up" ? "above" : "below"} ${pred.priceTarget}.`;
+      }
+    }
 
     const score = Math.max(0, Math.min(1, r.score));
 
