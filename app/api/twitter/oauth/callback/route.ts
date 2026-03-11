@@ -3,16 +3,13 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { exchangeCodeForTokens } from "@/lib/twitter/oauth";
 import { encrypt } from "@/lib/encryption";
-import { requireAdmin, isNextResponse } from "@/lib/auth/session";
 import crypto from "crypto";
 
 // GET - OAuth callback from Twitter/X
+// Note: No session check here. The redirect from Twitter may not carry the
+// session cookie (SameSite policy). The CSRF state token validated below
+// already proves this callback originated from an admin-initiated flow.
 export async function GET(req: NextRequest) {
-  const auth = await requireAdmin();
-  if (isNextResponse(auth)) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
-
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");

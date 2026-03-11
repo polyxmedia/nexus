@@ -21,8 +21,8 @@ import { getSettingValue } from "@/lib/settings/get-setting";
 // When a session exceeds COMPRESS_THRESHOLD messages, older messages are
 // summarised and stored as a rolling summary. Only recent messages + the
 // summary are sent to the API, keeping context windows manageable.
-const COMPRESS_THRESHOLD = 20; // total messages before compression kicks in
-const KEEP_RECENT = 8;          // messages to retain verbatim after compression
+const COMPRESS_THRESHOLD = 12; // total messages before compression kicks in
+const KEEP_RECENT = 6;          // messages to retain verbatim after compression
 
 type DbMessage = { id: number; role: string; content: string; toolUses: string | null; toolResults: string | null };
 
@@ -353,13 +353,14 @@ export async function POST(
         if (r.status === "fulfilled" && r.value) {
           const val = typeof r.value === "string" ? r.value : JSON.stringify(r.value);
           if (val.length > 10 && !val.includes('"error"')) {
-            sections.push(`## ${labels[i]}\n${val.slice(0, 3000)}`);
+            sections.push(`## ${labels[i]}\n${val.slice(0, 1500)}`);
           }
         }
       }
 
       if (sections.length > 0) {
-        preflightContext = `\n\n## PRE-FLIGHT INTELLIGENCE (auto-gathered for forecasting question)\nThe following data was automatically retrieved. You MUST reference this data in your analysis. Do NOT re-call these tools — the data is already here. Focus on calling any ADDITIONAL tools needed (web_search, get_actor_profile, get_live_quote, get_options_flow) and then structure your Tetlock-method answer.\n\n${sections.join("\n\n")}`;
+        const joined = sections.join("\n\n").slice(0, 8000); // hard cap preflight at ~2K tokens
+        preflightContext = `\n\n## PRE-FLIGHT INTELLIGENCE (auto-gathered for forecasting question)\nThe following data was automatically retrieved. You MUST reference this data in your analysis. Do NOT re-call these tools — the data is already here. Focus on calling any ADDITIONAL tools needed (web_search, get_actor_profile, get_live_quote, get_options_flow) and then structure your Tetlock-method answer.\n\n${joined}`;
       }
     } catch (err) {
       console.error("[Chat] preflight intelligence gathering failed:", err);
@@ -392,7 +393,14 @@ export async function POST(
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
         const requestStartTime = Date.now();
+        let toolLoopCount = 0;
+        const MAX_TOOL_LOOPS = 5; // prevent runaway tool calling
         while (continueLoop) {
+          if (toolLoopCount >= MAX_TOOL_LOOPS) {
+            sendEvent({ type: "text_delta", delta: "\n\n[Reached tool call limit for this response]" });
+            fullText += "\n\n[Reached tool call limit for this response]";
+            break;
+          }
           const response = await client.messages.create({
             model: chatModel,
             max_tokens: 4096,
@@ -443,6 +451,7 @@ export async function POST(
           });
 
           if (stopReason === "tool_use" && pendingTools.length > 0) {
+            toolLoopCount++;
             const assistantContent: Anthropic.ContentBlockParam[] = [];
             if (iterationText) assistantContent.push({ type: "text" as const, text: iterationText });
             const toolResultContent: Anthropic.ToolResultBlockParam[] = [];
@@ -471,7 +480,9 @@ export async function POST(
               ]);
               allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: toolResult });
               sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: toolResult });
-              toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(toolResult) });
+              // Cap tool result size sent to Claude to prevent token explosion
+              const toolResultJson = truncateToolResult(JSON.stringify(toolResult), 12000);
+              toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: toolResultJson });
             }
             messages = [...messages, { role: "assistant" as const, content: assistantContent }, { role: "user" as const, content: toolResultContent }];
             // Add separator between iterations so text doesn't merge (e.g. "data.Now" -> "data.\n\nNow")
@@ -627,6 +638,58 @@ Be ruthlessly honest. The whole point is to catch errors the analyst missed.`,
   return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
 }
 
+// Truncate tool result JSON to prevent token explosion.
+// Recent results (last 4 messages) keep more detail; older ones get aggressively trimmed.
+// Always produces valid JSON so Claude can parse it.
+function truncateToolResult(json: string, maxLen: number): string {
+  if (json.length <= maxLen) return json;
+  try {
+    const parsed = JSON.parse(json);
+    // For arrays (lists of articles, signals, etc.) - progressively reduce items until it fits
+    if (Array.isArray(parsed)) {
+      for (let keep = 5; keep >= 1; keep--) {
+        const result = JSON.stringify({ items: parsed.slice(0, keep), truncated: true, originalCount: parsed.length });
+        if (result.length <= maxLen) return result;
+      }
+      return JSON.stringify({ truncated: true, originalCount: parsed.length, note: "Items too large to include" });
+    }
+    // For objects with array values, trim those arrays progressively
+    if (typeof parsed === "object" && parsed !== null) {
+      const trimmed: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (Array.isArray(v)) {
+          // Try keeping up to 5 items, reduce if needed
+          const arr = v as unknown[];
+          trimmed[k] = arr.slice(0, 5);
+          if (arr.length > 5) trimmed[k + "_count"] = arr.length;
+        } else {
+          trimmed[k] = v;
+        }
+      }
+      const result = JSON.stringify(trimmed);
+      if (result.length <= maxLen) return result;
+      // Still too large - trim arrays further
+      for (const [k, v] of Object.entries(trimmed)) {
+        if (Array.isArray(v) && v.length > 2) {
+          trimmed[k] = v.slice(0, 2);
+        }
+      }
+      const result2 = JSON.stringify(trimmed);
+      if (result2.length <= maxLen) return result2;
+      // Last resort: keep only scalar values
+      const scalarsOnly: Record<string, unknown> = { truncated: true };
+      for (const [k, v] of Object.entries(parsed)) {
+        if (!Array.isArray(v) && typeof v !== "object") scalarsOnly[k] = v;
+      }
+      return JSON.stringify(scalarsOnly);
+    }
+  } catch {
+    // Not valid JSON
+  }
+  // Final fallback: return a valid JSON error rather than broken JSON
+  return JSON.stringify({ truncated: true, originalLength: json.length });
+}
+
 function buildAnthropicMessages(
   dbMessages: Array<{ role: string; content: string; toolUses: string | null; toolResults: string | null }>,
   summary?: string | null
@@ -639,7 +702,14 @@ function buildAnthropicMessages(
     result.push({ role: "assistant", content: "Understood. I have the context from our earlier conversation and will continue from there." });
   }
 
-  for (const msg of dbMessages) {
+  // Determine which messages are "recent" (last 4) vs older — older get harder truncation
+  const recentCutoff = Math.max(0, dbMessages.length - 4);
+
+  for (let msgIdx = 0; msgIdx < dbMessages.length; msgIdx++) {
+    const msg = dbMessages[msgIdx];
+    const isRecent = msgIdx >= recentCutoff;
+    const toolResultMaxLen = isRecent ? 12000 : 2000; // aggressive trim for old tool results
+
     if (msg.role === "user") {
       const lastMsg = result[result.length - 1];
       if (lastMsg && lastMsg.role === "user") {
@@ -671,12 +741,14 @@ function buildAnthropicMessages(
           result.push({ role: "assistant", content: assistantContent });
 
           // Ensure every tool_use has a matching tool_result (synthetic error if missing)
+          // Truncate old tool results to prevent token explosion
           const toolResultContent: Anthropic.ToolResultBlockParam[] = toolUses.map((tu) => {
             const tr = resultMap.get(tu.toolUseId);
+            const raw = tr ? JSON.stringify(tr.result) : JSON.stringify({ error: "Tool execution was interrupted" });
             return {
               type: "tool_result" as const,
               tool_use_id: tu.toolUseId,
-              content: tr ? JSON.stringify(tr.result) : JSON.stringify({ error: "Tool execution was interrupted" }),
+              content: truncateToolResult(raw, toolResultMaxLen),
             };
           });
           result.push({ role: "user", content: toolResultContent });
