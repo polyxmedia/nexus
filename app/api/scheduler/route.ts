@@ -80,9 +80,11 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Save per-job interval overrides
+    // Save per-job interval overrides (validate against registered jobs)
     if (intervals && typeof intervals === "object") {
+      const validJobNames = new Set(getJobStatus().map((j) => j.name));
       for (const [jobName, minutes] of Object.entries(intervals)) {
+        if (!validJobNames.has(jobName)) continue;
         if (typeof minutes !== "number" || !Number.isFinite(minutes) || minutes < 0) continue;
         const key = `scheduler:interval:${jobName}`;
         const value = String(minutes);
