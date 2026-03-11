@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { sendMessage } from "@/lib/telegram/bot";
+import Anthropic from "@anthropic-ai/sdk";
 
 // Telegram sends webhook updates as POST requests.
 // Users link their account by sending /start <username> to the bot.
@@ -157,18 +158,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Unknown command
-    await sendMessage({
-      chatId,
-      text: [
-        `<b>NEXUS Intelligence Bot</b>`,
-        ``,
-        `Commands:`,
-        `/start username - Link your NEXUS account`,
-        `/status - Check connection status`,
-        `/stop - Unlink and stop alerts`,
-      ].join("\n"),
-    });
+    // ── AI response for general messages ──
+    // Find if this chat is linked to a NEXUS user
+    let linkedUsername: string | null = null;
+    try {
+      const chatRows = await db
+        .select()
+        .from(schema.settings)
+        .where(like(schema.settings.key, "%:telegram_chat_id"));
+      const match = chatRows.find((r) => r.value === chatId);
+      if (match) linkedUsername = match.key.split(":")[0];
+    } catch { /* continue without username */ }
+
+    try {
+      const client = new Anthropic();
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 500,
+        system: [
+          "You are the NEXUS Intelligence bot on Telegram. NEXUS is a geopolitical-market convergence intelligence platform.",
+          "You provide brief, sharp intelligence analysis. Keep responses concise (2-4 sentences max) since this is Telegram.",
+          "You can discuss geopolitics, markets, signals, predictions, and intelligence methodology.",
+          "If asked about account features, mention they can configure alerts and view full analysis on nexushq.xyz.",
+          "Do not use emojis. Write in a direct, professional tone.",
+          linkedUsername ? `The user is linked as "${linkedUsername}" on NEXUS.` : "The user has not linked their NEXUS account yet. They can do so with /start username.",
+        ].join(" "),
+        messages: [{ role: "user", content: text }],
+      });
+
+      const aiText = response.content[0]?.type === "text" ? response.content[0].text : null;
+      if (aiText) {
+        await sendMessage({ chatId, text: aiText, parseMode: "HTML" });
+      }
+    } catch (err) {
+      console.error("Telegram AI response error:", err);
+      await sendMessage({
+        chatId,
+        text: [
+          `<b>NEXUS Intelligence Bot</b>`,
+          ``,
+          `Commands:`,
+          `/start username - Link your NEXUS account`,
+          `/status - Check connection status`,
+          `/stop - Unlink and stop alerts`,
+        ].join("\n"),
+      });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

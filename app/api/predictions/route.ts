@@ -61,6 +61,17 @@ export async function PATCH(request: NextRequest) {
       : await db.select().from(schema.predictions).where(eq(schema.predictions.id, lookupId));
     if (!existingRows[0]) return NextResponse.json({ error: "Prediction not found" }, { status: 404 });
     const updatedRows = await db.update(schema.predictions).set({ outcome, outcomeNotes: outcomeNotes || null, score: score !== undefined ? score : null, resolvedAt: new Date().toISOString() }).where(eq(schema.predictions.id, existingRows[0].id)).returning();
+
+    // Broadcast resolution via Telegram
+    try {
+      const { broadcastAlert, formatPredictionAlert } = await import("@/lib/telegram/alerts");
+      const pred = updatedRows[0];
+      const outcomeMap: Record<string, "correct" | "incorrect" | "partial"> = { confirmed: "correct", denied: "incorrect", partial: "partial" };
+      const mapped = outcomeMap[outcome] || "incorrect";
+      const msg = formatPredictionAlert({ title: pred.claim, outcome: mapped, confidence: pred.confidence, brierScore: pred.score ?? undefined });
+      broadcastAlert("prediction_resolved", msg).catch(() => {});
+    } catch { /* non-critical */ }
+
     return NextResponse.json(updatedRows[0]);
   } catch (error) { const message = error instanceof Error ? error.message : "Unknown error"; return NextResponse.json({ error: message }, { status: 500 }); }
 }
