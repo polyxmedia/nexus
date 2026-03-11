@@ -11,6 +11,7 @@ import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
 import { getUserTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
+import { getUserThrottle } from "@/lib/auth/user-throttle";
 import { hasCredits, debitCredits, calculateCredits } from "@/lib/credits";
 import { buildMemoryContext, touchMemories } from "@/lib/memory/engine";
 import { validateOrigin } from "@/lib/security/csrf";
@@ -195,7 +196,17 @@ export async function POST(
       { status: 403 }
     );
   }
-  if (!tierInfo.isAdmin && tierInfo.limits?.chatMessages && tierInfo.limits.chatMessages > 0) {
+  // Check for admin-set throttle override first, then fall back to tier limits
+  const userThrottle = await getUserThrottle(username);
+  if (userThrottle?.chatMessagesPerDay !== null && userThrottle?.chatMessagesPerDay !== undefined) {
+    const rl = await rateLimit(`chat:throttle:${username}`, userThrottle.chatMessagesPerDay, 24 * 60 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Daily message limit reached (${userThrottle.chatMessagesPerDay}/day).`, remaining: 0 },
+        { status: 429 }
+      );
+    }
+  } else if (!tierInfo.isAdmin && tierInfo.limits?.chatMessages && tierInfo.limits.chatMessages > 0) {
     const limit = tierInfo.limits.chatMessages;
     const rl = await rateLimit(`chat:${username}`, limit, 24 * 60 * 60 * 1000); // daily window
     if (!rl.allowed) {

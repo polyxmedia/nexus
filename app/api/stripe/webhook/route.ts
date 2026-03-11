@@ -383,6 +383,8 @@ export async function POST(request: Request) {
         if (existing.length > 0) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const subAny = sub as any;
+          const previousStatus = existing[0].status;
+
           await db
             .update(schema.subscriptions)
             .set({
@@ -393,6 +395,48 @@ export async function POST(request: Request) {
               updatedAt: new Date().toISOString(),
             })
             .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+
+          // When subscription transitions from incomplete to active/trialing,
+          // the user has confirmed payment -- activate their tier now
+          if (
+            (previousStatus === "incomplete" || previousStatus === "past_due") &&
+            (sub.status === "active" || sub.status === "trialing")
+          ) {
+            const tierName = await getTierNameById(existing[0].tierId);
+            if (tierName) {
+              await setUserTier(existing[0].userId, tierName.toLowerCase());
+            }
+
+            // Send subscription confirmation email
+            const activatedEmail = await getUserEmail(existing[0].userId);
+            if (activatedEmail && tierName) {
+              const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+              const template = subscriptionActiveEmail(
+                existing[0].userId.replace("user:", ""),
+                tierName,
+                `${baseUrl}/dashboard`
+              );
+              sendEmail({ to: activatedEmail, ...template }).catch((err) =>
+                console.error("Subscription activation email failed:", err)
+              );
+            }
+
+            // Notify admin
+            if (tierName) {
+              notifyAdmin(adminNewSubscriptionEmail(
+                existing[0].userId.replace("user:", ""),
+                tierName
+              )).catch(() => {});
+            }
+          }
+
+          // When subscription is canceled or expires, downgrade to free
+          if (
+            (previousStatus === "active" || previousStatus === "trialing") &&
+            (sub.status === "canceled" || sub.status === "unpaid")
+          ) {
+            await setUserTier(existing[0].userId, "free");
+          }
         }
         break;
       }

@@ -149,13 +149,16 @@ export async function POST(request: Request) {
       },
     });
 
-    // Persist Stripe customer + subscription IDs immediately so portal works right away
+    // Persist Stripe customer + subscription IDs immediately so portal works right away.
+    // IMPORTANT: Always save as "incomplete" here. The user has NOT confirmed payment yet.
+    // The webhook (customer.subscription.updated / setup_intent.succeeded) will update
+    // the status to "trialing" or "active" once the payment method is collected.
     if (existingSubs.length > 0) {
       await db.update(schema.subscriptions)
         .set({
           stripeCustomerId: customerId,
           stripeSubscriptionId: subscription.id,
-          status: subscription.status,
+          status: "incomplete",
           updatedAt: new Date(),
         })
         .where(eq(schema.subscriptions.userId, userId));
@@ -165,7 +168,7 @@ export async function POST(request: Request) {
         tierId,
         stripeCustomerId: customerId,
         stripeSubscriptionId: subscription.id,
-        status: subscription.status,
+        status: "incomplete",
         createdAt: new Date(),
         updatedAt: new Date(),
       });

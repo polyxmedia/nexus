@@ -3931,6 +3931,99 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* Throttle Modal */}
+          {throttleModal && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setThrottleModal(null)}>
+              <div
+                className="bg-navy-900 border border-navy-700 rounded-lg w-full max-w-md overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700">
+                  <div className="flex items-center gap-2">
+                    <Timer className="h-3.5 w-3.5 text-accent-amber" />
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-navy-200">Throttle User</span>
+                  </div>
+                  <button onClick={() => setThrottleModal(null)} className="text-navy-500 hover:text-navy-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-4">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded bg-navy-800/40 border border-navy-700/30">
+                    <User className="h-3 w-3 text-navy-500" />
+                    <span className="text-sm font-mono text-navy-200">{throttleModal}</span>
+                  </div>
+
+                  <p className="text-[10px] font-mono text-navy-500">
+                    Set custom rate limits for this user. Leave blank to use tier defaults.
+                  </p>
+
+                  {/* Chat messages per day */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Chat messages / day</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={throttleForm.chatMessagesPerDay ?? ""}
+                      onChange={(e) => setThrottleForm({ ...throttleForm, chatMessagesPerDay: e.target.value ? parseInt(e.target.value) : null })}
+                      placeholder="Tier default"
+                      className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                    />
+                  </div>
+
+                  {/* Predictions per hour */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Prediction requests / hour</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={throttleForm.predictionsPerHour ?? ""}
+                      onChange={(e) => setThrottleForm({ ...throttleForm, predictionsPerHour: e.target.value ? parseInt(e.target.value) : null })}
+                      placeholder="Default (5)"
+                      className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                    />
+                  </div>
+
+                  {/* API calls per minute */}
+                  <div>
+                    <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">API calls / minute</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={throttleForm.apiCallsPerMinute ?? ""}
+                      onChange={(e) => setThrottleForm({ ...throttleForm, apiCallsPerMinute: e.target.value ? parseInt(e.target.value) : null })}
+                      placeholder="Default (60)"
+                      className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between px-5 py-3 border-t border-navy-700">
+                  <button
+                    onClick={clearThrottle}
+                    disabled={throttleSaving}
+                    className="text-[10px] font-mono text-navy-500 hover:text-accent-rose transition-colors"
+                  >
+                    Remove throttle
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setThrottleModal(null)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={saveThrottle} disabled={throttleSaving}>
+                      {throttleSaving ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Save className="h-3 w-3 mr-1" />
+                      )}
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Edit User Modal */}
           {editModal && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setEditModal(null)}>

@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { eq, like } from "drizzle-orm";
 import { validateOrigin } from "@/lib/security/csrf";
 import { rateLimit } from "@/lib/rate-limit";
+import { invalidateThrottleCache } from "@/lib/auth/user-throttle";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -49,6 +50,7 @@ export async function GET() {
         email: data.email || null,
         blocked: data.blocked || false,
         blockedAt: data.blockedAt || null,
+        throttle: data.throttle || null,
       };
     });
 
@@ -306,6 +308,32 @@ export async function POST(request: Request) {
       await db.delete(schema.subscriptions).where(eq(schema.subscriptions.userId, username));
 
       return NextResponse.json({ success: true, deleted: true });
+    }
+
+    // Set throttle limits for a user
+    if (action === "set_throttle") {
+      const { throttle } = body;
+      if (throttle === null) {
+        delete userData.throttle;
+      } else {
+        userData.throttle = {
+          chatMessagesPerDay: throttle.chatMessagesPerDay ?? null,
+          predictionsPerHour: throttle.predictionsPerHour ?? null,
+          apiCallsPerMinute: throttle.apiCallsPerMinute ?? null,
+        };
+        // Remove nulls to keep the record clean
+        if (!userData.throttle.chatMessagesPerDay && !userData.throttle.predictionsPerHour && !userData.throttle.apiCallsPerMinute) {
+          delete userData.throttle;
+        }
+      }
+
+      await db
+        .update(schema.settings)
+        .set({ value: JSON.stringify(userData) })
+        .where(eq(schema.settings.key, `user:${username}`));
+
+      invalidateThrottleCache(username);
+      return NextResponse.json({ success: true });
     }
 
     // Edit user fields (email, role, tier)

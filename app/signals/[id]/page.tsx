@@ -320,7 +320,7 @@ export default function SignalDetailPage() {
       </BriefingCard>
 
       {/* Layer Details */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {signal.celestialType && (
           <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -510,7 +510,7 @@ export default function SignalDetailPage() {
                 </p>
 
                 {/* Confidence comparison */}
-                <div className="flex items-center gap-4 py-2 px-3 bg-navy-900/50 rounded">
+                <div className="flex flex-wrap items-center gap-4 py-2 px-3 bg-navy-900/50 rounded">
                   <div>
                     <span className="text-[9px] font-mono text-navy-500 uppercase tracking-wider block">
                       Analyst
@@ -528,7 +528,7 @@ export default function SignalDetailPage() {
                       {(redTeam.suggestedConfidence * 100).toFixed(0)}%
                     </span>
                   </div>
-                  <span className="text-[10px] text-navy-400 ml-auto max-w-[50%]">
+                  <span className="text-[10px] text-navy-400 sm:ml-auto sm:max-w-[50%]">
                     {redTeam.confidenceReason}
                   </span>
                 </div>

@@ -4,6 +4,7 @@ import { requireTier } from "@/lib/auth/require-tier";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { rateLimit } from "@/lib/rate-limit";
+import { getUserThrottle } from "@/lib/auth/user-throttle";
 import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(req: NextRequest) {
@@ -16,11 +17,13 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const username = session?.user?.name || "anonymous";
 
-  // Rate limit: 5 requests per hour per user (each triggers 2 LLM calls)
-  const rl = await rateLimit(`prediction-request:${username}`, 5, 60 * 60 * 1000);
+  // Check for admin-set throttle override, then default
+  const userThrottle = await getUserThrottle(username);
+  const predLimit = userThrottle?.predictionsPerHour ?? 5;
+  const rl = await rateLimit(`prediction-request:${username}`, predLimit, 60 * 60 * 1000);
   if (!rl.allowed) {
     return NextResponse.json(
-      { error: "Prediction request limit reached (5/hour). Try again later." },
+      { error: `Prediction request limit reached (${predLimit}/hour). Try again later.` },
       { status: 429 }
     );
   }

@@ -352,7 +352,7 @@ export default function SignalsPage() {
         </div>
 
         {/* Category filter */}
-        <div className="flex items-center gap-1 rounded border border-navy-700/40 overflow-hidden">
+        <div className="flex items-center gap-1 rounded border border-navy-700/40 overflow-x-auto max-w-full">
           <button
             onClick={() => setFilterCategory(null)}
             className={`px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider transition-colors ${
@@ -365,7 +365,7 @@ export default function SignalsPage() {
             <button
               key={c.name}
               onClick={() => setFilterCategory(filterCategory === c.name ? null : c.name)}
-              className={`px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider transition-colors ${
+              className={`px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider whitespace-nowrap transition-colors ${
                 i > 0 || !filterCategory ? "border-l border-navy-700/40" : ""
               } ${filterCategory === c.name ? "bg-navy-800/60 text-navy-100" : "text-navy-500 hover:text-navy-300"}`}
             >
@@ -375,7 +375,7 @@ export default function SignalsPage() {
         </div>
 
         {/* Status filter */}
-        <div className="flex items-center gap-1 rounded border border-navy-700/40 overflow-hidden">
+        <div className="flex items-center gap-1 rounded border border-navy-700/40 overflow-x-auto max-w-full">
           {[null, "upcoming", "active", "passed"].map((s, i) => (
             <button
               key={s ?? "all"}
@@ -479,7 +479,7 @@ export default function SignalsPage() {
                       </p>
                     )}
 
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <span className="text-[10px] font-mono text-navy-500">{formatDate(signal.date)}</span>
                       <div className="flex items-center gap-1">
                         <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600">INT</span>
