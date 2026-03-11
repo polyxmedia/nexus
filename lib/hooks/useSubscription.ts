@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, createContext, useContext, useRef } from "react";
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import React from "react";
+import { useSession } from "next-auth/react";
 
 interface TierLimits {
   chatMessages: number;
@@ -52,13 +53,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [isAdmin, setIsAdmin] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
-  const fetchedRef = useRef(false);
+  const { status: authStatus } = useSession();
 
   const fetchSubscription = useCallback(async () => {
     try {
+      setLoading(true);
       const r = await fetch("/api/subscription");
       if (r.status === 401) {
         setTier(null);
+        setTierName(null);
+        setLimits(null);
+        setIsAdmin(false);
+        setStatus(null);
+        setCurrentPeriodEnd(null);
         setLoading(false);
         return;
       }
@@ -66,39 +73,53 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       const data = await r.json();
       if (!data) return;
 
-      if (data.isAdmin) {
-        setIsAdmin(true);
-        setTier("institution");
-        setTierName("Institution");
-      }
-      if (data.subscription) {
-        setStatus(data.subscription.status || null);
-        setCurrentPeriodEnd(data.subscription.currentPeriodEnd || null);
-      }
+      setIsAdmin(Boolean(data.isAdmin));
+      setStatus(data.subscription?.status || null);
+      setCurrentPeriodEnd(data.subscription?.currentPeriodEnd || null);
+
       if (data.tier) {
-        setTierName(data.tier.name);
+        setTierName(data.tier.name || null);
         setTier(data.tier.name?.toLowerCase() || "free");
         try {
           setLimits(JSON.parse(data.tier.limits));
         } catch {
-          // no limits
+          setLimits(null);
         }
-      } else if (!data.isAdmin) {
+      } else if (data.isAdmin) {
+        setTier("institution");
+        setTierName("Institution");
+        setLimits(null);
+      } else {
         setTier("free");
+        setTierName(null);
+        setLimits(null);
       }
       setLoading(false);
     } catch {
       setTier("free");
+      setTierName(null);
+      setLimits(null);
+      setIsAdmin(false);
+      setStatus(null);
+      setCurrentPeriodEnd(null);
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!fetchedRef.current) {
-      fetchedRef.current = true;
+    if (authStatus === "authenticated") {
       fetchSubscription();
     }
-  }, [fetchSubscription]);
+    if (authStatus === "unauthenticated") {
+      setTier(null);
+      setTierName(null);
+      setLimits(null);
+      setIsAdmin(false);
+      setStatus(null);
+      setCurrentPeriodEnd(null);
+      setLoading(false);
+    }
+  }, [authStatus, fetchSubscription]);
 
   const canAccess = useCallback(
     (feature: keyof TierLimits): boolean => {

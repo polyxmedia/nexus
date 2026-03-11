@@ -16,13 +16,19 @@ export async function POST(req: NextRequest) {
     const { action } = await req.json();
 
     if (action === "start") {
-      startScheduler();
+      await startScheduler();
       return NextResponse.json({ status: "started", jobs: getJobStatus() });
     }
 
     if (action === "stop") {
       stopScheduler();
       return NextResponse.json({ status: "stopped" });
+    }
+
+    if (action === "restart") {
+      stopScheduler();
+      await startScheduler();
+      return NextResponse.json({ status: "restarted", jobs: getJobStatus() });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

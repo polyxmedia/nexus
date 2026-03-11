@@ -2,27 +2,46 @@
 // Uses simple interval-based scheduling (no cron dependency needed at runtime)
 
 import * as Sentry from "@sentry/nextjs";
+import { db, schema } from "@/lib/db";
+import { eq, like } from "drizzle-orm";
 
 /** Number of consecutive failures before escalating to Sentry */
 const FAILURE_ALERT_THRESHOLD = 3;
 
 type JobFn = () => Promise<void>;
 
+interface JobOptions {
+  ai?: boolean;
+}
+
 interface ScheduledJob {
   name: string;
   intervalMs: number;
+  defaultIntervalMs: number;
   fn: JobFn;
   timer?: ReturnType<typeof setInterval>;
   lastRun?: Date;
   running: boolean;
   errors: number;
+  ai?: boolean;
 }
 
 const jobs = new Map<string, ScheduledJob>();
 let started = false;
+let aiEnabledFlag = true;
+const INTERVAL_SETTING_PREFIX = "scheduler:interval:";
+const AI_ENABLED_SETTING_KEY = "scheduler:ai_enabled";
 
-export function registerJob(name: string, intervalMs: number, fn: JobFn) {
-  jobs.set(name, { name, intervalMs, fn, running: false, errors: 0 });
+export function registerJob(name: string, intervalMs: number, fn: JobFn, options?: JobOptions) {
+  jobs.set(name, {
+    name,
+    intervalMs,
+    defaultIntervalMs: intervalMs,
+    fn,
+    running: false,
+    errors: 0,
+    ai: options?.ai,
+  });
 }
 
 async function runJob(job: ScheduledJob) {
@@ -56,15 +75,15 @@ async function runJob(job: ScheduledJob) {
   }
 }
 
-export function startScheduler() {
+export async function startScheduler() {
   if (started) return;
   started = true;
+  await applySchedulerOverrides();
   console.log(`[scheduler] Starting ${jobs.size} jobs (AI ${aiEnabled() ? "ENABLED" : "DISABLED"})`);
 
   for (const job of jobs.values()) {
-    // Run immediately on start
+    if (job.intervalMs <= 0) continue;
     runJob(job);
-    // Then schedule at interval
     job.timer = setInterval(() => runJob(job), job.intervalMs);
   }
 }
@@ -72,6 +91,7 @@ export function startScheduler() {
 export function stopScheduler() {
   for (const job of jobs.values()) {
     if (job.timer) clearInterval(job.timer);
+    job.timer = undefined;
   }
   started = false;
 }
@@ -80,18 +100,59 @@ export function getJobStatus() {
   return Array.from(jobs.values()).map((j) => ({
     name: j.name,
     intervalMs: j.intervalMs,
+    defaultIntervalMs: j.defaultIntervalMs,
     lastRun: j.lastRun?.toISOString() || null,
     running: j.running,
     errors: j.errors,
+    ai: j.ai || false,
+    enabled: j.intervalMs > 0,
   }));
 }
 
 // AI kill switch: set SCHEDULER_AI_ENABLED=false to disable all AI-consuming jobs
 // This saves ~$1-2/day in API costs while keeping data collection running
 function aiEnabled(): boolean {
+  return aiEnabledFlag;
+}
+
+function envAiEnabled(): boolean {
   const val = process.env.SCHEDULER_AI_ENABLED;
-  if (val === undefined || val === null) return true; // default: on
+  if (val === undefined || val === null) return true;
   return val === "true" || val === "1";
+}
+
+async function applySchedulerOverrides() {
+  let aiOverride: boolean | undefined;
+  const intervalOverrides = new Map<string, number>();
+
+  try {
+    const aiRows = await db.select().from(schema.settings).where(eq(schema.settings.key, AI_ENABLED_SETTING_KEY));
+    if (aiRows[0]?.value) {
+      const value = aiRows[0].value.toLowerCase();
+      aiOverride = value === "true" || value === "1" || value === "yes";
+    }
+
+    const rows = await db.select().from(schema.settings).where(like(schema.settings.key, `${INTERVAL_SETTING_PREFIX}%`));
+    for (const row of rows) {
+      const jobName = row.key.slice(INTERVAL_SETTING_PREFIX.length);
+      const minutes = Number(row.value);
+      if (!Number.isFinite(minutes)) continue;
+      intervalOverrides.set(jobName, minutes);
+    }
+  } catch (err) {
+    console.warn("[scheduler] Failed to load scheduler overrides:", err);
+  }
+
+  aiEnabledFlag = aiOverride ?? envAiEnabled();
+
+  for (const job of jobs.values()) {
+    const overrideMinutes = intervalOverrides.get(job.name);
+    if (overrideMinutes !== undefined) {
+      job.intervalMs = Math.max(0, overrideMinutes) * 60_000;
+    } else {
+      job.intervalMs = job.defaultIntervalMs;
+    }
+  }
 }
 
 // ── Default Jobs ──
@@ -127,14 +188,14 @@ registerJob("monitor-sweep", 5 * 60_000, async () => {
   // Master monitoring sweep every 5 minutes: alerts + prediction resolution
   const res = await internalFetch(`${getBaseUrl()}/api/scheduler/monitor`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Monitor sweep failed: ${res.status}`);
-});
+}, { ai: true });
 
 registerJob("intelligence-cycle", 15 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
   // Three-brain intelligence cycle: Sentinel -> Analyst -> Executor
   const res = await internalFetch(`${getBaseUrl()}/api/agents/cycle`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Intelligence cycle failed: ${res.status}`);
-});
+}, { ai: true });
 
 registerJob("prediction-fast-resolve", 30 * 60_000, async () => {
   // Fast data-driven resolution every 30 min (no AI, just market data)
@@ -147,7 +208,7 @@ registerJob("prediction-cycle", 3 * 60 * 60_000, async () => {
   // AI resolve complex predictions + generate new ones every 3 hours
   const res = await internalFetch(`${getBaseUrl()}/api/predictions/daily`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Prediction cycle failed: ${res.status}`);
-});
+}, { ai: true });
 
 registerJob("knowledge-live-ingest", 30 * 60_000, async () => {
   // Refresh live knowledge base with real-time geopolitical intelligence every 30 minutes
@@ -204,7 +265,7 @@ registerJob("actor-profile-update", 6 * 60 * 60_000, async () => {
   // Update actor profiles from GDELT/news every 6 hours
   const res = await internalFetch(`${getBaseUrl()}/api/actors/update`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Actor profile update failed: ${res.status}`);
-});
+}, { ai: true });
 
 registerJob("ig-token-refresh", 45 * 60_000, async () => {
   // IG OAuth tokens expire after 60s, but refresh tokens last longer.
@@ -274,14 +335,14 @@ registerJob("twitter-analyst", 4 * 60 * 60_000, async () => {
   // Generate and post analyst commentary tweet every 4 hours
   const res = await internalFetch(`${getBaseUrl()}/api/twitter/analyst`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Twitter analyst tweet failed: ${res.status}`);
-});
+}, { ai: true });
 
 registerJob("twitter-replies", 2 * 60 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
   // Find relevant threads and reply with analytical value every 2 hours
   const res = await internalFetch(`${getBaseUrl()}/api/twitter/replies`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Twitter replies failed: ${res.status}`);
-});
+}, { ai: true });
 
 registerJob("news-sync", 10 * 60_000, async () => {
   // Fetch news from RSS/GDELT/NewsData and cache in DB every 10 minutes
