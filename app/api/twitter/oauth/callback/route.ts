@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL("/admin?twitter=error#integrations", req.url));
+    console.error("[twitter] OAuth callback missing code or state");
+    return NextResponse.redirect(new URL("/admin?twitter=error&reason=missing_params#integrations", req.url));
   }
 
   // Validate CSRF state
@@ -28,7 +29,8 @@ export async function GET(req: NextRequest) {
     .where(eq(schema.settings.key, "twitter_oauth_state"));
 
   if (stateRows.length === 0) {
-    return NextResponse.redirect(new URL("/admin?twitter=error#integrations", req.url));
+    console.error("[twitter] OAuth state not found in DB (expired or already used)");
+    return NextResponse.redirect(new URL("/admin?twitter=error&reason=state_missing#integrations", req.url));
   }
 
   // Invalidate state immediately to prevent replay
@@ -46,13 +48,20 @@ export async function GET(req: NextRequest) {
     const stateMatch = storedBuf.length === receivedBuf.length &&
       crypto.timingSafeEqual(storedBuf, receivedBuf);
 
-    if (!stateMatch || Date.now() - stored.createdAt > 10 * 60 * 1000) {
-      return NextResponse.redirect(new URL("/admin?twitter=error#integrations", req.url));
+    if (!stateMatch) {
+      console.error("[twitter] OAuth state mismatch");
+      return NextResponse.redirect(new URL("/admin?twitter=error&reason=state_mismatch#integrations", req.url));
+    }
+
+    if (Date.now() - stored.createdAt > 10 * 60 * 1000) {
+      console.error("[twitter] OAuth state expired");
+      return NextResponse.redirect(new URL("/admin?twitter=error&reason=state_expired#integrations", req.url));
     }
 
     codeVerifier = stored.codeVerifier;
-  } catch {
-    return NextResponse.redirect(new URL("/admin?twitter=error#integrations", req.url));
+  } catch (err) {
+    console.error("[twitter] OAuth state validation failed:", err);
+    return NextResponse.redirect(new URL("/admin?twitter=error&reason=state_invalid#integrations", req.url));
   }
 
   // Exchange code for tokens
@@ -77,7 +86,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.redirect(new URL("/admin?twitter=connected#integrations", req.url));
   } catch (err) {
-    console.error("[twitter] OAuth token exchange failed:", err);
-    return NextResponse.redirect(new URL("/admin?twitter=error#integrations", req.url));
+    console.error("[twitter] OAuth token exchange or storage failed:", err);
+    return NextResponse.redirect(new URL("/admin?twitter=error&reason=token_exchange#integrations", req.url));
   }
 }

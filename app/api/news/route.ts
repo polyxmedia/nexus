@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCachedNews } from "@/lib/news/sync";
 
+export const maxDuration = 30;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

@@ -35,6 +35,16 @@ export async function GET() {
     }
 
     const sub = subs[0];
+
+    // Only return tier data for subscriptions with confirmed payment.
+    // "incomplete" means the user started checkout but hasn't entered payment details yet.
+    const activeStatuses = ["active", "trialing", "past_due"];
+    const isActiveSub = activeStatuses.includes(sub.status || "");
+
+    if (!isActiveSub) {
+      return NextResponse.json({ subscription: sub, tier: null, isAdmin });
+    }
+
     const tiers = await db
       .select()
       .from(schema.subscriptionTiers)

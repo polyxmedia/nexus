@@ -63,7 +63,8 @@ export async function syncNewsToDb(): Promise<{ inserted: number; pruned: number
 }
 
 /**
- * Read cached news from DB. Instant response, no external fetches.
+ * Read cached news from DB. Falls back to live RSS fetch if DB is empty
+ * (e.g. scheduler hasn't run yet on serverless deploys).
  */
 export async function getCachedNews(
   category?: string,
@@ -95,14 +96,34 @@ export async function getCachedNews(
 
   const rows = await query;
 
-  return rows.map((r) => ({
-    title: r.title,
-    url: r.url,
-    source: r.source,
-    category: r.category,
-    description: r.description,
-    imageUrl: r.imageUrl,
-    bias: r.bias,
-    date: r.publishedAt,
+  if (rows.length > 0) {
+    return rows.map((r) => ({
+      title: r.title,
+      url: r.url,
+      source: r.source,
+      category: r.category,
+      description: r.description,
+      imageUrl: r.imageUrl,
+      bias: r.bias,
+      date: r.publishedAt,
+    }));
+  }
+
+  // DB empty - fall back to live fetch and backfill DB in background
+  const { getNewsFeed } = await import("./feeds");
+  const articles = await getNewsFeed(category, limit);
+
+  // Backfill DB (fire and forget, don't block response)
+  syncNewsToDb().catch(() => {});
+
+  return articles.map((a) => ({
+    title: a.title,
+    url: a.url,
+    source: a.source,
+    category: a.category,
+    description: a.description || null,
+    imageUrl: a.imageUrl || null,
+    bias: a.bias || null,
+    date: a.date,
   }));
 }

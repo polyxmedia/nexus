@@ -2661,7 +2661,7 @@ function AnalyticsPanel({
         </div>
         <div className="flex items-end gap-[2px] h-36">
           {analytics.dailyViews.map((day) => (
-            <div key={day.date} className="flex-1 group relative">
+            <div key={day.date} className="flex-1 h-full group relative flex items-end">
               <div
                 className="w-full bg-accent-cyan/30 hover:bg-accent-cyan/50 transition-colors rounded-t-sm"
                 style={{ height: `${(day.views / maxDailyViews) * 100}%`, minHeight: day.views > 0 ? 2 : 0 }}

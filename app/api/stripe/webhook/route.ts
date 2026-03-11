@@ -247,6 +247,57 @@ export async function POST(request: Request) {
         break;
       }
 
+      case "setup_intent.succeeded": {
+        // User completed payment method collection (e.g. card for trial subscription).
+        // Now activate their tier since we know they have a valid payment method.
+        const setupIntent = event.data.object as Stripe.SetupIntent;
+        const siCustomerId = setupIntent.customer as string;
+
+        if (siCustomerId) {
+          const siSubs = await db
+            .select()
+            .from(schema.subscriptions)
+            .where(eq(schema.subscriptions.stripeCustomerId, siCustomerId));
+
+          if (siSubs.length > 0 && (siSubs[0].status === "incomplete" || siSubs[0].status === "trialing")) {
+            const tierName = await getTierNameById(siSubs[0].tierId);
+            if (tierName) {
+              await setUserTier(siSubs[0].userId, tierName.toLowerCase());
+            }
+
+            // Update status to trialing if still incomplete
+            if (siSubs[0].status === "incomplete") {
+              await db
+                .update(schema.subscriptions)
+                .set({ status: "trialing", updatedAt: new Date().toISOString() })
+                .where(eq(schema.subscriptions.stripeCustomerId, siCustomerId));
+            }
+
+            // Send subscription confirmation email
+            const siEmail = await getUserEmail(siSubs[0].userId);
+            if (siEmail && tierName) {
+              const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
+              const template = subscriptionActiveEmail(
+                siSubs[0].userId.replace("user:", ""),
+                tierName,
+                `${baseUrl}/dashboard`
+              );
+              sendEmail({ to: siEmail, ...template }).catch((err) =>
+                console.error("Setup intent activation email failed:", err)
+              );
+            }
+
+            if (tierName) {
+              notifyAdmin(adminNewSubscriptionEmail(
+                siSubs[0].userId.replace("user:", ""),
+                tierName
+              )).catch(() => {});
+            }
+          }
+        }
+        break;
+      }
+
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
@@ -385,10 +436,15 @@ export async function POST(request: Request) {
           const subAny = sub as any;
           const previousStatus = existing[0].status;
 
+          // Don't transition from "incomplete" to "trialing" in our DB.
+          // With trial_period_days, Stripe sets "trialing" immediately before the
+          // user enters payment details. We keep "incomplete" until setup_intent.succeeded.
+          const skipStatusSync = previousStatus === "incomplete" && sub.status === "trialing";
+
           await db
             .update(schema.subscriptions)
             .set({
-              status: sub.status,
+              status: skipStatusSync ? "incomplete" : sub.status,
               currentPeriodStart: new Date((subAny.current_period_start || 0) * 1000).toISOString(),
               currentPeriodEnd: new Date((subAny.current_period_end || 0) * 1000).toISOString(),
               cancelAtPeriodEnd: sub.cancel_at_period_end ? 1 : 0,
@@ -396,11 +452,15 @@ export async function POST(request: Request) {
             })
             .where(eq(schema.subscriptions.stripeCustomerId, customerId));
 
-          // When subscription transitions from incomplete to active/trialing,
-          // the user has confirmed payment -- activate their tier now
+          // When subscription transitions from incomplete to active,
+          // the user has confirmed payment -- activate their tier now.
+          // NOTE: Do NOT activate on incomplete → trialing. With trial_period_days,
+          // Stripe sets status to "trialing" immediately before the user enters
+          // payment details. The setup_intent.succeeded handler below activates
+          // the tier once the user actually submits their card.
           if (
             (previousStatus === "incomplete" || previousStatus === "past_due") &&
-            (sub.status === "active" || sub.status === "trialing")
+            sub.status === "active"
           ) {
             const tierName = await getTierNameById(existing[0].tierId);
             if (tierName) {

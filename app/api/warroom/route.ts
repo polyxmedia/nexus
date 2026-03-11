@@ -16,38 +16,69 @@ import {
 import type { WarRoomData, ActorWithGeo, ScenarioWithAnalysis, WarRoomSignal, WarRoomThesis, GlobalMetrics } from "@/lib/warroom/types";
 import { requireTier } from "@/lib/auth/require-tier";
 
+// Cache scenario analysis (pure computation, no DB dependency)
+// Recompute every 5 minutes
+let cachedScenarios: ScenarioWithAnalysis[] | null = null;
+let scenarioCacheTime = 0;
+const SCENARIO_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getScenarioAnalysis(): ScenarioWithAnalysis[] {
+  const now = Date.now();
+  if (cachedScenarios && now - scenarioCacheTime < SCENARIO_CACHE_TTL) {
+    return cachedScenarios;
+  }
+
+  cachedScenarios = SCENARIOS.map((scenario) => {
+    const analysis = analyzeScenario(scenario);
+    let bayesian: ScenarioWithAnalysis["bayesian"];
+    try {
+      const bs = toBayesianScenario(scenario);
+      const beliefs = initializeBeliefs(scenario.actors);
+      bayesian = summarizeBayesianAnalysis(runBayesianAnalysis(bs, beliefs));
+    } catch {
+      // Bayesian analysis failure is non-fatal
+    }
+    return { scenario, analysis, bayesian };
+  });
+  scenarioCacheTime = now;
+  return cachedScenarios;
+}
+
+// Cache actors (static data, compute once)
+let cachedActors: ActorWithGeo[] | null = null;
+
+function getActors(): ActorWithGeo[] {
+  if (cachedActors) return cachedActors;
+  cachedActors = ACTORS.map((actor) => ({
+    ...actor,
+    coords: ACTOR_COORDS[actor.id] || { lat: 0, lng: 0 },
+    color: ACTOR_COLORS[actor.id]?.color || "#94a3b8",
+    colorGroup: ACTOR_COLORS[actor.id]?.group || "neutral",
+  }));
+  return cachedActors;
+}
+
 export async function GET() {
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {
-    // Actors with geo data
-    const actors: ActorWithGeo[] = ACTORS.map((actor) => ({
-      ...actor,
-      coords: ACTOR_COORDS[actor.id] || { lat: 0, lng: 0 },
-      color: ACTOR_COLORS[actor.id]?.color || "#94a3b8",
-      colorGroup: ACTOR_COLORS[actor.id]?.group || "neutral",
-    }));
+    const actors = getActors();
+    const scenarios = getScenarioAnalysis();
 
-    // Scenarios with live analysis (basic + Bayesian)
-    const scenarios: ScenarioWithAnalysis[] = SCENARIOS.map((scenario) => {
-      const analysis = analyzeScenario(scenario);
-      let bayesian: ScenarioWithAnalysis["bayesian"];
-      try {
-        const bs = toBayesianScenario(scenario);
-        const beliefs = initializeBeliefs(scenario.actors);
-        bayesian = summarizeBayesianAnalysis(runBayesianAnalysis(bs, beliefs));
-      } catch {
-        // Bayesian analysis failure is non-fatal
-      }
-      return { scenario, analysis, bayesian };
-    });
-
-    // Signals from DB (recent, sorted by intensity)
-    const dbSignals = await db
-      .select()
-      .from(signalsTable)
-      .orderBy(desc(signalsTable.intensity))
-      .limit(50);
+    // DB queries in parallel
+    const [dbSignals, activeTheses] = await Promise.all([
+      db
+        .select()
+        .from(signalsTable)
+        .orderBy(desc(signalsTable.intensity))
+        .limit(50),
+      db
+        .select()
+        .from(theses)
+        .where(eq(theses.status, "active"))
+        .orderBy(desc(theses.generatedAt))
+        .limit(1),
+    ]);
 
     const warRoomSignals: WarRoomSignal[] = dbSignals.map((s) => ({
       id: s.id,
@@ -60,15 +91,7 @@ export async function GET() {
       marketSectors: s.marketSectors ? JSON.parse(s.marketSectors) : [],
     }));
 
-    // Active thesis
     let thesis: WarRoomThesis | null = null;
-    const activeTheses = await db
-      .select()
-      .from(theses)
-      .where(eq(theses.status, "active"))
-      .orderBy(desc(theses.generatedAt))
-      .limit(1);
-
     if (activeTheses.length > 0) {
       const t = activeTheses[0];
       thesis = {
@@ -83,10 +106,8 @@ export async function GET() {
       };
     }
 
-    // Alliance links
     const allianceLinks = getAllianceLinks();
 
-    // Global metrics
     const maxEscalation = scenarios.reduce((max, s) => {
       const ladder = s.analysis.escalationLadder;
       const scenarioMax = ladder.length > 0 ? Math.max(...ladder.map((l) => l.level)) : 0;

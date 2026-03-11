@@ -4,6 +4,10 @@
     {
       "path": "/api/gpr/ingest",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/news/sync",
+      "schedule": "*/10 * * * *"
     }
   ],
   "functions": {
@@ -36,6 +40,12 @@
     },
     "app/api/predictions/[id]/resolve/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/news/sync/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/news/route.ts": {
+      "maxDuration": 30
     }
   }
 }

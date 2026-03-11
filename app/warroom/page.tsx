@@ -94,6 +94,7 @@ function BootSequence() {
 export default function WarRoomPage() {
   const [data, setData] = useState<WarRoomData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedActorId, setSelectedActorId] = useState<string | null>(null);
   const [hoveredActorId, setHoveredActorId] = useState<string | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
@@ -149,6 +150,7 @@ export default function WarRoomPage() {
       })
       .catch((err) => {
         console.error("War room fetch error:", err);
+        setError(err.message || "Failed to load war room data");
         setLoading(false);
       });
   }, []);
@@ -249,7 +251,7 @@ export default function WarRoomPage() {
     setWatchlist((prev) => prev.filter((w) => w.id !== id));
   }, []);
 
-  if (loading || !data) {
+  if (loading || (!data && !error)) {
     return (
       <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
         <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
@@ -342,6 +344,48 @@ export default function WarRoomPage() {
             to { transform: rotate(-360deg); }
           }
         `}</style>
+        </UpgradeGate>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
+        <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-2 h-2 rounded-full bg-accent-rose" />
+            <span className="text-[10px] text-accent-rose/80 uppercase tracking-[0.3em] font-mono">
+              Connection Failed
+            </span>
+            <span className="text-[10px] text-navy-500 font-mono max-w-xs text-center">
+              {error || "Unable to establish secure channel"}
+            </span>
+            <button
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+                fetch("/api/warroom")
+                  .then((r) => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                  })
+                  .then((d) => {
+                    setData(d);
+                    setLoading(false);
+                  })
+                  .catch((err) => {
+                    setError(err.message || "Failed to load war room data");
+                    setLoading(false);
+                  });
+              }}
+              className="mt-2 px-4 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-cyan border border-accent-cyan/30 hover:bg-accent-cyan/10 transition-colors"
+            >
+              Retry Connection
+            </button>
+          </div>
+        </div>
         </UpgradeGate>
       </div>
     );
