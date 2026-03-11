@@ -42,17 +42,29 @@ const SYMBOL_MAP: Record<string, string> = {
   SHIB: "SHIB-USD",
   BNB: "BNB-USD",
   "EUR/USD": "EURUSD=X",
+  EURUSD: "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
+  GBPUSD: "GBPUSD=X",
   "USD/JPY": "USDJPY=X",
+  USDJPY: "USDJPY=X",
   "USD/CHF": "USDCHF=X",
+  USDCHF: "USDCHF=X",
   "AUD/USD": "AUDUSD=X",
+  AUDUSD: "AUDUSD=X",
   "USD/CAD": "USDCAD=X",
+  USDCAD: "USDCAD=X",
   "NZD/USD": "NZDUSD=X",
+  NZDUSD: "NZDUSD=X",
   "EUR/GBP": "EURGBP=X",
+  EURGBP: "EURGBP=X",
   "EUR/JPY": "EURJPY=X",
+  EURJPY: "EURJPY=X",
   "GBP/JPY": "GBPJPY=X",
+  GBPJPY: "GBPJPY=X",
   "EUR/CHF": "EURCHF=X",
+  EURCHF: "EURCHF=X",
   "AUD/JPY": "AUDJPY=X",
+  AUDJPY: "AUDJPY=X",
 };
 
 function resolveSymbol(symbol: string): string {
@@ -133,7 +145,11 @@ function parseChartResult(result: any, symbol: string): BarData[] {
 
 export async function getQuoteData(symbol: string): Promise<QuoteData> {
   const ticker = resolveSymbol(symbol);
-  const result = await yf.quote(ticker) as Record<string, unknown>;
+  const result = await yf.quote(ticker) as Record<string, unknown> | undefined;
+
+  if (!result) {
+    throw new Error(`No quote data returned for ${symbol} (ticker: ${ticker})`);
+  }
 
   const marketTime = result.regularMarketTime;
   const timestamp = marketTime instanceof Date
