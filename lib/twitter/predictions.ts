@@ -48,7 +48,7 @@ function outcomeLabel(outcome: string): string {
   }
 }
 
-const FOUNDER_HANDLE = "@voidmode";
+export const FOUNDER_HANDLE = "@voidmode";
 
 /** Mention the founder roughly every 3rd tweet based on day-of-year */
 function shouldMentionFounder(): boolean {

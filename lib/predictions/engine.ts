@@ -1632,7 +1632,7 @@ INSTRUCTIONS:
 - For MARKET predictions: Compare the claim against the actual price data above. Quote the specific prices and dates.
 - For GEOPOLITICAL predictions: Check if the GDELT headlines corroborate or contradict the claim.
 - For CELESTIAL predictions: These are calendar-based and verifiable. Check if the claimed convergence occurred (the dates are deterministic).
-- If the relevant data is NOT in the evidence above, mark as "expired" and state what data would be needed.
+- If the relevant data is NOT in the evidence above, mark as "skip" with a note explaining what data is needed. Do NOT mark as expired just because data is temporarily unavailable — the prediction will be retried when data becomes available.
 
 DIRECTION vs LEVEL SCORING:
 - If a prediction has both direction AND price_target, evaluate each separately.
@@ -1646,7 +1646,7 @@ Respond ONLY with a JSON array:
 [
   {
     "id": <prediction_id>,
-    "outcome": "confirmed" | "denied" | "partial" | "expired",
+    "outcome": "confirmed" | "denied" | "partial" | "expired" | "skip",
     "score": 0.0-1.0,
     "notes": "Evidence: [cite specific data points from above]",
     "direction_correct": 1 | 0 | null,
@@ -1678,12 +1678,14 @@ Respond ONLY with a JSON array:
   }> = JSON.parse(resJsonMatch[0]);
 
   // Validate and update DB
+  // "skip" means insufficient data — leave prediction open for next resolver cycle
   const validOutcomes = ["confirmed", "denied", "partial", "expired", "post_event"];
   const updated: Array<{ id: number; outcome: string; score: number; notes: string }> = [];
 
   for (const r of results) {
     const pred = due.find((p) => p.id === r.id);
     if (!pred) continue;
+    if (r.outcome === "skip") continue; // Retry next cycle when data may be available
     if (!validOutcomes.includes(r.outcome)) continue;
 
     const score = Math.max(0, Math.min(1, r.score));

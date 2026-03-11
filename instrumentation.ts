@@ -9,10 +9,10 @@ function validateEnv() {
     "NEXTAUTH_SECRET",
     "ANTHROPIC_API_KEY",
     "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
   ];
 
   const recommended = [
+    "STRIPE_WEBHOOK_SECRET",
     "UPSTASH_REDIS_REST_URL",
     "UPSTASH_REDIS_REST_TOKEN",
     "RESEND_API_KEY",

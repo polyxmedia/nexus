@@ -13,10 +13,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
 import { desc } from "drizzle-orm";
 import { postTweet, isTwitterConfigured } from "./client";
+import { FOUNDER_HANDLE } from "./predictions";
 import { detectCurrentRegime, getLatestShifts } from "@/lib/regime/detection";
 import type { RegimeState, RegimeShift } from "@/lib/regime/detection";
-
-const FOUNDER_HANDLE = "@voidmode";
 
 const ANALYST_TWEET_PROMPT = `You are the senior analyst behind the NEXUS Intelligence Platform (@nexaboratorio on X). You tweet sharp, data-backed market and geopolitical commentary. You work for the founder ${FOUNDER_HANDLE}.
 
@@ -81,7 +80,7 @@ async function gatherContext(): Promise<AnalystContext> {
   }
 
   // Fetch prediction stats
-  const allPredictions = await db.select().from(schema.predictions).orderBy(desc(schema.predictions.id));
+  const allPredictions = await db.select().from(schema.predictions).orderBy(desc(schema.predictions.id)).limit(500);
   const resolved = allPredictions.filter((p) => p.outcome);
   const confirmed = resolved.filter((p) => p.outcome === "confirmed");
   const denied = resolved.filter((p) => p.outcome === "denied");
@@ -243,7 +242,13 @@ export async function runAnalystTweet(): Promise<string | null> {
     return null;
   }
 
-  const result = JSON.parse(jsonMatch[0]);
+  let result: { tweet: string | null };
+  try {
+    result = JSON.parse(jsonMatch[0]);
+  } catch {
+    console.error("[twitter-analyst] Failed to parse JSON from Claude response");
+    return null;
+  }
   if (!result.tweet) {
     console.log("[twitter-analyst] Claude decided nothing worth tweeting");
     return null;

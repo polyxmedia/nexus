@@ -725,8 +725,9 @@ export default function PredictionsPage() {
   );
 
   const chartTooltipStyle = {
-    contentStyle: { background: "#0a0e1a", border: "1px solid #1e293b", borderRadius: "6px", fontSize: "11px" },
-    labelStyle: { color: "#94a3b8" },
+    contentStyle: { background: "var(--color-navy-950, #0a0e1a)", border: "1px solid var(--color-navy-700, #1e293b)", borderRadius: "6px", fontSize: "11px", fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)", color: "var(--color-navy-100, #e0e0e0)" },
+    labelStyle: { color: "var(--color-navy-400, #94a3b8)", fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)", fontSize: "10px", textTransform: "uppercase" as const, letterSpacing: "0.05em" },
+    itemStyle: { color: "var(--color-navy-100, #e0e0e0)", fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)", fontSize: "11px" },
   };
 
   // Model health status

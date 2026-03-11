@@ -43,6 +43,54 @@ const GlobeView = nextDynamic(
 );
 
 
+const BOOT_LINES = [
+  "ESTABLISHING SECURE CHANNEL",
+  "LOADING GEOSPATIAL DATA",
+  "CONNECTING OSINT FEEDS",
+  "SYNCING THREAT ASSESSMENT",
+  "INITIALISING COMMON OPERATING PICTURE",
+];
+
+function BootSequence() {
+  const [lineIndex, setLineIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+
+  useEffect(() => {
+    if (lineIndex >= BOOT_LINES.length) return;
+    const line = BOOT_LINES[lineIndex];
+    if (charIndex < line.length) {
+      const t = setTimeout(() => setCharIndex((c) => c + 1), 25 + Math.random() * 30);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      setLineIndex((l) => l + 1);
+      setCharIndex(0);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [lineIndex, charIndex]);
+
+  return (
+    <div className="flex flex-col items-center gap-1 min-h-[80px]">
+      {BOOT_LINES.slice(0, lineIndex + 1).map((line, i) => {
+        const done = i < lineIndex;
+        const text = done ? line : line.slice(0, charIndex);
+        return (
+          <div key={i} className="flex items-center gap-2">
+            {done ? (
+              <span className="text-accent-emerald/70 text-[9px]">OK</span>
+            ) : (
+              <span className="w-1 h-3 bg-accent-cyan/60 animate-pulse" />
+            )}
+            <span className={`text-[9px] font-mono tracking-[0.15em] ${done ? "text-navy-600" : "text-navy-400"}`}>
+              {text}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function WarRoomPage() {
   const [data, setData] = useState<WarRoomData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -205,28 +253,95 @@ export default function WarRoomPage() {
     return (
       <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
         <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
-        <div className="h-9 border-b border-navy-700 bg-navy-900/95 flex items-center px-3 gap-0 font-mono">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="flex items-center gap-2 px-3 h-full border-r border-navy-700">
-              <Skeleton className="h-3 w-8 rounded-sm" />
-              <Skeleton className="h-3 w-6 rounded-sm" />
+        <div className="flex-1 flex items-center justify-center relative">
+          {/* Animated grid background */}
+          <div className="absolute inset-0 overflow-hidden opacity-[0.07]">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `
+                  linear-gradient(rgba(6,182,212,0.3) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(6,182,212,0.3) 1px, transparent 1px)
+                `,
+                backgroundSize: "60px 60px",
+                animation: "wr-grid-scroll 20s linear infinite",
+              }}
+            />
+          </div>
+
+          {/* Scanning rings */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="absolute rounded-full border border-accent-cyan/20"
+                style={{
+                  width: `${200 + i * 140}px`,
+                  height: `${200 + i * 140}px`,
+                  animation: `wr-ring-pulse 3s ease-out infinite ${i * 0.8}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Center content */}
+          <div className="relative z-10 flex flex-col items-center gap-6">
+            {/* Crosshair reticle */}
+            <div className="relative w-20 h-20">
+              {/* Outer rotating ring */}
+              <div
+                className="absolute inset-0 rounded-full border border-accent-cyan/40"
+                style={{ animation: "wr-rotate 8s linear infinite" }}
+              >
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-px w-2 h-1 bg-accent-cyan/60" />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-px w-2 h-1 bg-accent-cyan/60" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-px w-1 h-2 bg-accent-cyan/60" />
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-px w-1 h-2 bg-accent-cyan/60" />
+              </div>
+              {/* Inner counter-rotating ring */}
+              <div
+                className="absolute inset-3 rounded-full border border-accent-cyan/25"
+                style={{ animation: "wr-rotate-reverse 5s linear infinite" }}
+              >
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-px w-1.5 h-0.5 bg-accent-cyan/40" />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-px w-1.5 h-0.5 bg-accent-cyan/40" />
+              </div>
+              {/* Center dot */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse" />
+              </div>
             </div>
-          ))}
-          <div className="flex-1" />
-          <div className="flex items-center gap-1.5 px-3">
-            <span className="w-1 h-1 rounded-full bg-navy-600" style={{ animation: "wr-dot-pulse 1.2s infinite 0ms" }} />
-            <span className="w-1 h-1 rounded-full bg-navy-600" style={{ animation: "wr-dot-pulse 1.2s infinite 200ms" }} />
-            <span className="w-1 h-1 rounded-full bg-navy-600" style={{ animation: "wr-dot-pulse 1.2s infinite 400ms" }} />
+
+            {/* Status text */}
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-[10px] text-accent-cyan/80 uppercase tracking-[0.3em] font-mono">
+                War Room
+              </span>
+              <BootSequence />
+            </div>
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-accent-cyan animate-pulse" />
-            <span className="text-[10px] text-navy-600 uppercase tracking-[0.2em] font-mono">
-              Initializing
-            </span>
-          </div>
-        </div>
+
+        {/* CSS animations */}
+        <style jsx>{`
+          @keyframes wr-grid-scroll {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(60px, 60px); }
+          }
+          @keyframes wr-ring-pulse {
+            0% { transform: scale(0.8); opacity: 0.6; }
+            50% { opacity: 0.15; }
+            100% { transform: scale(1.4); opacity: 0; }
+          }
+          @keyframes wr-rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes wr-rotate-reverse {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(-360deg); }
+          }
+        `}</style>
         </UpgradeGate>
       </div>
     );

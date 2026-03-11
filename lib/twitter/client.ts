@@ -151,6 +151,98 @@ export async function postThread(tweets: string[]): Promise<TweetResult[]> {
 }
 
 /**
+ * Reply to a specific tweet.
+ */
+export async function replyToTweet(tweetId: string, text: string): Promise<TweetResult | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+
+  const truncated = text.length > 280 ? text.slice(0, 277) + "..." : text;
+
+  const res = await fetch("https://api.x.com/2/tweets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text: truncated,
+      reply: { in_reply_to_tweet_id: tweetId },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[twitter] Failed to reply to ${tweetId} (${res.status}): ${body}`);
+    return null;
+  }
+
+  const data = await res.json();
+  return { id: data.data.id, text: data.data.text };
+}
+
+export interface SearchedTweet {
+  id: string;
+  text: string;
+  authorId: string;
+  authorUsername: string;
+  createdAt: string;
+  metrics: {
+    likes: number;
+    retweets: number;
+    replies: number;
+  };
+}
+
+/**
+ * Search recent tweets matching a query. Returns up to maxResults tweets.
+ * Uses Twitter API v2 recent search (last 7 days).
+ */
+export async function searchTweets(query: string, maxResults: number = 10): Promise<SearchedTweet[]> {
+  const token = await getAccessToken();
+  if (!token) return [];
+
+  const params = new URLSearchParams({
+    query,
+    max_results: String(Math.min(Math.max(maxResults, 10), 100)),
+    "tweet.fields": "created_at,public_metrics,author_id",
+    expansions: "author_id",
+    "user.fields": "username",
+  });
+
+  const res = await fetch(`https://api.x.com/2/tweets/search/recent?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[twitter] Search failed (${res.status}): ${body}`);
+    return [];
+  }
+
+  const json = await res.json();
+  const tweets = json.data || [];
+  const users: Record<string, string> = {};
+  for (const u of json.includes?.users || []) {
+    users[u.id] = u.username;
+  }
+
+  return tweets.map((t: Record<string, unknown>) => ({
+    id: t.id as string,
+    text: t.text as string,
+    authorId: t.author_id as string,
+    authorUsername: users[t.author_id as string] || "unknown",
+    createdAt: t.created_at as string,
+    metrics: {
+      likes: (t.public_metrics as Record<string, number>)?.like_count || 0,
+      retweets: (t.public_metrics as Record<string, number>)?.retweet_count || 0,
+      replies: (t.public_metrics as Record<string, number>)?.reply_count || 0,
+    },
+  }));
+}
+
+/**
  * Check if Twitter is configured by looking for stored tokens.
  */
 export async function isTwitterConfigured(): Promise<boolean> {

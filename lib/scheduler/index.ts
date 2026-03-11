@@ -276,6 +276,13 @@ registerJob("twitter-analyst", 4 * 60 * 60_000, async () => {
   if (!res.ok) throw new Error(`Twitter analyst tweet failed: ${res.status}`);
 });
 
+registerJob("twitter-replies", 2 * 60 * 60_000, async () => {
+  if (!aiEnabled()) return; // AI kill switch
+  // Find relevant threads and reply with analytical value every 2 hours
+  const res = await internalFetch(`${getBaseUrl()}/api/twitter/replies`, { method: "POST", headers: internalHeaders() });
+  if (!res.ok) throw new Error(`Twitter replies failed: ${res.status}`);
+});
+
 registerJob("news-sync", 10 * 60_000, async () => {
   // Fetch news from RSS/GDELT/NewsData and cache in DB every 10 minutes
   const { syncNewsToDb } = await import("@/lib/news/sync");

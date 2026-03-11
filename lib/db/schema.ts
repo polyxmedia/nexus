@@ -746,6 +746,19 @@ export const newsArticles = pgTable("news_articles", {
   fetchedAt: text("fetched_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Twitter Reply Tracking ──
+
+export const twitterReplies = pgTable("twitter_replies", {
+  id: serial("id").primaryKey(),
+  tweetId: text("tweet_id").notNull().unique(), // ID of the tweet we replied to
+  authorUsername: text("author_username").notNull(),
+  originalText: text("original_text").notNull(), // the tweet we replied to
+  replyText: text("reply_text").notNull(), // what we posted
+  replyTweetId: text("reply_tweet_id"), // our reply's tweet ID
+  query: text("query"), // which search query matched this
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const gprReadings = pgTable("gpr_readings", {
   id: serial("id").primaryKey(),
   date: text("date").notNull().unique(),
