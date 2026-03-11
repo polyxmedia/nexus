@@ -339,7 +339,7 @@ export default function FAQPage() {
             </FAQItem>
             <FAQItem question="What can the AI analyst do?" index={2}>
               <p>
-                The analyst understands macro, geopolitics, and market structure. You can ask it to pull signals, run game theory scenarios, search the knowledge bank, generate predictions, analyse market data, and execute trades. It works with the platform's full data layer, so every answer is grounded in real information.
+                The analyst understands macro, geopolitics, and market structure. You can ask it to pull signals, run game theory scenarios, search the knowledge bank, generate predictions, and analyse market data. It works with the platform's full data layer, so every answer is grounded in real information.
               </p>
             </FAQItem>
             <FAQItem question="Does NEXUS use AI? How do you handle hallucinations?" index={3}>
@@ -388,7 +388,7 @@ export default function FAQPage() {
               </p>
               <p className="text-navy-300 font-mono text-[11px] mb-2 mt-4">OPERATOR ($450/month)</p>
               <p>
-                Everything in Analyst, plus portfolio tracking, broker integration, on-chain analytics, GEX data, GPR decomposition, BOCPD change-point detection, short interest, options flow, shipping and dark fleet intelligence, Monte Carlo simulation, congressional trading signals, prediction markets divergence, and API access.
+                Everything in Analyst, plus portfolio tracking, broker integration (coming soon), on-chain analytics, GEX data, GPR decomposition, BOCPD change-point detection, short interest, options flow, shipping and dark fleet intelligence, Monte Carlo simulation, congressional trading signals, prediction markets divergence, and API access.
               </p>
               <p className="text-navy-300 font-mono text-[11px] mb-2 mt-4">INSTITUTION (Custom)</p>
               <p>
@@ -438,15 +438,15 @@ export default function FAQPage() {
           </FAQSection>
 
           {/* ── Trading ── */}
-          <FAQSection title="Trading Integration" tag="Trading" icon={Zap} color="#f43f5e">
-            <FAQItem question="Which brokers does NEXUS support?" index={0} color="#f43f5e">
+          <FAQSection title="Trading & Portfolio" tag="Trading" icon={Zap} color="#f43f5e">
+            <FAQItem question="Can I track my portfolio on NEXUS?" index={0} color="#f43f5e">
               <p>
-                NEXUS currently integrates with Trading 212 for equities and Coinbase for cryptocurrency. Both support demo and live trading modes. Additional broker integrations are on the roadmap.
+                Yes. NEXUS includes manual portfolio tracking where you can log positions, track live prices, and monitor P&L across your holdings. You can add positions from any broker or exchange and see real-time performance against market data.
               </p>
             </FAQItem>
-            <FAQItem question="Can the AI execute trades automatically?" index={1} color="#f43f5e">
+            <FAQItem question="Are broker integrations available?" index={1} color="#f43f5e">
               <p>
-                The AI analyst can place trades through the chat interface when given explicit instructions. It does not execute trades autonomously. Every trade action requires user initiation through the chat or trading interface. Demo mode is available for testing strategies without real capital.
+                Direct broker integrations with Trading 212, Coinbase, Interactive Brokers, and IG Markets are in development. When available, these will allow direct trade execution from the platform. For now, use manual portfolio tracking to monitor your positions.
               </p>
             </FAQItem>
           </FAQSection>

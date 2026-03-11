@@ -165,6 +165,12 @@ interface Tier {
   active: number;
 }
 
+interface UserThrottle {
+  chatMessagesPerDay: number | null;
+  predictionsPerHour: number | null;
+  apiCallsPerMinute: number | null;
+}
+
 interface UserRecord {
   username: string;
   role: string;
@@ -173,6 +179,7 @@ interface UserRecord {
   email: string | null;
   blocked: boolean;
   blockedAt: string | null;
+  throttle: UserThrottle | null;
   compedGrant: {
     tier: string;
     grantedAt: string;
@@ -256,6 +263,31 @@ interface UserStats {
     credits: number;
     calls: number;
   }[];
+}
+
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  status: string | null;
+  description: string;
+  created: number;
+  periodStart: number | null;
+  periodEnd: number | null;
+  invoiceUrl: string | null;
+  invoicePdf: string | null;
+  chargeId: string | null;
+  paymentIntentId: string | null;
+  refunded: string | null;
+  refundedAmount: number;
+}
+
+interface TransactionsData {
+  transactions: Transaction[];
+  stripeCustomerId: string;
+  totalPaid: number;
+  totalRefunded: number;
 }
 
 interface AnalyticsData {
@@ -857,6 +889,10 @@ function EmailPanel() {
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [notifEmail, setNotifEmail] = useState("");
+  const [notifLoaded, setNotifLoaded] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [notifResult, setNotifResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const fetchEmails = useCallback(async () => {
     setLoading(true);
@@ -872,6 +908,44 @@ function EmailPanel() {
   useEffect(() => {
     if (!loaded) fetchEmails();
   }, [loaded, fetchEmails]);
+
+  // Load admin notification email setting
+  useEffect(() => {
+    if (notifLoaded) return;
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        const found = Array.isArray(d) ? d.find((s: { key: string }) => s.key === "admin_notification_email") : null;
+        if (found?.value) setNotifEmail(found.value);
+      })
+      .catch(() => {})
+      .finally(() => setNotifLoaded(true));
+  }, [notifLoaded]);
+
+  const saveNotifEmail = async () => {
+    if (notifEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifEmail.trim())) {
+      setNotifResult({ ok: false, msg: "Invalid email address" });
+      return;
+    }
+    setNotifSaving(true);
+    setNotifResult(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "admin_notification_email", value: notifEmail.trim() }),
+      });
+      if (res.ok) {
+        setNotifResult({ ok: true, msg: "Saved" });
+      } else {
+        const data = await res.json();
+        setNotifResult({ ok: false, msg: data.error || "Failed" });
+      }
+    } catch {
+      setNotifResult({ ok: false, msg: "Request failed" });
+    }
+    setNotifSaving(false);
+  };
 
   const sendTest = async () => {
     if (!testTo) return;
@@ -940,6 +1014,37 @@ function EmailPanel() {
           <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Templates</div>
           <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">{EMAIL_TEMPLATES.length}</div>
         </div>
+      </div>
+
+      {/* Admin Notification Email */}
+      <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-amber/20 to-transparent" />
+        <h3 className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-1">Admin Notifications</h3>
+        <p className="text-[10px] text-navy-600 mb-3">Receive emails when users register, subscribe, cancel, or have payment failures.</p>
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Notification Email</label>
+            <input
+              type="email"
+              value={notifEmail}
+              onChange={(e) => { setNotifEmail(e.target.value); setNotifResult(null); }}
+              placeholder="admin@example.com"
+              className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+            />
+          </div>
+          <button
+            onClick={saveNotifEmail}
+            disabled={notifSaving}
+            className="h-8 px-4 rounded bg-accent-cyan/10 hover:bg-accent-cyan/15 border border-accent-cyan/20 text-[10px] font-mono uppercase tracking-wider text-accent-cyan transition-colors disabled:opacity-50"
+          >
+            {notifSaving ? "Saving..." : "Save"}
+          </button>
+        </div>
+        {notifResult && (
+          <div className={`mt-2 text-[10px] font-mono ${notifResult.ok ? "text-accent-emerald" : "text-accent-rose"}`}>
+            {notifResult.msg}
+          </div>
+        )}
       </div>
 
       {/* Send Test Email */}
@@ -2956,6 +3061,50 @@ export default function AdminPage() {
     setCreateForm({ username: "", password: "", email: "", role: "user", tier: "free" });
   };
 
+  // Throttle modal
+  const [throttleModal, setThrottleModal] = useState<string | null>(null);
+  const [throttleForm, setThrottleForm] = useState<UserThrottle>({ chatMessagesPerDay: null, predictionsPerHour: null, apiCallsPerMinute: null });
+  const [throttleSaving, setThrottleSaving] = useState(false);
+
+  const openThrottleModal = (user: UserRecord) => {
+    setThrottleModal(user.username);
+    setThrottleForm(user.throttle || { chatMessagesPerDay: null, predictionsPerHour: null, apiCallsPerMinute: null });
+  };
+
+  const saveThrottle = async () => {
+    if (!throttleModal) return;
+    setThrottleSaving(true);
+    await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: throttleModal,
+        action: "set_throttle",
+        throttle: throttleForm,
+      }),
+    });
+    await fetchUsers();
+    setThrottleSaving(false);
+    setThrottleModal(null);
+  };
+
+  const clearThrottle = async () => {
+    if (!throttleModal) return;
+    setThrottleSaving(true);
+    await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: throttleModal,
+        action: "set_throttle",
+        throttle: null,
+      }),
+    });
+    await fetchUsers();
+    setThrottleSaving(false);
+    setThrottleModal(null);
+  };
+
   // Edit user modal
   const [editModal, setEditModal] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ email: "", role: "user", tier: "free" });
@@ -3007,6 +3156,67 @@ export default function AdminPage() {
       // ignore
     }
     setStatsLoading(false);
+  };
+
+  // Transactions modal
+  const [txModal, setTxModal] = useState<string | null>(null);
+  const [txData, setTxData] = useState<TransactionsData | null>(null);
+  const [txLoading, setTxLoading] = useState(false);
+  const [refunding, setRefunding] = useState<string | null>(null);
+  const [refundConfirm, setRefundConfirm] = useState<{ txId: string; chargeId: string | null; paymentIntentId: string | null; amount: number; description: string } | null>(null);
+  const [refundReason, setRefundReason] = useState("requested_by_customer");
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundError, setRefundError] = useState<string | null>(null);
+
+  const openTxModal = async (username: string) => {
+    setTxModal(username);
+    setTxData(null);
+    setTxLoading(true);
+    setRefundConfirm(null);
+    setRefundError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}/transactions`);
+      if (res.ok) {
+        setTxData(await res.json());
+      }
+    } catch {
+      // ignore
+    }
+    setTxLoading(false);
+  };
+
+  const issueRefund = async () => {
+    if (!refundConfirm || !txModal) return;
+    if (refundAmount && (isNaN(Number(refundAmount)) || Number(refundAmount) <= 0)) {
+      setRefundError("Enter a valid positive amount");
+      return;
+    }
+    setRefunding(refundConfirm.txId);
+    setRefundError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(txModal)}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chargeId: refundConfirm.chargeId,
+          paymentIntentId: refundConfirm.paymentIntentId,
+          amount: refundAmount ? Math.round(Number(refundAmount) * 100) : undefined,
+          reason: refundReason,
+        }),
+      });
+      if (res.ok) {
+        setRefundConfirm(null);
+        setRefundAmount("");
+        // Refresh transactions
+        await openTxModal(txModal);
+      } else {
+        const data = await res.json();
+        setRefundError(data.error || "Refund failed");
+      }
+    } catch {
+      setRefundError("Network error");
+    }
+    setRefunding(null);
   };
 
   // Confirm modal state
@@ -3342,6 +3552,11 @@ export default function AdminPage() {
                                 Blocked
                               </span>
                             )}
+                            {user.throttle && (
+                              <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-accent-amber/15 text-accent-amber uppercase tracking-wider">
+                                Throttled
+                              </span>
+                            )}
                           </div>
                           {user.email && (
                             <span className="text-[10px] text-navy-600 font-mono block mt-0.5">{user.email}</span>
@@ -3408,6 +3623,16 @@ export default function AdminPage() {
                               <Activity className="h-3 w-3" />
                               Stats
                             </button>
+                            {user.subscription?.stripeCustomerId && (
+                              <button
+                                onClick={() => openTxModal(user.username)}
+                                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-navy-400 hover:text-accent-amber hover:bg-accent-amber/10 transition-colors"
+                                title="View transactions"
+                              >
+                                <CreditCard className="h-3 w-3" />
+                                Billing
+                              </button>
+                            )}
 
                             {/* Subscription badge */}
                             {user.compedGrant?.expiresAt && user.compedGrant.expiresAt !== "2099-12-31T23:59:59.000Z" &&
@@ -3520,6 +3745,17 @@ export default function AdminPage() {
                                       Grant Access
                                     </DropdownMenu.Item>
                                   ) : null}
+
+                                  {/* Throttle */}
+                                  {user.username !== session?.user?.name && (
+                                    <DropdownMenu.Item
+                                      className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-300 cursor-pointer outline-none hover:bg-accent-amber/10 hover:text-accent-amber transition-colors"
+                                      onSelect={() => openThrottleModal(user)}
+                                    >
+                                      <Timer className="h-3 w-3" />
+                                      {user.throttle ? "Edit Throttle" : "Set Throttle"}
+                                    </DropdownMenu.Item>
+                                  )}
 
                                   {user.username !== session?.user?.name && (
                                     <>
@@ -4090,6 +4326,226 @@ export default function AdminPage() {
                     <div className="border border-navy-700/30 border-dashed rounded-lg p-8 text-center">
                       <XCircle className="h-6 w-6 text-accent-rose/40 mx-auto mb-2" />
                       <p className="text-[11px] text-navy-500">Failed to load stats</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Transactions Modal */}
+          {txModal && (
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => { setTxModal(null); setRefundConfirm(null); }}>
+              <div
+                className="bg-navy-900 border border-navy-700 rounded-lg w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-3.5 w-3.5 text-accent-amber" />
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-navy-200">Transactions</span>
+                    <span className="text-[11px] font-mono text-accent-cyan">{txModal}</span>
+                  </div>
+                  <button onClick={() => { setTxModal(null); setRefundConfirm(null); }} className="text-navy-500 hover:text-navy-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+                  {txLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-12 w-full" />
+                      ))}
+                    </div>
+                  ) : txData ? (
+                    <>
+                      {/* Summary */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="border border-navy-700/40 rounded-lg p-3 bg-navy-800/20">
+                          <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Total Paid</div>
+                          <div className="text-lg font-mono text-accent-emerald tabular-nums">
+                            {(txData.totalPaid / 100).toLocaleString("en-US", { style: "currency", currency: "usd" })}
+                          </div>
+                        </div>
+                        <div className="border border-navy-700/40 rounded-lg p-3 bg-navy-800/20">
+                          <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Total Refunded</div>
+                          <div className="text-lg font-mono text-accent-rose tabular-nums">
+                            {(txData.totalRefunded / 100).toLocaleString("en-US", { style: "currency", currency: "usd" })}
+                          </div>
+                        </div>
+                        <div className="border border-navy-700/40 rounded-lg p-3 bg-navy-800/20">
+                          <div className="text-[9px] font-mono text-navy-500 uppercase tracking-wider mb-1">Transactions</div>
+                          <div className="text-lg font-mono text-navy-200 tabular-nums">{txData.transactions.length}</div>
+                        </div>
+                      </div>
+
+                      {/* Refund Confirmation */}
+                      {refundConfirm && (
+                        <div className="border border-accent-rose/30 rounded-lg p-4 bg-accent-rose/[0.03] space-y-3">
+                          <div className="flex items-center gap-2">
+                            <RotateCcw className="h-3.5 w-3.5 text-accent-rose" />
+                            <span className="text-[11px] font-mono text-accent-rose uppercase tracking-wider">Confirm Refund</span>
+                          </div>
+                          <p className="text-[11px] text-navy-300">
+                            Refunding: {refundConfirm.description} ({(refundConfirm.amount / 100).toLocaleString("en-US", { style: "currency", currency: "usd" })})
+                          </p>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Amount (leave blank for full)</label>
+                              <input
+                                value={refundAmount}
+                                onChange={(e) => setRefundAmount(e.target.value)}
+                                placeholder={`${(refundConfirm.amount / 100).toFixed(2)} (full)`}
+                                className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-1">Reason</label>
+                              <select
+                                value={refundReason}
+                                onChange={(e) => setRefundReason(e.target.value)}
+                                className="w-full h-8 px-3 rounded bg-navy-900/50 border border-navy-700/50 text-[11px] font-mono text-navy-300 focus:outline-none focus:border-navy-600"
+                              >
+                                <option value="requested_by_customer">Requested by customer</option>
+                                <option value="duplicate">Duplicate charge</option>
+                                <option value="fraudulent">Fraudulent</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {refundError && (
+                            <div className="text-[11px] font-mono text-accent-rose bg-accent-rose/10 px-3 py-2 rounded border border-accent-rose/20">
+                              {refundError}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => { setRefundConfirm(null); setRefundAmount(""); setRefundError(null); }}>
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={issueRefund}
+                              disabled={refunding === refundConfirm.txId}
+                              className="bg-accent-rose/15 text-accent-rose border-accent-rose/25 hover:bg-accent-rose/25"
+                            >
+                              {refunding === refundConfirm.txId ? (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              ) : (
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                              )}
+                              Process Refund
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Transaction List */}
+                      {txData.transactions.length > 0 ? (
+                        <div className="border border-navy-700/40 rounded-lg overflow-hidden">
+                          <table className="w-full text-[11px] font-mono">
+                            <thead>
+                              <tr className="border-b border-navy-700/40 bg-navy-800/30">
+                                <th className="text-left px-3 py-2 text-[9px] text-navy-500 uppercase tracking-wider">Date</th>
+                                <th className="text-left px-3 py-2 text-[9px] text-navy-500 uppercase tracking-wider">Description</th>
+                                <th className="text-right px-3 py-2 text-[9px] text-navy-500 uppercase tracking-wider">Amount</th>
+                                <th className="text-center px-3 py-2 text-[9px] text-navy-500 uppercase tracking-wider">Status</th>
+                                <th className="text-right px-3 py-2 text-[9px] text-navy-500 uppercase tracking-wider">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {txData.transactions.map((tx) => (
+                                <tr key={tx.id} className="border-b border-navy-700/20 hover:bg-navy-800/20">
+                                  <td className="px-3 py-2.5 text-navy-400 tabular-nums whitespace-nowrap">
+                                    {new Date(tx.created * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-navy-300 truncate max-w-[250px]">
+                                    {tx.description}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
+                                    <span className={tx.amount > 0 ? "text-accent-emerald" : "text-navy-500"}>
+                                      {(tx.amount / 100).toLocaleString("en-US", { style: "currency", currency: tx.currency })}
+                                    </span>
+                                    {tx.refundedAmount > 0 && (
+                                      <span className="text-accent-rose ml-1.5 text-[9px]">
+                                        -{(tx.refundedAmount / 100).toLocaleString("en-US", { style: "currency", currency: tx.currency })}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                      tx.status === "paid" || tx.status === "succeeded" ? "bg-accent-emerald/15 text-accent-emerald" :
+                                      tx.status === "open" || tx.status === "draft" ? "bg-accent-amber/15 text-accent-amber" :
+                                      tx.status === "void" || tx.status === "uncollectible" ? "bg-accent-rose/15 text-accent-rose" :
+                                      "bg-navy-700 text-navy-400"
+                                    }`}>
+                                      {tx.status}
+                                    </span>
+                                    {tx.refunded && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-rose/10 text-accent-rose ml-1 uppercase">
+                                        {tx.refunded === "full" ? "refunded" : "partial refund"}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {tx.invoiceUrl && (
+                                        <a
+                                          href={tx.invoiceUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-navy-500 hover:text-accent-cyan transition-colors p-1"
+                                          title="View invoice"
+                                        >
+                                          <FileText className="h-3 w-3" />
+                                        </a>
+                                      )}
+                                      {(tx.status === "paid" || tx.status === "succeeded") && tx.refunded !== "full" && (tx.chargeId || tx.paymentIntentId) && (
+                                        <button
+                                          onClick={() => {
+                                            setRefundConfirm({
+                                              txId: tx.id,
+                                              chargeId: tx.chargeId,
+                                              paymentIntentId: tx.paymentIntentId,
+                                              amount: tx.amount - tx.refundedAmount,
+                                              description: tx.description,
+                                            });
+                                            setRefundAmount("");
+                                            setRefundError(null);
+                                          }}
+                                          className="text-navy-500 hover:text-accent-rose transition-colors p-1"
+                                          title="Refund"
+                                        >
+                                          <RotateCcw className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="border border-navy-700/30 border-dashed rounded-lg p-8 text-center">
+                          <CreditCard className="h-6 w-6 text-navy-600 mx-auto mb-2 opacity-40" />
+                          <p className="text-[11px] text-navy-500">No transactions found for this user</p>
+                        </div>
+                      )}
+
+                      {/* Stripe Customer Link */}
+                      {txData.stripeCustomerId && (
+                        <div className="text-[9px] font-mono text-navy-600 text-right">
+                          Stripe Customer: {txData.stripeCustomerId}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="border border-navy-700/30 border-dashed rounded-lg p-8 text-center">
+                      <XCircle className="h-6 w-6 text-accent-rose/40 mx-auto mb-2" />
+                      <p className="text-[11px] text-navy-500">Failed to load transactions</p>
                     </div>
                   )}
                 </div>

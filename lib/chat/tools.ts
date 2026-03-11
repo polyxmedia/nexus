@@ -9,7 +9,7 @@ import { getWartimeAnalysis } from "@/lib/game-theory/wartime";
 import { Trading212Client } from "@/lib/trading212/client";
 import { getQuoteData, getHistoricalData } from "@/lib/market-data/yahoo";
 import { computeTechnicalSnapshot } from "@/lib/market-data/indicators";
-import { getEsotericReading } from "@/lib/signals/numerology";
+import { getCyclicalReading } from "@/lib/signals/structural-cycles";
 import { getEconomicCalendarEvents } from "@/lib/signals/economic-calendar";
 import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getPutCallRatio } from "@/lib/market-data/options-flow";
@@ -1944,7 +1944,7 @@ async function executeGetEsotericReading(input: Record<string, unknown>) {
   const d = dateStr ? new Date(dateStr + "T12:00:00Z") : new Date();
 
   try {
-    const reading = getEsotericReading(d);
+    const reading = getCyclicalReading(d);
     const hijri = getHijriDateInfo(d);
 
     return {

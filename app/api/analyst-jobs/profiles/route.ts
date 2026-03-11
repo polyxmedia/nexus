@@ -7,6 +7,7 @@ import {
   updateAnalystProfile,
   listAnalystProfiles,
 } from "@/lib/analyst-jobs";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET /api/analyst-jobs/profiles - List profiles or get own profile
 export async function GET(req: NextRequest) {
@@ -53,6 +54,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/analyst-jobs/profiles - Create analyst profile
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name) {
@@ -89,6 +93,9 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/analyst-jobs/profiles - Update own profile or admin approve/suspend
 export async function PUT(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name) {

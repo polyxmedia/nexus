@@ -32,16 +32,16 @@ interface NashEquilibrium {
 }
 
 interface SchellingPoint {
-  strategies: Record<string, string>;
-  payoffs: Record<string, number>;
-  convergenceProbability: number;
-  rationale: string;
+  strategy: Record<string, string>;
+  reasoning: string;
+  probability: number;
 }
 
 interface EscalationStep {
   level: number;
-  strategies: Record<string, string>;
-  payoffs: Record<string, number>;
+  description: string;
+  trigger: string;
+  probability: number;
   marketImpact: { direction: string; magnitude: string; sectors: string[] };
 }
 
@@ -298,7 +298,7 @@ export function CustomGameTheoryWidget({ data }: { data: CustomGameTheoryData })
               <div key={i} className="border border-navy-700/50 rounded p-2.5 bg-navy-900/30">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex flex-wrap gap-x-3 text-xs">
-                    {Object.entries(sp.strategies || {}).map(([actorId, strategy]) => {
+                    {Object.entries(sp.strategy || {}).map(([actorId, strategy]) => {
                       const actor = scenario.actors.find((a) => a.id === actorId);
                       return (
                         <span key={actorId}>
@@ -309,10 +309,10 @@ export function CustomGameTheoryWidget({ data }: { data: CustomGameTheoryData })
                     })}
                   </div>
                   <span className="text-[10px] font-mono text-accent-amber">
-                    {(sp.convergenceProbability * 100).toFixed(0)}% convergence
+                    {((sp.probability ?? 0) * 100).toFixed(0)}% convergence
                   </span>
                 </div>
-                <p className="text-[11px] text-navy-400 italic">{sp.rationale}</p>
+                <p className="text-[11px] text-navy-400 italic">{sp.reasoning}</p>
               </div>
             ))}
           </div>
@@ -323,31 +323,31 @@ export function CustomGameTheoryWidget({ data }: { data: CustomGameTheoryData })
       {analysis.escalationLadder && analysis.escalationLadder.length > 0 && (
         <Section title={`Escalation Ladder (${analysis.escalationLadder.length} levels)`} icon={Swords} defaultOpen={false}>
           <div className="space-y-1">
-            {analysis.escalationLadder.map((step) => {
+            {analysis.escalationLadder.map((step, i) => {
               const stepDir = DIRECTION_STYLES[step.marketImpact.direction] || DIRECTION_STYLES.neutral;
               return (
-                <div key={step.level} className="flex items-center gap-2 py-1.5 border-b border-navy-800/30 last:border-0">
-                  <span className={`text-[10px] font-mono w-5 h-5 flex items-center justify-center rounded ${
+                <div key={i} className="flex items-start gap-2 py-1.5 border-b border-navy-800/30 last:border-0">
+                  <span className={`text-[10px] font-mono w-5 h-5 flex-shrink-0 flex items-center justify-center rounded ${
                     step.level >= 4 ? "bg-accent-rose/10 text-accent-rose" :
                     step.level >= 2 ? "bg-accent-amber/10 text-accent-amber" :
                     "bg-navy-700/30 text-navy-400"
                   }`}>
                     {step.level}
                   </span>
-                  <div className="flex-1 flex flex-wrap gap-x-3 text-[11px]">
-                    {Object.entries(step.strategies || {}).map(([actorId, strategy]) => {
-                      const actor = scenario.actors.find((a) => a.id === actorId);
-                      return (
-                        <span key={actorId}>
-                          <span className="text-navy-500 font-mono text-[10px]">{actor?.name || actorId}: </span>
-                          <span className="text-navy-300">{strategy}</span>
-                        </span>
-                      );
-                    })}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] text-navy-200">{step.description}</div>
+                    {step.trigger && (
+                      <div className="text-[10px] text-navy-500 mt-0.5">{step.trigger}</div>
+                    )}
                   </div>
-                  <span className={`text-[9px] font-mono ${stepDir.text}`}>
-                    {step.marketImpact.direction}
-                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-[9px] font-mono text-navy-500">
+                      {((step.probability ?? 0) * 100).toFixed(0)}%
+                    </span>
+                    <span className={`text-[9px] font-mono ${stepDir.text}`}>
+                      {step.marketImpact.direction} | {step.marketImpact.magnitude}
+                    </span>
+                  </div>
                 </div>
               );
             })}

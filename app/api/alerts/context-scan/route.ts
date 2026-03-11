@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { runContextScan, buildInterestProfile } from "@/lib/alerts/context-scan";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 

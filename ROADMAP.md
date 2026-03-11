@@ -305,6 +305,38 @@
 
 ---
 
+## v4 — Academic Armor (Critic-Proofing)
+
+> Remove surface-level objections so the substance speaks for itself. Rename lightning rods, harden statistics, add external prediction benchmarking.
+
+### v4.1 Kill the Lightning Rods (Naming & Framing)
+- [x] Rename `lib/signals/numerology.ts` → `lib/signals/structural-cycles.ts`
+- [x] Rename exports: `EsotericReading` → `CyclicalReading`, `getEsotericReading` → `getCyclicalReading`
+- [x] Update all import sites (6 files)
+- [x] Rewrite calendar reading API system prompt: remove "spiritual", "kabbalistic", "scriptural convergence", reframe as cultural decision-making framework analysis
+- [x] Remove "Scriptural Convergence" section from calendar reading prompt
+- [x] Remove Pythagorean numerology for ticker names (indefensible)
+- [x] Rename "esoteric" → "cyclical" in all UI-facing text and API responses
+- [x] Alias "celestial" → "astronomical" in UI display labels (keep DB column as-is)
+
+### v4.2 Statistical Hardening
+- [x] Add Wilson score confidence intervals to Brier scores in `feedback.ts`
+- [x] Add bootstrap confidence intervals for small sample sizes
+- [x] Show "n=X, 95% CI [lower, upper]" on all public-facing accuracy metrics
+- [x] Add Benjamini-Hochberg multiple testing correction utility for calendar correlation claims
+- [x] Add sample insufficiency warnings that block overconfident metric display
+
+### v4.3 External Prediction Benchmarks
+- [x] New module `lib/predictions/benchmarks.ts` — pull questions from Metaculus, Polymarket, Manifold Markets APIs
+- [x] New API route `app/api/predictions/benchmarks/route.ts`
+- [x] New DB table `prediction_benchmarks` to store external questions + NEXUS predictions + crowd consensus
+- [x] Generate NEXUS predictions against externally-sourced questions (eliminates selection bias critique)
+- [x] Track head-to-head accuracy: NEXUS Brier vs crowd Brier on same question set
+- [ ] Public-facing benchmark dashboard showing NEXUS vs prediction market accuracy
+- [ ] Chat tool for querying benchmark performance
+
+---
+
 ## Phase 1: Core Terminal Features (Current)
 
 ### Watchlists
@@ -598,8 +630,8 @@ Commissions tracked but no payout flow.
 - [x] Add model preference setting (Opus / Sonnet / Haiku) per feature category
 - [x] Surface in settings under AI Configuration
 
-#### Esoteric Signals (Cultural Context Only)
-Stripped from trading composite: lunar phase, Chinese zodiac, numerology, flying stars, Kondratieff. Kept: Hebrew/Islamic calendars (first-class event layers). Esoteric data still available via `/api/esoteric` and calendar page.
+#### Cyclical Signals (Cultural Context Only)
+Stripped from trading composite: lunar phase, Chinese zodiac, cultural numerics, flying stars, Kondratieff. Kept: Hebrew/Islamic calendars (first-class event layers). Cyclical data still available via `/api/esoteric` and calendar page.
 - [x] Surface as dedicated "Cultural Context" tab on calendar page (display only, clearly labeled non-trading)
 
 #### Options Data Feed into Signals

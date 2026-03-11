@@ -1,6 +1,6 @@
 const BASE_URL = "https://www.alphavantage.co/query";
 
-interface QuoteResult {
+export interface QuoteResult {
   symbol: string;
   price: number;
   change: number;

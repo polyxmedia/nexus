@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { getStripe, STRIPE_WEBHOOK_SECRET } from "@/lib/stripe";
 import { db, schema } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { invalidateTierCache } from "@/lib/auth/require-tier";
 import type Stripe from "stripe";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, notifyAdmin } from "@/lib/email";
 import {
   subscriptionActiveEmail,
   subscriptionCanceledEmail,
@@ -14,6 +15,9 @@ import {
   paymentActionRequiredEmail,
   invoiceUpcomingEmail,
   invoiceOverdueEmail,
+  adminNewSubscriptionEmail,
+  adminSubscriptionCanceledEmail,
+  adminPaymentFailedEmail,
 } from "@/lib/email/templates";
 
 // ── Helpers ──
@@ -41,6 +45,7 @@ async function setUserTier(userId: string, tierName: string) {
     const data = JSON.parse(rows[0].value);
     data.tier = tierName;
     await db.update(schema.settings).set({ value: JSON.stringify(data) }).where(eq(schema.settings.key, key));
+    invalidateTierCache(userId.replace(/^user:/, ""));
   }
 }
 
@@ -358,6 +363,11 @@ export async function POST(request: Request) {
           );
         }
 
+        // Notify admin of new subscription
+        if (tiers.length > 0) {
+          notifyAdmin(adminNewSubscriptionEmail(userId, tiers[0].name)).catch(() => {});
+        }
+
         break;
       }
 
@@ -402,19 +412,21 @@ export async function POST(request: Request) {
         // Mark referral as churned
         await handleReferralChurn(customerId);
 
-        // Send cancellation email
+        // Send cancellation email + notify admin
         const cancelSubs = await db
           .select()
           .from(schema.subscriptions)
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
         if (cancelSubs.length > 0) {
+          const cancelUsername = cancelSubs[0].userId.replace("user:", "");
           const cancelEmail = await getUserEmail(cancelSubs[0].userId);
           if (cancelEmail) {
-            const template = subscriptionCanceledEmail(cancelSubs[0].userId.replace("user:", ""));
+            const template = subscriptionCanceledEmail(cancelUsername);
             sendEmail({ to: cancelEmail, ...template }).catch((err) =>
               console.error("Cancellation email failed:", err)
             );
           }
+          notifyAdmin(adminSubscriptionCanceledEmail(cancelUsername)).catch(() => {});
         }
 
         break;
@@ -454,23 +466,22 @@ export async function POST(request: Request) {
           })
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
 
-        // Send payment failed email
+        // Send payment failed email + notify admin
         const failedSubs = await db
           .select()
           .from(schema.subscriptions)
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
         if (failedSubs.length > 0) {
+          const failedUsername = failedSubs[0].userId.replace("user:", "");
           const failedEmail = await getUserEmail(failedSubs[0].userId);
           if (failedEmail) {
             const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
-            const template = paymentFailedEmail(
-              failedSubs[0].userId.replace("user:", ""),
-              `${baseUrl}/settings`
-            );
+            const template = paymentFailedEmail(failedUsername, `${baseUrl}/settings`);
             sendEmail({ to: failedEmail, ...template }).catch((err) =>
               console.error("Payment failed email failed:", err)
             );
           }
+          notifyAdmin(adminPaymentFailedEmail(failedUsername)).catch(() => {});
         }
 
         break;

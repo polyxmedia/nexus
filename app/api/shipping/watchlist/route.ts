@@ -3,6 +3,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
 import { findVessels, getVesselsByMmsi } from "@/lib/warroom/vessels";
+import { validateOrigin } from "@/lib/security/csrf";
 
 async function getWatchlist(username: string): Promise<string[]> {
   const rows = await db.select().from(schema.settings)
@@ -42,6 +43,9 @@ export async function GET(req: NextRequest) {
 
 // POST - add vessel to watchlist (by MMSI or search by name)
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
 
@@ -82,6 +86,9 @@ export async function POST(req: NextRequest) {
 
 // DELETE - remove vessel from watchlist
 export async function DELETE(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
 

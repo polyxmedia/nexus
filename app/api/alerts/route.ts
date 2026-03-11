@@ -10,6 +10,7 @@ import {
   evaluateAlerts,
 } from "@/lib/alerts/engine";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
@@ -34,6 +35,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   const userId = tierCheck.result.username;
@@ -57,6 +61,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   const body = await request.json();
@@ -66,6 +73,9 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   const { searchParams } = new URL(request.url);

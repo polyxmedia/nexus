@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { activateBranch } from "@/lib/thesis/branching";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 

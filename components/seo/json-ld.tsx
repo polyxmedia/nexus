@@ -7,7 +7,7 @@ export function OrganizationJsonLd() {
     "@type": "Organization",
     name: "NEXUS Intelligence",
     url: SITE_URL,
-    logo: `${SITE_URL}/nexuslogo.png`,
+    logo: `${SITE_URL}/apple-icon`,
     description:
       "Geopolitical-market convergence intelligence platform. Multi-layer signal detection, AI-driven synthesis, and outcome-tracked predictions for analysts, traders, and institutions.",
     foundingDate: "2025",
@@ -55,7 +55,7 @@ export function SoftwareApplicationJsonLd() {
       {
         "@type": "Offer",
         name: "Analyst",
-        price: "299",
+        price: "150",
         priceCurrency: "USD",
         priceSpecification: {
           "@type": "UnitPriceSpecification",
@@ -66,7 +66,7 @@ export function SoftwareApplicationJsonLd() {
       {
         "@type": "Offer",
         name: "Operator",
-        price: "999",
+        price: "450",
         priceCurrency: "USD",
         priceSpecification: {
           "@type": "UnitPriceSpecification",
@@ -165,7 +165,7 @@ export function ArticleJsonLd({
       name: "NEXUS Intelligence",
       logo: {
         "@type": "ImageObject",
-        url: `${SITE_URL}/nexuslogo.png`,
+        url: `${SITE_URL}/apple-icon`,
       },
     },
     mainEntityOfPage: {

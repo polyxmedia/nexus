@@ -6,6 +6,7 @@ import { supportTickets } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendEmail, getUserEmail } from "@/lib/email";
 import { ticketClosedEmail } from "@/lib/email/templates";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -35,6 +36,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

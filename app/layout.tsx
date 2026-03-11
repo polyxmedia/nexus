@@ -9,11 +9,14 @@ import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { TrialBanner } from "@/components/subscription/trial-banner";
 import { SubscriptionProvider } from "@/lib/hooks/useSubscription";
 import { OrganizationJsonLd, WebSiteJsonLd, SoftwareApplicationJsonLd } from "@/components/seo/json-ld";
+import { CookieConsent } from "@/components/cookie-consent";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
 export const viewport = {
   viewportFit: 'cover' as const,
+  initialScale: 1,
+  userScalable: true,
 };
 
 export const metadata: Metadata = {
@@ -64,6 +67,7 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   category: "technology",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -95,6 +99,7 @@ export default function RootLayout({
               <AnalyticsTracker />
             </SubscriptionProvider>
           </NotificationProvider>
+          <CookieConsent />
         </AuthProvider>
       </body>
     </html>

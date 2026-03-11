@@ -23,11 +23,13 @@ const GLOBAL_READABLE_KEYS = new Set([
   "aircraft_polling_interval",
   "market_refresh_interval",
   "prediction_auto_resolve",
+  "admin_notification_email",
 ]);
 
 // Keys that are global and only writable by admins
 const GLOBAL_ADMIN_KEYS = new Set([
   "system_prompt",
+  "admin_notification_email",
 ]);
 
 const SENSITIVE_KEYS = new Set([

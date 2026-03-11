@@ -6,6 +6,7 @@ import { supportTickets, supportMessages } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { sendEmail, getUserEmail } from "@/lib/email";
 import { ticketOpenedEmail } from "@/lib/email/templates";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -27,6 +28,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

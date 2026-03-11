@@ -70,6 +70,29 @@ export const predictions = pgTable("predictions", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+export const predictionBenchmarks = pgTable("prediction_benchmarks", {
+  id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
+  source: text("source").notNull(), // metaculus | polymarket | manifold
+  externalId: text("external_id").notNull(),
+  externalUrl: text("external_url"),
+  question: text("question").notNull(),
+  category: text("category").notNull(), // geopolitical | market | technology | science | politics
+  resolutionDate: text("resolution_date"),
+  crowdProbability: doublePrecision("crowd_probability"),
+  crowdProbabilityAtPrediction: doublePrecision("crowd_probability_at_prediction"),
+  nexusProbability: doublePrecision("nexus_probability"),
+  nexusReasoning: text("nexus_reasoning"),
+  nexusPredictedAt: text("nexus_predicted_at"),
+  resolved: integer("resolved").notNull().default(0), // 0=false, 1=true
+  outcome: integer("outcome"), // 1=yes, 0=no, null=unresolved
+  resolvedAt: text("resolved_at"),
+  nexusBrier: doublePrecision("nexus_brier"),
+  crowdBrier: doublePrecision("crowd_brier"),
+  lastSyncedAt: text("last_synced_at"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const trades = pgTable("trades", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().default("legacy"),

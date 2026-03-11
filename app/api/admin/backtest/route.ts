@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { startBacktest, getAllBacktestRuns } from "@/lib/backtest/engine";
 import type { BacktestConfig } from "@/lib/backtest/types";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin } from "@/lib/security/csrf";
 
 async function requireAdmin(): Promise<NextResponse | null> {
   const session = await getServerSession(authOptions);
@@ -38,6 +39,9 @@ const CRYPTO_INSTRUMENTS = [
 ];
 
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const denied = await requireAdmin();
   if (denied) return denied;
 

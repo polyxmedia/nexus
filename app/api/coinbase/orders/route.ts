@@ -8,6 +8,7 @@ import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateOrigin, safeError } from "@/lib/security/csrf";
+import { preTradeCheckCoinbase, riskBlockResponse } from "@/lib/trading/pre-trade-check";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("operator");
@@ -95,9 +96,17 @@ export async function POST(request: NextRequest) {
     }
 
     const client = await getCoinbaseClient(session.user.name);
+
+    // Pre-trade risk gate: check balance for the relevant currency
+    const riskCheck = await preTradeCheckCoinbase(client, productId, side, amount);
+    if (!riskCheck.allowed) {
+      return riskBlockResponse(riskCheck);
+    }
+
     let orderResult;
 
     if (orderType === "LIMIT" && limitPrice) {
+      // LIMIT orders always use base currency size (e.g. 0.5 BTC)
       orderResult = await client.placeLimitOrder({
         productId,
         side,
@@ -105,6 +114,8 @@ export async function POST(request: NextRequest) {
         limitPrice: String(limitPrice),
       });
     } else {
+      // MARKET orders: BUY amount = quote currency (USD), SELL amount = base currency (BTC)
+      // The Coinbase client handles this distinction internally
       orderResult = await client.placeMarketOrder({
         productId,
         side,
@@ -116,20 +127,31 @@ export async function POST(request: NextRequest) {
     const trade = await db
       .insert(schema.trades)
       .values({
+        userId: session.user.name,
         ticker: productId,
         direction: side,
         orderType: orderType || "MARKET",
         quantity: amount,
-        limitPrice: limitPrice ? parseFloat(limitPrice) : null,
+        limitPrice: limitPrice ?? null,
         status: "pending",
         environment: "live",
         dedupeHash: hash,
-        notes: "Coinbase order",
+        notes: side === "BUY"
+          ? `Coinbase BUY: ${amount} ${riskCheck.currentPrice ? `@ ~$${riskCheck.currentPrice}` : "market"}`
+          : `Coinbase SELL: ${amount} base units`,
       })
-      .returning()
-      ;
+      .returning();
 
-    return NextResponse.json({ order: orderResult, trade });
+    return NextResponse.json({
+      order: orderResult,
+      trade,
+      riskCheck: {
+        warnings: riskCheck.warnings,
+        accountCash: riskCheck.accountCash,
+        estimatedCost: riskCheck.estimatedCost,
+        currentPrice: riskCheck.currentPrice,
+      },
+    });
   } catch (error) {
     return safeError("Coinbase", error);
   }

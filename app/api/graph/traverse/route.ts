@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { traverseFrom, findPaths, exploreEntity } from "@/lib/graph/traversal";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET - traverse from entity or find paths
 export async function GET(req: NextRequest) {
@@ -37,6 +38,9 @@ export async function GET(req: NextRequest) {
 
 // POST - build context graph from text
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {

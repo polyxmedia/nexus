@@ -115,7 +115,7 @@ const CATEGORY_CONFIG: Record<string, {
     icon: Globe,
   },
   celestial: {
-    label: "Celestial",
+    label: "Astronomical",
     color: "text-accent-amber",
     border: "border-accent-amber/30",
     bg: "bg-accent-amber/8",

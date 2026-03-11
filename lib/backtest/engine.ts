@@ -20,6 +20,7 @@ import type {
   BacktestPrediction,
   BacktestRun,
   BacktestResults,
+  BacktestLogEntry,
   CalibrationBucket,
   WalkForwardFold,
   WalkForwardResults,
@@ -70,6 +71,7 @@ async function dbFinaliseRun(run: BacktestRun): Promise<void> {
       progress_message = ${run.progressMessage},
       predictions = ${JSON.stringify(run.predictions)}::jsonb,
       results = ${run.results ? JSON.stringify(run.results) : null}::jsonb,
+      logs = ${JSON.stringify(run.logs || [])}::jsonb,
       error = ${run.error ?? null},
       completed_at = ${run.completedAt ?? null}
     WHERE id = ${run.id}
@@ -84,9 +86,12 @@ type DbRow = {
   progress_message: string;
   predictions: BacktestPrediction[];
   results: BacktestResults | null;
+  logs?: BacktestLogEntry[] | null;
   error: string | null;
   created_at: string;
   completed_at: string | null;
+  published?: boolean;
+  publish_slug?: string | null;
 };
 
 function rowToRun(row: DbRow): BacktestRun {
@@ -94,6 +99,7 @@ function rowToRun(row: DbRow): BacktestRun {
   const config = typeof row.config === "string" ? JSON.parse(row.config) : row.config;
   const predictions = typeof row.predictions === "string" ? JSON.parse(row.predictions) : row.predictions;
   const results = typeof row.results === "string" ? JSON.parse(row.results) : row.results;
+  const logs = row.logs ? (typeof row.logs === "string" ? JSON.parse(row.logs) : row.logs) : [];
 
   return {
     id: row.id,
@@ -103,9 +109,12 @@ function rowToRun(row: DbRow): BacktestRun {
     progressMessage: row.progress_message || "",
     predictions: (predictions as BacktestPrediction[]) ?? [],
     results: results ?? undefined,
+    logs: (logs as BacktestLogEntry[]) ?? [],
     error: row.error ?? undefined,
     createdAt: typeof row.created_at === "string" ? row.created_at : new Date(row.created_at).toISOString(),
     completedAt: row.completed_at ? (typeof row.completed_at === "string" ? row.completed_at : new Date(row.completed_at).toISOString()) : undefined,
+    published: !!row.published,
+    publishSlug: row.publish_slug ?? undefined,
   };
 }
 
@@ -125,7 +134,7 @@ export async function getBacktestRun(id: string): Promise<BacktestRun | undefine
 
 export async function getAllBacktestRuns(): Promise<BacktestRun[]> {
   try {
-    const rows = await db.execute(sql`SELECT id, config, status, progress, progress_message, predictions, results, error, created_at, completed_at FROM backtest_runs ORDER BY created_at DESC LIMIT 50`);
+    const rows = await db.execute(sql`SELECT id, config, status, progress, progress_message, predictions, results, logs, error, created_at, completed_at, published, publish_slug FROM backtest_runs ORDER BY created_at DESC LIMIT 50`);
     const dbRuns = (rows.rows as DbRow[]).map(rowToRun);
 
     // Merge: active in-memory runs override DB for the same ID (fresher progress)
@@ -244,6 +253,7 @@ export async function startBacktest(config: BacktestConfig): Promise<string> {
     progress: 0,
     progressMessage: "Initialising backtest...",
     predictions: [],
+    logs: [],
     createdAt: new Date().toISOString(),
   };
 
@@ -268,6 +278,12 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   const { config } = run;
   const id = run.id;
 
+  // Helper: append a timestamped log line (kept in memory, returned on poll)
+  const log = (message: string, level: BacktestLogEntry["level"] = "info") => {
+    if (!run.logs) run.logs = [];
+    run.logs.push({ timestamp: new Date().toISOString(), message, level });
+  };
+
   // Helper: persist current phase to DB (non-blocking, best-effort)
   const flushPhase = () => dbUpdateRunProgress(run).catch((err) => console.error("[Backtest] phase progress flush failed:", err));
 
@@ -284,11 +300,19 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   const client = new Anthropic({ apiKey: anthropicKey });
   const model = await getModel();
 
+  log(`Backtest ${id} initialised`);
+  log(`Config: ${config.startDate} to ${config.endDate}, threshold=${config.convergenceThreshold}`);
+  log(`Instruments: ${config.instruments.join(", ")}`);
+  log(`Timeframes: ${config.timeframes.map(t => `${t}d`).join(", ")}`);
+  log(`Model: ${model}`);
+
   // ── Phase 1: Collect historical market data ──
   run.status = "collecting_data";
   run.progressMessage = "Fetching historical market data...";
   run.progress = 5;
   await flushPhase();
+
+  log("--- PHASE 1: COLLECTING MARKET DATA ---");
 
   // Fetch all instruments in parallel — Yahoo Finance has no rate limits
   // Use full backtest date range (+ buffer for timeframe validation)
@@ -296,12 +320,19 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   const fetchEndDate = addDays(config.endDate, maxTimeframe + 7); // buffer for validation window
   const priceData: Record<string, DailyBar[]> = {};
   run.progressMessage = `Fetching historical data for ${config.instruments.length} instruments (${config.startDate} to ${fetchEndDate})...`;
+  log(`Fetching ${config.instruments.length} instruments (${config.startDate} to ${fetchEndDate})...`);
   const fetches = await Promise.allSettled(
     config.instruments.map((symbol) => getHistoricalPrices(symbol, config.startDate, fetchEndDate))
   );
   fetches.forEach((result, i) => {
     const symbol = config.instruments[i];
-    priceData[symbol] = result.status === "fulfilled" ? result.value : [];
+    if (result.status === "fulfilled") {
+      priceData[symbol] = result.value;
+      log(`  ${symbol}: ${result.value.length} daily bars loaded`, "success");
+    } else {
+      priceData[symbol] = [];
+      log(`  ${symbol}: FAILED to fetch data`, "error");
+    }
   });
 
   // ── Phase 2: Generate signals for all years ──
@@ -311,6 +342,8 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.status = "generating_signals";
   run.progress = 15;
   await flushPhase();
+
+  log("--- PHASE 2: GENERATING SIGNALS ---");
 
   const startYear = new Date(config.startDate).getFullYear();
   const endYear = new Date(config.endDate).getFullYear();
@@ -325,8 +358,10 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
 
   for (let year = startYear; year <= endYear; year++) {
     run.progressMessage = `Generating signals for ${year}...`;
+    log(`Scanning ${year} for convergence events...`);
     const result = generateSignals(year);
 
+    let yearCount = 0;
     for (const signal of result.signals) {
       if (signal.intensity >= config.convergenceThreshold) {
         const layers = typeof signal.layers === "string"
@@ -341,8 +376,10 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
           title: signal.title,
           category: signal.category,
         });
+        yearCount++;
       }
     }
+    log(`  ${year}: ${result.signals.length} total signals, ${yearCount} above threshold (>=${config.convergenceThreshold})`, yearCount > 0 ? "success" : "warn");
   }
 
   // Sort by date
@@ -354,11 +391,15 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   );
 
   run.progressMessage = `Found ${convergencesInRange.length} convergence events above threshold...`;
+  log(`Total convergences in range: ${convergencesInRange.length}`, "success");
 
   // ── Phase 3: Simulate - generate predictions at each convergence ──
   run.status = "simulating";
   run.progress = 25;
   await flushPhase();
+
+  log("--- PHASE 3: SIMULATING PREDICTIONS ---");
+  log(`Generating AI predictions for ${convergencesInRange.length} convergence events...`);
 
   const totalSteps = convergencesInRange.length;
 
@@ -367,6 +408,8 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
     const pct = 25 + Math.round((i / totalSteps) * 45);
     run.progress = pct;
     run.progressMessage = `Generating prediction ${i + 1}/${totalSteps} (${convergence.date})...`;
+
+    log(`[${i + 1}/${totalSteps}] ${convergence.date} | intensity=${convergence.intensity} | ${convergence.layers.join("+")} | "${convergence.title}"`);
 
     // Get market context up to this date only (TIME-GATED)
     const marketContext = buildMarketContext(
@@ -403,22 +446,31 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
         }
 
         run.predictions.push(prediction);
+        log(`  -> ${prediction.direction.toUpperCase()} ${prediction.instruments.join(",")} (${(prediction.confidence * 100).toFixed(0)}% conf, ${prediction.timeframeDays}d)`, "success");
+      } else {
+        log(`  -> No prediction generated (skipped)`, "warn");
       }
     } catch (err) {
       console.error(`Prediction generation failed for ${convergence.date}:`, err);
+      log(`  -> ERROR: ${(err as Error).message}`, "error");
     }
 
     // Rate limit Claude API
     await sleep(2000);
   }
 
+  log(`Simulation complete: ${run.predictions.length} predictions generated from ${totalSteps} convergences`);
+
   // ── Phase 4: Validate predictions against actual outcomes ──
   run.status = "validating";
   run.progress = 70;
   await flushPhase();
 
+  log("--- PHASE 4: VALIDATING AGAINST ACTUALS ---");
+
   // Compute climatological baseline: what % of the time does each instrument go up?
   const climatologicalUp = computeClimatologicalBaseline(priceData, config);
+  log(`Climatological baseline (naive bullish): ${(climatologicalUp * 100).toFixed(1)}%`);
 
   for (let i = 0; i < run.predictions.length; i++) {
     const pred = run.predictions[i];
@@ -470,6 +522,11 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
       const outcome = pred.directionCorrect ? 1 : 0;
       pred.brierScore = Math.pow(pred.confidence - outcome, 2);
       pred.outcome = pred.directionCorrect ? "confirmed" : "denied";
+
+      const avgRet = Object.values(pred.actualReturn).reduce((s, r) => s + r, 0) / Object.values(pred.actualReturn).length;
+      log(`  [${i + 1}/${run.predictions.length}] ${pred.predictionDate} ${pred.direction} -> ${pred.outcome === "confirmed" ? "CORRECT" : "WRONG"} (actual ${(avgRet * 100).toFixed(2)}%, brier=${pred.brierScore.toFixed(4)})`, pred.outcome === "confirmed" ? "success" : "warn");
+    } else {
+      log(`  [${i + 1}/${run.predictions.length}] ${pred.predictionDate} -> no price data for validation`, "warn");
     }
   }
 
@@ -479,10 +536,28 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.progressMessage = "Computing statistical analysis...";
   await flushPhase();
 
+  log("--- PHASE 5: STATISTICAL ANALYSIS ---");
+
+  const validatedCount = run.predictions.filter(p => p.outcome).length;
+  const correctCount = run.predictions.filter(p => p.outcome === "confirmed").length;
+  log(`Validated: ${validatedCount}/${run.predictions.length} predictions`);
+  log(`Raw accuracy: ${validatedCount > 0 ? ((correctCount / validatedCount) * 100).toFixed(1) : "N/A"}% (${correctCount}/${validatedCount})`);
+
   const results = computeResults(run.predictions, config, priceData, climatologicalUp);
+
+  log(`Brier score: ${results.brierScore.toFixed(4)} (random=${results.randomBaseline?.brierScore.toFixed(4)})`);
+  log(`Directional accuracy: ${(results.directionalAccuracy * 100).toFixed(1)}% (random=${(results.randomBaseline?.directionalAccuracy * 100).toFixed(1)}%)`);
+  log(`p-value: ${results.pValue < 0.001 ? "<0.001" : results.pValue.toFixed(4)} ${results.significant ? "(SIGNIFICANT)" : "(not significant)"}`, results.significant ? "success" : "warn");
+  log(`Calibration gap: ${(results.calibrationGap * 100).toFixed(1)}pp`);
+
+  if (results.walkForward) {
+    log(`Walk-forward OOS accuracy: ${(results.walkForward.oosAccuracy * 100).toFixed(1)}%`);
+    log(`Temporal stability ratio: ${results.walkForward.overfitRatio.toFixed(2)}`);
+  }
 
   // Generate AI analysis
   run.progressMessage = "Generating AI analysis of results...";
+  log("Generating AI analysis of backtest results...");
   try {
     results.aiAnalysis = await generateAiAnalysis(
       client,
@@ -490,8 +565,10 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
       results,
       config
     );
+    log("AI analysis complete", "success");
   } catch (err) {
     console.error("AI analysis failed:", err);
+    log(`AI analysis failed: ${(err as Error).message}`, "error");
   }
 
   run.results = results;
@@ -499,6 +576,8 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
   run.progress = 100;
   run.progressMessage = "Backtest complete.";
   run.completedAt = new Date().toISOString();
+  log("--- BACKTEST COMPLETE ---", "success");
+  log(`Duration: ${((Date.now() - new Date(run.createdAt).getTime()) / 1000).toFixed(0)}s`);
 
   // Persist full results (predictions + results JSON) to DB
   await dbFinaliseRun(run).catch((err) => console.error("[Backtest] finalise run persist failed:", err));
@@ -508,6 +587,43 @@ async function executeBacktest(run: BacktestRun): Promise<void> {
 
   // Remove from active cache — future reads come from DB
   activeRuns.delete(id);
+}
+
+// ── Publish / unpublish a backtest run ──
+
+export async function publishBacktestRun(id: string): Promise<string> {
+  // Generate a short slug for the public URL
+  const slug = `bt-${id.split("_")[1] || Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+  await db.execute(sql`
+    UPDATE backtest_runs SET published = true, publish_slug = ${slug}
+    WHERE id = ${id}
+  `);
+
+  return slug;
+}
+
+export async function unpublishBacktestRun(id: string): Promise<void> {
+  await db.execute(sql`
+    UPDATE backtest_runs SET published = false, publish_slug = NULL
+    WHERE id = ${id}
+  `);
+}
+
+export async function getPublishedBacktestBySlug(slug: string): Promise<BacktestRun | undefined> {
+  try {
+    const rows = await db.execute(
+      sql`SELECT * FROM backtest_runs WHERE publish_slug = ${slug} AND published = true LIMIT 1`
+    );
+    if (rows.rows.length === 0) return undefined;
+    const row = rows.rows[0] as DbRow & { published?: boolean; publish_slug?: string };
+    const run = rowToRun(row);
+    run.published = true;
+    run.publishSlug = slug;
+    return run;
+  } catch {
+    return undefined;
+  }
 }
 
 // ── Climatological baseline ──

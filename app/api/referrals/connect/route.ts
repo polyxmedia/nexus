@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { getStripe } from "@/lib/stripe";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET: Get Stripe Connect onboarding link or account status
 export async function GET(request: NextRequest) {
@@ -108,6 +109,9 @@ export async function GET(request: NextRequest) {
 
 // POST: Generate a Stripe Connect dashboard link (for existing accounts)
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

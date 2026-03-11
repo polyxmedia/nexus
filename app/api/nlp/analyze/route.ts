@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeCentralBankText, compareStatements } from "@/lib/nlp/central-bank";
 import { analyzeEarningsCall } from "@/lib/nlp/filings";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {

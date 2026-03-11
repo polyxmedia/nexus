@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getStripe } from "@/lib/stripe";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export const maxDuration = 30;
 
@@ -24,6 +25,9 @@ async function isAdmin(username: string): Promise<boolean> {
  * Updates the tier record with the new Stripe IDs.
  */
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name || !(await isAdmin(session.user.name))) {

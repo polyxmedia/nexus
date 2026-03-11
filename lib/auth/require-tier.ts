@@ -4,6 +4,34 @@ import { getEffectiveUsername } from "./effective-user";
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 
+// ── In-memory tier cache (60s TTL, no external deps) ──
+const TIER_CACHE_TTL = 60_000; // 60 seconds
+const tierCache = new Map<string, { tier: string; isAdmin: boolean; expires: number }>();
+
+function getCachedTier(username: string) {
+  const entry = tierCache.get(username);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) {
+    tierCache.delete(username);
+    return null;
+  }
+  return entry;
+}
+
+function setCachedTier(username: string, tier: string, isAdmin: boolean) {
+  // Prune expired entries on write (keeps map from growing unbounded)
+  const now = Date.now();
+  tierCache.forEach((val, key) => {
+    if (now > val.expires) tierCache.delete(key);
+  });
+  tierCache.set(username, { tier, isAdmin, expires: now + TIER_CACHE_TTL });
+}
+
+/** Invalidate cache for a specific user (call after subscription changes). */
+export function invalidateTierCache(username: string) {
+  tierCache.delete(username);
+}
+
 // Tier hierarchy: free < analyst < operator < institution
 const TIER_LEVELS: Record<string, number> = {
   free: 0,
@@ -81,23 +109,32 @@ export async function requireTier(
     };
   }
 
-  // Admin always has full access
-  const userSettings = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, `user:${username}`));
-
+  // Check in-memory cache first
   let userTier = "free";
   let isAdmin = false;
+  let userSettings: { key: string; value: string }[] = [];
 
-  if (userSettings.length > 0) {
-    try {
-      const data = JSON.parse(userSettings[0].value);
-      userTier = data.tier || "free";
-      isAdmin = data.role === "admin";
-    } catch {
-      // bad JSON, treat as free
+  const cached = getCachedTier(username);
+  if (cached) {
+    userTier = cached.tier;
+    isAdmin = cached.isAdmin;
+  } else {
+    // Cache miss: hit DB
+    userSettings = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, `user:${username}`));
+
+    if (userSettings.length > 0) {
+      try {
+        const data = JSON.parse(userSettings[0].value);
+        userTier = data.tier || "free";
+        isAdmin = data.role === "admin";
+      } catch {
+        // bad JSON, treat as free
+      }
     }
+    setCachedTier(username, userTier, isAdmin);
   }
 
   // Admin bypasses all tier checks
@@ -141,13 +178,20 @@ export async function requireTier(
           .set({ status: "canceled", updatedAt: new Date().toISOString() })
           .where(eq(schema.subscriptions.userId, username));
 
-        const userData = userSettings.length > 0 ? JSON.parse(userSettings[0].value) : {};
+        // Re-fetch settings if needed (cache path may not have them)
+        const freshSettings = userSettings.length > 0
+          ? userSettings
+          : await db.select().from(schema.settings).where(eq(schema.settings.key, `user:${username}`));
+        const userData = freshSettings.length > 0 ? JSON.parse(freshSettings[0].value) : {};
         userData.tier = "free";
         delete userData.compedGrant;
         await db
           .update(schema.settings)
           .set({ value: JSON.stringify(userData) })
           .where(eq(schema.settings.key, `user:${username}`));
+
+        // Invalidate cache after downgrade
+        invalidateTierCache(username);
 
         return {
           response: NextResponse.json(
@@ -227,22 +271,31 @@ export async function getUserTier(): Promise<{
   if (!username) {
     return { tier: "free", tierLevel: 0, limits: DEFAULT_LIMITS, isAdmin: false, username: null };
   }
-  const userSettings = await db
-    .select()
-    .from(schema.settings)
-    .where(eq(schema.settings.key, `user:${username}`));
 
+  // Check in-memory cache first
   let userTier = "free";
   let isAdmin = false;
 
-  if (userSettings.length > 0) {
-    try {
-      const data = JSON.parse(userSettings[0].value);
-      userTier = data.tier || "free";
-      isAdmin = data.role === "admin";
-    } catch {
-      // treat as free
+  const cached = getCachedTier(username);
+  if (cached) {
+    userTier = cached.tier;
+    isAdmin = cached.isAdmin;
+  } else {
+    const userSettings = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, `user:${username}`));
+
+    if (userSettings.length > 0) {
+      try {
+        const data = JSON.parse(userSettings[0].value);
+        userTier = data.tier || "free";
+        isAdmin = data.role === "admin";
+      } catch {
+        // treat as free
+      }
     }
+    setCachedTier(username, userTier, isAdmin);
   }
 
   if (isAdmin) {

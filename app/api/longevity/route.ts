@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { creditGate } from "@/lib/credits/gate";
 import Anthropic from "@anthropic-ai/sdk";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GDELT search for public news about a person
 async function searchGDELT(query: string, maxRecords = 15): Promise<Array<{ title: string; url: string; date: string; source: string }>> {
@@ -56,6 +57,9 @@ async function getWikiSummary(name: string): Promise<string | null> {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const gate = await creditGate();
   if (gate.response) return gate.response;
 

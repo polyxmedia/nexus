@@ -52,23 +52,12 @@ export async function GET(
 
     const stripe = getStripe();
 
-    // Fetch payment intents (successful charges)
-    const paymentIntents = await stripe.paymentIntents.list({
-      customer: stripeCustomerId,
-      limit: 50,
-    });
-
-    // Fetch invoices for subscription payments
-    const invoices = await stripe.invoices.list({
-      customer: stripeCustomerId,
-      limit: 50,
-    });
-
-    // Fetch existing refunds for this customer
-    const charges = await stripe.charges.list({
-      customer: stripeCustomerId,
-      limit: 100,
-    });
+    // Fetch all Stripe data in parallel
+    const [paymentIntents, invoices, charges] = await Promise.all([
+      stripe.paymentIntents.list({ customer: stripeCustomerId, limit: 50 }),
+      stripe.invoices.list({ customer: stripeCustomerId, limit: 50 }),
+      stripe.charges.list({ customer: stripeCustomerId, limit: 100 }),
+    ]);
 
     const refundMap = new Map<string, { amount: number; status: string; created: number }>();
     for (const charge of charges.data) {
@@ -194,6 +183,10 @@ export async function POST(
 
     if (!chargeId && !paymentIntentId) {
       return NextResponse.json({ error: "chargeId or paymentIntentId is required" }, { status: 400 });
+    }
+
+    if (amount !== undefined && (!Number.isInteger(amount) || amount <= 0)) {
+      return NextResponse.json({ error: "Amount must be a positive integer (in cents)" }, { status: 400 });
     }
 
     const stripe = getStripe();

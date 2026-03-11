@@ -33,7 +33,7 @@ export async function GET() {
   // Generate CSRF state token, store it so we can verify on callback
   const state = crypto.randomBytes(32).toString("hex");
   await db.insert(schema.settings).values({
-    key: "ig_oauth_state",
+    key: `ig_oauth_state:${session.user.name}`,
     value: `${state}:${Date.now()}`,
   }).onConflictDoUpdate({
     target: schema.settings.key,

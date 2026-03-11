@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { manualPositions } from "@/lib/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -33,6 +34,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -82,6 +86,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -139,6 +146,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

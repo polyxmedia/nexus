@@ -119,7 +119,7 @@ export function EsotericWidget({ data }: { data: EsotericData }) {
       <div className="border border-navy-700 rounded bg-navy-900/80 p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-[10px] uppercase tracking-wider text-navy-500 font-mono">
-            Esoteric Reading - {data.date}
+            Cyclical Analysis - {data.date}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-navy-500 font-mono">Composite</span>

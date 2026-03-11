@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 import {
   initializeBeliefs,
   runBayesianAnalysis,
@@ -48,6 +49,9 @@ export async function GET() {
  * Body: { scenarioId: string, signals?: { description: string, actorId: string, source: string }[] }
  */
 export async function POST(req: Request) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 

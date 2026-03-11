@@ -158,7 +158,7 @@ const SECTIONS = [
     label: "Markets",
     items: [
       { name: "Watchlists", href: "/watchlists", icon: Eye, desc: "Track symbols with live quotes and alerts" },
-      { name: "Trading", href: "/trading", icon: TrendingUp, desc: "Execute across stocks and crypto" },
+      { name: "Trading", href: "/trading", icon: TrendingUp, desc: "Manual portfolio tracking with live market data" },
       { name: "Calendar", href: "/calendar", icon: Calendar, desc: "Hebrew, Islamic, FOMC, OPEX convergence" },
       { name: "Thesis", href: "/thesis", icon: FileText, desc: "AI-generated daily operational briefings" },
       { name: "Alerts", href: "/alerts", icon: Bell, desc: "Email, Telegram & SMS notifications on thresholds and events" },

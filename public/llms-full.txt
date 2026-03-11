@@ -85,17 +85,18 @@ Real-time operational map with:
 - Actor profiles and detail modals
 - Scenario modelling overlays
 
-## Trading Integration
+## Portfolio & Market Data
 
-- Trading 212: Stock trading (demo and live modes)
-- Coinbase: Crypto trading
+- Manual portfolio tracking with live P&L against real-time market data
 - Watchlists with live quotes
+- Full market data views: charts, technical snapshots, sentiment analysis
 - AI-generated thesis-driven position sizing
+- Direct broker integrations (Trading 212, Coinbase, Interactive Brokers, IG Markets) coming soon
 
 ## Subscription Tiers
 
-- **Analyst**: $299/month ($249/month annual)
-- **Operator**: $999/month ($849/month annual)
+- **Analyst**: $150/month ($125/month annual)
+- **Operator**: $450/month ($375/month annual)
 - **Institution**: Custom pricing
 
 ## Foundational Principles

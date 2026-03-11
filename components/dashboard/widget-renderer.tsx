@@ -537,7 +537,13 @@ interface CalendarWidgetData {
     isRamadan: boolean;
     isSacredMonth: boolean;
   } | null;
-  esoteric: {
+  /** @deprecated Use `cyclical` instead */
+  esoteric?: {
+    lunarPhase: string;
+    lunarBias: string;
+    compositeScore: number;
+  } | null;
+  cyclical?: {
     lunarPhase: string;
     lunarBias: string;
     compositeScore: number;
@@ -584,8 +590,8 @@ function CalendarWidget() {
             <Moon className="h-3 w-3 text-accent-emerald" />
             <span className="text-[10px] text-navy-400 font-mono">{data.today.hijri}</span>
           </div>
-          {data.esoteric && (
-            <span className="text-[10px] text-navy-500">{data.esoteric.lunarPhase} / {data.esoteric.lunarBias}</span>
+          {(data.cyclical ?? data.esoteric) && (
+            <span className="text-[10px] text-navy-500">{(data.cyclical ?? data.esoteric).lunarPhase} / {(data.cyclical ?? data.esoteric).lunarBias}</span>
           )}
         </div>
       )}

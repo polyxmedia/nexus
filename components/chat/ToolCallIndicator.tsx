@@ -23,7 +23,7 @@ const TOOL_LABELS: Record<string, string> = {
   web_search: "Searching global news",
   get_osint_events: "Scanning OSINT feeds",
   extract_osint_entities: "Extracting entities from OSINT",
-  get_esoteric_reading: "Consulting esoteric cycles",
+  get_esoteric_reading: "Analysing structural cycles",
   get_economic_calendar: "Checking economic calendar",
   // Risk & options
   get_options_flow: "Analysing options flow",

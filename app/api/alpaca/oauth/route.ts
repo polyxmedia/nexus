@@ -6,6 +6,7 @@ import { getAlpacaOAuthConfig, getAuthorizationUrl } from "@/lib/alpaca/oauth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET: Return Alpaca OAuth authorization URL
 export async function GET() {
@@ -38,7 +39,10 @@ export async function GET() {
 }
 
 // DELETE: Disconnect Alpaca
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

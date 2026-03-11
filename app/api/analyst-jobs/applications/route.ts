@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
+import { validateOrigin } from "@/lib/security/csrf";
 import {
   createApplication,
   getApplication,
@@ -62,6 +63,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/analyst-jobs/applications - Apply to a job or perform lifecycle actions
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getEsotericReading,
+  getCyclicalReading,
   gannSquareOf9,
   scoreChineseNumerology,
   getNameNumerology,
@@ -10,7 +10,7 @@ import {
   getArmstrongPiCycle,
   getKondratieffPosition,
   getUniversalYearNumber,
-} from "@/lib/signals/numerology";
+} from "@/lib/signals/structural-cycles";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (!action || action === "reading") {
     const dateStr = searchParams.get("date") || new Date().toISOString().split("T");
     const d = new Date(dateStr + "T12:00:00Z");
-    const reading = getEsotericReading(d);
+    const reading = getCyclicalReading(d);
     return NextResponse.json(reading);
   }
 

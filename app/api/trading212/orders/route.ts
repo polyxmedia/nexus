@@ -8,6 +8,8 @@ import { createDedupeHash } from "@/lib/utils";
 import { requireTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateOrigin, safeError } from "@/lib/security/csrf";
+import { preTradeCheckT212, riskBlockResponse } from "@/lib/trading/pre-trade-check";
+import { getQuote } from "@/lib/market-data/alpha-vantage";
 
 export async function GET() {
   const tierCheck = await requireTier("operator");
@@ -98,19 +100,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Risk controls — max order size
-    const maxSizeRows = await db.select().from(schema.settings)
-      .where(eq(schema.settings.key, "max_order_size"));
-    if (maxSizeRows.length > 0) {
-      const maxSize = parseFloat(maxSizeRows[0].value);
-      if (quantity > maxSize) {
-        return NextResponse.json(
-          { error: `Order quantity ${quantity} exceeds max order size of ${maxSize}` },
-          { status: 400 }
-        );
-      }
-    }
-
     const t212 = await getT212Client();
     if (!t212) {
       return NextResponse.json(
@@ -120,6 +109,29 @@ export async function POST(request: NextRequest) {
     }
 
     const { client, environment } = t212;
+
+    // For market orders without a limit price, fetch current price for cost estimation
+    let currentMarketPrice: number | null = null;
+    if (!limitPrice && direction === "BUY") {
+      try {
+        const keyRows = await db.select().from(schema.settings)
+          .where(eq(schema.settings.key, "alpha_vantage_api_key"));
+        const apiKey = keyRows[0]?.value || process.env.ALPHA_VANTAGE_API_KEY;
+        if (apiKey) {
+          const quote = await getQuote(ticker, apiKey);
+          currentMarketPrice = quote.price;
+        }
+      } catch {
+        // Best-effort: risk check will proceed without price estimate
+      }
+    }
+
+    // Pre-trade risk gate: check account cash, concentration, max order size
+    const riskCheck = await preTradeCheckT212(client, ticker, quantity, direction, limitPrice, currentMarketPrice);
+    if (!riskCheck.allowed) {
+      return riskBlockResponse(riskCheck);
+    }
+
     const signedQuantity = direction === "SELL" ? -Math.abs(quantity) : Math.abs(quantity);
 
     let orderResult;
@@ -174,7 +186,15 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    return NextResponse.json(trade);
+    return NextResponse.json({
+      trade,
+      riskCheck: {
+        warnings: riskCheck.warnings,
+        accountCash: riskCheck.accountCash,
+        estimatedCost: riskCheck.estimatedCost,
+        positionPercent: riskCheck.positionPercent,
+      },
+    });
   } catch (error) {
     return safeError("Trading212", error);
   }

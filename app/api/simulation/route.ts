@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { runMonteCarloSimulation, type Scenario } from "@/lib/simulation/monte-carlo";
 import { presets } from "@/lib/simulation/presets";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // POST - run simulation
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {

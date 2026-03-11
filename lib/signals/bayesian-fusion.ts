@@ -20,7 +20,7 @@ import type { CelestialEvent } from "./celestial";
 import type { HebrewCalendarSignal } from "./hebrew-calendar";
 import type { GeopoliticalEvent } from "./geopolitical";
 import type { ConvergenceResult } from "./intensity";
-import { getEsotericReading, type EsotericReading } from "./numerology";
+import { getCyclicalReading, type CyclicalReading } from "./structural-cycles";
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -489,8 +489,8 @@ export function scoreBayesianConvergences(
 
     if (layers.length === 0) continue;
 
-    // Esoteric reading for cultural context (does not feed into Bayesian scoring)
-    const esoteric = getEsotericReading(new Date(clusterStart + "T12:00:00Z"));
+    // Cyclical reading for cultural context (does not feed into Bayesian scoring)
+    const esoteric = getCyclicalReading(new Date(clusterStart + "T12:00:00Z"));
 
     // Infer scenario type and select prior
     const scenarioType = inferScenarioType(ge, he, ce);

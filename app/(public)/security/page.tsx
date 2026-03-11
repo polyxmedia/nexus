@@ -46,7 +46,7 @@ export default function SecurityPage() {
             {
               icon: Eye,
               title: "Data Access",
-              body: "Principle of least privilege across all systems. No employee access to user trading credentials. Audit logging on sensitive operations.",
+              body: "Principle of least privilege across all systems. No employee access to user credentials or API keys. Audit logging on sensitive operations.",
             },
           ].map((item) => {
             const Icon = item.icon;

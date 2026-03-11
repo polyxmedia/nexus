@@ -254,9 +254,9 @@ export default function SignalsPage() {
           </div>
 
           {/* Analytics Row */}
-          <div className="grid grid-cols-12 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
             {/* Intensity Distribution */}
-            <div className="col-span-3 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
+            <div className="md:col-span-3 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
               <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Intensity Distribution</div>
               <div className="space-y-2">
                 {analytics.intensityDist.map((d) => (
@@ -285,7 +285,7 @@ export default function SignalsPage() {
             </div>
 
             {/* Timeline */}
-            <div className="col-span-5 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
+            <div className="md:col-span-5 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
               <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Signal Frequency</div>
               <div className="h-28">
                 <ResponsiveContainer width="100%" height="100%">
@@ -310,7 +310,7 @@ export default function SignalsPage() {
             </div>
 
             {/* Layer & Category Breakdown */}
-            <div className="col-span-4 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
+            <div className="md:col-span-4 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
               <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Signal Layers</div>
               <div className="space-y-1.5">
                 {analytics.layers.slice(0, 7).map((l) => (
@@ -340,8 +340,8 @@ export default function SignalsPage() {
       )}
 
       {/* Filters & Search */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative w-full sm:flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-600" />
           <input
             value={search}

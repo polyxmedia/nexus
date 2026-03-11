@@ -4,6 +4,7 @@ import { eq, asc } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
@@ -22,6 +23,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const body = await request.json();
     const { claim, timeframe, deadline, confidence, category, signalId, analysisId, metrics, direction, priceTarget, referenceSymbol } = body;
@@ -42,6 +46,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const body = await request.json();
     const { id, uuid: predictionUuid, outcome, outcomeNotes, score } = body;

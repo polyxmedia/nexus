@@ -11,6 +11,8 @@ import {
   CircleDot,
   Clock4,
   Clock,
+  Globe,
+  BarChart3,
 } from "lucide-react";
 
 interface TimelineEntry {
@@ -33,6 +35,8 @@ interface TimelineData {
 }
 
 const TYPE_CONFIG: Record<string, { icon: typeof Activity; color: string; label: string }> = {
+  news:       { icon: Globe,      color: "#f97316", label: "News" },
+  economic:   { icon: BarChart3,  color: "#3b82f6", label: "Economic" },
   signal:     { icon: Activity,   color: "#f59e0b", label: "Signal" },
   prediction: { icon: Target,     color: "#8b5cf6", label: "Prediction" },
   trade:      { icon: TrendingUp, color: "#10b981", label: "Trade" },

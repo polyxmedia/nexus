@@ -1,8 +1,13 @@
-// ── Chinese Numerology & Esoteric Forecasting Engine ──
-// Cultural decision-making frameworks used by state actors and market participants
+// ── Structural Cycles & Cultural Decision-Making Frameworks ──
+// Cyclical models (Kondratieff, Armstrong ECM, Gann, Lunar) and cultural timing
+// frameworks (Chinese sexagenary cycle, Lo Shu) documented as influencing
+// state-actor and institutional decision-making.
 
 // ═══════════════════════════════════════════════════════════
-// CHINESE NUMEROLOGY
+// CHINESE CULTURAL NUMERICS
+// Documented influence on state timing: China scheduled Beijing Olympics
+// opening at 08/08/08 20:08; IPO pricing, building floor numbering,
+// and policy announcement dates follow these conventions.
 // ═══════════════════════════════════════════════════════════
 
 const DIGIT_SCORES: Record<number, number> = {
@@ -455,26 +460,8 @@ export function getLunarPhase(date: Date): LunarPhase {
 }
 
 // ═══════════════════════════════════════════════════════════
-// PYTHAGOREAN NUMEROLOGY (for ticker/company names)
+// UNIVERSAL YEAR (digit reduction, retained for backward compat)
 // ═══════════════════════════════════════════════════════════
-
-const PYTHAGOREAN_MAP: Record<string, number> = {
-  A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8, I: 9,
-  J: 1, K: 2, L: 3, M: 4, N: 5, O: 6, P: 7, Q: 8, R: 9,
-  S: 1, T: 2, U: 3, V: 4, W: 5, X: 6, Y: 7, Z: 8,
-};
-
-const PERSONAL_YEAR_THEMES: Record<number, { theme: string; market: string }> = {
-  1: { theme: "New beginnings, independence", market: "Market initiation, new trends emerge, IPO activity" },
-  2: { theme: "Patience, partnership, cooperation", market: "Consolidation, M&A activity, sideways markets" },
-  3: { theme: "Creativity, expansion, expression", market: "Growth phase, tech rallies, consumer spending up" },
-  4: { theme: "Foundation, structure, hard work", market: "Infrastructure investment, regulatory frameworks, building" },
-  5: { theme: "Change, volatility, freedom", market: "HIGH VOLATILITY, disruption, paradigm shifts, crypto surges" },
-  6: { theme: "Responsibility, harmony, balance", market: "Stability, dividend stocks, defensive positioning" },
-  7: { theme: "Analysis, introspection, research", market: "Cautious markets, R&D spending, value over growth" },
-  8: { theme: "Power, material success, authority", market: "PEAK PROSPERITY, institutional confidence, bull market climax" },
-  9: { theme: "Completion, endings, transformation", market: "Cycle endings, corrections, sector rotation, bear market risk" },
-};
 
 function reduceToDigit(n: number): number {
   while (n > 9 && n !== 11 && n !== 22 && n !== 33) {
@@ -485,24 +472,27 @@ function reduceToDigit(n: number): number {
   return n;
 }
 
-export function getNameNumerology(name: string): { value: number; reducedValue: number; meaning: string } {
-  const cleaned = name.toUpperCase().replace(/[^A-Z]/g, "");
-  let total = 0;
-  for (const ch of cleaned) {
-    total += PYTHAGOREAN_MAP[ch] || 0;
-  }
-  const reduced = reduceToDigit(total);
-  const theme = PERSONAL_YEAR_THEMES[reduced] || PERSONAL_YEAR_THEMES[reduced % 9 || 9];
-  return {
-    value: total,
-    reducedValue: reduced,
-    meaning: theme?.theme || "",
-  };
+// Deprecated: Pythagorean name numerology removed (no empirical basis).
+// Stub retained to avoid breaking callers.
+export function getNameNumerology(_name: string): { value: number; reducedValue: number; meaning: string } {
+  return { value: 0, reducedValue: 0, meaning: "Deprecated: no empirical basis" };
 }
+
+const YEAR_CYCLE_THEMES: Record<number, { theme: string; market: string }> = {
+  1: { theme: "Cycle initiation", market: "New trends emerge, IPO activity" },
+  2: { theme: "Consolidation", market: "M&A activity, sideways markets" },
+  3: { theme: "Expansion", market: "Growth phase, consumer spending up" },
+  4: { theme: "Foundation building", market: "Infrastructure investment, regulatory frameworks" },
+  5: { theme: "Transition", market: "Elevated volatility, paradigm shifts" },
+  6: { theme: "Stabilization", market: "Dividend stocks, defensive positioning" },
+  7: { theme: "Reassessment", market: "Cautious markets, value over growth" },
+  8: { theme: "Peak activity", market: "Institutional confidence, late-cycle dynamics" },
+  9: { theme: "Cycle completion", market: "Sector rotation, correction risk" },
+};
 
 export function getUniversalYearNumber(year: number): { number: number; theme: string; market: string } {
   const reduced = reduceToDigit(sumDigits(year));
-  const info = PERSONAL_YEAR_THEMES[reduced] || PERSONAL_YEAR_THEMES[reduced % 9 || 9];
+  const info = YEAR_CYCLE_THEMES[reduced] || YEAR_CYCLE_THEMES[reduced % 9 || 9];
   return { number: reduced, ...info };
 }
 
@@ -548,10 +538,14 @@ export function getKondratieffPosition(year: number): KondratieffPosition {
 }
 
 // ═══════════════════════════════════════════════════════════
-// COMPOSITE ESOTERIC READING FOR A DATE
+// COMPOSITE CYCLICAL READING FOR A DATE
 // ═══════════════════════════════════════════════════════════
 
-export interface EsotericReading {
+// Legacy alias for backward compatibility
+export type EsotericReading = CyclicalReading;
+export const getEsotericReading = getCyclicalReading;
+
+export interface CyclicalReading {
   date: string;
   chineseNumerology: NumerologyScore;
   sexagenaryCycle: SexagenaryCycleInfo;
@@ -565,7 +559,7 @@ export interface EsotericReading {
   compositeOutlook: string;
 }
 
-export function getEsotericReading(date: Date): EsotericReading {
+export function getCyclicalReading(date: Date): CyclicalReading {
   const year = date.getFullYear();
   const dateStr = date.toISOString().split("T")[0];
 
@@ -613,20 +607,20 @@ export function getEsotericReading(date: Date): EsotericReading {
   score = Math.round(Math.max(-10, Math.min(10, score)) * 100) / 100;
 
   const compositeOutlook = score >= 3
-    ? "Multiple esoteric indicators align favorably. Expansion and prosperity signals dominant."
+    ? "Multiple cyclical indicators align favorably. Expansion signals dominant."
     : score >= 1
       ? "Mildly favorable alignment. Proceed with moderate confidence."
       : score >= -1
-        ? "Mixed signals across esoteric frameworks. Exercise caution and wait for clarity."
+        ? "Mixed signals across cyclical frameworks. Exercise caution and wait for clarity."
         : score >= -3
           ? "Unfavorable alignment. Elevated risk of disruption, losses, or instability."
-          : "Strongly adverse convergence. Defensive positioning recommended across all frameworks.";
+          : "Strongly adverse convergence. Defensive positioning recommended.";
 
   // NOTE: compositeScore is for cultural context display only.
-  // Stripped from trading composite: lunar phase, Chinese zodiac, numerology,
+  // Stripped from trading composite: lunar phase, Chinese zodiac, cultural numerics,
   // flying stars, Kondratieff. These do NOT feed signal intensity or thesis confidence.
   // Kept in trading composite: Hebrew calendar, Islamic calendar, dual calendar
-  // overlap, evangelical prophecy dates (fed as first-class event layers, not here).
+  // overlap (fed as first-class event layers, not here).
 
   return {
     date: dateStr,

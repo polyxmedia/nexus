@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { requireTier } from "@/lib/auth/require-tier";
 import { db, schema } from "@/lib/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET: List comments for a target, or get counts
 export async function GET(req: NextRequest) {
@@ -99,6 +100,9 @@ export async function GET(req: NextRequest) {
 
 // POST: Create a comment
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
 
@@ -141,6 +145,9 @@ export async function POST(req: NextRequest) {
 
 // DELETE: Delete own comment
 export async function DELETE(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

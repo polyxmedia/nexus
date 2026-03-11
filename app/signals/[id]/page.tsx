@@ -325,7 +325,7 @@ export default function SignalDetailPage() {
           <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
             <div className="flex items-center gap-2 mb-2">
               <Star className="h-3 w-3 text-navy-500" />
-              <h4 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Celestial</h4>
+              <h4 className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Astronomical</h4>
             </div>
             <p className="text-sm text-navy-200 capitalize">{signal.celestialType.replace(/_/g, " ")}</p>
           </div>

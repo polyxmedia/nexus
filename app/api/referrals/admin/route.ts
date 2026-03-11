@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET: Admin view of all referrals and commissions
 export async function GET() {
@@ -68,6 +69,9 @@ export async function GET() {
 
 // POST: Admin actions on commissions (approve, pay, reject, update rates)
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

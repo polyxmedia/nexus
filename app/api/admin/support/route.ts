@@ -7,6 +7,7 @@ import { eq, desc, asc } from "drizzle-orm";
 import { sendEmail, getUserEmail } from "@/lib/email";
 import { ticketReplyEmail, ticketClosedEmail } from "@/lib/email/templates";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin } from "@/lib/security/csrf";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -48,6 +49,9 @@ export async function GET() {
 
 // PATCH - update ticket (status, priority, assignment)
 export async function PATCH(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name || !(await isAdmin(session.user.name))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getAuthorizationUrl, getCoinbaseOAuthConfig } from "@/lib/coinbase/oauth";
 import crypto from "crypto";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET - initiate OAuth flow (returns auth URL)
 export async function GET() {
@@ -36,7 +37,9 @@ export async function GET() {
 }
 
 // DELETE - disconnect Coinbase OAuth
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

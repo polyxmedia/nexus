@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getEmailLog, sendEmail } from "@/lib/email";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin } from "@/lib/security/csrf";
 import {
   welcomeEmail,
   subscriptionActiveEmail,
@@ -46,6 +47,9 @@ export async function GET() {
 
 // POST — send a test email or resend
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }

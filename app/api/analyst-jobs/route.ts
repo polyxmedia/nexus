@@ -8,6 +8,8 @@ import {
   updateJob,
   cancelJob,
 } from "@/lib/analyst-jobs";
+import { validateOrigin } from "@/lib/security/csrf";
+import { errorResponse, generateRequestId } from "@/lib/request-id";
 
 // GET /api/analyst-jobs - List jobs (public browse, no auth required for open jobs)
 export async function GET(req: NextRequest) {
@@ -29,13 +31,17 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(jobs);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const reqId = generateRequestId();
+    console.error(`[analyst-jobs:GET] ${reqId}`, error);
+    return errorResponse("Something went wrong", 500, reqId);
   }
 }
 
 // POST /api/analyst-jobs - Create a new job (operator+ only)
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name) {
@@ -75,13 +81,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(job, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const reqId = generateRequestId();
+    console.error(`[analyst-jobs:POST] ${reqId}`, error);
+    return errorResponse("Something went wrong", 500, reqId);
   }
 }
 
 // PUT /api/analyst-jobs - Update a job (owner or admin only)
 export async function PUT(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name) {
@@ -103,13 +113,17 @@ export async function PUT(req: NextRequest) {
     const updated = await updateJob(id, updates);
     return NextResponse.json(updated);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const reqId = generateRequestId();
+    console.error(`[analyst-jobs:PUT] ${reqId}`, error);
+    return errorResponse("Something went wrong", 500, reqId);
   }
 }
 
 // DELETE /api/analyst-jobs?id=N - Cancel a job (owner or admin only)
 export async function DELETE(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name) {
@@ -135,7 +149,8 @@ export async function DELETE(req: NextRequest) {
     const cancelled = await cancelJob(Number(id));
     return NextResponse.json(cancelled);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const reqId = generateRequestId();
+    console.error(`[analyst-jobs:DELETE] ${reqId}`, error);
+    return errorResponse("Something went wrong", 500, reqId);
   }
 }

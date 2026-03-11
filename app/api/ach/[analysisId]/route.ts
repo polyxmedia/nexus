@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAnalysis, deleteAnalysis, evaluateMatrix } from "@/lib/ach/engine";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(
   _request: NextRequest,
@@ -25,6 +26,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ analysisId: string }> }
 ) {
+  const csrfError = validateOrigin(_request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {

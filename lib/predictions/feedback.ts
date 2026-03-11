@@ -64,12 +64,21 @@ export interface BINReport {
   }>;
 }
 
+export interface ConfidenceInterval {
+  lower: number;
+  upper: number;
+  level: number; // 0.95 for 95% CI
+  method: "wilson" | "bootstrap";
+}
+
 export interface PerformanceReport {
   totalResolved: number;
   sampleSufficient: boolean;
   brierScore: number;
+  brierCI: ConfidenceInterval | null;
   logLoss: number;
   binaryAccuracy: number;
+  accuracyCI: ConfidenceInterval | null;
   avgConfidence: number;
   calibrationGap: number;
   calibration: CalibrationBucket[];
@@ -92,6 +101,102 @@ const MIN_BUCKET_SIZE = 3;
 const MIN_CATEGORY_SIZE = 3;
 const DECAY_HALF_LIFE_DAYS = 60;
 const EPSILON = 1e-7; // prevent log(0)
+
+// ── Statistical Confidence Intervals ──
+
+/**
+ * Wilson score interval for binomial proportion.
+ * Superior to normal approximation for small samples.
+ * Wilson (1927), recommended by Agresti & Coull (1998).
+ */
+export function wilsonInterval(successes: number, total: number, z = 1.96): ConfidenceInterval {
+  if (total === 0) return { lower: 0, upper: 1, level: 0.95, method: "wilson" };
+  const p = successes / total;
+  const denominator = 1 + z * z / total;
+  const center = (p + z * z / (2 * total)) / denominator;
+  const spread = (z / denominator) * Math.sqrt(p * (1 - p) / total + z * z / (4 * total * total));
+  return {
+    lower: Math.max(0, center - spread),
+    upper: Math.min(1, center + spread),
+    level: 0.95,
+    method: "wilson",
+  };
+}
+
+/**
+ * Bootstrap confidence interval for Brier score.
+ * Nonparametric: resamples predictions with replacement.
+ * Efron & Tibshirani (1993). Percentile method with 2000 iterations.
+ */
+export function bootstrapBrierCI(
+  predictions: Array<{ confidence: number; outcome: string }>,
+  iterations = 2000,
+  level = 0.95
+): ConfidenceInterval {
+  const scoreable = predictions.filter(p => p.outcome !== "expired");
+  if (scoreable.length < 5) return { lower: 0, upper: 0.5, level, method: "bootstrap" };
+
+  const brierSamples: number[] = [];
+  for (let i = 0; i < iterations; i++) {
+    // Resample with replacement
+    const sample: typeof scoreable = [];
+    for (let j = 0; j < scoreable.length; j++) {
+      sample.push(scoreable[Math.floor(Math.random() * scoreable.length)]);
+    }
+    brierSamples.push(brierScore(sample));
+  }
+
+  brierSamples.sort((a, b) => a - b);
+  const alpha = (1 - level) / 2;
+  const lowerIdx = Math.floor(alpha * iterations);
+  const upperIdx = Math.floor((1 - alpha) * iterations);
+
+  return {
+    lower: brierSamples[lowerIdx],
+    upper: brierSamples[Math.min(upperIdx, iterations - 1)],
+    level,
+    method: "bootstrap",
+  };
+}
+
+/**
+ * Benjamini-Hochberg procedure for multiple testing correction.
+ * Controls false discovery rate (FDR) at specified level.
+ * Benjamini & Hochberg (1995, JRSS-B).
+ */
+export function benjaminiHochberg(
+  pValues: Array<{ label: string; pValue: number }>,
+  fdrLevel = 0.05
+): Array<{ label: string; pValue: number; adjusted: number; significant: boolean }> {
+  const m = pValues.length;
+  if (m === 0) return [];
+
+  // Sort by p-value ascending
+  const sorted = pValues
+    .map((p, i) => ({ ...p, rank: 0, originalIndex: i }))
+    .sort((a, b) => a.pValue - b.pValue);
+
+  // Assign ranks
+  sorted.forEach((p, i) => { p.rank = i + 1; });
+
+  // Compute adjusted p-values (step-up)
+  const results = sorted.map(p => {
+    const adjusted = Math.min(1, p.pValue * m / p.rank);
+    return {
+      label: p.label,
+      pValue: p.pValue,
+      adjusted,
+      significant: adjusted <= fdrLevel,
+    };
+  });
+
+  // Enforce monotonicity (adjusted p-values should be non-decreasing when sorted by original p-value)
+  for (let i = results.length - 2; i >= 0; i--) {
+    results[i].adjusted = Math.min(results[i].adjusted, results[i + 1].adjusted);
+  }
+
+  return results;
+}
 
 // ── Core Scoring Functions ──
 
@@ -365,6 +470,14 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     : 0;
   const calibrationGap = avgConfidence - binaryAccuracy;
 
+  // ── Confidence intervals (academic rigor) ──
+  const brierCI = scoringInputs.length >= 5
+    ? bootstrapBrierCI(scoringInputs)
+    : null;
+  const accuracyCI = nonExpired.length >= 3
+    ? wilsonInterval(confirmed.length, nonExpired.length)
+    : null;
+
   // ── Calibration buckets (proper reliability diagram data) ──
 
   const bucketDefs: { min: number; max: number; label: string; midpoint: number }[] = [
@@ -580,8 +693,10 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     totalResolved: resolved.length,
     sampleSufficient,
     brierScore: weightedBrier,
+    brierCI,
     logLoss: ll,
     binaryAccuracy,
+    accuracyCI,
     avgConfidence,
     calibrationGap,
     calibration,
@@ -600,8 +715,10 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     totalResolved: resolved.length,
     sampleSufficient,
     brierScore: weightedBrier,
+    brierCI,
     logLoss: ll,
     binaryAccuracy,
+    accuracyCI,
     avgConfidence,
     calibrationGap,
     calibration,
@@ -628,10 +745,20 @@ function buildPromptSection(report: Omit<PerformanceReport, "promptSection">): s
 
   // Proper scoring rules
   lines.push("Scoring metrics (lower Brier/log-loss = better calibration):");
-  lines.push(`  Brier score: ${report.brierScore.toFixed(4)} ${brierInterpretation(report.brierScore)}`);
+  const brierCIStr = report.brierCI
+    ? ` [95% CI: ${report.brierCI.lower.toFixed(4)}–${report.brierCI.upper.toFixed(4)}, n=${report.totalResolved}]`
+    : ` [n=${report.totalResolved}, CI unavailable (need >= 5)]`;
+  lines.push(`  Brier score: ${report.brierScore.toFixed(4)} ${brierInterpretation(report.brierScore)}${brierCIStr}`);
   lines.push(`  Log loss: ${report.logLoss.toFixed(4)}`);
-  lines.push(`  Binary accuracy: ${(report.binaryAccuracy * 100).toFixed(0)}% of non-expired predictions confirmed`);
+  const accCIStr = report.accuracyCI
+    ? ` [95% Wilson CI: ${(report.accuracyCI.lower * 100).toFixed(1)}%–${(report.accuracyCI.upper * 100).toFixed(1)}%]`
+    : "";
+  lines.push(`  Binary accuracy: ${(report.binaryAccuracy * 100).toFixed(0)}% of non-expired predictions confirmed${accCIStr}`);
   lines.push(`  Average stated confidence: ${(report.avgConfidence * 100).toFixed(0)}%`);
+  if (!report.sampleSufficient) {
+    lines.push("");
+    lines.push("  WARNING: Sample size insufficient for reliable statistical inference (< 10 resolved). All metrics should be treated as preliminary estimates with wide uncertainty.");
+  }
 
   // Calibration direction
   if (Math.abs(report.calibrationGap) > 0.1) {

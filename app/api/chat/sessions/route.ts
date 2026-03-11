@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEffectiveUsername } from "@/lib/auth/effective-user";
 import { db, schema } from "@/lib/db";
 import { desc, eq, like } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(req: NextRequest) {
   const username = await getEffectiveUsername();
@@ -47,6 +48,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -69,6 +73,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -97,6 +104,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const username = await getEffectiveUsername();
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -112,6 +122,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     await db.delete(schema.chatMessages).where(eq(schema.chatMessages.sessionId, id));
+    await db.delete(schema.documents).where(eq(schema.documents.sessionId, id));
     await db.delete(schema.chatSessions).where(eq(schema.chatSessions.id, id));
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {

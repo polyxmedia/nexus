@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { sendUserAlert } from "@/lib/telegram/alerts";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // POST /api/telegram/test - Send a test alert to verify the connection
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

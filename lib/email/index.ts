@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import * as Sentry from "@sentry/nextjs";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
@@ -110,6 +111,14 @@ export async function sendEmail({ to, subject, html, text, replyTo, type }: Send
       logEntry.error = err instanceof Error ? err.message : String(err);
       await logEmail(logEntry);
     }
+    // Report email delivery failures to Sentry for monitoring
+    Sentry.withScope((scope) => {
+      scope.setTag("email.type", logEntry.type);
+      scope.setTag("email.to", logEntry.to);
+      scope.setExtra("subject", logEntry.subject);
+      scope.setLevel("error");
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)));
+    });
     throw err;
   }
 }
@@ -141,6 +150,22 @@ function inferType(subject: string): string {
   if (s.includes("support ticket") && s.includes("closed")) return "ticket_closed";
   if (s.includes("password reset")) return "password_reset";
   return "other";
+}
+
+/** Fire-and-forget admin notification. No-ops if admin email is not configured. */
+export async function notifyAdmin(opts: Omit<SendEmailOptions, "to">) {
+  try {
+    const rows = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, "admin_notification_email"));
+    if (rows.length === 0 || !rows[0].value) return;
+    const adminEmail = rows[0].value.trim();
+    if (!adminEmail) return;
+    await sendEmail({ to: adminEmail, ...opts });
+  } catch (err) {
+    console.error("Admin notification failed:", err);
+  }
 }
 
 export { getResend as resend };

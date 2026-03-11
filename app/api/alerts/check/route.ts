@@ -3,8 +3,12 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
 import { runAlertChain } from "@/lib/alerts/chains";
+import { validateOrigin } from "@/lib/security/csrf";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {

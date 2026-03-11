@@ -91,13 +91,15 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-200 mb-3">
-              5. Trading Data
+              5. Portfolio & Market Data
             </h2>
             <p className="font-sans text-sm text-navy-400 leading-relaxed">
-              If you connect trading accounts (Trading 212, Coinbase), your
-              API keys are stored encrypted. We access only the permissions
-              you grant. Trading activity data is processed locally within
-              the platform and is not shared externally.
+              Manual portfolio positions you enter are stored securely and
+              associated with your account. When broker integrations become
+              available, any API keys will be stored encrypted with access
+              limited to the permissions you grant. Portfolio and market
+              activity data is processed locally within the platform and is
+              not shared externally.
             </p>
           </section>
 

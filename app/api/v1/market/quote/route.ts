@@ -31,10 +31,17 @@ export const GET = withApiAuth(async (request: NextRequest, ctx) => {
     return apiError("config_error", "Market data API key not configured", 503);
   }
 
-  const quote = await getQuote(symbol, apiKey);
-  if (!quote) {
+  try {
+    const quote = await getQuote(symbol, apiKey);
+    if (!quote) {
+      return apiError("quote_not_found", `No quote data for ${symbol}`, 404);
+    }
+    return apiSuccess({ symbol, quote }, { tier: ctx.tier });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fetch quote";
+    if (message.includes("rate limit")) {
+      return apiError("rate_limited", "Market data provider rate limit reached. Try again shortly.", 429);
+    }
     return apiError("quote_not_found", `No quote data for ${symbol}`, 404);
   }
-
-  return apiSuccess({ symbol, quote }, { tier: ctx.tier });
 }, { minTier: "analyst", scope: "market" });

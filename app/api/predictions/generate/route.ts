@@ -1,3 +1,5 @@
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { generatePredictions } from "@/lib/predictions/engine";
 import { notifyNewPredictions } from "@/lib/predictions/notify";

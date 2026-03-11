@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -8,6 +8,10 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Terminal,
+  Globe,
+  Copy,
+  Check,
 } from "lucide-react";
 import {
   LineChart,
@@ -22,7 +26,7 @@ import {
   ReferenceLine,
   Cell,
 } from "recharts";
-import type { BacktestRun, TradeRecord } from "@/lib/backtest/types";
+import type { BacktestRun, BacktestLogEntry, TradeRecord } from "@/lib/backtest/types";
 import { AreaChart, Area } from "recharts";
 
 // Null-safe number helper for portfolio metrics that may be null/undefined
@@ -114,6 +118,153 @@ function ProgressPanel({ run }: { run: BacktestRun }) {
         <div className="mt-3 rounded bg-accent-rose/10 border border-accent-rose/20 px-3 py-2">
           <p className="font-mono text-[11px] text-accent-rose">{run.error}</p>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Live terminal log ──
+function TerminalLog({ logs, isRunning }: { logs: BacktestLogEntry[]; isRunning: boolean }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+
+  useEffect(() => {
+    if (autoScroll && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [logs.length, autoScroll]);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    setAutoScroll(scrollHeight - scrollTop - clientHeight < 40);
+  };
+
+  const levelColors: Record<string, string> = {
+    info: "#9ca3af",
+    warn: "#f59e0b",
+    error: "#ef4444",
+    success: "#10b981",
+  };
+
+  if (!logs || logs.length === 0) return null;
+
+  return (
+    <div className="border border-navy-700/30 rounded-lg bg-[#0a0a0f] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-navy-800/50 bg-navy-900/30">
+        <div className="flex items-center gap-2">
+          <Terminal className="w-3.5 h-3.5 text-navy-500" />
+          <span className="font-mono text-[10px] uppercase tracking-wider text-navy-500">
+            Execution Log
+          </span>
+          {isRunning && (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent-emerald animate-pulse" />
+              <span className="font-mono text-[9px] text-accent-emerald">LIVE</span>
+            </span>
+          )}
+        </div>
+        <span className="font-mono text-[9px] text-navy-600">
+          {logs.length} lines
+        </span>
+      </div>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="overflow-y-auto font-mono text-[11px] leading-[1.6] p-4"
+        style={{ maxHeight: "400px" }}
+      >
+        {logs.map((entry, i) => {
+          const time = new Date(entry.timestamp).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          return (
+            <div key={i} className="flex gap-3 hover:bg-navy-900/30">
+              <span className="text-navy-700 select-none shrink-0">{time}</span>
+              <span style={{ color: levelColors[entry.level] || "#9ca3af" }}>
+                {entry.message}
+              </span>
+            </div>
+          );
+        })}
+        {isRunning && (
+          <div className="flex gap-3 mt-1">
+            <span className="text-navy-700 select-none shrink-0">
+              {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+            <span className="text-navy-600 animate-pulse">Waiting for next event...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Publish button ──
+function PublishButton({ run }: { run: BacktestRun }) {
+  const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState(!!run.published);
+  const [slug, setSlug] = useState(run.publishSlug || "");
+  const [copied, setCopied] = useState(false);
+
+  const togglePublish = async () => {
+    setPublishing(true);
+    try {
+      if (published) {
+        await fetch(`/api/admin/backtest/${run.id}/publish`, { method: "DELETE" });
+        setPublished(false);
+        setSlug("");
+      } else {
+        const res = await fetch(`/api/admin/backtest/${run.id}/publish`, { method: "POST" });
+        const data = await res.json();
+        setPublished(true);
+        setSlug(data.slug);
+      }
+    } catch (err) {
+      console.error("Publish toggle failed:", err);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const copyLink = () => {
+    const url = `${window.location.origin}/research/backtest/${slug}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (run.status !== "complete") return null;
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={togglePublish}
+        disabled={publishing}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider transition-colors ${
+          published
+            ? "bg-accent-emerald/10 border border-accent-emerald/30 text-accent-emerald hover:bg-accent-emerald/20"
+            : "bg-navy-800/50 border border-navy-700/30 text-navy-400 hover:text-navy-200 hover:border-navy-600"
+        }`}
+      >
+        {publishing ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : (
+          <Globe className="w-3 h-3" />
+        )}
+        {published ? "Published" : "Publish"}
+      </button>
+
+      {published && slug && (
+        <button
+          onClick={copyLink}
+          className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-navy-800/50 border border-navy-700/30 font-mono text-[10px] text-navy-400 hover:text-navy-200 transition-colors"
+        >
+          {copied ? <Check className="w-3 h-3 text-accent-emerald" /> : <Copy className="w-3 h-3" />}
+          {copied ? "Copied" : `/research/backtest/${slug}`}
+        </button>
       )}
     </div>
   );
@@ -1110,7 +1261,7 @@ export default function BacktestDetailPage() {
           }
         }
       } catch (err) { console.error("[Backtest] poll status failed:", err); }
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(poll);
   }, [id]);
@@ -1147,19 +1298,41 @@ export default function BacktestDetailPage() {
 
         {run && (
           <div className="space-y-6">
-            <div className="mb-4">
-              <h1 className="text-2xl font-bold tracking-tight text-navy-100">
-                Backtest Results
-              </h1>
-              <p className="mt-1 font-mono text-[10px] text-navy-500">
-                Created {new Date(run.createdAt).toLocaleString()} | {run.predictions.length} predictions
-              </p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-navy-100">
+                  Backtest Results
+                </h1>
+                <p className="mt-1 font-mono text-[10px] text-navy-500">
+                  Created {new Date(run.createdAt).toLocaleString()} | {run.predictions.length} predictions
+                </p>
+              </div>
+              <PublishButton run={run} />
             </div>
 
             <ProgressPanel run={run} />
 
+            {run.status !== "complete" && run.status !== "failed" && run.logs && run.logs.length > 0 && (
+              <TerminalLog logs={run.logs} isRunning={true} />
+            )}
+
+            {run.status === "failed" && run.logs && run.logs.length > 0 && (
+              <TerminalLog logs={run.logs} isRunning={false} />
+            )}
+
             {run.status === "complete" && run.results && (
-              <ResultsDashboard run={run} />
+              <>
+                {run.logs && run.logs.length > 0 && (
+                  <details className="group">
+                    <summary className="cursor-pointer flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-navy-500 hover:text-navy-300 mb-2">
+                      <Terminal className="w-3 h-3" />
+                      Execution log ({run.logs.length} lines)
+                    </summary>
+                    <TerminalLog logs={run.logs} isRunning={false} />
+                  </details>
+                )}
+                <ResultsDashboard run={run} />
+              </>
             )}
           </div>
         )}

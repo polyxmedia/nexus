@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // GET: Fetch current user's profile data
 export async function GET() {
@@ -32,6 +33,9 @@ export async function GET() {
 
 // PATCH: Update profile image
 export async function PATCH(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

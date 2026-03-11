@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { supportTickets, supportMessages } from "@/lib/db/schema";
 import { eq, and, asc } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -42,6 +43,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

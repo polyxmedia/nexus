@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { syncTimeline, getTimeline } from "@/lib/timeline/engine";
+import { syncTimeline, getTimeline, isExternalSyncStale } from "@/lib/timeline/engine";
 import { db, schema } from "@/lib/db";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
@@ -9,9 +10,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    // Auto-sync if timeline is empty
+    // Auto-sync if timeline is empty or external sources are stale
     const rows = await db.select().from(schema.timelineEvents);
-    if (rows.length === 0) {
+    if (rows.length === 0 || isExternalSyncStale()) {
       await syncTimeline();
     }
 
@@ -33,7 +34,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   try {

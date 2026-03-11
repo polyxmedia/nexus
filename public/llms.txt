@@ -12,7 +12,7 @@ NEXUS integrates four primary signal layers (geopolitical, market, OSINT, system
 - Outcome tracking with Brier scoring, calibration analysis, and BIN decomposition
 - Game theory scenario modelling (Nash equilibria, Schelling focal points, escalation ladders)
 - Live war room with military flight tracking and OSINT event feeds
-- Integrated trading execution across stocks and crypto
+- Manual portfolio tracking with live market data (direct broker execution coming soon)
 - Regime-aware prediction tagging with automatic invalidation on regime change
 
 ## Signal Layers
@@ -39,8 +39,8 @@ The intelligence pipeline operates in four phases: Detect, Converge, Synthesise,
 
 ## Pricing
 
-- Analyst: $299/month ($249/month annual)
-- Operator: $999/month ($849/month annual)
+- Analyst: $150/month ($125/month annual)
+- Operator: $450/month ($375/month annual)
 - Institution: Custom pricing
 
 ## Company

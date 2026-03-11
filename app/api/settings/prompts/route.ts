@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { PROMPT_REGISTRY } from "@/lib/prompts/registry";
 import { loadPrompt, savePrompt, deletePromptOverride, hasPromptOverride } from "@/lib/prompts/loader";
+import { validateOrigin } from "@/lib/security/csrf";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -44,6 +45,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const admin = await requireAdmin();
   if (!admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -67,6 +71,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const admin = await requireAdmin();
   if (!admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

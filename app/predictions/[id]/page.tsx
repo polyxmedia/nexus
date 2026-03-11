@@ -70,7 +70,7 @@ interface Analysis {
 const CATEGORY_CONFIG: Record<string, { label: string; color: string; border: string; bg: string; icon: typeof Globe }> = {
   market: { label: "Market", color: "text-accent-cyan", border: "border-accent-cyan/30", bg: "bg-accent-cyan/8", icon: BarChart3 },
   geopolitical: { label: "Geopolitical", color: "text-accent-rose", border: "border-accent-rose/30", bg: "bg-accent-rose/8", icon: Globe },
-  celestial: { label: "Celestial", color: "text-accent-amber", border: "border-accent-amber/30", bg: "bg-accent-amber/8", icon: Star },
+  celestial: { label: "Astronomical", color: "text-accent-amber", border: "border-accent-amber/30", bg: "bg-accent-amber/8", icon: Star },
 };
 
 const OUTCOME_CONFIG: Record<string, { icon: typeof CheckCircle2; label: string; color: string; bg: string; border: string; description: string }> = {

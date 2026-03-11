@@ -1,7 +1,7 @@
 import type { CelestialEvent } from "./celestial";
 import type { HebrewCalendarSignal } from "./hebrew-calendar";
 import type { GeopoliticalEvent } from "./geopolitical";
-import { getEsotericReading, type EsotericReading } from "./numerology";
+import { getCyclicalReading, type CyclicalReading } from "./structural-cycles";
 
 export interface ConvergenceResult {
   date: string;
@@ -10,7 +10,7 @@ export interface ConvergenceResult {
   celestialEvents: CelestialEvent[];
   hebrewEvents: HebrewCalendarSignal[];
   geopoliticalEvents: GeopoliticalEvent[];
-  esoteric?: EsotericReading;
+  esoteric?: CyclicalReading;
   title: string;
   description: string;
   category: string;
@@ -84,7 +84,7 @@ export function scoreConvergences(
     if (layers.length === 0) continue;
 
     // Esoteric reading for this date
-    const esoteric = getEsotericReading(new Date(clusterStart + "T12:00:00Z"));
+    const esoteric = getCyclicalReading(new Date(clusterStart + "T12:00:00Z"));
 
     // Base score from individual event significance
     // Primary layers contribute full significance, narrative layers are capped
@@ -100,8 +100,8 @@ export function scoreConvergences(
     // Narrative layers (CAL/CEL) do NOT contribute to convergence amplification
     const convergenceBonus = Math.max(0, primaryLayers.length - 1);
 
-    // Esoteric reading kept for cultural context only — does NOT feed trading intensity.
-    // Stripped from composite per analysis: lunar phase, Chinese zodiac, numerology,
+    // Cyclical reading kept for cultural context only — does NOT feed trading intensity.
+    // Stripped from composite: lunar phase, Chinese zodiac, cultural numerics,
     // flying stars, Kondratieff. Hebrew/Islamic calendars already feed as first-class
     // event layers above.
 

@@ -22,6 +22,8 @@ import {
   BookOpen,
   Crosshair,
   ExternalLink,
+  Globe,
+  BarChart3,
 } from "lucide-react";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
@@ -40,6 +42,8 @@ interface TimelineEntry {
 }
 
 const TYPE_CONFIG: Record<string, { icon: typeof Activity; color: string; label: string }> = {
+  news: { icon: Globe, color: "#f97316", label: "News" },
+  economic: { icon: BarChart3, color: "#3b82f6", label: "Economic" },
   signal: { icon: Activity, color: "#f59e0b", label: "Signal" },
   prediction: { icon: Target, color: "#8b5cf6", label: "Prediction" },
   trade: { icon: TrendingUp, color: "#10b981", label: "Trade" },
@@ -84,7 +88,14 @@ function ActionMenu({ event, onAction }: { event: TimelineEntry; onAction: (acti
     { id: "alert", label: "Create Alert", icon: Bell, color: "#ef4444" },
     { id: "trade", label: "Create Position", icon: TrendingUp, color: "#10b981" },
     ...(event.sourceType && event.sourceId
-      ? [{ id: "source", label: `View ${event.sourceType}`, icon: ExternalLink, color: "#94a3b8" }]
+      ? [{
+          id: "source",
+          label: event.sourceType === "news_feed" ? "Open Article"
+            : event.sourceType === "fred" ? "View on FRED"
+            : `View ${event.sourceType}`,
+          icon: ExternalLink,
+          color: "#94a3b8",
+        }]
       : []),
   ];
 
@@ -231,6 +242,16 @@ export default function TimelinePage() {
         break;
       }
       case "source": {
+        // News events have an external URL in metadata
+        if (event.sourceType === "news_feed" && event.metadata?.url) {
+          window.open(String(event.metadata.url), "_blank", "noopener");
+          break;
+        }
+        // FRED events link to the FRED website
+        if (event.sourceType === "fred" && event.metadata?.seriesId) {
+          window.open(`https://fred.stlouisfed.org/series/${event.metadata.seriesId}`, "_blank", "noopener");
+          break;
+        }
         const sourceRoutes: Record<string, string> = {
           signal: "/signals",
           prediction: "/predictions",
@@ -359,7 +380,11 @@ export default function TimelinePage() {
                   )}
                   {event.sourceType && (
                     <div className="mt-2 text-[9px] text-navy-600 font-mono">
-                      {event.sourceType} #{event.sourceId}
+                      {event.sourceType === "news_feed" && event.metadata?.source
+                        ? String(event.metadata.source)
+                        : event.sourceType === "fred" && event.metadata?.seriesName
+                          ? `FRED: ${event.metadata.seriesName}`
+                          : `${event.sourceType} #${event.sourceId}`}
                     </div>
                   )}
                 </div>

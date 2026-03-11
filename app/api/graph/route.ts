@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { syncEntityGraph, getEntityGraph, searchEntities } from "@/lib/graph/engine";
 import { db, schema } from "@/lib/db";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
@@ -33,7 +34,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(graph);
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const tierCheck = await requireTier("analyst");
   if ("response" in tierCheck) return tierCheck.response;
   const result = await syncEntityGraph();

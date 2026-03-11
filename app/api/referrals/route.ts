@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
+import { validateOrigin } from "@/lib/security/csrf";
 
 function generateCode(): string {
   return crypto.randomUUID();
@@ -107,6 +108,9 @@ export async function GET() {
 
 // POST: Admin actions (update commission rate, regenerate code)
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -114,6 +118,21 @@ export async function POST(request: NextRequest) {
 
   const userId = `user:${session.user.name}`;
   const body = await request.json();
+
+  // Admin-only actions require a single upfront role check
+  const ADMIN_ACTIONS = ["update_rate", "payout"];
+  let isAdmin = false;
+  if (ADMIN_ACTIONS.includes(body.action)) {
+    const userRows = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, `user:${session.user.name}`));
+    const userData = userRows[0] ? JSON.parse(userRows[0].value) : {};
+    isAdmin = userData.role === "admin";
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Admin only" }, { status: 403 });
+    }
+  }
 
   try {
     if (body.action === "regenerate") {
@@ -126,16 +145,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.action === "update_rate" && body.rate !== undefined) {
-      // Admin only: check role
-      const userRows = await db
-        .select()
-        .from(schema.settings)
-        .where(eq(schema.settings.key, `user:${session.user.name}`));
-      const userData = userRows[0] ? JSON.parse(userRows[0].value) : {};
-      if (userData.role !== "admin") {
-        return NextResponse.json({ error: "Admin only" }, { status: 403 });
-      }
-
       const targetUser = body.userId;
       if (!targetUser) {
         return NextResponse.json({ error: "userId required" }, { status: 400 });
@@ -150,16 +159,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.action === "payout" && body.commissionId) {
-      // Admin only
-      const userRows = await db
-        .select()
-        .from(schema.settings)
-        .where(eq(schema.settings.key, `user:${session.user.name}`));
-      const userData = userRows[0] ? JSON.parse(userRows[0].value) : {};
-      if (userData.role !== "admin") {
-        return NextResponse.json({ error: "Admin only" }, { status: 403 });
-      }
-
       await db
         .update(schema.commissions)
         .set({

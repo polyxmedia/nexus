@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { RotateCcw, Home } from "lucide-react";
+import * as Sentry from "@sentry/nextjs";
 
 export default function Error({
   error,
@@ -12,6 +13,10 @@ export default function Error({
 }) {
   const [glitchText, setGlitchText] = useState("SYSTEM FAULT");
   const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
 
   useEffect(() => {
     setMounted(true);

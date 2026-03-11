@@ -1,6 +1,11 @@
 // Background job scheduler for periodic intelligence tasks
 // Uses simple interval-based scheduling (no cron dependency needed at runtime)
 
+import * as Sentry from "@sentry/nextjs";
+
+/** Number of consecutive failures before escalating to Sentry */
+const FAILURE_ALERT_THRESHOLD = 3;
+
 type JobFn = () => Promise<void>;
 
 interface ScheduledJob {
@@ -30,6 +35,22 @@ async function runJob(job: ScheduledJob) {
   } catch (err) {
     job.errors++;
     console.error(`[scheduler] Job "${job.name}" failed (${job.errors} consecutive):`, err);
+
+    // After N consecutive failures, escalate to Sentry so it shows in monitoring
+    if (job.errors >= FAILURE_ALERT_THRESHOLD) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      Sentry.withScope((scope) => {
+        scope.setTag("scheduler.job", job.name);
+        scope.setExtra("consecutiveFailures", job.errors);
+        scope.setExtra("intervalMs", job.intervalMs);
+        scope.setExtra("lastSuccessfulRun", job.lastRun?.toISOString() || "never");
+        scope.setLevel("error");
+        Sentry.captureException(error);
+      });
+      console.warn(
+        `[scheduler] ALERT: Job "${job.name}" has failed ${job.errors} consecutive times. Reported to Sentry.`
+      );
+    }
   } finally {
     job.running = false;
   }
@@ -246,6 +267,12 @@ registerJob("ig-token-refresh", 45 * 60_000, async () => {
     // Don't throw - IG may not be configured for all users
     console.error("[scheduler] IG token refresh error:", err);
   }
+});
+
+registerJob("data-retention", 24 * 60 * 60_000, async () => {
+  // Daily data hygiene: purge old analytics/alerts/timeline, archive expired knowledge
+  const { runRetentionCleanup } = await import("@/lib/cleanup/retention");
+  await runRetentionCleanup();
 });
 
 function getBaseUrl() {

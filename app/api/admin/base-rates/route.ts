@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 async function isAdmin(): Promise<boolean> {
   const session = await getServerSession(authOptions);
@@ -27,6 +28,9 @@ export async function GET() {
 
 // PATCH: update a single base rate
 export async function PATCH(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
@@ -62,6 +66,9 @@ export async function PATCH(req: NextRequest) {
 
 // POST: add a new base rate
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
@@ -97,6 +104,9 @@ export async function POST(req: NextRequest) {
 
 // DELETE: remove a base rate
 export async function DELETE(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }

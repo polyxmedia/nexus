@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateOrigin } from "@/lib/security/csrf";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -103,7 +104,10 @@ const DEFAULT_TIERS = [
   },
 ];
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name || !(await isAdmin(session.user.name))) {

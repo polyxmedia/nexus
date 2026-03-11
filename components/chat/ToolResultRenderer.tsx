@@ -85,7 +85,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_active_thesis: "Active Thesis",
   get_predictions: "Predictions",
   get_portfolio: "Portfolio",
-  get_esoteric_reading: "Esoteric Reading",
+  get_esoteric_reading: "Cyclical Analysis",
   web_search: "Web Search",
   get_osint_events: "OSINT Events",
   extract_osint_entities: "OSINT Entities",

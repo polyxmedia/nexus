@@ -51,6 +51,12 @@ export interface BacktestPrediction {
   walkForwardFold?: number;
 }
 
+export interface BacktestLogEntry {
+  timestamp: string;
+  message: string;
+  level: "info" | "warn" | "error" | "success";
+}
+
 export interface BacktestRun {
   id: string;
   config: BacktestConfig;
@@ -62,6 +68,12 @@ export interface BacktestRun {
   error?: string;
   createdAt: string;
   completedAt?: string;
+  /** Live terminal log entries emitted during execution */
+  logs?: BacktestLogEntry[];
+  /** Whether this run's results are published publicly */
+  published?: boolean;
+  /** Slug for public URL (set on publish) */
+  publishSlug?: string;
 }
 
 export interface BacktestResults {

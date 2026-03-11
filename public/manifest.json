@@ -1,0 +1,16 @@
+{
+  "name": "NEXUS Intelligence",
+  "short_name": "NEXUS",
+  "description": "Geopolitical-Market Signal Platform",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "/icon",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ]
+}

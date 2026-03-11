@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { getStripe } from "@/lib/stripe";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 // Credit packs: amount in credits, price in cents
 const CREDIT_PACKS = [
@@ -19,17 +20,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  // CSRF: validate Origin header against expected domain
-  const origin = request.headers.get("origin");
-  const expectedOrigin = (
-    process.env.NEXTAUTH_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    ""
-  ).replace(/\/+$/, "");
-
-  if (!origin || (expectedOrigin && origin !== expectedOrigin)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {

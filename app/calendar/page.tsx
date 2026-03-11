@@ -64,7 +64,20 @@ interface CalendarData {
     hebrewYear: number;
     significance: string;
   } | null;
-  esoteric: {
+  /** @deprecated Use `cyclical` instead */
+  esoteric?: {
+    sexagenaryCycle: string;
+    animal: string;
+    element: string;
+    flyingStar: number;
+    flyingStarName: string;
+    lunarPhase: string;
+    lunarBias: string;
+    universalYear: number;
+    kondratieffSeason: string;
+    compositeScore: number;
+  } | null;
+  cyclical?: {
     sexagenaryCycle: string;
     animal: string;
     element: string;
@@ -89,7 +102,12 @@ interface DateReading {
   isShmita: boolean;
   reading: string;
   signalCount: number;
+  /** @deprecated Use `cyclical` instead */
   esoteric?: {
+    lunarPhase: string;
+    compositeScore: number;
+  };
+  cyclical?: {
     lunarPhase: string;
     compositeScore: number;
   };
@@ -530,11 +548,11 @@ export default function CalendarPage() {
             <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Chinese</span>
           </div>
           <div className="text-sm font-bold text-navy-100 font-mono">
-            {data?.esoteric ? `${data.esoteric.element} ${data.esoteric.animal}` : "N/A"}
+            {(data?.cyclical ?? data?.esoteric) ? `${(data.cyclical ?? data.esoteric)!.element} ${(data.cyclical ?? data.esoteric)!.animal}` : "N/A"}
           </div>
           <div className="text-[10px] text-navy-400 mt-0.5">
-            {data?.esoteric?.lunarPhase?.replace(/_/g, " ") || "N/A"}
-            {data?.esoteric && <span className="ml-1.5 text-navy-500">Star {data.esoteric.flyingStar}</span>}
+            {(data?.cyclical ?? data?.esoteric)?.lunarPhase?.replace(/_/g, " ") || "N/A"}
+            {(data?.cyclical ?? data?.esoteric) && <span className="ml-1.5 text-navy-500">Star {(data.cyclical ?? data.esoteric)!.flyingStar}</span>}
           </div>
         </div>
 
@@ -545,11 +563,11 @@ export default function CalendarPage() {
             <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Composite</span>
           </div>
           <div className="text-sm font-bold text-navy-100 font-mono">
-            {data?.esoteric?.compositeScore?.toFixed(1) || "0"}/10
+            {(data?.cyclical ?? data?.esoteric)?.compositeScore?.toFixed(1) || "0"}/10
           </div>
           <div className="text-[10px] text-navy-400 mt-0.5">
-            {data?.esoteric?.kondratieffSeason} wave
-            <span className="ml-1.5 text-navy-500">UY{data?.esoteric?.universalYear}</span>
+            {(data?.cyclical ?? data?.esoteric)?.kondratieffSeason} wave
+            <span className="ml-1.5 text-navy-500">UY{(data?.cyclical ?? data?.esoteric)?.universalYear}</span>
           </div>
         </div>
 
@@ -1093,9 +1111,9 @@ export default function CalendarPage() {
                     <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-400">
                       AI Intelligence Reading
                     </span>
-                    {reading.esoteric && (
+                    {(reading.cyclical ?? reading.esoteric) && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-400/10 text-purple-400 border border-purple-400/20 ml-1">
-                        Score {reading.esoteric.compositeScore?.toFixed(1)}/10
+                        Score {(reading.cyclical ?? reading.esoteric).compositeScore?.toFixed(1)}/10
                       </span>
                     )}
                     {reading.signalCount > 0 && (

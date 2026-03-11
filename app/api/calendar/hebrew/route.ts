@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getHebrewCalendarEvents, getShmitaInfo } from "@/lib/signals/hebrew-calendar";
 import { getIslamicCalendarEvents, getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getEconomicCalendarEvents } from "@/lib/signals/economic-calendar";
-import { getEsotericReading } from "@/lib/signals/numerology";
+import { getCyclicalReading } from "@/lib/signals/structural-cycles";
 import { HDate } from "@hebcal/core";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
@@ -17,7 +17,7 @@ export async function GET() {
     const year = now.getFullYear();
     const hdate = new HDate(now);
     const hijri = getHijriDateInfo(now);
-    const esoteric = getEsotericReading(now);
+    const esoteric = getCyclicalReading(now);
 
     const hebrewEvents = [
       ...getHebrewCalendarEvents(year),

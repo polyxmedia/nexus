@@ -1,3 +1,5 @@
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
+
 // ── Brand tokens ──
 // Dark mode mirrors the site: navy-950 bg, navy borders, light text
 // Light mode: clean white bg, black buttons, neutral grays
@@ -63,6 +65,11 @@ function layout(content: string) {
   <tr><td class="email-footer" style="padding:16px 40px 24px;border-top:1px solid ${DARK.border};">
     <div class="email-muted" style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:${DARK.muted};letter-spacing:1px;">
       Nexus Intelligence Platform
+    </div>
+    <div style="margin-top:8px;">
+      <a href="${SITE_URL}/settings" class="email-muted" style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:${DARK.muted};letter-spacing:1px;text-decoration:underline;">
+        To manage your email preferences, visit your account settings.
+      </a>
     </div>
   </td></tr>
 </table>
@@ -256,6 +263,67 @@ export function passwordResetEmail(username: string, resetUrl: string) {
         button("Reset Password", resetUrl) +
         mutedText("If you didn't request this, you can safely ignore this email. Your password won't change.")
     ),
+  };
+}
+
+// ── Admin Notification Templates ──
+
+export function adminNewUserEmail(username: string, email: string) {
+  return {
+    subject: `New registration: ${username}`,
+    html: layout(
+      heading("New User Registration") +
+        metricRow([
+          { label: "Username", value: username },
+          { label: "Email", value: email },
+          { label: "Time", value: new Date().toUTCString().slice(0, 22) },
+        ]) +
+        button("View Users", `${SITE_URL}/admin`)
+    ),
+    type: "admin_new_user",
+  };
+}
+
+export function adminNewSubscriptionEmail(username: string, tierName: string) {
+  return {
+    subject: `New subscription: ${username} (${tierName})`,
+    html: layout(
+      heading("New Subscription") +
+        metricRow([
+          { label: "User", value: username },
+          { label: "Tier", value: tierName },
+          { label: "Status", value: "Active" },
+        ]) +
+        button("View Admin", `${SITE_URL}/admin`)
+    ),
+    type: "admin_new_subscription",
+  };
+}
+
+export function adminSubscriptionCanceledEmail(username: string) {
+  return {
+    subject: `Subscription canceled: ${username}`,
+    html: layout(
+      heading("Subscription Canceled") +
+        metricRow([
+          { label: "User", value: username },
+          { label: "Status", value: "Canceled" },
+        ]) +
+        button("View Admin", `${SITE_URL}/admin`)
+    ),
+    type: "admin_subscription_canceled",
+  };
+}
+
+export function adminPaymentFailedEmail(username: string) {
+  return {
+    subject: `Payment failed: ${username}`,
+    html: layout(
+      heading("Payment Failed") +
+        paragraph(`Payment failed for user <strong>${username}</strong>. The subscription has been marked as past due.`) +
+        button("View Admin", `${SITE_URL}/admin`)
+    ),
+    type: "admin_payment_failed",
   };
 }
 

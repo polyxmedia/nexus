@@ -3,8 +3,8 @@ import { hashPassword } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { sendEmail } from "@/lib/email";
-import { welcomeEmail } from "@/lib/email/templates";
+import { sendEmail, notifyAdmin } from "@/lib/email";
+import { welcomeEmail, adminNewUserEmail } from "@/lib/email/templates";
 import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(request: Request) {
@@ -110,6 +110,9 @@ export async function POST(request: Request) {
     sendEmail({ to: email, ...template }).catch((err) =>
       console.error("Welcome email failed:", err)
     );
+
+    // Notify admin of new registration
+    notifyAdmin(adminNewUserEmail(username, email)).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (err) {

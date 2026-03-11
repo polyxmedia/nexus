@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { encrypt } from "@/lib/encryption";
+import crypto from "crypto";
 
 // IG OAuth token endpoint
 const IG_TOKEN_URL = "https://identity.ig.com/token";
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Verify CSRF state token
-  const stateRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "ig_oauth_state"));
+  const stateRows = await db.select().from(schema.settings).where(eq(schema.settings.key, `ig_oauth_state:${session.user.name}`));
   const storedState = stateRows[0]?.value;
   if (!storedState) {
     settingsUrl.searchParams.set("ig_error", "invalid_state");
@@ -41,14 +42,17 @@ export async function GET(req: NextRequest) {
   }
 
   const [savedState, timestamp] = storedState.split(":");
-  // State expires after 10 minutes
-  if (savedState !== state || Date.now() - parseInt(timestamp) > 600_000) {
+  // State expires after 10 minutes - use timing-safe comparison
+  const stateBuffer = Buffer.from(state);
+  const savedBuffer = Buffer.from(savedState);
+  const stateValid = stateBuffer.length === savedBuffer.length && crypto.timingSafeEqual(stateBuffer, savedBuffer);
+  if (!stateValid || Date.now() - parseInt(timestamp) > 600_000) {
     settingsUrl.searchParams.set("ig_error", "expired_state");
     return NextResponse.redirect(settingsUrl);
   }
 
   // Clean up the state token
-  await db.delete(schema.settings).where(eq(schema.settings.key, "ig_oauth_state"));
+  await db.delete(schema.settings).where(eq(schema.settings.key, `ig_oauth_state:${session.user.name}`));
 
   // Exchange authorization code for tokens
   const clientId = process.env.IG_OAUTH_CLIENT_ID;

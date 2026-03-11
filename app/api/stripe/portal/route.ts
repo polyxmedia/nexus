@@ -4,8 +4,12 @@ import { authOptions } from "@/lib/auth/auth";
 import { getStripe } from "@/lib/stripe";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.name) {
