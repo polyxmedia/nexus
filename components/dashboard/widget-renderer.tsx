@@ -1716,6 +1716,123 @@ function QuickChatWidget() {
   );
 }
 
+// ── Brier Score Widget ──
+
+interface CalibrationData {
+  ready: boolean;
+  message?: string;
+  brierScore?: number;
+  logLoss?: number;
+  binaryAccuracy?: number;
+  avgConfidence?: number;
+  calibrationGap?: number;
+  totalResolved?: number;
+  sampleSufficient?: boolean;
+  recentTrend?: { improving: boolean; recentBrier: number; priorBrier: number };
+  byCategory?: Array<{ category: string; brierScore: number; count: number; reliable: boolean }>;
+}
+
+function BrierScoreWidget() {
+  const { data, isLoading: loading } = useSwrFetch<CalibrationData>("/api/predictions/calibration", { dedupingInterval: 60_000 });
+
+  if (loading) return <WidgetSkeleton lines={4} />;
+  if (!data?.ready) return <WidgetError message={data?.message || "Not enough data"} />;
+
+  const brier = data.brierScore ?? 0;
+  const accuracy = data.binaryAccuracy ?? 0;
+  const avgConf = data.avgConfidence ?? 0;
+  const gap = data.calibrationGap ?? 0;
+  const n = data.totalResolved ?? 0;
+
+  // Brier score quality: 0 = perfect, 0.25 = random, 1 = worst
+  const brierColor = brier <= 0.15 ? "text-accent-emerald" : brier <= 0.25 ? "text-accent-amber" : "text-accent-rose";
+  const brierLabel = brier <= 0.10 ? "Excellent" : brier <= 0.15 ? "Good" : brier <= 0.20 ? "Fair" : brier <= 0.25 ? "Baseline" : "Poor";
+
+  // Calibration bar: how close avgConfidence is to accuracy
+  const calColor = Math.abs(gap) <= 0.05 ? "text-accent-emerald" : Math.abs(gap) <= 0.10 ? "text-accent-amber" : "text-accent-rose";
+  const calLabel = gap > 0.10 ? "Overconfident" : gap < -0.10 ? "Underconfident" : "Calibrated";
+
+  const trend = data.recentTrend;
+  const topCats = (data.byCategory || []).filter(c => c.reliable).sort((a, b) => a.brierScore - b.brierScore).slice(0, 3);
+
+  return (
+    <div className="space-y-3">
+      {/* Primary Brier Score */}
+      <div className="text-center">
+        <span className={`text-2xl font-mono font-bold ${brierColor}`}>{brier.toFixed(3)}</span>
+        <div className="flex items-center justify-center gap-2 mt-0.5">
+          <span className={`text-[9px] font-mono uppercase tracking-wider ${brierColor}`}>{brierLabel}</span>
+          {trend && (
+            <span className={`text-[9px] font-mono ${trend.improving ? "text-accent-emerald" : "text-accent-rose"}`}>
+              {trend.improving ? "improving" : "declining"}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="grid grid-cols-3 gap-1.5">
+        <div className="text-center">
+          <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block">Accuracy</span>
+          <span className="text-sm font-mono font-bold text-navy-100">{(accuracy * 100).toFixed(0)}%</span>
+        </div>
+        <div className="text-center">
+          <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block">Avg Conf</span>
+          <span className="text-sm font-mono font-bold text-navy-100">{(avgConf * 100).toFixed(0)}%</span>
+        </div>
+        <div className="text-center">
+          <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block">Calibration</span>
+          <span className={`text-sm font-mono font-bold ${calColor}`}>{calLabel}</span>
+        </div>
+      </div>
+
+      {/* Calibration Gap Bar */}
+      <div>
+        <div className="flex justify-between mb-0.5">
+          <span className="text-[8px] font-mono text-navy-500">Under</span>
+          <span className="text-[8px] font-mono text-navy-500">Over</span>
+        </div>
+        <div className="h-1.5 bg-navy-800 rounded-full relative overflow-hidden">
+          <div className="absolute inset-y-0 left-1/2 w-px bg-navy-600" />
+          <div
+            className={`absolute inset-y-0 rounded-full ${gap >= 0 ? "bg-accent-amber/60" : "bg-accent-cyan/60"}`}
+            style={{
+              left: gap >= 0 ? "50%" : `${50 + gap * 200}%`,
+              width: `${Math.min(Math.abs(gap) * 200, 50)}%`,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Category Breakdown */}
+      {topCats.length > 0 && (
+        <div>
+          <span className="text-[8px] font-mono uppercase tracking-wider text-navy-500 block mb-1">By Category</span>
+          {topCats.map(c => (
+            <div key={c.category} className="flex items-center justify-between py-0.5">
+              <span className="text-[10px] text-navy-300 capitalize">{c.category}</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-mono font-bold ${c.brierScore <= 0.15 ? "text-accent-emerald" : c.brierScore <= 0.25 ? "text-accent-amber" : "text-accent-rose"}`}>
+                  {c.brierScore.toFixed(3)}
+                </span>
+                <span className="text-[9px] font-mono text-navy-500">n={c.count}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-1 border-t border-navy-700/20">
+        <span className="text-[9px] font-mono text-navy-500">{n} resolved</span>
+        <Link href="/predictions" className="text-[9px] font-mono text-accent-cyan hover:text-accent-cyan/80 transition-colors">
+          Details
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Renderer ──
 
 export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
@@ -1777,6 +1894,8 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <QuickChatWidget />;
       case "daily_report":
         return <DailyReportWidget />;
+      case "brier_score":
+        return <BrierScoreWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1820,4 +1939,5 @@ export const AVAILABLE_WIDGETS = [
   { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider cluster buys", defaultWidth: 2, defaultConfig: {} },
   { type: "quick_chat", name: "Quick Chat", description: "Start a conversation with the AI analyst", defaultWidth: 2, defaultConfig: {} },
   { type: "daily_report", name: "Daily Report", description: "AI-generated daily intelligence briefing with drill-down", defaultWidth: 3, defaultConfig: {} },
+  { type: "brier_score", name: "Brier Score", description: "Platform prediction calibration, accuracy, and scoring breakdown", defaultWidth: 1, defaultConfig: {} },
 ];
