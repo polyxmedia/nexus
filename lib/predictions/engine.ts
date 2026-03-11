@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "../db";
 import { eq, desc, isNull, and, gte } from "drizzle-orm";
 import type { NewPrediction } from "../db/schema";
-import { getQuote, getDailySeries } from "../market-data/alpha-vantage";
+import { getQuote, getDailySeries } from "../market-data/provider";
 import { getActiveKnowledge } from "../knowledge/engine";
 import { computePerformanceReport } from "./feedback";
 import { getWartimeAnalysis } from "../game-theory/wartime";
@@ -400,13 +400,14 @@ async function fetchReferencePrices(alphaVantageKey: string): Promise<Record<str
 async function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): Promise<number> {
   const clamped = Math.max(0.05, Math.min(0.90, rawConfidence));
 
-  // ── Overconfidence shrinkage ──
-  // Analysis showed systematic overconfidence that increases monotonically with
-  // stated confidence. Apply shrinkage toward 0.30 (empirical base rate for
-  // prediction systems). Stronger shrinkage at higher confidence levels.
-  const ANCHOR = 0.30;
-  const shrinkage = clamped > 0.50 ? 0.40 : 0.20; // pull harder above 0.50
-  const shrunk = clamped * (1 - shrinkage) + ANCHOR * shrinkage;
+  // ── Calibration shrinkage ──
+  // Light shrinkage toward empirical midpoint. Reduced from original 0.40/0.20
+  // toward 0.30 anchor after track record showed underconfidence: 86% directional
+  // accuracy at ~46% stated confidence (Brier ~0.27). The old aggressive shrinkage
+  // was overcorrecting. New values: 15%/10% pull toward 0.45 anchor.
+  const anchor = 0.45;
+  const shrinkage = clamped > 0.50 ? 0.15 : 0.10;
+  const shrunk = clamped * (1 - shrinkage) + anchor * shrinkage;
 
   // ── Compound probability detection ──
   // If claim is conditional on a scenario (Hormuz closure, Taiwan escalation, etc.),
@@ -945,11 +946,11 @@ STRICT UNIQUENESS RULES — violations will be rejected:
 4. Every prediction must cover a DIFFERENT underlying asset or a materially different event from all pending ones.
 5. If all meaningful signals are already covered by existing predictions, return an empty array [].
 
-CONFIDENCE CALIBRATION RULES — your track record shows systematic overconfidence:
+CONFIDENCE CALIBRATION RULES — calibrate based on your actual track record:
 - COMPOUND PROBABILITY: If your prediction requires a scenario to happen first (e.g., "Hormuz closes THEN oil spikes"), your confidence must be P(scenario) * P(outcome | scenario). Do NOT assign the conditional probability alone.
 - BASE RATES: Specific price targets within narrow windows confirm ~25-35% of the time. Geopolitical "at least one announcement" claims confirm ~40-60%. Celestial-triggered claims have NO causal mechanism — assign the same confidence as the underlying market/geo claim without celestial bonus.
-- OVERCONFIDENCE CHECK: Before assigning confidence above 0.60, ask: "What specific evidence makes this MORE likely than the base rate?" If you cannot articulate strong, specific evidence, cap at 0.50.
-- RANGE: Use the full 0.10-0.80 range. Many predictions should be in the 0.15-0.40 range. Clustering everything around 0.50-0.70 is a calibration failure.
+- TRACK RECORD ADJUSTMENT: Your calibration feedback section above contains your ACTUAL hit rate and Brier score. If it shows you are underconfident (hit rate exceeds stated confidence), you MUST increase your confidence levels accordingly. If it shows overconfidence, reduce them. Follow the calibration feedback data, not assumptions.
+- RANGE: Use the full 0.10-0.90 range. Match confidence to your actual calibration data. If your hit rate is high, higher confidence is appropriate and improves your Brier score.
 - NO CONTRADICTIONS: Do not predict opposite outcomes for the same asset (e.g., BTC above $100k AND BTC below $60k).
 
 DIRECTION + LEVEL RULES:
@@ -964,7 +965,7 @@ Respond ONLY with a JSON array. Each prediction must include all fields:
     "claim": "Specific falsifiable claim with measurable threshold",
     "timeframe": "7 days" | "14 days" | "30 days" | "90 days",
     "deadline": "YYYY-MM-DD",
-    "confidence": 0.10-0.80,
+    "confidence": 0.10-0.90,
     "category": "market" | "geopolitical" | "celestial",
     "grounding": "Derived from: [specific thesis element / signal / game theory outcome / Bayesian equilibrium / Fearon assessment]. Compound probability: P(trigger) * P(outcome|trigger) = X",
     "direction": "up" | "down" | "flat" | null,

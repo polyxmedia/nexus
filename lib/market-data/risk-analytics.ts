@@ -1,7 +1,7 @@
 // Portfolio Risk Analytics Engine
 // VaR, Stress Testing, Correlation Matrix, Factor Exposure
 
-import { getDailySeries, getQuote, type DailyBar } from "./alpha-vantage";
+import { getDailySeries, getQuote, type DailyBar } from "./provider";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 

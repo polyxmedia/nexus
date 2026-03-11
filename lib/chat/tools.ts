@@ -168,6 +168,22 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "generate_thesis",
+    description:
+      "Generate a new intelligence thesis/briefing. Gathers market data, signals, game theory analysis, and produces a full situational assessment with trading actions. Use when the user asks to run a thesis, generate a briefing, refresh the thesis, or when no active thesis exists. Takes an optional array of ticker symbols to focus on (defaults to core watchlist if not provided).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        symbols: {
+          type: "array",
+          items: { type: "string" },
+          description: "Ticker symbols to analyze (e.g. ['SPY', 'GLD', 'USO']). Defaults to core watchlist if not provided.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "get_predictions",
     description:
       "Get tracked predictions filtered contextually. Always pass relevant filters based on what the user is asking about rather than loading every prediction.",
@@ -955,6 +971,8 @@ export async function executeTool(
       return executeCreateCustomGameTheory(input);
     case "get_active_thesis":
       return executeGetActiveThesis();
+    case "generate_thesis":
+      return executeGenerateThesis(input);
     case "get_predictions":
       return executeGetPredictions(input);
     case "get_prediction_feedback":
@@ -1367,6 +1385,36 @@ async function executeGetActiveThesis() {
     riskScenarios: thesis.riskScenarios,
     symbols: JSON.parse(thesis.symbols),
   };
+}
+
+async function executeGenerateThesis(input: Record<string, unknown>) {
+  try {
+    const { generateThesis } = await import("@/lib/thesis/engine");
+    const DEFAULT_SYMBOLS = ["SPY", "GLD", "USO", "TLT", "DXY"];
+    const symbols = Array.isArray(input.symbols) && input.symbols.length > 0
+      ? (input.symbols as string[]).map(s => String(s).toUpperCase())
+      : DEFAULT_SYMBOLS;
+
+    const thesis = await generateThesis(symbols);
+
+    return {
+      generated: true,
+      id: thesis.id,
+      title: thesis.title,
+      marketRegime: thesis.marketRegime,
+      volatilityOutlook: thesis.volatilityOutlook,
+      overallConfidence: thesis.overallConfidence,
+      convergenceDensity: thesis.convergenceDensity,
+      executiveSummary: thesis.executiveSummary,
+      situationAssessment: thesis.situationAssessment,
+      riskScenarios: thesis.riskScenarios,
+      tradingActions: thesis.tradingActions,
+      symbols,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Thesis generation failed: ${message}` };
+  }
 }
 
 async function executeGetPredictions(input: Record<string, unknown>) {

@@ -4,6 +4,7 @@
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { broadcastAlert, formatNewPredictionsAlert } from "@/lib/telegram/alerts";
+import { tweetNewPredictions } from "@/lib/twitter/predictions";
 
 interface GeneratedPrediction {
   id?: number;
@@ -77,6 +78,13 @@ export async function notifyNewPredictions(predictions: GeneratedPrediction[]): 
     });
   } catch (err) {
     console.error("[predictions] Failed to create in-app notification:", err);
+  }
+
+  // Post to Twitter/X
+  try {
+    await tweetNewPredictions(predictions);
+  } catch (err) {
+    console.error("[predictions] Twitter notification failed:", err);
   }
 
   // Broadcast via Telegram to all subscribers

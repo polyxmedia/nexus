@@ -276,14 +276,20 @@ export default function NarrativePage() {
   const [snapshot, setSnapshot] = useState<NarrativeSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function fetchData() {
     try {
+      setError(null);
       const res = await fetch("/api/narrative");
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed to fetch (${res.status})`);
+      }
       const data = await res.json();
       setSnapshot(data);
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch narratives");
       setSnapshot(null);
     } finally {
       setLoading(false);
@@ -327,7 +333,7 @@ export default function NarrativePage() {
         </div>
       }
     >
-      <UpgradeGate minTier="operator" feature="Narrative and sentiment tracking" blur>
+      <UpgradeGate minTier="analyst" feature="Narrative and sentiment tracking" blur>
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <div className="border border-navy-800/60 rounded-lg p-3">
@@ -387,6 +393,11 @@ export default function NarrativePage() {
               <div className="h-2 bg-navy-800/30 rounded w-1/4" />
             </div>
           ))}
+        </div>
+      ) : error ? (
+        <div className="text-center py-20">
+          <AlertTriangle className="h-5 w-5 text-accent-rose/60 mx-auto mb-3" />
+          <p className="text-xs text-navy-500 font-mono">{error}</p>
         </div>
       ) : !snapshot || snapshot.narratives.length === 0 ? (
         <div className="text-center py-20">

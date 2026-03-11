@@ -22,10 +22,9 @@ export async function POST(req: NextRequest) {
       results.alerts = { error: err instanceof Error ? err.message : "failed" };
     }
 
-    // 2. Auto-resolve expired predictions (only run every 6 hours to save API calls)
-    const hour = new Date().getUTCHours();
+    // 2. Auto-resolve expired predictions (runs every hour)
     const minute = new Date().getUTCMinutes();
-    if (hour % 6 === 0 && minute < 10) {
+    if (minute < 10) {
       try {
         const resolved = await resolvePredictions();
         results.predictions = {
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
         results.predictions = { error: err instanceof Error ? err.message : "failed" };
       }
     } else {
-      results.predictions = { skipped: "runs every 6 hours" };
+      results.predictions = { skipped: "runs hourly at :00-:09" };
     }
 
     return NextResponse.json(results);

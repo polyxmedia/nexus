@@ -1,5 +1,5 @@
 import type { MarketSentiment, SectorStrength } from "../thesis/types";
-import { getQuote } from "./alpha-vantage";
+import { getQuote } from "./provider";
 
 const SECTOR_ETFS = [
   { sector: "Technology", etf: "XLK" },

@@ -731,6 +731,21 @@ export type NewComment = typeof comments.$inferInsert;
 export type AnalystFollow = typeof analystFollows.$inferSelect;
 export type NewAnalystFollow = typeof analystFollows.$inferInsert;
 
+// ── Cached News Articles ──
+
+export const newsArticles = pgTable("news_articles", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  url: text("url").notNull().unique(),
+  source: text("source").notNull(),
+  category: text("category").notNull(), // world | markets | conflict | energy
+  description: text("description"),
+  imageUrl: text("image_url"),
+  bias: text("bias"), // political bias rating
+  publishedAt: text("published_at").notNull(), // ISO datetime
+  fetchedAt: text("fetched_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const gprReadings = pgTable("gpr_readings", {
   id: serial("id").primaryKey(),
   date: text("date").notNull().unique(),

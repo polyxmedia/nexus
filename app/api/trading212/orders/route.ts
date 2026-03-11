@@ -9,7 +9,7 @@ import { requireTier } from "@/lib/auth/require-tier";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateOrigin, safeError } from "@/lib/security/csrf";
 import { preTradeCheckT212, riskBlockResponse } from "@/lib/trading/pre-trade-check";
-import { getQuote } from "@/lib/market-data/alpha-vantage";
+import { getQuote } from "@/lib/market-data/provider";
 
 export async function GET() {
   const tierCheck = await requireTier("operator");

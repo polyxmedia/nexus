@@ -2080,140 +2080,32 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Coinbase - OAuth or API Key */}
-            <div className={`border rounded-lg overflow-hidden transition-colors ${coinbaseOAuth?.connected || coinbaseKey ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+            {/* Coinbase - Coming Soon */}
+            <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${coinbaseOAuth?.connected || coinbaseKey ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>CB</div>
+                  <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-400">CB</div>
                   <div>
                     <h3 className="text-sm font-medium text-navy-200">Coinbase</h3>
                     <p className="text-[10px] text-navy-500">Cryptocurrency trading</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {coinbaseOAuth?.connected ? (
-                    <>
-                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
-                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected via OAuth
-                      </span>
-                      <button
-                        onClick={async () => {
-                          await fetch("/api/coinbase/oauth", { method: "DELETE" });
-                          setCoinbaseOAuth({ ...coinbaseOAuth, connected: false });
-                        }}
-                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  ) : coinbaseKey ? (
-                    <>
-                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
-                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected via API Key
-                      </span>
-                      <button
-                        onClick={async () => {
-                          await saveSetting("coinbase_api_key", "");
-                          await saveSetting("coinbase_api_secret", "");
-                          setCoinbaseKey("");
-                          setCoinbaseSecret("");
-                        }}
-                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {coinbaseOAuth?.oauthAvailable && (
-                        <button
-                          disabled={coinbaseConnecting}
-                          onClick={async () => {
-                            setCoinbaseConnecting(true);
-                            try {
-                              const res = await fetch("/api/coinbase/oauth");
-                              const data = await res.json();
-                              if (data.url) window.location.href = data.url;
-                              else setCoinbaseConnecting(false);
-                            } catch { setCoinbaseConnecting(false); }
-                          }}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all disabled:opacity-50"
-                        >
-                          {coinbaseConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
-                          OAuth
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setCoinbaseForm({ apiKey: "", apiSecret: "" }); setConnectStatus(s => ({ ...s, coinbase: null })); setBrokerModal("coinbase"); }}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all"
-                      >
-                        <Key className="h-3 w-3" /> API Key
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <span className="text-[10px] font-mono text-navy-500 px-3 py-1.5 rounded border border-navy-700/40">Coming soon</span>
               </div>
             </div>
 
-            {/* Alpaca - OAuth (pending approval, shows disclosure) */}
-            <div className={`border rounded-lg overflow-hidden transition-colors ${alpacaOAuth?.connected ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+            {/* Alpaca - Coming Soon */}
+            <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${alpacaOAuth?.connected ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>AL</div>
+                  <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-400">AL</div>
                   <div>
                     <h3 className="text-sm font-medium text-navy-200">Alpaca</h3>
                     <p className="text-[10px] text-navy-500">US stocks, options, crypto, commission-free</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {alpacaOAuth?.connected ? (
-                    <>
-                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
-                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected via OAuth
-                      </span>
-                      <button
-                        onClick={async () => {
-                          await fetch("/api/alpaca/oauth", { method: "DELETE" });
-                          setAlpacaOAuth({ ...alpacaOAuth, connected: false });
-                        }}
-                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      disabled={alpacaConnecting}
-                      onClick={async () => {
-                        setAlpacaConnecting(true);
-                        try {
-                          const res = await fetch("/api/alpaca/oauth");
-                          const data = await res.json();
-                          if (data.url) window.location.href = data.url;
-                          else {
-                            setConnectStatus(s => ({ ...s, alpaca: { ok: false, message: data.error || "OAuth not available" } }));
-                            setAlpacaConnecting(false);
-                          }
-                        } catch { setAlpacaConnecting(false); }
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all disabled:opacity-50"
-                    >
-                      {alpacaConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
-                      Connect with Alpaca
-                    </button>
-                  )}
-                </div>
+                <span className="text-[10px] font-mono text-navy-500 px-3 py-1.5 rounded border border-navy-700/40">Coming soon</span>
               </div>
-              {!alpacaOAuth?.connected && (
-                <div className="px-4 pb-3 pt-0">
-                  <p className="text-[9px] text-navy-600 leading-relaxed">Authorize NEXUS: By allowing NEXUS to access your Alpaca account, you are granting NEXUS access to your account information and authorization to place transactions in your account at your direction. Alpaca does not warrant or guarantee that NEXUS will work as advertised or expected. Before authorizing, <a href="/research/methodology" className="underline hover:text-navy-400">learn more about NEXUS</a>.</p>
-                </div>
-              )}
-              {connectStatus.alpaca && !connectStatus.alpaca.ok && (
-                <div className="px-4 pb-3">
-                  <p className="text-[10px] font-mono text-accent-rose">{connectStatus.alpaca.message}</p>
-                </div>
-              )}
             </div>
 
             {/* Saxo Bank - Coming Soon */}
@@ -2230,79 +2122,31 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Polymarket */}
-            <div className={`border rounded-lg overflow-hidden transition-colors ${polymarketKey ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+            {/* Polymarket - Coming Soon */}
+            <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${polymarketKey ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>PM</div>
+                  <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-400">PM</div>
                   <div>
                     <h3 className="text-sm font-medium text-navy-200">Polymarket</h3>
                     <p className="text-[10px] text-navy-500">Prediction market trading via wallet</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {polymarketKey ? (
-                    <>
-                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
-                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected
-                      </span>
-                      <button
-                        onClick={async () => {
-                          await saveSetting(`${username}:polymarket_private_key`, "");
-                          setPolymarketKey("");
-                        }}
-                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => { setPolymarketForm({ privateKey: "" }); setConnectStatus(s => ({ ...s, polymarket: null })); setBrokerModal("polymarket"); }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all"
-                    >
-                      <Key className="h-3 w-3" /> Connect Wallet
-                    </button>
-                  )}
-                </div>
+                <span className="text-[10px] font-mono text-navy-500 px-3 py-1.5 rounded border border-navy-700/40">Coming soon</span>
               </div>
             </div>
 
-            {/* Kalshi */}
-            <div className={`border rounded-lg overflow-hidden transition-colors ${kalshiKeyId ? "border-accent-emerald/20 bg-accent-emerald/[0.02]" : "border-navy-700"}`}>
+            {/* Kalshi - Coming Soon */}
+            <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${kalshiKeyId ? "bg-accent-emerald/10 text-accent-emerald" : "bg-navy-800 text-navy-400"}`}>KL</div>
+                  <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-400">KL</div>
                   <div>
                     <h3 className="text-sm font-medium text-navy-200">Kalshi</h3>
                     <p className="text-[10px] text-navy-500">US prediction market (API key pair)</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {kalshiKeyId ? (
-                    <>
-                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-accent-emerald">
-                        <div className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> Connected
-                      </span>
-                      <button
-                        onClick={async () => {
-                          await saveSetting(`${username}:kalshi_api_key_id`, ""); await saveSetting(`${username}:kalshi_private_key`, "");
-                          setKalshiKeyId("");
-                        }}
-                        className="text-[10px] text-navy-500 hover:text-accent-rose px-2 py-1 rounded border border-navy-700/40 transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => { setKalshiForm({ keyId: "", privateKey: "" }); setConnectStatus(s => ({ ...s, kalshi: null })); setBrokerModal("kalshi"); }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/[0.15] text-[11px] font-mono text-navy-100 transition-all"
-                    >
-                      <Key className="h-3 w-3" /> Connect Kalshi
-                    </button>
-                  )}
-                </div>
+                <span className="text-[10px] font-mono text-navy-500 px-3 py-1.5 rounded border border-navy-700/40">Coming soon</span>
               </div>
             </div>
 
@@ -2412,194 +2256,6 @@ export default function SettingsPage() {
             </Dialog.Portal>
           </Dialog.Root>
 
-          {/* Coinbase API Key Connect Modal */}
-          <Dialog.Root open={brokerModal === "coinbase"} onOpenChange={(open) => { if (!open) setBrokerModal(null); }}>
-            <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-              <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-navy-950 border border-navy-700 rounded-xl shadow-2xl z-50 p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-300">CB</div>
-                    <div>
-                      <Dialog.Title className="text-sm font-medium text-navy-100">Connect Coinbase</Dialog.Title>
-                      <Dialog.Description className="text-[10px] text-navy-500 mt-0.5">Enter your CDP API key from the Coinbase Developer Platform.</Dialog.Description>
-                    </div>
-                  </div>
-                  <Dialog.Close className="text-navy-500 hover:text-navy-300 transition-colors">
-                    <X className="h-4 w-4" />
-                  </Dialog.Close>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Key Name</label>
-                    <Input type="password" placeholder="organizations/.../apiKeys/..." value={coinbaseForm.apiKey} onChange={(e) => setCoinbaseForm(f => ({ ...f, apiKey: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Key Secret</label>
-                    <Input type="password" placeholder="-----BEGIN EC PRIVATE KEY-----" value={coinbaseForm.apiSecret} onChange={(e) => setCoinbaseForm(f => ({ ...f, apiSecret: e.target.value }))} />
-                  </div>
-                  {connectStatus.coinbase && (
-                    <p className={`text-[10px] font-mono ${connectStatus.coinbase.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.coinbase.message}</p>
-                  )}
-                  <button
-                    disabled={!coinbaseForm.apiKey || !coinbaseForm.apiSecret || connectingBroker === "coinbase"}
-                    onClick={async () => {
-                      setConnectingBroker("coinbase");
-                      setConnectStatus(s => ({ ...s, coinbase: null }));
-                      try {
-                        await saveSetting("coinbase_api_key", coinbaseForm.apiKey);
-                        await saveSetting("coinbase_api_secret", coinbaseForm.apiSecret);
-                        setCoinbaseKey(coinbaseForm.apiKey);
-                        setCoinbaseSecret(coinbaseForm.apiSecret);
-                        const res = await fetch("/api/coinbase/accounts");
-                        const data = await res.json();
-                        if (data.error) {
-                          setConnectStatus(s => ({ ...s, coinbase: { ok: false, message: data.error } }));
-                          await saveSetting("coinbase_api_key", ""); await saveSetting("coinbase_api_secret", "");
-                          setCoinbaseKey(""); setCoinbaseSecret("");
-                        } else {
-                          setBrokerModal(null);
-                          setCoinbaseForm({ apiKey: "", apiSecret: "" });
-                        }
-                      } catch {
-                        setConnectStatus(s => ({ ...s, coinbase: { ok: false, message: "Connection failed" } }));
-                        await saveSetting("coinbase_api_key", ""); await saveSetting("coinbase_api_secret", "");
-                        setCoinbaseKey(""); setCoinbaseSecret("");
-                      }
-                      setConnectingBroker(null);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
-                  >
-                    {connectingBroker === "coinbase" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                    Connect
-                  </button>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Shield className="h-3 w-3 text-navy-600 shrink-0" />
-                    <p className="text-[9px] text-navy-600">Your API key is encrypted at rest using AES-256-GCM. It is never exposed to the frontend after saving.</p>
-                  </div>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-
-          {/* Polymarket Connect Modal */}
-          <Dialog.Root open={brokerModal === "polymarket"} onOpenChange={(open) => { if (!open) setBrokerModal(null); }}>
-            <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-              <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-navy-950 border border-navy-700 rounded-xl shadow-2xl z-50 p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-300">PM</div>
-                    <div>
-                      <Dialog.Title className="text-sm font-medium text-navy-100">Connect Polymarket</Dialog.Title>
-                      <p className="text-[10px] text-navy-500 mt-0.5">Paste your Polygon wallet private key.</p>
-                    </div>
-                  </div>
-                  <Dialog.Close className="text-navy-500 hover:text-navy-300 transition-colors">
-                    <X className="h-4 w-4" />
-                  </Dialog.Close>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">Wallet Private Key</label>
-                    <Input type="password" placeholder="0x..." value={polymarketForm.privateKey} onChange={(e) => setPolymarketForm(f => ({ ...f, privateKey: e.target.value }))} />
-                  </div>
-                  {connectStatus.polymarket && (
-                    <p className={`text-[10px] font-mono ${connectStatus.polymarket.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.polymarket.message}</p>
-                  )}
-                  <button
-                    disabled={!polymarketForm.privateKey || connectingBroker === "polymarket"}
-                    onClick={async () => {
-                      setConnectingBroker("polymarket");
-                      setConnectStatus(s => ({ ...s, polymarket: null }));
-                      try {
-                        await saveSetting(`${username}:polymarket_private_key`, polymarketForm.privateKey);
-                        setPolymarketKey("configured");
-                        setBrokerModal(null);
-                        setPolymarketForm({ privateKey: "" });
-                      } catch {
-                        setConnectStatus(s => ({ ...s, polymarket: { ok: false, message: "Failed to save key" } }));
-                      }
-                      setConnectingBroker(null);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
-                  >
-                    {connectingBroker === "polymarket" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                    Connect
-                  </button>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Shield className="h-3 w-3 text-navy-600 shrink-0" />
-                    <p className="text-[9px] text-navy-600">Your private key is encrypted at rest. Ensure your wallet has USDC on Polygon for trading.</p>
-                  </div>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-
-          {/* Kalshi Connect Modal */}
-          <Dialog.Root open={brokerModal === "kalshi"} onOpenChange={(open) => { if (!open) setBrokerModal(null); }}>
-            <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-              <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-navy-950 border border-navy-700 rounded-xl shadow-2xl z-50 p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-300">KL</div>
-                    <div>
-                      <Dialog.Title className="text-sm font-medium text-navy-100">Connect Kalshi</Dialog.Title>
-                      <p className="text-[10px] text-navy-500 mt-0.5">Paste your API Key ID and RSA private key.</p>
-                    </div>
-                  </div>
-                  <Dialog.Close className="text-navy-500 hover:text-navy-300 transition-colors">
-                    <X className="h-4 w-4" />
-                  </Dialog.Close>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">API Key ID</label>
-                    <Input type="text" placeholder="Your Kalshi API key ID" value={kalshiForm.keyId} onChange={(e) => setKalshiForm(f => ({ ...f, keyId: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-navy-500 uppercase tracking-wider block mb-1">RSA Private Key (PEM)</label>
-                    <textarea
-                      placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..."
-                      value={kalshiForm.privateKey}
-                      onChange={(e) => setKalshiForm(f => ({ ...f, privateKey: e.target.value }))}
-                      rows={4}
-                      className="w-full bg-navy-900/50 border border-navy-800/40 rounded px-3 py-2 text-xs font-mono text-navy-200 placeholder:text-navy-700 resize-none"
-                    />
-                  </div>
-                  {connectStatus.kalshi && (
-                    <p className={`text-[10px] font-mono ${connectStatus.kalshi.ok ? "text-accent-emerald" : "text-accent-rose"}`}>{connectStatus.kalshi.message}</p>
-                  )}
-                  <button
-                    disabled={!kalshiForm.keyId || !kalshiForm.privateKey || connectingBroker === "kalshi"}
-                    onClick={async () => {
-                      setConnectingBroker("kalshi");
-                      setConnectStatus(s => ({ ...s, kalshi: null }));
-                      try {
-                        await saveSetting(`${username}:kalshi_api_key_id`, kalshiForm.keyId);
-                        await saveSetting(`${username}:kalshi_private_key`, kalshiForm.privateKey);
-                        setKalshiKeyId("configured");
-                        setBrokerModal(null);
-                        setKalshiForm({ keyId: "", privateKey: "" });
-                      } catch {
-                        setConnectStatus(s => ({ ...s, kalshi: { ok: false, message: "Failed to save keys" } }));
-                      }
-                      setConnectingBroker(null);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded bg-accent-emerald/10 text-accent-emerald text-[11px] font-mono hover:bg-accent-emerald/20 transition-colors border border-accent-emerald/20 disabled:opacity-50 w-full justify-center"
-                  >
-                    {connectingBroker === "kalshi" ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                    Connect
-                  </button>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Shield className="h-3 w-3 text-navy-600 shrink-0" />
-                    <p className="text-[9px] text-navy-600">US residents only. Your credentials are encrypted at rest using AES-256-GCM.</p>
-                  </div>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
         </Tabs.Content>
 
         {/* API Keys Tab */}

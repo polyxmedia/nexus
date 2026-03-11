@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { withApiAuth } from "@/lib/api/with-api-auth";
 import { apiSuccess, apiError } from "@/lib/api/response";
-import { getQuote } from "@/lib/market-data/alpha-vantage";
+import { getQuote } from "@/lib/market-data/provider";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 

@@ -94,7 +94,7 @@ vi.mock("@/lib/backtest/feedback-loops", () => ({
 // ── Import after mocks are registered ──
 
 import { resolveByData } from "../engine";
-import { getQuote, getDailySeries } from "@/lib/market-data/alpha-vantage";
+import { getQuote, getDailySeries } from "@/lib/market-data/provider";
 
 const mockedGetQuote = vi.mocked(getQuote);
 const mockedGetDailySeries = vi.mocked(getDailySeries);

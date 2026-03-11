@@ -145,24 +145,24 @@ describe("bayesianUpdate", () => {
 describe("posteriorToIntensity", () => {
   it("maps low posterior to intensity 1", () => {
     expect(posteriorToIntensity(0.05)).toBe(1);
-    expect(posteriorToIntensity(0.14)).toBe(1);
+    expect(posteriorToIntensity(0.11)).toBe(1);
   });
 
   it("maps moderate posterior to intensity 2-3", () => {
-    expect(posteriorToIntensity(0.20)).toBe(2);
+    expect(posteriorToIntensity(0.15)).toBe(2);
     expect(posteriorToIntensity(0.30)).toBe(3);
   });
 
   it("maps high posterior to intensity 4-5", () => {
-    expect(posteriorToIntensity(0.50)).toBe(4);
+    expect(posteriorToIntensity(0.45)).toBe(4);
     expect(posteriorToIntensity(0.70)).toBe(5);
   });
 
   it("boundary values", () => {
-    expect(posteriorToIntensity(0.15)).toBe(2);
-    expect(posteriorToIntensity(0.25)).toBe(3);
-    expect(posteriorToIntensity(0.40)).toBe(4);
-    expect(posteriorToIntensity(0.60)).toBe(5);
+    expect(posteriorToIntensity(0.12)).toBe(2);
+    expect(posteriorToIntensity(0.22)).toBe(3);
+    expect(posteriorToIntensity(0.35)).toBe(4);
+    expect(posteriorToIntensity(0.55)).toBe(5);
   });
 });
 

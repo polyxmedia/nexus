@@ -815,7 +815,7 @@ export default function PredictionsPage() {
       )}
 
       {/* ── Category panels ── */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {loading ? (
           [...Array(3)].map((_, i) => (
             <div key={i} className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
@@ -871,7 +871,7 @@ export default function PredictionsPage() {
 
       {/* ── Accuracy charts ── */}
       {!loading && resolved.length > 0 && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           {/* Outcome distribution */}
           <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
             <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">Outcome Distribution</h3>
@@ -967,7 +967,7 @@ export default function PredictionsPage() {
             <div className="px-4 pb-4 space-y-6">
 
               {/* ── Row 1: Calibration Curve + Sharpness ── */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Calibration Curve (Reliability Diagram) */}
                 <div>
                   <SectionHeader
@@ -1076,9 +1076,9 @@ export default function PredictionsPage() {
               </div>
 
               {/* ── Row 2: Paper Portfolio + Model Health ── */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Paper Portfolio */}
-                <div className="col-span-2">
+                <div className="md:col-span-2">
                   <SectionHeader
                     label="Paper Portfolio Simulation"
                     icon={<TrendingUp className="h-3 w-3 text-accent-emerald" />}
@@ -1086,7 +1086,7 @@ export default function PredictionsPage() {
                   />
                   {portfolioData ? (
                     <>
-                      <div className="grid grid-cols-5 gap-2 mb-3">
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
                         <div className="rounded px-2.5 py-1.5 bg-navy-800/40">
                           <span className="text-[8px] text-navy-500 uppercase tracking-wider block">Total Return</span>
                           <span className={`text-sm font-bold font-mono ${portfolioData.totalReturn >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
@@ -1211,7 +1211,7 @@ export default function PredictionsPage() {
               </div>
 
               {/* ── Row 3: Forecast Horizon + Regime Performance + Direction Stats ── */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Forecast Horizon Decay */}
                 <div>
                   <SectionHeader
@@ -1426,7 +1426,7 @@ export default function PredictionsPage() {
                     icon={<Eye className="h-3 w-3 text-accent-amber" />}
                     badge={<span className="text-[8px] text-navy-600 font-mono">Tetlock incremental updating</span>}
                   />
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {beliefTrails.map((p) => {
                       const catConfig = CATEGORY_CONFIG[p.category];
                       const history = p.history;
@@ -1560,7 +1560,7 @@ export default function PredictionsPage() {
           {feedbackOpen && (
             <div className="px-4 pb-4 space-y-4">
               {/* Scoring metrics */}
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 <div className="rounded px-3 py-2 bg-navy-800/40">
                   <span className="text-[9px] text-navy-500 uppercase tracking-wider block">Brier Score</span>
                   <span className={`text-lg font-bold font-mono ${feedbackReport.brierScore < 0.2 ? "text-accent-emerald" : feedbackReport.brierScore < 0.25 ? "text-navy-100" : "text-accent-rose"}`}>
@@ -1601,8 +1601,8 @@ export default function PredictionsPage() {
                     {feedbackReport.calibration.filter((b) => b.count >= 1).map((bucket) => {
                       const deviation = bucket.confirmedRate - bucket.midpoint;
                       return (
-                        <div key={bucket.range} className={`flex items-center gap-3 ${!bucket.reliable ? "opacity-50" : ""}`}>
-                          <span className="text-[10px] text-navy-400 w-32 font-mono">{bucket.range}</span>
+                        <div key={bucket.range} className={`flex items-center gap-3 overflow-x-auto ${!bucket.reliable ? "opacity-50" : ""}`}>
+                          <span className="text-[10px] text-navy-400 w-32 flex-shrink-0 font-mono">{bucket.range}</span>
                           <div className="flex-1 h-2 rounded-full bg-navy-700/50 overflow-hidden relative">
                             <div className="absolute h-full w-px bg-navy-400/40" style={{ left: `${bucket.midpoint * 100}%` }} />
                             <div
@@ -1745,7 +1745,7 @@ export default function PredictionsPage() {
 
       {/* ── Summary metrics ── */}
       {!loading && (
-        <div className="grid grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-6">
           <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
             <Metric label="Total" value={predictions.length} />
           </div>
@@ -1780,7 +1780,7 @@ export default function PredictionsPage() {
               />
             </div>
 
-            <div className="flex h-7 rounded-md border border-navy-700/30 overflow-hidden">
+            <div className="flex h-7 rounded-md border border-navy-700/30 overflow-x-auto max-w-full">
               <button
                 onClick={() => setActiveOutcome(null)}
                 className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
@@ -1892,7 +1892,7 @@ export default function PredictionsPage() {
               <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Falsifiable Claim</label>
               <Input placeholder="S&P 500 will close above 5,200 by..." value={claim} onChange={(e) => setClaim(e.target.value)} />
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <div className="w-32">
                 <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Timeframe</label>
                 <Input value={timeframe} onChange={(e) => setTimeframe(e.target.value)} />
@@ -1963,7 +1963,7 @@ export default function PredictionsPage() {
                         />
                       </div>
                       <div className="p-4">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
                             <div className="flex-1 min-w-0">
@@ -1971,7 +1971,7 @@ export default function PredictionsPage() {
                               {grounding && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="flex items-center gap-3 flex-shrink-0 flex-wrap ml-6 sm:ml-0">
                             {p.direction && (
                               <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
                                 p.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" :
@@ -2066,13 +2066,13 @@ export default function PredictionsPage() {
                         </div>
 
                         <div className="flex-1 p-4">
-                          <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
                               {p.outcomeNotes && <p className="text-[10px] text-navy-400 mt-1.5 leading-relaxed">{p.outcomeNotes}</p>}
                               {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                               {p.direction && (
                                 <div className="flex items-center gap-1">
                                   <span className={`text-[9px] font-mono font-bold ${
@@ -2093,7 +2093,7 @@ export default function PredictionsPage() {
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 mt-2.5">
+                          <div className="flex items-center gap-4 mt-2.5 flex-wrap">
                             <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                             {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
                             {p.regimeAtCreation && (

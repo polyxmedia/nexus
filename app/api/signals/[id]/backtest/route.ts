@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { signals } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getDailySeries } from "@/lib/market-data/alpha-vantage";
+import { getDailySeries } from "@/lib/market-data/provider";
 
 // Map market sectors to sector ETF tickers
 const SECTOR_ETF_MAP: Record<string, { ticker: string; label: string }> = {

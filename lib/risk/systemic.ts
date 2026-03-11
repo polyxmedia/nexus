@@ -2,7 +2,7 @@
 // Absorption Ratio (Kritzman et al. 2011) + Turbulence Index (Mahalanobis distance)
 // Empirically validated crisis detection across 40+ years of out-of-sample data.
 
-import { getDailySeries, type DailyBar } from "@/lib/market-data/alpha-vantage";
+import { getDailySeries, type DailyBar } from "@/lib/market-data/provider";
 import { getFredSeries } from "@/lib/market-data/fred";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";

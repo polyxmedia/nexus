@@ -71,7 +71,11 @@ export async function getBaseRate(category: string, claim: string): Promise<{ ra
     .sort((a, b) => b.score - a.score);
 
   if (candidates.length === 0) {
-    return { rate: 0.10, pattern: "default", sampleCount: 0 };
+    // Default base rate raised from 0.10 to 0.30. A 0.10 default applies
+    // extreme downward drag via log-odds averaging when no keywords match,
+    // pulling even strong-signal predictions below 0.35. With 86% directional
+    // accuracy observed, 0.30 is a more honest uninformative prior.
+    return { rate: 0.30, pattern: "default", sampleCount: 0 };
   }
 
   const best = candidates[0];

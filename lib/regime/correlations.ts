@@ -2,7 +2,7 @@
 // Tracks rolling correlations between asset pairs and detects
 // when correlations break from historical norms.
 
-import { getDailySeries, type DailyBar } from "@/lib/market-data/alpha-vantage";
+import { getDailySeries, type DailyBar } from "@/lib/market-data/provider";
 import { getFredSeries } from "@/lib/market-data/fred";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";

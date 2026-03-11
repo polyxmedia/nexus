@@ -11,6 +11,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_market_sentiment: "Reading market sentiment",
   get_game_theory: "Running game theory analysis",
   get_active_thesis: "Loading active thesis",
+  generate_thesis: "Generating intelligence thesis",
   get_predictions: "Loading prediction tracker",
   get_prediction_feedback: "Analysing prediction accuracy",
   get_vip_movements: "Tracking VIP aircraft movements",

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
-import { getQuote, getDailySeries } from "@/lib/market-data/alpha-vantage";
+import { getQuote, getDailySeries } from "@/lib/market-data/provider";
 import { computeTechnicalSnapshot } from "@/lib/market-data/indicators";
 import { getMarketSentiment } from "@/lib/market-data/sentiment";
 import { requireTier } from "@/lib/auth/require-tier";

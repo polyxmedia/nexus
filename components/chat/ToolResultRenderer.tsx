@@ -150,6 +150,7 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       widget = <GameTheoryWidget data={data} />;
       break;
     case "get_active_thesis":
+    case "generate_thesis":
       widget = <ThesisWidget data={data} />;
       break;
     case "get_predictions":

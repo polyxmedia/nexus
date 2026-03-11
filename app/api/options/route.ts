@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPutCallRatio, estimateOptionsMetrics } from "@/lib/market-data/options-flow";
-import { getDailySeries, getQuote } from "@/lib/market-data/alpha-vantage";
+import { getDailySeries, getQuote } from "@/lib/market-data/provider";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";

@@ -1,4 +1,4 @@
-import { getDailySeries } from "@/lib/market-data/alpha-vantage";
+import { getDailySeries } from "@/lib/market-data/provider";
 import { db, schema } from "@/lib/db";
 import { desc } from "drizzle-orm";
 

@@ -100,94 +100,94 @@ registerJob("portfolio-snapshot", 5 * 60_000, async () => {
   // Snapshot portfolio every 5 minutes during market hours
   const hour = new Date().getUTCHours();
   if (hour < 13 || hour > 21) return; // ~8am-4pm ET
-  const res = await fetch(`${getBaseUrl()}/api/portfolio`, { headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/portfolio`, { headers: internalHeaders() });
   if (!res.ok) throw new Error(`Portfolio fetch failed: ${res.status}`);
 });
 
 registerJob("signal-refresh", 60 * 60_000, async () => {
   // Refresh signals hourly
-  const res = await fetch(`${getBaseUrl()}/api/signals/generate`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/signals/generate`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Signal generation failed: ${res.status}`);
 });
 
 registerJob("osint-entity-extraction", 15 * 60_000, async () => {
   // Extract OSINT entities every 15 minutes
-  const res = await fetch(`${getBaseUrl()}/api/osint/extract`, { headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/osint/extract`, { headers: internalHeaders() });
   if (!res.ok) throw new Error(`OSINT extraction failed: ${res.status}`);
 });
 
 registerJob("alert-check", 60_000, async () => {
   // Check alert conditions every minute
-  const res = await fetch(`${getBaseUrl()}/api/alerts/check`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/alerts/check`, { method: "POST", headers: internalHeaders() });
   if (!res.ok && res.status !== 404) throw new Error(`Alert check failed: ${res.status}`);
 });
 
 registerJob("monitor-sweep", 5 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch (prediction resolution uses Claude)
   // Master monitoring sweep every 5 minutes: alerts + prediction resolution
-  const res = await fetch(`${getBaseUrl()}/api/scheduler/monitor`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/scheduler/monitor`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Monitor sweep failed: ${res.status}`);
 });
 
 registerJob("intelligence-cycle", 15 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
   // Three-brain intelligence cycle: Sentinel -> Analyst -> Executor
-  const res = await fetch(`${getBaseUrl()}/api/agents/cycle`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/agents/cycle`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Intelligence cycle failed: ${res.status}`);
 });
 
 registerJob("prediction-fast-resolve", 30 * 60_000, async () => {
   // Fast data-driven resolution every 30 min (no AI, just market data)
-  const res = await fetch(`${getBaseUrl()}/api/predictions/fast-resolve`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/predictions/fast-resolve`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Fast prediction resolve failed: ${res.status}`);
 });
 
-registerJob("prediction-daily", 6 * 60 * 60_000, async () => {
+registerJob("prediction-cycle", 3 * 60 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
-  // AI resolve complex predictions + generate new ones every 6 hours
-  const res = await fetch(`${getBaseUrl()}/api/predictions/daily`, { method: "POST", headers: internalHeaders() });
-  if (!res.ok) throw new Error(`Prediction daily cycle failed: ${res.status}`);
+  // AI resolve complex predictions + generate new ones every 3 hours
+  const res = await internalFetch(`${getBaseUrl()}/api/predictions/daily`, { method: "POST", headers: internalHeaders() });
+  if (!res.ok) throw new Error(`Prediction cycle failed: ${res.status}`);
 });
 
 registerJob("knowledge-live-ingest", 30 * 60_000, async () => {
   // Refresh live knowledge base with real-time geopolitical intelligence every 30 minutes
-  const res = await fetch(`${getBaseUrl()}/api/knowledge/refresh`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/knowledge/refresh`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Knowledge live ingest failed: ${res.status}`);
 });
 
 registerJob("iw-auto-detect", 15 * 60_000, async () => {
   // Auto-detect I&W indicators from OSINT feeds every 15 minutes
-  const res = await fetch(`${getBaseUrl()}/api/iw/evaluate`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/iw/evaluate`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`I&W auto-detect failed: ${res.status}`);
 });
 
 registerJob("regime-detection", 60 * 60_000, async () => {
   // Evaluate market regime and correlations hourly
-  const res = await fetch(`${getBaseUrl()}/api/regime`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/regime`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Regime detection failed: ${res.status}`);
 });
 
 registerJob("nowcast-update", 4 * 60 * 60_000, async () => {
   // Generate economic nowcast every 4 hours
-  const res = await fetch(`${getBaseUrl()}/api/nowcast`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/nowcast`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Nowcast update failed: ${res.status}`);
 });
 
 registerJob("context-alert-scan", 15 * 60_000, async () => {
   // Context-aware alert scan: match news against positions, watchlist, theses, chat topics
-  const res = await fetch(`${getBaseUrl()}/api/alerts/context-scan`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/alerts/context-scan`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Context alert scan failed: ${res.status}`);
 });
 
 registerJob("thesis-branch-generation", 6 * 60 * 60_000, async () => {
   // Pre-compute thesis branches for upcoming catalysts every 6 hours
-  const res = await fetch(`${getBaseUrl()}/api/thesis/branches`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/thesis/branches`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Thesis branch generation failed: ${res.status}`);
 });
 
 registerJob("collection-gaps-check", 2 * 60 * 60_000, async () => {
   // Check intelligence collection gaps every 2 hours
-  const res = await fetch(`${getBaseUrl()}/api/collection-gaps`, { headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/collection-gaps`, { headers: internalHeaders() });
   if (!res.ok) throw new Error(`Collection gaps check failed: ${res.status}`);
 });
 
@@ -195,14 +195,14 @@ registerJob("systemic-risk-check", 2 * 60 * 60_000, async () => {
   // Compute systemic risk (absorption ratio + turbulence) every 2 hours during market hours
   const hour = new Date().getUTCHours();
   if (hour < 13 || hour > 21) return; // ~8am-4pm ET
-  const res = await fetch(`${getBaseUrl()}/api/risk/systemic`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/risk/systemic`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Systemic risk check failed: ${res.status}`);
 });
 
 registerJob("actor-profile-update", 6 * 60 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
   // Update actor profiles from GDELT/news every 6 hours
-  const res = await fetch(`${getBaseUrl()}/api/actors/update`, { method: "POST", headers: internalHeaders() });
+  const res = await internalFetch(`${getBaseUrl()}/api/actors/update`, { method: "POST", headers: internalHeaders() });
   if (!res.ok) throw new Error(`Actor profile update failed: ${res.status}`);
 });
 
@@ -269,6 +269,12 @@ registerJob("ig-token-refresh", 45 * 60_000, async () => {
   }
 });
 
+registerJob("news-sync", 10 * 60_000, async () => {
+  // Fetch news from RSS/GDELT/NewsData and cache in DB every 10 minutes
+  const { syncNewsToDb } = await import("@/lib/news/sync");
+  await syncNewsToDb();
+});
+
 registerJob("data-retention", 24 * 60 * 60_000, async () => {
   // Daily data hygiene: purge old analytics/alerts/timeline, archive expired knowledge
   const { runRetentionCleanup } = await import("@/lib/cleanup/retention");
@@ -283,4 +289,20 @@ function internalHeaders(): HeadersInit {
   const secret = process.env.CRON_SECRET;
   if (secret) return { Authorization: `Bearer ${secret}` };
   return {};
+}
+
+/**
+ * Fetch wrapper for internal scheduler calls.
+ * Uses redirect: "manual" to prevent silent 307 -> /login -> 405 chains
+ * when CRON_SECRET is missing or mismatched in the middleware.
+ */
+async function internalFetch(url: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(url, { ...init, redirect: "manual" });
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get("location") || "unknown";
+    throw new Error(
+      `Redirected to ${location} (${res.status}). Check that CRON_SECRET is set in environment variables.`
+    );
+  }
+  return res;
 }

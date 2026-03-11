@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { generatePredictions, resolvePredictions, resolveByData, autoExpirePastDeadline, invalidateOnRegimeChange } from "@/lib/predictions/engine";
 import { runWartimeCheck } from "@/lib/game-theory/wartime";
 import { notifyNewPredictions } from "@/lib/predictions/notify";
+import { tweetResolutions } from "@/lib/twitter/predictions";
 import { db, schema } from "@/lib/db";
-import { desc, and, gte, lt } from "drizzle-orm";
+import { desc, gte } from "drizzle-orm";
 import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
 export async function POST(req: NextRequest) {
@@ -22,22 +23,47 @@ export async function POST(req: NextRequest) {
     // Step 1b: AI resolution for remaining complex predictions
     const resolved = await resolvePredictions();
 
-    // Step 2: Check if we already generated predictions today
-    const today = new Date().toISOString().split("T")[0];
-    const todayStart = `${today}T00:00:00`;
-    const todayEnd = `${today}T23:59:59`;
+    // Step 1c: Tweet resolution results
+    const allResolved = [...dataResolved, ...resolved];
+    if (allResolved.length > 0) {
+      try {
+        // Fetch full prediction data for resolved items
+        const resolvedIds = allResolved.map((r) => r.id);
+        const resolvedPredictions = await db.select().from(schema.predictions).where(
+          gte(schema.predictions.id, Math.min(...resolvedIds))
+        );
+        const resolvedFull = resolvedPredictions
+          .filter((p) => resolvedIds.includes(p.id) && p.outcome)
+          .map((p) => ({
+            id: p.id,
+            claim: p.claim,
+            category: p.category,
+            confidence: p.confidence,
+            outcome: p.outcome!,
+            score: p.score,
+            direction: p.direction,
+            directionCorrect: p.directionCorrect,
+            priceTarget: p.priceTarget,
+            referenceSymbol: p.referenceSymbol,
+            outcomeNotes: p.outcomeNotes,
+          }));
+        await tweetResolutions(resolvedFull);
+      } catch (err) {
+        console.error("[predictions] Twitter resolution notification failed:", err);
+      }
+    }
 
-    const todaysPredictionsAll = await db.select().from(schema.predictions).where(
-      and(
-        gte(schema.predictions.createdAt, todayStart),
-        lt(schema.predictions.createdAt, todayEnd + "Z")
-      )
+    // Step 2: Check if we generated predictions in the last 3 hours
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60_000).toISOString();
+
+    const recentPredictions = await db.select().from(schema.predictions).where(
+      gte(schema.predictions.createdAt, threeHoursAgo)
     );
-    const todaysPredictions = todaysPredictionsAll.filter((p) => !p.outcome);
+    const recentUnresolved = recentPredictions.filter((p) => !p.outcome);
 
     let generated: Awaited<ReturnType<typeof generatePredictions>> = [];
     let notified = 0;
-    if (todaysPredictions.length === 0) {
+    if (recentUnresolved.length === 0) {
       generated = await generatePredictions();
       if (generated.length > 0) {
         notified = await notifyNewPredictions(generated);
@@ -49,7 +75,7 @@ export async function POST(req: NextRequest) {
       dataResolved: { count: dataResolved.length, results: dataResolved },
       resolved: { count: resolved.length, results: resolved },
       generated: { count: generated.length, predictions: generated, notified },
-      alreadyGenerated: todaysPredictions.length > 0,
+      alreadyGenerated: recentUnresolved.length > 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

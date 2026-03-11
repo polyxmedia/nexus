@@ -1,6 +1,6 @@
 import { db, schema } from "../db";
 import { desc, and, eq } from "drizzle-orm";
-import { getNewsFeed, type NewsArticle } from "../news/feeds";
+import { getCachedNews } from "../news/sync";
 import { getFredSeries, FRED_SERIES, type FredSeriesId } from "../market-data/fred";
 
 export interface TimelineEntry { id: number; timestamp: string; type: string; title: string; description: string | null; severity: number; category: string | null; sourceType: string | null; sourceId: number | null; entityIds: number[]; metadata: Record<string, unknown>; }
@@ -97,19 +97,12 @@ async function syncExternalSources(): Promise<number> {
 async function syncNewsToTimeline(): Promise<number> {
   let count = 0;
   try {
-    // Fetch across all categories for broad coverage
-    const [worldNews, conflictNews, energyNews, marketNews] = await Promise.all([
-      getNewsFeed("world", 25),
-      getNewsFeed("conflict", 20),
-      getNewsFeed("energy", 15),
-      getNewsFeed("markets", 20),
-    ]);
+    // Read from cached news_articles table (populated by background job)
+    // No external fetches -- instant
+    const articles = await getCachedNews(undefined, 100);
 
-    const allNews = deduplicateNews([...conflictNews, ...energyNews, ...marketNews, ...worldNews]);
-
-    for (const article of allNews) {
+    for (const article of articles) {
       const severity = classifyNewsSeverity(article.title, article.category);
-      // Use a hash of the URL as a stable sourceId for dedup
       const sourceId = hashCode(article.url);
 
       await upsertTimelineEvent({
@@ -210,16 +203,6 @@ async function syncEconomicDataToTimeline(): Promise<number> {
     console.error("[timeline] FRED sync error:", err);
   }
   return count;
-}
-
-function deduplicateNews(articles: NewsArticle[]): NewsArticle[] {
-  const seen = new Set<string>();
-  return articles.filter((a) => {
-    const key = a.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 60);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 function hashCode(str: string): number {

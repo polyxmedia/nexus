@@ -90,6 +90,7 @@ export default function PredictionDetailPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [related, setRelated] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -234,10 +235,40 @@ export default function PredictionDetailPage() {
       {isOverdue && (
         <div className="rounded-lg border border-accent-rose/25 bg-accent-rose/5 p-4 mb-6 flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-accent-rose flex-shrink-0" />
-          <div>
+          <div className="flex-1">
             <span className="text-sm font-medium text-accent-rose">Overdue</span>
-            <p className="text-xs text-navy-400 mt-0.5">This prediction is {Math.abs(daysUntilDeadline)} days past its deadline and awaiting resolution.</p>
+            <p className="text-xs text-navy-400 mt-0.5">
+              {Math.abs(daysUntilDeadline) === 0
+                ? "This prediction is at its deadline and awaiting resolution."
+                : `This prediction is ${Math.abs(daysUntilDeadline)} day${Math.abs(daysUntilDeadline) === 1 ? "" : "s"} past its deadline and awaiting resolution.`}
+            </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={resolving}
+            onClick={async () => {
+              setResolving(true);
+              try {
+                const res = await fetch(`/api/predictions/${id}/resolve`, { method: "POST" });
+                const data = await res.json();
+                if (res.ok && data.resolved) {
+                  fetchData();
+                }
+              } catch {
+                // silent
+              }
+              setResolving(false);
+            }}
+            className="text-accent-rose border-accent-rose/30 hover:bg-accent-rose/10 flex-shrink-0"
+          >
+            {resolving ? (
+              <Clock className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <Target className="h-3 w-3 mr-1" />
+            )}
+            {resolving ? "Resolving..." : "Resolve Now"}
+          </Button>
         </div>
       )}
 

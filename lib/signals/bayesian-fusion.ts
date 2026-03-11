@@ -263,26 +263,26 @@ export function bayesianUpdate(prior: number, likelihoodRatio: number): number {
 /**
  * Converts a posterior probability to a 1-5 intensity scale.
  *
- * Thresholds are calibrated so that:
- * - Intensity 1: posterior below 0.15 (baseline noise, minimal convergence)
- * - Intensity 2: 0.15-0.25 (weak single-layer signal)
- * - Intensity 3: 0.25-0.40 (moderate signal, possibly multi-layer)
- * - Intensity 4: 0.40-0.60 (strong multi-layer convergence)
- * - Intensity 5: 0.60+ (very strong, rare, requires multiple reliable layers)
+ * Thresholds calibrated to address underconfidence in downstream predictions.
+ * Previous thresholds (0.15/0.25/0.40/0.60) were too conservative, causing
+ * strong multi-layer convergence to map to intensity 3 when it should be 4.
+ * Lowered thresholds slightly so that genuine convergence reaches higher
+ * intensity, which feeds stronger context to the prediction engine.
  *
- * A prior of 0.10 updated by a single moderate geopolitical signal (sig=2)
- * typically reaches ~0.20 (intensity 2). Two correlated layers firing at
- * moderate significance reach ~0.30 (intensity 3). Intensity 5 requires
- * strong evidence from multiple independent layers.
+ * - Intensity 1: posterior below 0.12 (baseline noise)
+ * - Intensity 2: 0.12-0.22 (weak single-layer signal)
+ * - Intensity 3: 0.22-0.35 (moderate signal, possibly multi-layer)
+ * - Intensity 4: 0.35-0.55 (strong multi-layer convergence)
+ * - Intensity 5: 0.55+ (very strong, rare, requires multiple reliable layers)
  *
  * @param posterior - The posterior probability (0-1)
  * @returns Intensity score (1-5)
  */
 export function posteriorToIntensity(posterior: number): number {
-  if (posterior >= 0.60) return 5;
-  if (posterior >= 0.40) return 4;
-  if (posterior >= 0.25) return 3;
-  if (posterior >= 0.15) return 2;
+  if (posterior >= 0.55) return 5;
+  if (posterior >= 0.35) return 4;
+  if (posterior >= 0.22) return 3;
+  if (posterior >= 0.12) return 2;
   return 1;
 }
 

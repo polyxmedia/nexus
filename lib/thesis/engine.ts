@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { computeTechnicalSnapshot } from "../market-data/indicators";
-import { getDailySeries } from "../market-data/alpha-vantage";
+import { getDailySeries } from "../market-data/provider";
 import { getMarketSentiment } from "../market-data/sentiment";
 import { SCENARIOS } from "../game-theory/actors";
 import { analyzeScenario } from "../game-theory/analysis";
