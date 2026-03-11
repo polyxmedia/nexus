@@ -158,6 +158,13 @@ export async function ensureTables() {
   const url = process.env.DATABASE_URL;
   if (!url) return;
 
+  // In production, tables already exist. Running 30+ DDL statements on every
+  // Vercel cold start hammers Neon and causes cascading 500s.
+  // Set ENSURE_TABLES=1 to force-run (e.g. after adding new migrations).
+  if (process.env.NODE_ENV === "production" && process.env.ENSURE_TABLES !== "1") {
+    return;
+  }
+
   let runSql: (sql: string) => Promise<void>;
   let cleanup: (() => Promise<void>) | null = null;
 

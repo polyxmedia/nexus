@@ -49,11 +49,18 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     validateEnv();
     await import("./sentry.server.config");
-    // Ensure all tables exist before starting anything else
+    // Ensure all tables exist (skipped in production unless ENSURE_TABLES=1)
     const { ensureTables } = await import("@/lib/db/ensure-tables");
     await ensureTables();
-    const { startScheduler } = await import("@/lib/scheduler");
-    startScheduler();
+    // Only start the in-process scheduler when explicitly enabled.
+    // On Vercel serverless, every function instance runs register() independently,
+    // so multiple instances each spawn their own scheduler, multiplying all jobs
+    // and creating a recursive loop (scheduler -> internalFetch -> new instance -> new scheduler).
+    // Use Vercel Crons instead, or set SCHEDULER_ENABLED=1 on a single long-lived process.
+    if (process.env.SCHEDULER_ENABLED === "1") {
+      const { startScheduler } = await import("@/lib/scheduler");
+      startScheduler();
+    }
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
