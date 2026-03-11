@@ -115,6 +115,33 @@ export function stopScheduler() {
   started = false;
 }
 
+/** Run one or more jobs by name (used by Vercel Crons). */
+export async function runJobsByName(names: string[]) {
+  const results: { name: string; ok: boolean; error?: string }[] = [];
+  for (const name of names) {
+    const job = jobs.get(name);
+    if (!job) {
+      results.push({ name, ok: false, error: "unknown job" });
+      continue;
+    }
+    if (job.ai && !aiEnabled()) {
+      results.push({ name, ok: true, error: "skipped (AI disabled)" });
+      continue;
+    }
+    try {
+      await job.fn();
+      job.lastRun = new Date();
+      job.errors = 0;
+      results.push({ name, ok: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      job.errors++;
+      results.push({ name, ok: false, error: msg.slice(0, 200) });
+    }
+  }
+  return results;
+}
+
 export function getJobStatus() {
   return Array.from(jobs.values()).map((j) => ({
     name: j.name,

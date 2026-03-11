@@ -8,6 +8,42 @@
     {
       "path": "/api/news/sync",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=portfolio-snapshot,alert-check,monitor-sweep",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=osint-entity-extraction,iw-auto-detect",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=prediction-fast-resolve",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=signal-refresh,regime-detection,context-alert-scan,ig-token-refresh",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=intelligence-cycle,knowledge-live-ingest",
+      "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=systemic-risk-check,collection-gaps-check,twitter-replies",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=prediction-cycle,nowcast-update,twitter-analyst",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=thesis-branch-generation,actor-profile-update",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=data-retention",
+      "schedule": "0 6 * * *"
     }
   ],
   "functions": {
@@ -46,6 +82,9 @@
     },
     "app/api/news/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/scheduler/cron/route.ts": {
+      "maxDuration": 60
     }
   }
 }
