@@ -4,7 +4,7 @@ import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
 import { useDocumentVisible } from "@/lib/hooks/use-visibility";
 import type { SatelliteResponse } from "./types";
 
-const POLL_INTERVAL = 60_000; // 60s, satellite positions change slowly
+const POLL_INTERVAL = 300_000; // 5min - satellites move slowly, no need for 60s
 
 export function useSatelliteData(enabled: boolean) {
   const visible = useDocumentVisible();

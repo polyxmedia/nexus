@@ -330,9 +330,18 @@ export default function PredictionMarketsPage() {
       }
     }
     load();
-    pollRef.current = setInterval(load, 60_000);
+    // 5min poll, pause when tab hidden
+    const startPolling = () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (document.visibilityState === "visible") {
+        pollRef.current = setInterval(load, 300_000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
     };
   }, []);
 

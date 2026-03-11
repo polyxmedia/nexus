@@ -145,9 +145,18 @@ export default function BOCPDPage() {
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(fetchData, 4 * 60 * 60 * 1000); // Match server cache TTL
+    // 4hr poll (matches server cache TTL), pause when tab hidden
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (document.visibilityState === "visible") {
+        intervalRef.current = setInterval(fetchData, 4 * 60 * 60 * 1000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
     };
   }, [fetchData]);
 

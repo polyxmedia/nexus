@@ -53,7 +53,7 @@ const POPULAR_SYMBOLS = [
   "VIX", "BTC", "ETH", "XRP", "SOL",
 ];
 
-const POLL_INTERVAL = 60_000; // Refresh quotes every 60s
+const POLL_INTERVAL = 120_000; // 2min - reduced from 60s
 
 export default function WatchlistsPage() {
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
@@ -92,11 +92,21 @@ export default function WatchlistsPage() {
     }
   }, []);
 
-  // Initial load + polling
+  // Initial load + polling (pauses when tab hidden)
   useEffect(() => {
     fetchWatchlists(true);
+    const handleVisibility = () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (document.visibilityState === "visible") {
+        pollRef.current = setInterval(() => fetchWatchlists(true), POLL_INTERVAL);
+      }
+    };
     pollRef.current = setInterval(() => fetchWatchlists(true), POLL_INTERVAL);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [fetchWatchlists]);
 
   async function refresh() {

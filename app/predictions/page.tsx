@@ -167,7 +167,7 @@ interface FeedbackReport {
   } | null;
 }
 
-const POLL_INTERVAL = 30_000;
+const POLL_INTERVAL = 120_000; // 2min - reduced from 30s
 
 // ---------------------------------------------------------------------------
 // Helper: parse belief history from metrics JSON
@@ -298,8 +298,19 @@ export default function PredictionsPage() {
   useEffect(() => {
     fetchPredictions();
     fetchFeedback();
-    pollRef.current = setInterval(fetchPredictions, POLL_INTERVAL);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    // Pause polling when tab hidden
+    const startPolling = () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (document.visibilityState === "visible") {
+        pollRef.current = setInterval(fetchPredictions, POLL_INTERVAL);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
+    };
   }, [fetchPredictions, fetchFeedback]);
 
   useEffect(() => {

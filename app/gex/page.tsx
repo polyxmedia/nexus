@@ -802,9 +802,18 @@ export default function GEXPage() {
 
   useEffect(() => {
     fetchGEX();
-    intervalRef.current = setInterval(fetchGEX, 15 * 60 * 1000);
+    // 15min poll, pause when tab hidden
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (document.visibilityState === "visible") {
+        intervalRef.current = setInterval(fetchGEX, 15 * 60 * 1000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
     };
   }, [fetchGEX]);
 

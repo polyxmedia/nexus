@@ -29,7 +29,7 @@ export function ImpersonationBanner() {
     }
 
     check();
-    interval = setInterval(check, 30000); // re-check every 30s for expiry
+    interval = setInterval(check, 120_000); // re-check every 2min for expiry
 
     return () => clearInterval(interval);
   }, [session]);

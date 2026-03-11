@@ -384,9 +384,18 @@ export default function OnChainPage() {
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(fetchData, 300_000); // 5 min poll
+    // 5min poll, pause when tab hidden
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (document.visibilityState === "visible") {
+        intervalRef.current = setInterval(fetchData, 300_000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
     };
   }, []);
 

@@ -460,8 +460,19 @@ export default function ShippingPage() {
     fetchData();
     fetchWatchlist();
     fetchCpSubscriptions();
-    intervalRef.current = setInterval(fetchData, 600_000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    // 10min poll, pause when tab hidden
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (document.visibilityState === "visible") {
+        intervalRef.current = setInterval(fetchData, 600_000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
+    };
   }, []);
 
   function handleRefresh() {

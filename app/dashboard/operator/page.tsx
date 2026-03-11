@@ -322,9 +322,17 @@ export default function OperatorDashboard() {
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(fetchData, 30000); // 30s refresh
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (document.visibilityState === "visible") {
+        intervalRef.current = setInterval(fetchData, 120_000); // 2min, pauses when hidden
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
     };
   }, []);
 

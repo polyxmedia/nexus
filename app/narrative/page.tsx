@@ -299,8 +299,20 @@ export default function NarrativePage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 300_000); // 5 min poll
-    return () => clearInterval(interval);
+    // 5min poll, pause when tab hidden
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => {
+      if (interval) clearInterval(interval);
+      if (document.visibilityState === "visible") {
+        interval = setInterval(fetchData, 300_000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", startPolling);
+    };
   }, []);
 
   function handleRefresh() {

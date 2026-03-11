@@ -7,6 +7,8 @@ import { eq, like } from "drizzle-orm";
 
 /** Number of consecutive failures before escalating to Sentry */
 const FAILURE_ALERT_THRESHOLD = 3;
+/** After this many consecutive failures, disable the job until manual restart */
+const CIRCUIT_BREAKER_THRESHOLD = 10;
 
 type JobFn = () => Promise<void>;
 
@@ -24,6 +26,7 @@ interface ScheduledJob {
   running: boolean;
   errors: number;
   ai?: boolean;
+  disabled?: boolean;
 }
 
 const jobs = new Map<string, ScheduledJob>();
@@ -45,7 +48,7 @@ export function registerJob(name: string, intervalMs: number, fn: JobFn, options
 }
 
 async function runJob(job: ScheduledJob) {
-  if (job.running) return;
+  if (job.running || job.disabled) return;
   job.running = true;
   try {
     await job.fn();
@@ -55,6 +58,18 @@ async function runJob(job: ScheduledJob) {
     job.errors++;
     console.error(`[scheduler] Job "${job.name}" failed (${job.errors} consecutive):`, err);
 
+    // Circuit breaker: disable job after too many consecutive failures
+    if (job.errors >= CIRCUIT_BREAKER_THRESHOLD) {
+      job.disabled = true;
+      if (job.timer) {
+        clearInterval(job.timer);
+        job.timer = undefined;
+      }
+      console.error(
+        `[scheduler] CIRCUIT BREAKER: Job "${job.name}" disabled after ${job.errors} consecutive failures. Restart scheduler to re-enable.`
+      );
+    }
+
     // After N consecutive failures, escalate to Sentry so it shows in monitoring
     if (job.errors >= FAILURE_ALERT_THRESHOLD) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -63,6 +78,7 @@ async function runJob(job: ScheduledJob) {
         scope.setExtra("consecutiveFailures", job.errors);
         scope.setExtra("intervalMs", job.intervalMs);
         scope.setExtra("lastSuccessfulRun", job.lastRun?.toISOString() || "never");
+        scope.setExtra("disabled", job.disabled || false);
         scope.setLevel("error");
         Sentry.captureException(error);
       });
@@ -82,6 +98,9 @@ export async function startScheduler() {
   console.log(`[scheduler] Starting ${jobs.size} jobs (AI ${aiEnabled() ? "ENABLED" : "DISABLED"})`);
 
   for (const job of jobs.values()) {
+    // Reset circuit breaker on restart
+    job.disabled = false;
+    job.errors = 0;
     if (job.intervalMs <= 0) continue;
     runJob(job);
     job.timer = setInterval(() => runJob(job), job.intervalMs);
@@ -105,7 +124,8 @@ export function getJobStatus() {
     running: j.running,
     errors: j.errors,
     ai: j.ai || false,
-    enabled: j.intervalMs > 0,
+    enabled: j.intervalMs > 0 && !j.disabled,
+    disabled: j.disabled || false,
   }));
 }
 

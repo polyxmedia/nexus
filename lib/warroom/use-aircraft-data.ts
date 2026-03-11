@@ -4,7 +4,7 @@ import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
 import { useDocumentVisible } from "@/lib/hooks/use-visibility";
 import type { AircraftResponse } from "./types";
 
-const POLL_INTERVAL = 20_000; // 20s, within OpenSky 10 req/min limit
+const POLL_INTERVAL = 60_000; // 60s - reduced from 20s to cut Vercel invocations
 
 export function useAircraftData(enabled: boolean) {
   const visible = useDocumentVisible();

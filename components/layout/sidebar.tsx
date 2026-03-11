@@ -149,14 +149,26 @@ function CreditMeter() {
       .then((d) => d && setData(d))
       .catch((err) => console.error("[Sidebar] credits fetch failed:", err));
 
-    // Refresh every 60s
-    const interval = setInterval(() => {
+    // Refresh every 5min, pause when tab hidden
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const refreshCredits = () => {
       fetch("/api/credits")
         .then((r) => r.ok ? r.json() : null)
         .then((d) => d && setData(d))
         .catch((err) => console.error("[Sidebar] credits refresh failed:", err));
-    }, 60_000);
-    return () => clearInterval(interval);
+    };
+    const startPolling = () => {
+      if (interval) clearInterval(interval);
+      if (document.visibilityState === "visible") {
+        interval = setInterval(refreshCredits, 300_000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", startPolling);
+    };
   }, []);
 
   if (!data || data.unlimited) return null;

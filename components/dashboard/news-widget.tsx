@@ -88,10 +88,18 @@ export function NewsWidget({
     setLoading(true);
     fetchNews();
 
-    // Auto-refresh every 5 minutes
-    intervalRef.current = setInterval(() => fetchNews(true), 300_000);
+    // Auto-refresh every 10min, pause when tab hidden
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (document.visibilityState === "visible") {
+        intervalRef.current = setInterval(() => fetchNews(true), 600_000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
     };
   }, [fetchNews]);
 

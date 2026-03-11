@@ -93,8 +93,20 @@ function NewsFeedPlugin() {
 
   useEffect(() => {
     fetchNews();
-    const interval = setInterval(fetchNews, 120_000); // refresh every 2 min
-    return () => clearInterval(interval);
+    // Refresh every 5min, pause when tab hidden
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => {
+      if (interval) clearInterval(interval);
+      if (document.visibilityState === "visible") {
+        interval = setInterval(fetchNews, 300_000);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", startPolling);
+    };
   }, [fetchNews]);
 
   const filtered = articles;

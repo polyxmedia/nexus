@@ -143,7 +143,7 @@ function LivePulse({ label }: { label?: string }) {
 }
 
 // ── Refresh interval ──
-const REFRESH_INTERVAL = 60_000; // 60 seconds
+const REFRESH_INTERVAL = 300_000; // 5min - reduced from 60s
 
 // ════════════════════════════════════════════════
 // ── PAGE ──
@@ -189,8 +189,18 @@ export default function PredictionAccuracyPage() {
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(() => fetchData(true), REFRESH_INTERVAL);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (document.visibilityState === "visible") {
+        intervalRef.current = setInterval(() => fetchData(true), REFRESH_INTERVAL);
+      }
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", startPolling);
+    };
   }, [fetchData]);
 
   const insufficient = !loading && (!report || !report.sampleSufficient);
