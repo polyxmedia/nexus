@@ -233,8 +233,8 @@ export default function GPRPage() {
 
     // Deltas
     const h = history;
-    const d7 = h.length >= 7 ? h[6] : h[h.length - 1];
-    const d30 = h[h.length - 1];
+    const d7 = h.length >= 7 ? h[6] : h.length > 1 ? h[h.length - 1] : current;
+    const d30 = h.length > 1 ? h[h.length - 1] : current;
 
     // Sparkline arrays (chronological)
     const compositeSparkline = [...h].reverse().map((r) => r.composite);

@@ -1,7 +1,9 @@
 // Geopolitical Risk Index Engine
-// Data: Official GPR daily index (Caldara & Iacoviello) + GDELT regional proxies
+// GPR readings are pre-ingested into the gpr_readings table via /api/gpr/ingest.
+// This module reads from postgres (fast) and fetches GDELT regional proxies (cached).
 
-import readXlsxFile from "read-excel-file/node";
+import { db, schema } from "@/lib/db";
+import { desc } from "drizzle-orm";
 
 export interface GPRReading {
   date: string;
@@ -34,11 +36,11 @@ export interface GPRSnapshot {
   lastUpdated: string;
 }
 
-// --- Cache ---
+// --- GDELT Cache ---
 
-let cachedSnapshot: GPRSnapshot | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+let cachedRegional: RegionalGPR[] | null = null;
+let regionalCacheTimestamp = 0;
+const REGIONAL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 // --- Region config ---
 
@@ -74,102 +76,19 @@ const REGIONS: {
   },
 ];
 
-// --- XLS Parser (read-excel-file) ---
-
-async function parseGPRXLS(buffer: Buffer): Promise<GPRReading[]> {
-  try {
-    const rows = await readXlsxFile(buffer);
-    if (rows.length < 2) return [];
-
-    // Build header map from first row
-    const headers: Record<string, number> = {};
-    const headerRow = rows[0];
-    headerRow.forEach((val, idx) => {
-      headers[String(val || "").trim().toLowerCase()] = idx;
-    });
-
-    const dateCol = headers["date"] ?? headers["day"];
-    const compositeCol = headers["gprd"] ?? headers["gpr_daily"];
-    const threatsCol = headers["gprd_threat"] ?? headers["gprd_threats"] ?? headers["gpr_daily_threats"] ??
-      Object.entries(headers).find(([k]) => k.includes("threat"))?.[1];
-    const actsCol = headers["gprd_act"] ?? headers["gprd_acts"] ?? headers["gpr_daily_acts"] ??
-      Object.entries(headers).find(([k]) => k.includes("act") && !k.includes("threat"))?.[1];
-
-    if (dateCol === undefined || compositeCol === undefined) {
-      console.error("[GPR] Missing required columns. Available:", Object.keys(headers));
-      return [];
-    }
-
-    const readings: GPRReading[] = [];
-
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const dateRaw = row[dateCol];
-      let dateStr: string;
-
-      if (dateRaw instanceof Date) {
-        dateStr = dateRaw.toISOString().split("T")[0];
-      } else if (typeof dateRaw === "string") {
-        const d = new Date(dateRaw);
-        dateStr = !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : dateRaw;
-      } else if (typeof dateRaw === "number") {
-        // Excel serial date: days since 1900-01-01 (with the 1900 leap year bug)
-        const epoch = new Date(1899, 11, 30);
-        const d = new Date(epoch.getTime() + dateRaw * 86400000);
-        dateStr = d.toISOString().split("T")[0];
-      } else {
-        continue;
-      }
-
-      const composite = Number(row[compositeCol]);
-      if (isNaN(composite)) continue;
-
-      const threats = threatsCol !== undefined ? Number(row[threatsCol]) || 0 : 0;
-      const acts = actsCol !== undefined ? Number(row[actsCol]) || 0 : 0;
-      const ratio = acts > 0 ? threats / acts : threats > 0 ? 999 : 1;
-
-      readings.push({
-        date: dateStr,
-        composite: Math.round(composite * 100) / 100,
-        threats: Math.round(threats * 100) / 100,
-        acts: Math.round(acts * 100) / 100,
-        threatsToActsRatio: Math.round(ratio * 100) / 100,
-      });
-    }
-
-    return readings;
-  } catch (err) {
-    console.error("[GPR] XLS parse error:", err);
-    return [];
-  }
-}
-
-// --- GPR XLS Fetch ---
-
-async function fetchGPRDaily(): Promise<GPRReading[]> {
-  try {
-    const res = await fetch(
-      "https://www.matteoiacoviello.com/gpr_files/data_gpr_daily_recent.xls",
-      { next: { revalidate: 1800 } }
-    );
-    if (!res.ok) throw new Error(`GPR XLS fetch failed: ${res.status}`);
-    const buffer = Buffer.from(await res.arrayBuffer());
-    return parseGPRXLS(buffer);
-  } catch (err) {
-    console.error("[GPR] Failed to fetch daily XLS:", err);
-    return [];
-  }
-}
-
 // --- GDELT Regional Proxy ---
 
 async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
+  // Return cache if fresh
+  if (cachedRegional && Date.now() - regionalCacheTimestamp < REGIONAL_CACHE_TTL) {
+    return cachedRegional;
+  }
+
   const results: RegionalGPR[] = [];
 
   for (let idx = 0; idx < REGIONS.length; idx++) {
     const region = REGIONS[idx];
 
-    // GDELT enforces ~5s rate limit between requests - space them out
     if (idx > 0) {
       await new Promise((resolve) => setTimeout(resolve, 5500));
     }
@@ -185,7 +104,6 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
       });
 
       if (!res.ok) {
-        console.warn(`[GPR] GDELT ${region.name} returned ${res.status}`);
         results.push({
           region: region.name,
           score: 0,
@@ -199,11 +117,8 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
       const data = await res.json();
       const articles = data?.articles || [];
       const articleCount = articles.length;
-
-      // Score: normalized event count (50 articles in 7d = ~100 GPR proxy score)
       const score = Math.round((articleCount / 50) * 100);
 
-      // Extract top event titles
       const topEvents = articles
         .slice(0, 3)
         .map((a: { title?: string }) => a.title || "Unknown event")
@@ -211,15 +126,21 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
           t.length > 80 ? t.substring(0, 77) + "..." : t
         );
 
-      // Trend: compare article tone between recent and older halves
       let trend: "rising" | "falling" | "stable" = "stable";
       if (articles.length >= 6) {
         const mid = Math.floor(articles.length / 2);
         const recentArticles = articles.slice(0, mid);
         const olderArticles = articles.slice(mid);
-        // Use negative tone as proxy for escalation (lower tone = more negative = rising risk)
-        const recentTone = recentArticles.reduce((s: number, a: { tone?: number }) => s + (a.tone ?? 0), 0) / recentArticles.length;
-        const olderTone = olderArticles.reduce((s: number, a: { tone?: number }) => s + (a.tone ?? 0), 0) / olderArticles.length;
+        const recentTone =
+          recentArticles.reduce(
+            (s: number, a: { tone?: number }) => s + (a.tone ?? 0),
+            0
+          ) / recentArticles.length;
+        const olderTone =
+          olderArticles.reduce(
+            (s: number, a: { tone?: number }) => s + (a.tone ?? 0),
+            0
+          ) / olderArticles.length;
         if (recentTone < olderTone - 1) trend = "rising";
         else if (recentTone > olderTone + 1) trend = "falling";
       }
@@ -231,8 +152,7 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
         topEvents,
         assetExposure: region.assetExposure,
       });
-    } catch (err) {
-      console.error(`[GPR] GDELT fetch failed for ${region.name}:`, err);
+    } catch {
       results.push({
         region: region.name,
         score: 0,
@@ -243,12 +163,16 @@ async function fetchRegionalGPR(): Promise<RegionalGPR[]> {
     }
   }
 
+  cachedRegional = results;
+  regionalCacheTimestamp = Date.now();
   return results;
 }
 
 // --- Threshold Detection ---
 
-function detectThresholdCrossings(readings: GPRReading[]): ThresholdCrossing[] {
+function detectThresholdCrossings(
+  readings: GPRReading[]
+): ThresholdCrossing[] {
   const thresholds = [
     { level: "elevated" as const, value: 150 },
     { level: "crisis" as const, value: 200 },
@@ -280,68 +204,53 @@ function detectThresholdCrossings(readings: GPRReading[]): ThresholdCrossing[] {
     }
   }
 
-  // Return most recent crossings first
   return crossings.reverse().slice(0, 10);
 }
 
 // --- Main Function ---
 
 export async function getGPRSnapshot(): Promise<GPRSnapshot> {
-  // Check cache
-  if (cachedSnapshot && Date.now() - cacheTimestamp < CACHE_TTL) {
-    return cachedSnapshot;
-  }
-
-  // Fetch GPR CSV and GDELT in parallel
-  const [gprReadings, regional] = await Promise.all([
-    fetchGPRDaily(),
+  // Read last 30 days from postgres (fast indexed query)
+  const [rows, regional] = await Promise.all([
+    db
+      .select()
+      .from(schema.gprReadings)
+      .orderBy(desc(schema.gprReadings.date))
+      .limit(30),
     fetchRegionalGPR(),
   ]);
 
   let history: GPRReading[];
   let current: GPRReading;
 
-  if (gprReadings.length > 0) {
-    // Sort by date descending for display, take last 30
-    const sorted = [...gprReadings].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    history = sorted.slice(0, 30);
+  if (rows.length > 0) {
+    history = rows.map((r) => ({
+      date: r.date,
+      composite: r.composite,
+      threats: r.threats,
+      acts: r.acts,
+      threatsToActsRatio: r.threatsToActsRatio,
+    }));
     current = history[0];
   } else {
-    // Fallback: synthesize from GDELT regional scores
-    const avgScore =
-      regional.length > 0
-        ? Math.round(
-            regional.reduce((sum, r) => sum + r.score, 0) / regional.length
-          )
-        : 0;
-
+    // No data ingested yet - return empty state
     current = {
       date: new Date().toISOString().split("T")[0],
-      composite: avgScore,
-      threats: Math.round(avgScore * 0.6),
-      acts: Math.round(avgScore * 0.4),
-      threatsToActsRatio:
-        avgScore > 0 ? Math.round((0.6 / 0.4) * 100) / 100 : 1,
+      composite: 0,
+      threats: 0,
+      acts: 0,
+      threatsToActsRatio: 1,
     };
     history = [current];
   }
 
-  const thresholdCrossings = detectThresholdCrossings(
-    [...history].reverse()
-  );
+  const thresholdCrossings = detectThresholdCrossings([...history].reverse());
 
-  const snapshot: GPRSnapshot = {
+  return {
     current,
     history,
     regional,
     thresholdCrossings,
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: rows[0]?.createdAt || new Date().toISOString(),
   };
-
-  cachedSnapshot = snapshot;
-  cacheTimestamp = Date.now();
-
-  return snapshot;
 }

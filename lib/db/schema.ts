@@ -730,3 +730,13 @@ export type Comment = typeof comments.$inferSelect;
 export type NewComment = typeof comments.$inferInsert;
 export type AnalystFollow = typeof analystFollows.$inferSelect;
 export type NewAnalystFollow = typeof analystFollows.$inferInsert;
+
+export const gprReadings = pgTable("gpr_readings", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull().unique(),
+  composite: doublePrecision("composite").notNull(),
+  threats: doublePrecision("threats").notNull().default(0),
+  acts: doublePrecision("acts").notNull().default(0),
+  threatsToActsRatio: doublePrecision("threats_to_acts_ratio").notNull().default(1),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});

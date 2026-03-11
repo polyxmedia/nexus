@@ -95,6 +95,7 @@
     "trading212-api": "^1.1.0",
     "voyageai": "^0.2.1",
     "world-atlas": "^2.0.2",
+    "xlsx": "^0.18.5",
     "yahoo-finance2": "^3.13.2"
   },
   "devDependencies": {
