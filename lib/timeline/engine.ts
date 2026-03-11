@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { desc, and, eq } from "drizzle-orm";
+import { desc, and, eq, gte, lte, inArray } from "drizzle-orm";
 import { getCachedNews } from "../news/sync";
 import { getFredSeries, FRED_SERIES, type FredSeriesId } from "../market-data/fred";
 
@@ -216,14 +216,19 @@ function hashCode(str: string): number {
 }
 
 export async function getTimeline(options: { from?: string; to?: string; types?: string[]; categories?: string[]; minSeverity?: number; limit?: number; }): Promise<TimelineEntry[]> {
-  let events = await db.select().from(schema.timelineEvents).orderBy(desc(schema.timelineEvents.timestamp));
-  if (options.from) events = events.filter((e) => e.timestamp >= options.from!);
-  if (options.to) events = events.filter((e) => e.timestamp <= options.to!);
-  if (options.types && options.types.length > 0) events = events.filter((e) => options.types!.includes(e.type));
-  if (options.categories && options.categories.length > 0) events = events.filter((e) => e.category && options.categories!.includes(e.category));
-  if (options.minSeverity) events = events.filter((e) => (e.severity || 0) >= options.minSeverity!);
-  const limited = events.slice(0, options.limit || 500);
-  return limited.map((e) => ({ id: e.id, timestamp: e.timestamp, type: e.type, title: e.title, description: e.description, severity: e.severity || 1, category: e.category, sourceType: e.sourceType, sourceId: e.sourceId, entityIds: (safeParse(e.entityIds) as number[]) || [], metadata: (safeParse(e.metadata) as Record<string, unknown>) || {} }));
+  const conditions = [];
+  if (options.from) conditions.push(gte(schema.timelineEvents.timestamp, options.from));
+  if (options.to) conditions.push(lte(schema.timelineEvents.timestamp, options.to));
+  if (options.types && options.types.length > 0) conditions.push(inArray(schema.timelineEvents.type, options.types));
+  if (options.categories && options.categories.length > 0) conditions.push(inArray(schema.timelineEvents.category, options.categories));
+  if (options.minSeverity) conditions.push(gte(schema.timelineEvents.severity, options.minSeverity));
+
+  const events = await db.select().from(schema.timelineEvents)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(schema.timelineEvents.timestamp))
+    .limit(options.limit || 500);
+
+  return events.map((e) => ({ id: e.id, timestamp: e.timestamp, type: e.type, title: e.title, description: e.description, severity: e.severity || 1, category: e.category, sourceType: e.sourceType, sourceId: e.sourceId, entityIds: (safeParse(e.entityIds) as number[]) || [], metadata: (safeParse(e.metadata) as Record<string, unknown>) || {} }));
 }
 
 async function upsertTimelineEvent(values: { timestamp: string; type: string; title: string; description: string | null; severity: number; category: string | null; sourceType: string; sourceId: number; metadata: string; }) {

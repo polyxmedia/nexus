@@ -10,10 +10,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    // Auto-sync if timeline is empty or external sources are stale
-    const rows = await db.select().from(schema.timelineEvents);
-    if (rows.length === 0 || isExternalSyncStale()) {
-      await syncTimeline();
+    // Sync in background if stale - don't block the response
+    if (isExternalSyncStale()) {
+      syncTimeline().catch((err) => console.error("[timeline] Background sync failed:", err));
     }
 
     const options = {
