@@ -7,6 +7,8 @@
  */
 
 import { postTweet, postThread, isTwitterConfigured } from "./client";
+import { db, schema } from "@/lib/db";
+import { inArray } from "drizzle-orm";
 
 interface Prediction {
   id?: number;
@@ -46,6 +48,14 @@ function outcomeLabel(outcome: string): string {
   }
 }
 
+const FOUNDER_HANDLE = "@voidmode";
+
+/** Mention the founder roughly every 3rd tweet based on day-of-year */
+function shouldMentionFounder(): boolean {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  return dayOfYear % 3 === 0;
+}
+
 function categoryTag(category: string): string {
   switch (category) {
     case "market": return "#Markets";
@@ -60,7 +70,7 @@ function categoryTag(category: string): string {
  * Posts the single highest-confidence prediction to keep the feed clean.
  */
 export async function tweetNewPredictions(predictions: Prediction[]): Promise<void> {
-  if (!isTwitterConfigured() || predictions.length === 0) return;
+  if (!(await isTwitterConfigured()) || predictions.length === 0) return;
 
   const top = [...predictions].sort((a, b) => b.confidence - a.confidence)[0];
   const dir = directionArrow(top.direction);
@@ -69,7 +79,8 @@ export async function tweetNewPredictions(predictions: Prediction[]): Promise<vo
 
   // Keep it tight for X
   const claim = top.claim.length > 180 ? top.claim.slice(0, 177) + "..." : top.claim;
-  const tweet = `NEXUS Signal ${dir ? dir + " " : ""}| ${conf} confidence\n\n${claim}\n\nDeadline: ${top.deadline}\n${tag} #NEXUS`;
+  const founderTag = shouldMentionFounder() ? `\nby ${FOUNDER_HANDLE}` : "";
+  const tweet = `NEXUS Signal ${dir ? dir + " " : ""}| ${conf} confidence\n\n${claim}\n\nDeadline: ${top.deadline}\n${tag} #NEXUS${founderTag}`;
 
   try {
     await postTweet(tweet);
@@ -83,7 +94,7 @@ export async function tweetNewPredictions(predictions: Prediction[]): Promise<vo
  * with a thread for individual results if there are multiple.
  */
 export async function tweetResolutions(resolved: ResolvedPrediction[]): Promise<void> {
-  if (!isTwitterConfigured() || resolved.length === 0) return;
+  if (!(await isTwitterConfigured()) || resolved.length === 0) return;
 
   // Filter out expired - not interesting to post
   const meaningful = resolved.filter((r) => r.outcome !== "expired");
@@ -117,7 +128,8 @@ export async function tweetResolutions(resolved: ResolvedPrediction[]): Promise<
   if (partials > 0) parts.push(`${partials} PARTIAL`);
   if (misses > 0) parts.push(`${misses} MISS`);
 
-  const summary = `NEXUS Prediction Results\n\n${parts.join(" | ")}\n${meaningful.length} predictions resolved\n\n#NEXUS`;
+  const founderTag = shouldMentionFounder() ? ` by ${FOUNDER_HANDLE}` : "";
+  const summary = `NEXUS Prediction Results\n\n${parts.join(" | ")}\n${meaningful.length} predictions resolved\n\n#NEXUS${founderTag}`;
 
   const threadTweets = [summary];
 
@@ -138,4 +150,32 @@ export async function tweetResolutions(resolved: ResolvedPrediction[]): Promise<
   } catch (err) {
     console.error("[twitter] Failed to tweet resolutions:", err);
   }
+}
+
+/**
+ * Fetch full prediction data by IDs and tweet resolution results.
+ * Shared helper used by both daily and fast-resolve routes.
+ */
+export async function fetchAndTweetResolutions(resolvedIds: number[]): Promise<void> {
+  if (resolvedIds.length === 0) return;
+
+  const resolvedPredictions = await db.select().from(schema.predictions).where(
+    inArray(schema.predictions.id, resolvedIds)
+  );
+  const resolvedFull = resolvedPredictions
+    .filter((p) => p.outcome)
+    .map((p) => ({
+      id: p.id,
+      claim: p.claim,
+      category: p.category,
+      confidence: p.confidence,
+      outcome: p.outcome!,
+      score: p.score,
+      direction: p.direction,
+      directionCorrect: p.directionCorrect,
+      priceTarget: p.priceTarget,
+      referenceSymbol: p.referenceSymbol,
+      outcomeNotes: p.outcomeNotes,
+    }));
+  await tweetResolutions(resolvedFull);
 }

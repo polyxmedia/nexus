@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generatePredictions, resolvePredictions, resolveByData, autoExpirePastDeadline, invalidateOnRegimeChange } from "@/lib/predictions/engine";
 import { runWartimeCheck } from "@/lib/game-theory/wartime";
 import { notifyNewPredictions } from "@/lib/predictions/notify";
-import { tweetResolutions } from "@/lib/twitter/predictions";
+import { fetchAndTweetResolutions } from "@/lib/twitter/predictions";
 import { db, schema } from "@/lib/db";
 import { desc, gte } from "drizzle-orm";
 import { requireCronOrAdmin } from "@/lib/auth/require-cron";
@@ -27,27 +27,7 @@ export async function POST(req: NextRequest) {
     const allResolved = [...dataResolved, ...resolved];
     if (allResolved.length > 0) {
       try {
-        // Fetch full prediction data for resolved items
-        const resolvedIds = allResolved.map((r) => r.id);
-        const resolvedPredictions = await db.select().from(schema.predictions).where(
-          gte(schema.predictions.id, Math.min(...resolvedIds))
-        );
-        const resolvedFull = resolvedPredictions
-          .filter((p) => resolvedIds.includes(p.id) && p.outcome)
-          .map((p) => ({
-            id: p.id,
-            claim: p.claim,
-            category: p.category,
-            confidence: p.confidence,
-            outcome: p.outcome!,
-            score: p.score,
-            direction: p.direction,
-            directionCorrect: p.directionCorrect,
-            priceTarget: p.priceTarget,
-            referenceSymbol: p.referenceSymbol,
-            outcomeNotes: p.outcomeNotes,
-          }));
-        await tweetResolutions(resolvedFull);
+        await fetchAndTweetResolutions(allResolved.map((r) => r.id));
       } catch (err) {
         console.error("[predictions] Twitter resolution notification failed:", err);
       }

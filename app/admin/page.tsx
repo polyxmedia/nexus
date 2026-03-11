@@ -377,6 +377,7 @@ const ADMIN_TABS = [
   { id: "analysts", label: "Analysts", icon: UserCheck },
   { id: "base-rates", label: "Base Rates", icon: Activity },
   { id: "og-tester", label: "OG Image", icon: Eye },
+  { id: "integrations", label: "Integrations", icon: Globe },
 ];
 
 const PROMPT_CATEGORIES = [
@@ -2966,6 +2967,188 @@ function AnalyticsPanel({
   );
 }
 
+function IntegrationsPanel() {
+  const [twitterStatus, setTwitterStatus] = useState<{
+    connected: boolean;
+    expired?: boolean;
+    expiresAt?: string | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/twitter/oauth/status");
+      if (res.ok) {
+        const data = await res.json();
+        setTwitterStatus(data);
+      }
+    } catch {
+      setTwitterStatus({ connected: false });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+
+    // Check URL params for OAuth callback result
+    const params = new URLSearchParams(window.location.search);
+    const twitterResult = params.get("twitter");
+    if (twitterResult === "connected") {
+      setMessage({ type: "success", text: "Twitter/X connected successfully" });
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("twitter");
+      window.history.replaceState(null, "", url.toString());
+    } else if (twitterResult === "denied") {
+      setMessage({ type: "error", text: "Twitter/X authorization was denied" });
+    } else if (twitterResult === "error") {
+      setMessage({ type: "error", text: "Twitter/X connection failed" });
+    }
+  }, [fetchStatus]);
+
+  const connectTwitter = async () => {
+    setConnecting(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/twitter/oauth");
+      if (!res.ok) {
+        const data = await res.json();
+        setMessage({ type: "error", text: data.error || "Failed to start OAuth flow" });
+        setConnecting(false);
+        return;
+      }
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      setMessage({ type: "error", text: "Failed to connect to Twitter" });
+      setConnecting(false);
+    }
+  };
+
+  const disconnectTwitter = async () => {
+    setDisconnecting(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/twitter/oauth", { method: "DELETE" });
+      if (res.ok) {
+        setTwitterStatus({ connected: false });
+        setMessage({ type: "success", text: "Twitter/X disconnected" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Failed to disconnect" });
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <p className="text-[11px] text-navy-400">
+        Platform-wide integrations. These connect to NEXUS service accounts, not individual users.
+      </p>
+
+      {message && (
+        <div className={`text-[11px] font-mono px-3 py-2 rounded border ${
+          message.type === "success"
+            ? "text-accent-emerald border-accent-emerald/30 bg-accent-emerald/5"
+            : "text-accent-rose border-accent-rose/30 bg-accent-rose/5"
+        }`}>
+          {message.text}
+        </div>
+      )}
+
+      {/* Twitter/X Card */}
+      <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-navy-800 flex items-center justify-center">
+              <span className="text-sm font-bold text-navy-200">X</span>
+            </div>
+            <div>
+              <div className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
+                Twitter / X
+              </div>
+              <p className="text-[10px] text-navy-500 mt-0.5">
+                Auto-post predictions and resolution results
+              </p>
+            </div>
+          </div>
+
+          {loading ? (
+            <Skeleton className="h-5 w-20" />
+          ) : twitterStatus?.connected ? (
+            <div className="flex items-center gap-1.5">
+              <div className={`h-2 w-2 rounded-full ${twitterStatus.expired ? "bg-accent-amber" : "bg-accent-emerald"}`} />
+              <span className={`text-[10px] font-mono ${twitterStatus.expired ? "text-accent-amber" : "text-accent-emerald"}`}>
+                {twitterStatus.expired ? "Token expired" : "Connected"}
+              </span>
+            </div>
+          ) : (
+            <span className="text-[10px] font-mono text-navy-500">Not connected</span>
+          )}
+        </div>
+
+        <div className="text-[10px] text-navy-400 mb-4 space-y-1">
+          <p>When connected, NEXUS will automatically:</p>
+          <ul className="list-disc list-inside space-y-0.5 text-navy-500">
+            <li>Tweet the highest-confidence prediction each cycle</li>
+            <li>Post HIT/MISS results when predictions resolve</li>
+            <li>Thread multiple resolutions into a summary</li>
+          </ul>
+        </div>
+
+        {loading ? (
+          <Skeleton className="h-8 w-28" />
+        ) : twitterStatus?.connected ? (
+          <div className="flex items-center gap-2">
+            {(twitterStatus.expired) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={connectTwitter}
+                disabled={connecting}
+              >
+                {connecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                Reconnect
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={disconnectTwitter}
+              disabled={disconnecting}
+              className="text-accent-rose border-accent-rose/30 hover:bg-accent-rose/10"
+            >
+              {disconnecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <X className="h-3 w-3 mr-1" />}
+              Disconnect
+            </Button>
+            {twitterStatus.expiresAt && !twitterStatus.expired && (
+              <span className="text-[9px] font-mono text-navy-600">
+                Expires {new Date(twitterStatus.expiresAt).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={connectTwitter}
+            disabled={connecting}
+          >
+            {connecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
+            Connect Twitter/X
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -5144,6 +5327,10 @@ export default function AdminPage() {
 
         <Tabs.Content value="og-tester">
           <OGTesterPanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="integrations">
+          <IntegrationsPanel />
         </Tabs.Content>
       </Tabs.Root>
       {/* Confirm Modal */}

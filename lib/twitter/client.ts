@@ -1,86 +1,97 @@
 /**
  * Twitter/X API v2 client for posting tweets.
  *
- * Uses OAuth 1.0a User Context (required for posting).
- * Env vars: TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+ * Uses OAuth 2.0 User Context tokens stored in the database (platform-wide).
+ * Tokens are set via admin OAuth flow at /admin#integrations.
+ * Automatically refreshes expired tokens.
  */
 
-import crypto from "crypto";
+import { db, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import { decrypt, encrypt } from "@/lib/encryption";
 
 interface TweetResult {
   id: string;
   text: string;
 }
 
-function getCredentials() {
-  const apiKey = process.env.TWITTER_API_KEY;
-  const apiSecret = process.env.TWITTER_API_SECRET;
-  const accessToken = process.env.TWITTER_ACCESS_TOKEN;
-  const accessSecret = process.env.TWITTER_ACCESS_SECRET;
+/**
+ * Get the stored OAuth 2.0 access token, refreshing if expired.
+ */
+async function getAccessToken(): Promise<string | null> {
+  const rows = await db.select().from(schema.settings).where(
+    eq(schema.settings.key, "twitter_oauth_access_token")
+  );
+  if (rows.length === 0) return null;
 
-  if (!apiKey || !apiSecret || !accessToken || !accessSecret) {
-    return null;
+  const accessToken = decrypt(rows[0].value);
+
+  // Check if expired
+  const expiryRows = await db.select().from(schema.settings).where(
+    eq(schema.settings.key, "twitter_oauth_expires_at")
+  );
+  if (expiryRows.length > 0) {
+    const expiresAt = Number(expiryRows[0].value);
+    // Refresh 5 minutes before expiry
+    if (Date.now() > expiresAt - 5 * 60 * 1000) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) return refreshed;
+    }
   }
 
-  return { apiKey, apiSecret, accessToken, accessSecret };
+  return accessToken;
 }
 
-function percentEncode(str: string): string {
-  return encodeURIComponent(str).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
-}
+async function tryRefreshToken(): Promise<string | null> {
+  try {
+    const refreshRows = await db.select().from(schema.settings).where(
+      eq(schema.settings.key, "twitter_oauth_refresh_token")
+    );
+    if (refreshRows.length === 0) return null;
 
-function generateOAuthSignature(
-  method: string,
-  url: string,
-  params: Record<string, string>,
-  consumerSecret: string,
-  tokenSecret: string
-): string {
-  const sortedKeys = Object.keys(params).sort();
-  const paramString = sortedKeys.map((k) => `${percentEncode(k)}=${percentEncode(params[k])}`).join("&");
-  const baseString = `${method}&${percentEncode(url)}&${percentEncode(paramString)}`;
-  const signingKey = `${percentEncode(consumerSecret)}&${percentEncode(tokenSecret)}`;
-  return crypto.createHmac("sha1", signingKey).update(baseString).digest("base64");
-}
+    const refreshToken = decrypt(refreshRows[0].value);
+    const { refreshAccessToken } = await import("./oauth");
+    const tokens = await refreshAccessToken(refreshToken);
+    const expiresAt = Date.now() + tokens.expires_in * 1000;
 
-function buildAuthHeader(method: string, url: string, creds: NonNullable<ReturnType<typeof getCredentials>>): string {
-  const oauthParams: Record<string, string> = {
-    oauth_consumer_key: creds.apiKey,
-    oauth_nonce: crypto.randomBytes(16).toString("hex"),
-    oauth_signature_method: "HMAC-SHA1",
-    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
-    oauth_token: creds.accessToken,
-    oauth_version: "1.0",
-  };
+    // Store new tokens
+    const updates = [
+      { key: "twitter_oauth_access_token", value: encrypt(tokens.access_token) },
+      { key: "twitter_oauth_refresh_token", value: encrypt(tokens.refresh_token) },
+      { key: "twitter_oauth_expires_at", value: String(expiresAt) },
+    ];
 
-  const signature = generateOAuthSignature(method, url, oauthParams, creds.apiSecret, creds.accessSecret);
-  oauthParams.oauth_signature = signature;
+    for (const entry of updates) {
+      await db.insert(schema.settings).values(entry)
+        .onConflictDoUpdate({
+          target: schema.settings.key,
+          set: { value: entry.value },
+        });
+    }
 
-  const header = Object.keys(oauthParams)
-    .sort()
-    .map((k) => `${percentEncode(k)}="${percentEncode(oauthParams[k])}"`)
-    .join(", ");
-
-  return `OAuth ${header}`;
+    return tokens.access_token;
+  } catch (err) {
+    console.error("[twitter] Token refresh failed:", err);
+    return null;
+  }
 }
 
 /**
  * Post a tweet. Returns the tweet ID and text, or null if Twitter is not configured.
  */
 export async function postTweet(text: string): Promise<TweetResult | null> {
-  const creds = getCredentials();
-  if (!creds) return null;
+  const token = await getAccessToken();
+  if (!token) return null;
 
   // X API enforces 280 character limit
   const truncated = text.length > 280 ? text.slice(0, 277) + "..." : text;
 
   const url = "https://api.x.com/2/tweets";
-  const auth = buildAuthHeader("POST", url, creds);
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: auth,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text: truncated }),
@@ -100,8 +111,8 @@ export async function postTweet(text: string): Promise<TweetResult | null> {
  * Post a thread (multiple tweets in reply chain).
  */
 export async function postThread(tweets: string[]): Promise<TweetResult[]> {
-  const creds = getCredentials();
-  if (!creds) return [];
+  const token = await getAccessToken();
+  if (!token) return [];
 
   const results: TweetResult[] = [];
   let replyToId: string | undefined;
@@ -109,7 +120,6 @@ export async function postThread(tweets: string[]): Promise<TweetResult[]> {
   for (const text of tweets) {
     const truncated = text.length > 280 ? text.slice(0, 277) + "..." : text;
     const url = "https://api.x.com/2/tweets";
-    const auth = buildAuthHeader("POST", url, creds);
 
     const body: Record<string, unknown> = { text: truncated };
     if (replyToId) {
@@ -119,7 +129,7 @@ export async function postThread(tweets: string[]): Promise<TweetResult[]> {
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: auth,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -140,6 +150,12 @@ export async function postThread(tweets: string[]): Promise<TweetResult[]> {
   return results;
 }
 
-export function isTwitterConfigured(): boolean {
-  return getCredentials() !== null;
+/**
+ * Check if Twitter is configured by looking for stored tokens.
+ */
+export async function isTwitterConfigured(): Promise<boolean> {
+  const rows = await db.select().from(schema.settings).where(
+    eq(schema.settings.key, "twitter_oauth_access_token")
+  );
+  return rows.length > 0;
 }
