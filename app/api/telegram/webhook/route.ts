@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { eq, like } from "drizzle-orm";
+import { eq, like, inArray } from "drizzle-orm";
 import { sendMessage } from "@/lib/telegram/bot";
 import Anthropic from "@anthropic-ai/sdk";
+import { rateLimit } from "@/lib/rate-limit";
 
 // Telegram sends webhook updates as POST requests.
 // Users link their account by sending /start <username> to the bot.
@@ -159,7 +160,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ── AI response for general messages ──
-    // Find if this chat is linked to a NEXUS user
+
+    // Only respond to linked users (prevents random spam burning credits)
     let linkedUsername: string | null = null;
     try {
       const chatRows = await db
@@ -170,20 +172,67 @@ export async function POST(request: NextRequest) {
       if (match) linkedUsername = match.key.split(":")[0];
     } catch { /* continue without username */ }
 
+    if (!linkedUsername) {
+      await sendMessage({
+        chatId,
+        text: [
+          `Link your NEXUS account first to use the AI analyst.`,
+          ``,
+          `Send: <code>/start your_username</code>`,
+        ].join("\n"),
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Load admin-configurable Telegram AI settings
+    let aiEnabled = true;
+    let aiRateLimit = 10;
+    let aiModel = "claude-haiku-4-5-20251001";
+    const VALID_MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-4-20250514", "claude-sonnet-4-6"];
+    try {
+      const rows = await db
+        .select()
+        .from(schema.settings)
+        .where(inArray(schema.settings.key, ["telegram_ai_enabled", "telegram_ai_rate_limit", "telegram_ai_model"]));
+      for (const row of rows) {
+        if (row.key === "telegram_ai_enabled" && row.value === "false") aiEnabled = false;
+        if (row.key === "telegram_ai_rate_limit") aiRateLimit = parseInt(row.value, 10) || 10;
+        if (row.key === "telegram_ai_model" && VALID_MODELS.includes(row.value)) aiModel = row.value;
+      }
+    } catch { /* defaults are fine */ }
+
+    if (!aiEnabled) {
+      await sendMessage({
+        chatId,
+        text: "AI responses are currently disabled. You'll still receive alerts.",
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Rate limit per chat (configurable via admin)
+    const rl = await rateLimit(`telegram:ai:${chatId}`, aiRateLimit, 60 * 60 * 1000);
+    if (!rl.allowed) {
+      await sendMessage({
+        chatId,
+        text: `Rate limit reached (${aiRateLimit}/hour). Try again later, or use the full analyst at nexushq.xyz/chat.`,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     try {
       const client = new Anthropic();
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 500,
+        model: aiModel,
+        max_tokens: 300,
         system: [
           "You are the NEXUS Intelligence bot on Telegram. NEXUS is a geopolitical-market convergence intelligence platform.",
           "You provide brief, sharp intelligence analysis. Keep responses concise (2-4 sentences max) since this is Telegram.",
           "You can discuss geopolitics, markets, signals, predictions, and intelligence methodology.",
           "If asked about account features, mention they can configure alerts and view full analysis on nexushq.xyz.",
           "Do not use emojis. Write in a direct, professional tone.",
-          linkedUsername ? `The user is linked as "${linkedUsername}" on NEXUS.` : "The user has not linked their NEXUS account yet. They can do so with /start username.",
+          `The user is linked as "${linkedUsername}" on NEXUS.`,
         ].join(" "),
-        messages: [{ role: "user", content: text }],
+        messages: [{ role: "user", content: text.slice(0, 1000) }],
       });
 
       const aiText = response.content[0]?.type === "text" ? response.content[0].text : null;

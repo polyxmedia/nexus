@@ -194,6 +194,17 @@ interface UserRecord {
   } | null;
 }
 
+interface SchedulerJob {
+  name: string;
+  intervalMs: number;
+  defaultIntervalMs: number;
+  lastRun: string | null;
+  running: boolean;
+  errors: number;
+  ai: boolean;
+  enabled: boolean;
+}
+
 interface UserStats {
   creditBalance: {
     period: string;
@@ -374,6 +385,7 @@ const ADMIN_TABS = [
   { id: "emails", label: "Emails", icon: Mail },
   { id: "support", label: "Support", icon: MessageSquare },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "scheduler", label: "Automation", icon: Timer },
   { id: "analysts", label: "Analysts", icon: UserCheck },
   { id: "base-rates", label: "Base Rates", icon: Activity },
   { id: "og-tester", label: "OG Image", icon: Eye },
@@ -2978,6 +2990,13 @@ function IntegrationsPanel() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Telegram AI settings
+  const [telegramAiEnabled, setTelegramAiEnabled] = useState(true);
+  const [telegramRateLimit, setTelegramRateLimit] = useState("10");
+  const [telegramModel, setTelegramModel] = useState("claude-haiku-4-5-20251001");
+  const [telegramLoading, setTelegramLoading] = useState(true);
+  const [telegramSaving, setTelegramSaving] = useState(false);
+
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/twitter/oauth/status");
@@ -3010,6 +3029,48 @@ function IntegrationsPanel() {
       setMessage({ type: "error", text: "Twitter/X connection failed" });
     }
   }, [fetchStatus]);
+
+  const fetchTelegramSettings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/telegram-settings");
+      if (res.ok) {
+        const data = await res.json();
+        setTelegramAiEnabled(data.aiEnabled ?? true);
+        setTelegramRateLimit(String(data.rateLimit ?? 10));
+        setTelegramModel(data.model ?? "claude-haiku-4-5-20251001");
+      }
+    } catch { /* defaults are fine */ }
+    finally { setTelegramLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    fetchTelegramSettings();
+  }, [fetchTelegramSettings]);
+
+  const saveTelegramSettings = async () => {
+    setTelegramSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/telegram-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aiEnabled: telegramAiEnabled,
+          rateLimit: parseInt(telegramRateLimit, 10) || 10,
+          model: telegramModel,
+        }),
+      });
+      if (res.ok) {
+        setMessage({ type: "success", text: "Telegram settings saved" });
+      } else {
+        setMessage({ type: "error", text: "Failed to save Telegram settings" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Failed to save Telegram settings" });
+    } finally {
+      setTelegramSaving(false);
+    }
+  };
 
   const connectTwitter = async () => {
     setConnecting(true);
@@ -3143,6 +3204,92 @@ function IntegrationsPanel() {
             {connecting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
             Connect Twitter/X
           </Button>
+        )}
+      </div>
+
+      {/* Telegram Bot AI Card */}
+      <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-navy-800 flex items-center justify-center">
+              <Send className="h-4 w-4 text-accent-cyan" />
+            </div>
+            <div>
+              <div className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
+                Telegram Bot AI
+              </div>
+              <p className="text-[10px] text-navy-500 mt-0.5">
+                AI-powered responses to Telegram messages from linked users
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {telegramLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Enable/Disable */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[11px] text-navy-200 font-medium">AI Responses</div>
+                <div className="text-[10px] text-navy-500">When disabled, bot only handles commands and alerts</div>
+              </div>
+              <button
+                onClick={() => setTelegramAiEnabled(!telegramAiEnabled)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  telegramAiEnabled ? "bg-accent-emerald" : "bg-navy-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    telegramAiEnabled ? "translate-x-[18px]" : "translate-x-[3px]"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Model */}
+            <div>
+              <label className="text-[11px] text-navy-200 font-medium block mb-1">Model</label>
+              <select
+                value={telegramModel}
+                onChange={(e) => setTelegramModel(e.target.value)}
+                className="w-full bg-navy-800 border border-navy-700 rounded px-3 py-1.5 text-xs text-navy-200 focus:outline-none focus:border-navy-500"
+              >
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5 (cheapest)</option>
+                <option value="claude-sonnet-4-20250514">Sonnet 4</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+              </select>
+              <p className="text-[9px] text-navy-600 mt-1">Haiku is 25x cheaper than Sonnet for short responses</p>
+            </div>
+
+            {/* Rate Limit */}
+            <div>
+              <label className="text-[11px] text-navy-200 font-medium block mb-1">Rate Limit (messages/hour per user)</label>
+              <Input
+                value={telegramRateLimit}
+                onChange={(e) => setTelegramRateLimit(e.target.value)}
+                type="number"
+                min="1"
+                max="100"
+                className="w-32"
+              />
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={saveTelegramSettings}
+              disabled={telegramSaving}
+            >
+              {telegramSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+              Save Telegram Settings
+            </Button>
+          </div>
         )}
       </div>
     </div>
