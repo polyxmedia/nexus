@@ -54,7 +54,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No API key configured" }, { status: 500 });
     }
 
-    const snapshot = await getTradingSnapshot();
+    let snapshot;
+    try {
+      snapshot = await getTradingSnapshot();
+    } catch (err) {
+      console.error("Conflict analysis: getTradingSnapshot failed:", err);
+      return NextResponse.json({ error: "Failed to fetch trading data" }, { status: 502 });
+    }
+
     const memberTrades = snapshot.congressional.recent.filter(
       (t) => t.name.toLowerCase() === memberName.toLowerCase()
     );
@@ -146,7 +153,6 @@ Be thorough but fair. Flag genuine patterns, not speculative connections.`;
     return NextResponse.json(analysis);
   } catch (error) {
     console.error("Conflict analysis error:", error);
-    const message = error instanceof Error ? error.message : "Analysis failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
   }
 }

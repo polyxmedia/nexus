@@ -322,9 +322,8 @@ function ConflictPanel({ memberName, onClose }: { memberName: string; onClose: (
     async function load() {
       try {
         const res = await fetch(`/api/congressional-trading/conflict?member=${encodeURIComponent(memberName)}`);
-        if (!res.ok) throw new Error("Analysis failed");
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (!res.ok || data.error) throw new Error(data.error || `Analysis failed (${res.status})`);
         setAnalysis(data);
       } catch (err) {
         setError((err as Error).message);
