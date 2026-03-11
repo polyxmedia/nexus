@@ -1942,8 +1942,37 @@ async function executeWebSearch(input: Record<string, unknown>) {
   const query = input.query as string;
   if (!query) return { error: "Query required" };
 
+  // Try cached news DB first (instant, no external call)
   try {
-    // Try GDELT first
+    const { getCachedNews } = await import("@/lib/news/sync");
+    const cached = await getCachedNews(undefined, 100);
+    const queryLower = query.toLowerCase();
+    const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
+    const matched = cached.filter((a) => {
+      const text = `${a.title} ${a.description || ""} ${a.category || ""}`.toLowerCase();
+      return queryTerms.some(term => text.includes(term));
+    }).slice(0, 15);
+
+    if (matched.length >= 3) {
+      return {
+        query,
+        source: "cached_news",
+        resultCount: matched.length,
+        articles: matched.map((a) => ({
+          title: a.title,
+          url: a.url,
+          source: a.source,
+          date: a.date,
+          category: a.category,
+        })),
+      };
+    }
+  } catch {
+    // DB read failed, continue to external sources
+  }
+
+  try {
+    // Try GDELT
     const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=15&format=json&sort=DateDesc`;
     const data = await fetchGdeltJson(url);
 
@@ -1992,6 +2021,36 @@ async function executeWebSearch(input: Record<string, unknown>) {
 async function executeGetOsintEvents(input: Record<string, unknown>) {
   const query = input.query as string;
   const limit = (input.limit as number) || 20;
+
+  // Try cached news DB first (instant)
+  try {
+    const { getCachedNews } = await import("@/lib/news/sync");
+    const cached = await getCachedNews(undefined, 100);
+    const queryLower = query.toLowerCase();
+    const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
+    const matched = cached.filter((a) => {
+      const text = `${a.title} ${a.description || ""} ${a.category || ""}`.toLowerCase();
+      return queryTerms.some(term => text.includes(term));
+    }).slice(0, limit);
+
+    if (matched.length >= 3) {
+      return {
+        query,
+        source: "cached_news",
+        timespan: "48h",
+        resultCount: matched.length,
+        events: matched.map((a) => ({
+          title: a.title,
+          url: a.url,
+          source: a.source,
+          date: a.date,
+          category: a.category,
+        })),
+      };
+    }
+  } catch {
+    // DB read failed, continue to external sources
+  }
 
   try {
     const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=${limit}&format=json&sort=DateDesc&timespan=7d`;

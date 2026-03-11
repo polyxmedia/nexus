@@ -334,14 +334,16 @@ export async function POST(
   let preflightContext = "";
   if (isForecastingQuestion) {
     try {
+      const withTimeout = <T>(p: Promise<T>, ms = 10_000) =>
+        Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("preflight timeout")), ms))]);
       const preflightResults = await Promise.allSettled([
-        executeTool("get_signals", {}),
-        executeTool("get_change_points", {}),
-        executeTool("search_knowledge", { query: userMessage.slice(0, 200) }),
-        executeTool("search_historical_parallels", { query: userMessage.slice(0, 200) }),
-        executeTool("get_game_theory", {}),
-        executeTool("run_bayesian_analysis", {}),
-        executeTool("get_macro_data", {}),
+        withTimeout(executeTool("get_signals", {})),
+        withTimeout(executeTool("get_change_points", {})),
+        withTimeout(executeTool("search_knowledge", { query: userMessage.slice(0, 200) })),
+        withTimeout(executeTool("search_historical_parallels", { query: userMessage.slice(0, 200) })),
+        withTimeout(executeTool("get_game_theory", {})),
+        withTimeout(executeTool("run_bayesian_analysis", {})),
+        withTimeout(executeTool("get_macro_data", {})),
       ]);
 
       const labels = ["SIGNALS", "CHANGE_POINTS", "KNOWLEDGE_BANK", "HISTORICAL_PARALLELS", "GAME_THEORY", "BAYESIAN_ANALYSIS", "MACRO_DATA"];
@@ -460,7 +462,13 @@ export async function POST(
                 continue;
               }
               const toolCtx: ToolContext = { username, sessionId: id, projectId: session.projectId };
-              const toolResult = await executeTool(tool.name, parsedInput, toolCtx);
+              // Wrap tool execution in a timeout to prevent hanging the entire response
+              const toolResult = await Promise.race([
+                executeTool(tool.name, parsedInput, toolCtx),
+                new Promise<{ error: string }>((resolve) =>
+                  setTimeout(() => resolve({ error: `Tool ${tool.name} timed out after 20s` }), 20_000)
+                ),
+              ]);
               allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: toolResult });
               sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: toolResult });
               toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(toolResult) });
