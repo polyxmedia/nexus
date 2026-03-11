@@ -455,6 +455,65 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "place_polymarket_order",
+    description:
+      "Place a buy or sell order on Polymarket prediction markets. Requires the user's Polymarket wallet private key to be configured in Settings. Use get_prediction_markets first to find the market and token ID, then place the order. Always confirm the order details with the user before executing.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        token_id: {
+          type: "string",
+          description: "The CLOB token ID for the outcome to trade (YES or NO token). Get this from the market data.",
+        },
+        side: {
+          type: "string",
+          enum: ["buy", "sell"],
+          description: "Whether to buy or sell shares.",
+        },
+        price: {
+          type: "number",
+          description: "Limit price per share (0.01 to 0.99). This is the probability you're buying/selling at.",
+        },
+        size: {
+          type: "number",
+          description: "Number of shares to trade.",
+        },
+      },
+      required: ["token_id", "side", "price", "size"],
+    },
+  },
+  {
+    name: "get_polymarket_positions",
+    description:
+      "Get the user's current Polymarket positions, open orders, and recent trades. Use this to check what prediction market positions the user holds, their P&L, and any pending orders.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        view: {
+          type: "string",
+          enum: ["positions", "orders", "trades", "all"],
+          description: "What to retrieve. Defaults to all.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "cancel_polymarket_order",
+    description:
+      "Cancel an open order on Polymarket. Use get_polymarket_positions with view='orders' first to find the order ID.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        order_id: {
+          type: "string",
+          description: "The order ID to cancel.",
+        },
+      },
+      required: ["order_id"],
+    },
+  },
+  {
     name: "get_congressional_trading",
     description:
       "Get congressional and insider trading data. Returns recent STOCK Act disclosures from House and Senate members, SEC Form 4 insider filings, cluster buy detection (multiple insiders buying same stock), and party/chamber breakdown. Use for detecting informed trading by politicians and corporate insiders, cross-referencing with upcoming catalysts and geopolitical exposure.",
@@ -1005,6 +1064,12 @@ export async function executeTool(
       return executeGetAIProgression(input);
     case "get_prediction_markets":
       return executeGetPredictionMarkets(input);
+    case "place_polymarket_order":
+      return executePlacePolymarketOrder(input, context);
+    case "get_polymarket_positions":
+      return executeGetPolymarketPositions(input, context);
+    case "cancel_polymarket_order":
+      return executeCancelPolymarketOrder(input, context);
     case "get_congressional_trading":
       return executeGetCongressionalTrading(input);
     case "get_macro_data":
@@ -2208,6 +2273,85 @@ async function executeGetPredictionMarkets(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Prediction markets fetch failed: ${message}` };
+  }
+}
+
+async function executePlacePolymarketOrder(input: Record<string, unknown>, context?: ToolContext) {
+  if (!context?.username) return { error: "No user context available" };
+  try {
+    const { placePolymarketOrder, isPolymarketConfigured } = await import("@/lib/prediction-markets/polymarket-trading");
+    const configured = await isPolymarketConfigured(context.username);
+    if (!configured) return { error: "Polymarket wallet not configured. Add your private key in Settings > API Keys." };
+
+    const tokenId = input.token_id as string;
+    const side = input.side as "buy" | "sell";
+    const price = input.price as number;
+    const size = input.size as number;
+
+    if (price < 0.01 || price > 0.99) return { error: "Price must be between 0.01 and 0.99" };
+    if (size <= 0) return { error: "Size must be positive" };
+
+    const result = await placePolymarketOrder(context.username, {
+      tokenId,
+      price,
+      size,
+      side,
+    });
+
+    return {
+      action: "order_placed",
+      success: result.success,
+      orderId: result.orderID,
+      status: result.status,
+      details: { tokenId, side, price, size, cost: (price * size).toFixed(2) },
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Polymarket order failed: ${message}` };
+  }
+}
+
+async function executeGetPolymarketPositions(input: Record<string, unknown>, context?: ToolContext) {
+  if (!context?.username) return { error: "No user context available" };
+  try {
+    const { isPolymarketConfigured, getPolymarketPositions, getPolymarketOpenOrders, getPolymarketTrades, getPolymarketAddress } = await import("@/lib/prediction-markets/polymarket-trading");
+    const configured = await isPolymarketConfigured(context.username);
+    if (!configured) return { error: "Polymarket wallet not configured. Add your private key in Settings > API Keys." };
+
+    const view = (input.view as string) || "all";
+    const address = await getPolymarketAddress(context.username);
+    const result: Record<string, unknown> = { address };
+
+    if (view === "positions" || view === "all") {
+      result.positions = await getPolymarketPositions(context.username);
+    }
+    if (view === "orders" || view === "all") {
+      result.openOrders = await getPolymarketOpenOrders(context.username);
+    }
+    if (view === "trades" || view === "all") {
+      result.recentTrades = await getPolymarketTrades(context.username);
+    }
+
+    return result;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Polymarket positions fetch failed: ${message}` };
+  }
+}
+
+async function executeCancelPolymarketOrder(input: Record<string, unknown>, context?: ToolContext) {
+  if (!context?.username) return { error: "No user context available" };
+  try {
+    const { cancelPolymarketOrder, isPolymarketConfigured } = await import("@/lib/prediction-markets/polymarket-trading");
+    const configured = await isPolymarketConfigured(context.username);
+    if (!configured) return { error: "Polymarket wallet not configured." };
+
+    const orderId = input.order_id as string;
+    await cancelPolymarketOrder(context.username, orderId);
+    return { action: "order_cancelled", orderId };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Cancel order failed: ${message}` };
   }
 }
 

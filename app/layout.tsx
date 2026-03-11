@@ -10,6 +10,7 @@ import { TrialBanner } from "@/components/subscription/trial-banner";
 import { SubscriptionProvider } from "@/lib/hooks/useSubscription";
 import { OrganizationJsonLd, WebSiteJsonLd, SoftwareApplicationJsonLd } from "@/components/seo/json-ld";
 import { CookieConsent } from "@/components/cookie-consent";
+import { Web3Provider } from "@/components/providers/web3-provider";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
@@ -89,17 +90,19 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-navy-950 text-navy-100 antialiased" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <AuthProvider>
-          <NotificationProvider>
-            <SubscriptionProvider>
-              <ImpersonationBanner />
-              <TrialBanner />
-              <Sidebar />
-              {children}
-              <NotificationToast />
-              <AnalyticsTracker />
-            </SubscriptionProvider>
-          </NotificationProvider>
-          <CookieConsent />
+          <Web3Provider>
+            <NotificationProvider>
+              <SubscriptionProvider>
+                <ImpersonationBanner />
+                <TrialBanner />
+                <Sidebar />
+                {children}
+                <NotificationToast />
+                <AnalyticsTracker />
+              </SubscriptionProvider>
+            </NotificationProvider>
+            <CookieConsent />
+          </Web3Provider>
         </AuthProvider>
       </body>
     </html>

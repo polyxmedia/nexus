@@ -65,8 +65,7 @@ export interface TradingSnapshot {
 }
 
 // ── Quiver Quant (Congressional Trading) ──
-// Free public API, no key required
-
+// Quiver Quant API - requires Authorization header (API key via env, falls back to public token)
 const QUIVER_URL = "https://api.quiverquant.com/beta/live/congresstrading";
 
 interface QuiverTrade {
@@ -87,9 +86,13 @@ interface QuiverTrade {
 
 async function fetchCongressionalTrades(): Promise<CongressionalTrade[]> {
   try {
+    const quiverToken = process.env.QUIVER_API_KEY || "public";
     const res = await fetch(QUIVER_URL, {
       signal: AbortSignal.timeout(15000),
-      headers: { "Accept": "application/json" },
+      headers: {
+        "Accept": "application/json",
+        "Authorization": `Bearer ${quiverToken}`,
+      },
       cache: "no-store",
     });
     if (!res.ok) return [];
