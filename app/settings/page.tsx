@@ -11,6 +11,7 @@ import { StatusDot } from "@/components/ui/status-dot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PolymarketConnect } from "@/components/prediction-markets/polymarket-connect";
 import {
   AlertCircle,
   AlertTriangle,
@@ -471,8 +472,6 @@ export default function SettingsPage() {
   const [brokerModal, setBrokerModal] = useState<string | null>(null);
   const [t212Form, setT212Form] = useState({ apiKey: "", apiSecret: "" });
   const [coinbaseForm, setCoinbaseForm] = useState({ apiKey: "", apiSecret: "" });
-  const [polymarketKey, setPolymarketKey] = useState("");
-  const [polymarketForm, setPolymarketForm] = useState({ privateKey: "" });
   const [kalshiKeyId, setKalshiKeyId] = useState("");
   const [kalshiForm, setKalshiForm] = useState({ keyId: "", privateKey: "" });
   const [acledEmail, setAcledEmail] = useState("");
@@ -705,7 +704,6 @@ export default function SettingsPage() {
     fetch("/api/prediction-markets/portfolio")
       .then((r) => r.json())
       .then((data) => {
-        if (data.polymarket?.configured) setPolymarketKey("configured");
         if (data.kalshi?.configured) setKalshiKeyId("configured");
       })
       .catch((err) => console.error("[Settings] prediction markets status check failed:", err));
@@ -2122,19 +2120,8 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Polymarket - Coming Soon */}
-            <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center text-xs font-mono font-bold text-navy-400">PM</div>
-                  <div>
-                    <h3 className="text-sm font-medium text-navy-200">Polymarket</h3>
-                    <p className="text-[10px] text-navy-500">Prediction market trading via wallet</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono text-navy-500 px-3 py-1.5 rounded border border-navy-700/40">Coming soon</span>
-              </div>
-            </div>
+            {/* Polymarket - WalletConnect */}
+            <PolymarketConnect />
 
             {/* Kalshi - Coming Soon */}
             <div className="border border-navy-700 rounded-lg overflow-hidden opacity-60">

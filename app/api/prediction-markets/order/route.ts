@@ -11,9 +11,6 @@ import {
   isKalshiConfigured,
 } from "@/lib/prediction-markets/kalshi-trading";
 import {
-  placePolymarketOrder,
-  cancelPolymarketOrder,
-  getPolymarketOpenOrders,
   isPolymarketConfigured,
 } from "@/lib/prediction-markets/polymarket-trading";
 
@@ -26,16 +23,14 @@ export async function GET() {
   const username = session.user.name;
 
   try {
-    const [kalshiOk, polyOk] = await Promise.all([isKalshiConfigured(username), isPolymarketConfigured(username)]);
+    const kalshiOk = await isKalshiConfigured(username);
 
     const results: { kalshi: unknown; polymarket: unknown } = { kalshi: null, polymarket: null };
 
     if (kalshiOk) {
       try { results.kalshi = await getKalshiOrders(username); } catch { /* skip */ }
     }
-    if (polyOk) {
-      try { results.polymarket = await getPolymarketOpenOrders(username); } catch { /* skip */ }
-    }
+    // Polymarket orders are now fetched client-side via wallet connection
 
     return NextResponse.json(results);
   } catch (error) {
@@ -109,37 +104,11 @@ export async function POST(request: NextRequest) {
 
     // ── Polymarket ──
     if (platform === "polymarket") {
-      const configured = await isPolymarketConfigured(username);
-      if (!configured) {
-        return NextResponse.json({ error: "Polymarket wallet not configured. Add your private key in Settings." }, { status: 400 });
-      }
-
-      const { tokenId, side, price, size } = body;
-
-      if (!tokenId || typeof tokenId !== "string") {
-        return NextResponse.json({ error: "tokenId is required" }, { status: 400 });
-      }
-      if (!["buy", "sell"].includes(side)) {
-        return NextResponse.json({ error: "side must be 'buy' or 'sell'" }, { status: 400 });
-      }
-      if (!price || typeof price !== "number" || price < 0.01 || price > 0.99) {
-        return NextResponse.json({ error: "price must be between 0.01 and 0.99" }, { status: 400 });
-      }
-      if (!size || typeof size !== "number" || size < 1) {
-        return NextResponse.json({ error: "size must be at least 1" }, { status: 400 });
-      }
-      if (size > 10000) {
-        return NextResponse.json({ error: "Max 10,000 shares per order" }, { status: 400 });
-      }
-
-      const result = await placePolymarketOrder(username, {
-        tokenId,
-        price,
-        size,
-        side: side as "buy" | "sell",
-      });
-
-      return NextResponse.json(result);
+      // Polymarket orders are now signed client-side via WalletConnect
+      return NextResponse.json(
+        { error: "Polymarket orders are placed directly from your browser wallet. Use the bet modal." },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ error: "platform must be 'kalshi' or 'polymarket'" }, { status: 400 });
@@ -169,7 +138,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (platform === "polymarket") {
-      await cancelPolymarketOrder(username, orderId);
+      return NextResponse.json({ error: "Polymarket order cancellation is handled client-side via wallet." }, { status: 400 });
     } else {
       await cancelKalshiOrder(username, orderId);
     }

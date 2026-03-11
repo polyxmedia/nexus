@@ -2276,83 +2276,33 @@ async function executeGetPredictionMarkets(input: Record<string, unknown>) {
   }
 }
 
-async function executePlacePolymarketOrder(input: Record<string, unknown>, context?: ToolContext) {
-  if (!context?.username) return { error: "No user context available" };
-  try {
-    const { placePolymarketOrder, isPolymarketConfigured } = await import("@/lib/prediction-markets/polymarket-trading");
-    const configured = await isPolymarketConfigured(context.username);
-    if (!configured) return { error: "Polymarket wallet not configured. Add your private key in Settings > API Keys." };
-
-    const tokenId = input.token_id as string;
-    const side = input.side as "buy" | "sell";
-    const price = input.price as number;
-    const size = input.size as number;
-
-    if (price < 0.01 || price > 0.99) return { error: "Price must be between 0.01 and 0.99" };
-    if (size <= 0) return { error: "Size must be positive" };
-
-    const result = await placePolymarketOrder(context.username, {
-      tokenId,
-      price,
-      size,
-      side,
-    });
-
-    return {
-      action: "order_placed",
-      success: result.success,
-      orderId: result.orderID,
-      status: result.status,
-      details: { tokenId, side, price, size, cost: (price * size).toFixed(2) },
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { error: `Polymarket order failed: ${message}` };
-  }
+async function executePlacePolymarketOrder(_input: Record<string, unknown>, _context?: ToolContext) {
+  return {
+    error: "Polymarket trading has moved to client-side wallet signing for security. Orders are placed directly from the browser wallet via the bet modal. Navigate to the prediction markets page and use the bet button on any Polymarket market.",
+  };
 }
 
 async function executeGetPolymarketPositions(input: Record<string, unknown>, context?: ToolContext) {
   if (!context?.username) return { error: "No user context available" };
   try {
-    const { isPolymarketConfigured, getPolymarketPositions, getPolymarketOpenOrders, getPolymarketTrades, getPolymarketAddress } = await import("@/lib/prediction-markets/polymarket-trading");
+    const { isPolymarketConfigured, getPolymarketPositions, getPolymarketAddress } = await import("@/lib/prediction-markets/polymarket-trading");
     const configured = await isPolymarketConfigured(context.username);
-    if (!configured) return { error: "Polymarket wallet not configured. Add your private key in Settings > API Keys." };
+    if (!configured) return { error: "Polymarket wallet not connected. Connect your wallet in Settings > Integrations." };
 
-    const view = (input.view as string) || "all";
     const address = await getPolymarketAddress(context.username);
-    const result: Record<string, unknown> = { address };
+    const positions = await getPolymarketPositions(context.username);
 
-    if (view === "positions" || view === "all") {
-      result.positions = await getPolymarketPositions(context.username);
-    }
-    if (view === "orders" || view === "all") {
-      result.openOrders = await getPolymarketOpenOrders(context.username);
-    }
-    if (view === "trades" || view === "all") {
-      result.recentTrades = await getPolymarketTrades(context.username);
-    }
-
-    return result;
+    return { address, positions };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Polymarket positions fetch failed: ${message}` };
   }
 }
 
-async function executeCancelPolymarketOrder(input: Record<string, unknown>, context?: ToolContext) {
-  if (!context?.username) return { error: "No user context available" };
-  try {
-    const { cancelPolymarketOrder, isPolymarketConfigured } = await import("@/lib/prediction-markets/polymarket-trading");
-    const configured = await isPolymarketConfigured(context.username);
-    if (!configured) return { error: "Polymarket wallet not configured." };
-
-    const orderId = input.order_id as string;
-    await cancelPolymarketOrder(context.username, orderId);
-    return { action: "order_cancelled", orderId };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { error: `Cancel order failed: ${message}` };
-  }
+async function executeCancelPolymarketOrder(_input: Record<string, unknown>, _context?: ToolContext) {
+  return {
+    error: "Polymarket order cancellation is now handled client-side via the browser wallet. Use the prediction markets page to manage your orders.",
+  };
 }
 
 async function executeGetCongressionalTrading(input: Record<string, unknown>) {

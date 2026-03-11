@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { X, Wallet, Loader2 } from "lucide-react";
+import { useAccount, useConnect, useDisconnect, useWalletClient } from "wagmi";
+import { placeOrder, parseTokenIds } from "@/lib/prediction-markets/polymarket-client";
 
 interface Market {
   id: string;
@@ -10,7 +12,6 @@ interface Market {
   title: string;
   probability: number;
   url: string;
-  // Polymarket-specific: clobTokenIds as JSON string "[yesId, noId]"
   clobTokenIds?: string;
 }
 
@@ -29,22 +30,23 @@ export function BetModal({ market, open, onClose, onSuccess }: BetModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
+  const { address, isConnected } = useAccount();
+  const { connectors, connect, isPending: isConnecting } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { data: walletClient } = useWalletClient();
+
   const isKalshi = market.source === "kalshi";
   const isPoly = market.source === "polymarket";
 
-  // Kalshi uses cents (1-99), Polymarket uses decimals (0.01-0.99)
   const costCents = contracts * price;
   const payoutCents = contracts * 100;
   const profitCents = payoutCents - costCents;
 
   function getPolyTokenId(): string | null {
     if (!market.clobTokenIds) return null;
-    try {
-      const ids = JSON.parse(market.clobTokenIds);
-      return side === "yes" ? ids[0] : ids[1];
-    } catch {
-      return null;
-    }
+    const ids = parseTokenIds(market.clobTokenIds);
+    if (!ids) return null;
+    return side === "yes" ? ids.yes : ids.no;
   }
 
   async function handleSubmit() {
@@ -53,57 +55,68 @@ export function BetModal({ market, open, onClose, onSuccess }: BetModalProps) {
     setResult(null);
 
     try {
-      let body: Record<string, unknown>;
-
       if (isKalshi) {
+        // Kalshi still uses server-side API
         const kalshiTicker = market.id.replace("kalshi_", "");
-        body = {
-          platform: "kalshi",
-          ticker: kalshiTicker,
-          action: "buy",
-          side,
-          count: contracts,
-          price,
-        };
-      } else {
-        // Polymarket
-        const tokenId = getPolyTokenId();
-        if (!tokenId) {
-          setError("Missing token ID for this market. Try refreshing the page.");
-          setLoading(false);
+        const res = await fetch("/api/prediction-markets/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform: "kalshi",
+            ticker: kalshiTicker,
+            action: "buy",
+            side,
+            count: contracts,
+            price,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "Order failed");
           return;
         }
-        body = {
-          platform: "polymarket",
-          tokenId,
-          side: "buy",
-          price: price / 100, // convert cents to decimal for Polymarket
-          size: contracts,
-        };
-      }
-
-      const res = await fetch("/api/prediction-markets/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Order failed");
+        setResult(`Order placed: ${contracts} ${side.toUpperCase()} @ ${price}c`);
+        onSuccess?.();
         return;
       }
 
-      setResult(`Order placed: ${contracts} ${side.toUpperCase()} @ ${price}c`);
-      onSuccess?.();
-    } catch {
-      setError("Network error, try again");
+      // Polymarket: sign directly in browser wallet
+      if (!walletClient) {
+        setError("Wallet not connected. Connect your wallet first.");
+        return;
+      }
+
+      const tokenId = getPolyTokenId();
+      if (!tokenId) {
+        setError("Missing token ID for this market. Try refreshing the page.");
+        return;
+      }
+
+      const orderResult = await placeOrder(walletClient, {
+        tokenId,
+        price: price / 100,
+        size: contracts,
+        side: "buy",
+      });
+
+      if (orderResult.success) {
+        setResult(`Order placed: ${contracts} ${side.toUpperCase()} @ ${price}c`);
+        onSuccess?.();
+      } else {
+        setError(orderResult.error || "Order failed");
+      }
+    } catch (err) {
+      const message = (err as Error).message || "Order failed";
+      if (message.includes("rejected") || message.includes("denied")) {
+        setError("Transaction rejected in wallet");
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  // Check if Polymarket market has the token IDs needed for trading
   const polyTradeable = isPoly && !!market.clobTokenIds;
 
   return (
@@ -128,8 +141,56 @@ export function BetModal({ market, open, onClose, onSuccess }: BetModalProps) {
             </div>
 
             <div className="p-5 space-y-5">
+              {/* Wallet connection for Polymarket */}
+              {isPoly && !isConnected && (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-navy-400 font-sans">
+                    Connect your Polygon wallet to trade on Polymarket. Your private key never leaves your browser.
+                  </p>
+                  <div className="space-y-2">
+                    {connectors.map((connector) => (
+                      <button
+                        key={connector.uid}
+                        onClick={() => connect({ connector })}
+                        disabled={isConnecting}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-navy-700/40 bg-navy-900/40 hover:bg-navy-800/40 hover:border-navy-600/40 transition-colors text-left"
+                      >
+                        <Wallet className="h-4 w-4 text-navy-400 shrink-0" />
+                        <div>
+                          <span className="text-xs font-mono text-navy-200 block">{connector.name}</span>
+                          <span className="text-[9px] font-mono text-navy-600">
+                            {connector.name === "MetaMask" ? "Browser extension" :
+                             connector.name === "WalletConnect" ? "Mobile or desktop wallet" :
+                             connector.name === "Coinbase Wallet" ? "Coinbase app or extension" :
+                             "Connect wallet"}
+                          </span>
+                        </div>
+                        {isConnecting && <Loader2 className="h-3 w-3 animate-spin text-navy-500 ml-auto" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Connected wallet info */}
+              {isPoly && isConnected && address && (
+                <div className="flex items-center justify-between px-3 py-2 rounded bg-navy-900/40 border border-navy-700/30">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-accent-emerald" />
+                    <span className="text-[10px] font-mono text-navy-300">
+                      {address.slice(0, 6)}...{address.slice(-4)}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => disconnect()}
+                    className="text-[9px] font-mono text-navy-600 hover:text-navy-400 transition-colors"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              )}
+
               {isPoly && !polyTradeable ? (
-                // Polymarket without token IDs: link out
                 <div className="text-center space-y-3">
                   <p className="text-sm text-navy-400">
                     Token data unavailable for in-app trading. Place your bet directly on Polymarket.
@@ -143,7 +204,7 @@ export function BetModal({ market, open, onClose, onSuccess }: BetModalProps) {
                     Open on Polymarket
                   </a>
                 </div>
-              ) : (
+              ) : (isKalshi || (isPoly && isConnected)) ? (
                 <>
                   {/* Current market probability */}
                   <div className="flex items-center justify-between text-[10px] font-mono text-navy-500">
@@ -180,7 +241,7 @@ export function BetModal({ market, open, onClose, onSuccess }: BetModalProps) {
                     </div>
                   </div>
 
-                  {/* Price (cents) */}
+                  {/* Price */}
                   <div>
                     <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600 block mb-2">
                       Price (cents per contract, 1-99)
@@ -209,7 +270,7 @@ export function BetModal({ market, open, onClose, onSuccess }: BetModalProps) {
                     </div>
                   </div>
 
-                  {/* Contracts / Shares */}
+                  {/* Contracts */}
                   <div>
                     <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600 block mb-2">
                       {isKalshi ? "Contracts" : "Shares"}
@@ -261,28 +322,22 @@ export function BetModal({ market, open, onClose, onSuccess }: BetModalProps) {
 
                   {isPoly && (
                     <p className="text-[10px] font-mono text-navy-600">
-                      Requires USDC on Polygon in your connected wallet.
+                      Requires USDC on Polygon. Your wallet will prompt you to sign the order.
                     </p>
                   )}
 
-                  {/* Error / Result */}
-                  {error && (
-                    <p className="text-[11px] text-accent-rose font-mono">{error}</p>
-                  )}
-                  {result && (
-                    <p className="text-[11px] text-accent-emerald font-mono">{result}</p>
-                  )}
+                  {error && <p className="text-[11px] text-accent-rose font-mono">{error}</p>}
+                  {result && <p className="text-[11px] text-accent-emerald font-mono">{result}</p>}
 
-                  {/* Submit */}
                   <button
                     onClick={handleSubmit}
                     disabled={loading}
                     className="w-full py-2.5 rounded text-xs font-mono uppercase tracking-wider transition-colors bg-navy-200 text-navy-950 hover:bg-navy-300 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {loading ? "Placing order..." : `Buy ${contracts} ${side.toUpperCase()} @ ${price}c`}
+                    {loading ? "Awaiting wallet signature..." : `Buy ${contracts} ${side.toUpperCase()} @ ${price}c`}
                   </button>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </Dialog.Content>

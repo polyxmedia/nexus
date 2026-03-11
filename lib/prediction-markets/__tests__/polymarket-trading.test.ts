@@ -4,74 +4,41 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockSelect = vi.fn();
 const mockFrom = vi.fn();
 const mockWhere = vi.fn();
+const mockUpdate = vi.fn();
+const mockSet = vi.fn();
+const mockInsert = vi.fn();
+const mockValues = vi.fn();
+const mockDelete = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   db: {
-    select: () => ({ from: (table: unknown) => ({ where: mockWhere }) }),
+    select: () => ({ from: () => ({ where: mockWhere }) }),
+    update: () => ({ set: () => ({ where: vi.fn() }) }),
+    insert: () => ({ values: vi.fn() }),
+    delete: () => ({ where: vi.fn() }),
   },
   schema: {
     settings: { key: "key", value: "value" },
   },
 }));
 
-// ── Mock encryption ──
-vi.mock("@/lib/encryption", () => ({
-  decrypt: (val: string) => {
-    if (val.startsWith("enc:v1:")) return "decrypted_" + val;
-    return val;
-  },
-}));
-
-// ── Mock ClobClient ──
-const mockCreateAndPostOrder = vi.fn();
-const mockCancelOrder = vi.fn();
-const mockGetOpenOrders = vi.fn();
-const mockGetTrades = vi.fn();
-const mockGetTickSize = vi.fn();
-const mockGetNegRisk = vi.fn();
-const mockCreateOrDeriveApiKey = vi.fn().mockResolvedValue({ apiKey: "test", secret: "test", passphrase: "test" });
-
-vi.mock("@polymarket/clob-client", () => {
-  function MockClobClient(this: Record<string, unknown>) {
-    this.createOrDeriveApiKey = mockCreateOrDeriveApiKey;
-    this.createAndPostOrder = mockCreateAndPostOrder;
-    this.cancelOrder = mockCancelOrder;
-    this.getOpenOrders = mockGetOpenOrders;
-    this.getTrades = mockGetTrades;
-    this.getTickSize = mockGetTickSize;
-    this.getNegRisk = mockGetNegRisk;
-  }
-  return {
-    ClobClient: MockClobClient,
-    Side: { BUY: 0, SELL: 1 },
-    OrderType: { GTC: "GTC", GTD: "GTD" },
-  };
-});
-
-// ── Mock ethers ──
-vi.mock("ethers", () => {
-  function MockWallet(this: { address: string }, key: string) {
-    this.address = "0xTestAddress_" + key.slice(-4);
-  }
-  return { Wallet: MockWallet };
-});
-
-// ── Mock fetch (for positions endpoint) ──
+// ── Mock fetch (for positions/market endpoints) ──
 const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
 import {
   parseTokenIds,
+  getMarketTokenIds,
+  getPolymarketAddress,
+  isPolymarketConfigured,
+  getPolymarketPositions,
   placePolymarketOrder,
   cancelPolymarketOrder,
   getPolymarketOpenOrders,
   getPolymarketTrades,
-  getPolymarketPositions,
-  isPolymarketConfigured,
-  getPolymarketAddress,
 } from "../polymarket-trading";
 
-describe("polymarket-trading", () => {
+describe("polymarket-trading (read-only module)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockWhere.mockResolvedValue([]);
@@ -103,211 +70,66 @@ describe("polymarket-trading", () => {
     });
   });
 
-  // ── Per-user credential lookup ──
+  // ── getMarketTokenIds ──
 
-  describe("per-user credential resolution", () => {
-    it("returns true when user-scoped key exists", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xUserKey" }]);
+  describe("getMarketTokenIds", () => {
+    it("fetches token IDs from gamma API", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([{ clobTokenIds: '["yes_token", "no_token"]' }]),
+      });
 
-      const configured = await isPolymarketConfigured("alice");
-      expect(configured).toBe(true);
+      const result = await getMarketTokenIds("condition_123");
+      expect(result).toEqual({ yes: "yes_token", no: "no_token" });
     });
 
-    it("falls back to global key when no user-scoped key", async () => {
-      mockWhere
-        .mockResolvedValueOnce([]) // no user-scoped key
-        .mockResolvedValueOnce([{ key: "polymarket_private_key", value: "0xGlobalKey" }]);
+    it("returns null when API returns empty array", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
 
-      const configured = await isPolymarketConfigured("bob");
-      expect(configured).toBe(true);
+      const result = await getMarketTokenIds("condition_123");
+      expect(result).toBeNull();
     });
 
-    it("falls back to env var when no DB keys", async () => {
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+    it("returns null on fetch error", async () => {
+      mockFetch.mockRejectedValue(new Error("network error"));
 
-      process.env.POLYMARKET_PRIVATE_KEY = "0xEnvKey";
-      const configured = await isPolymarketConfigured("charlie");
-      expect(configured).toBe(true);
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-    });
-
-    it("returns false when no credentials anywhere", async () => {
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-      const configured = await isPolymarketConfigured("nobody");
-      expect(configured).toBe(false);
-    });
-
-    it("decrypts encrypted values from DB", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "enc:v1:some_encrypted_data" }]);
-
-      const configured = await isPolymarketConfigured("alice");
-      expect(configured).toBe(true);
+      const result = await getMarketTokenIds("condition_123");
+      expect(result).toBeNull();
     });
   });
 
-  // ── getPolymarketAddress ──
+  // ── Wallet address (DB-backed) ──
 
   describe("getPolymarketAddress", () => {
-    it("returns wallet address when configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xabcdef1234" }]);
-
+    it("returns address when stored", async () => {
+      mockWhere.mockResolvedValueOnce([{ key: "alice:polymarket_address", value: "0xabc123" }]);
       const address = await getPolymarketAddress("alice");
-      expect(address).toContain("0xTestAddress_");
+      expect(address).toBe("0xabc123");
     });
 
-    it("returns null when not configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-
+    it("returns null when not stored", async () => {
+      mockWhere.mockResolvedValueOnce([]);
       const address = await getPolymarketAddress("nobody");
       expect(address).toBeNull();
     });
   });
 
-  // ── placePolymarketOrder ──
+  // ── isPolymarketConfigured ──
 
-  describe("placePolymarketOrder", () => {
-    it("places order with correct parameters", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xTestPrivateKey123" }]);
-
-      mockGetTickSize.mockResolvedValue("0.01");
-      mockGetNegRisk.mockResolvedValue(false);
-      mockCreateAndPostOrder.mockResolvedValue({ orderID: "order_123", status: "live" });
-
-      const result = await placePolymarketOrder("alice", {
-        tokenId: "token_abc",
-        price: 0.65,
-        size: 10,
-        side: "buy",
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.orderID).toBe("order_123");
-      expect(result.status).toBe("live");
-      expect(mockCreateAndPostOrder).toHaveBeenCalledOnce();
+  describe("isPolymarketConfigured", () => {
+    it("returns true when address exists", async () => {
+      mockWhere.mockResolvedValueOnce([{ key: "alice:polymarket_address", value: "0xabc" }]);
+      const configured = await isPolymarketConfigured("alice");
+      expect(configured).toBe(true);
     });
 
-    it("throws when wallet not configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-
-      await expect(
-        placePolymarketOrder("nobody", { tokenId: "t", price: 0.5, size: 1, side: "buy" })
-      ).rejects.toThrow("Polymarket wallet not configured");
-    });
-
-    it("uses default tick size when fetch fails", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "user1:polymarket_private_key", value: "0xKey1" }]);
-
-      mockGetTickSize.mockRejectedValue(new Error("API error"));
-      mockGetNegRisk.mockRejectedValue(new Error("API error"));
-      mockCreateAndPostOrder.mockResolvedValue({ orderID: "order_456" });
-
-      const result = await placePolymarketOrder("user1", {
-        tokenId: "token_xyz",
-        price: 0.30,
-        size: 5,
-        side: "sell",
-      });
-
-      expect(result.success).toBe(true);
-    });
-  });
-
-  // ── cancelPolymarketOrder ──
-
-  describe("cancelPolymarketOrder", () => {
-    it("cancels order by ID", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xKey" }]);
-
-      mockCancelOrder.mockResolvedValue(undefined);
-
-      await cancelPolymarketOrder("alice", "order_789");
-      expect(mockCancelOrder).toHaveBeenCalledWith({ orderID: "order_789" });
-    });
-
-    it("throws when not configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-
-      await expect(cancelPolymarketOrder("nobody", "order_1")).rejects.toThrow("Polymarket wallet not configured");
-    });
-  });
-
-  // ── getPolymarketOpenOrders ──
-
-  describe("getPolymarketOpenOrders", () => {
-    it("returns orders when configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xKey" }]);
-
-      const orders = [{ id: "1" }, { id: "2" }];
-      mockGetOpenOrders.mockResolvedValue(orders);
-
-      const result = await getPolymarketOpenOrders("alice");
-      expect(result).toEqual(orders);
-    });
-
-    it("returns empty array when not configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-
-      const result = await getPolymarketOpenOrders("nobody");
-      expect(result).toEqual([]);
-    });
-
-    it("returns empty array on API error", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xKey" }]);
-
-      mockGetOpenOrders.mockRejectedValue(new Error("API down"));
-
-      const result = await getPolymarketOpenOrders("alice");
-      expect(result).toEqual([]);
-    });
-  });
-
-  // ── getPolymarketTrades ──
-
-  describe("getPolymarketTrades", () => {
-    it("returns trades when configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xKey" }]);
-
-      mockGetTrades.mockResolvedValue([{ tradeId: "t1" }]);
-
-      const result = await getPolymarketTrades("alice");
-      expect(result).toEqual([{ tradeId: "t1" }]);
-    });
-
-    it("returns empty array on failure", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xKey" }]);
-
-      mockGetTrades.mockRejectedValue(new Error("fail"));
-
-      const result = await getPolymarketTrades("alice");
-      expect(result).toEqual([]);
+    it("returns false when no address", async () => {
+      mockWhere.mockResolvedValueOnce([]);
+      const configured = await isPolymarketConfigured("nobody");
+      expect(configured).toBe(false);
     });
   });
 
@@ -315,9 +137,7 @@ describe("polymarket-trading", () => {
 
   describe("getPolymarketPositions", () => {
     it("fetches positions from data API", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xKey" }]);
-
+      mockWhere.mockResolvedValueOnce([{ key: "alice:polymarket_address", value: "0xabc" }]);
       const positions = [{ market: "BTC > 100k", size: 10 }];
       mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(positions) });
 
@@ -326,9 +146,7 @@ describe("polymarket-trading", () => {
     });
 
     it("returns empty array when fetch fails", async () => {
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xKey" }]);
-
+      mockWhere.mockResolvedValueOnce([{ key: "alice:polymarket_address", value: "0xabc" }]);
       mockFetch.mockResolvedValue({ ok: false });
 
       const result = await getPolymarketPositions("alice");
@@ -336,34 +154,31 @@ describe("polymarket-trading", () => {
     });
 
     it("returns empty array when not configured", async () => {
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-
+      mockWhere.mockResolvedValueOnce([]);
       const result = await getPolymarketPositions("nobody");
       expect(result).toEqual([]);
     });
   });
 
-  // ── User isolation ──
+  // ── Legacy functions throw ──
 
-  describe("user isolation", () => {
-    it("different users get different credential lookups", async () => {
-      // User A configured
-      mockWhere
-        .mockResolvedValueOnce([{ key: "alice:polymarket_private_key", value: "0xAliceKey" }]);
-      const aliceConfigured = await isPolymarketConfigured("alice");
+  describe("legacy trading functions", () => {
+    it("placePolymarketOrder throws directing to client-side", async () => {
+      await expect(placePolymarketOrder()).rejects.toThrow("client-side wallet signing");
+    });
 
-      // User B not configured
-      mockWhere
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-      delete process.env.POLYMARKET_PRIVATE_KEY;
-      const bobConfigured = await isPolymarketConfigured("bob");
+    it("cancelPolymarketOrder throws directing to client-side", async () => {
+      await expect(cancelPolymarketOrder()).rejects.toThrow("client-side wallet signing");
+    });
 
-      expect(aliceConfigured).toBe(true);
-      expect(bobConfigured).toBe(false);
+    it("getPolymarketOpenOrders returns empty array", async () => {
+      const result = await getPolymarketOpenOrders();
+      expect(result).toEqual([]);
+    });
+
+    it("getPolymarketTrades returns empty array", async () => {
+      const result = await getPolymarketTrades();
+      expect(result).toEqual([]);
     });
   });
 });
