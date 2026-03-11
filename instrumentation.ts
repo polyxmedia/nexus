@@ -49,6 +49,9 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     validateEnv();
     await import("./sentry.server.config");
+    // Ensure all tables exist before starting anything else
+    const { ensureTables } = await import("@/lib/db/ensure-tables");
+    await ensureTables();
     const { startScheduler } = await import("@/lib/scheduler");
     startScheduler();
   }

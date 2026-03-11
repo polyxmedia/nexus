@@ -52,3 +52,4 @@ data/*.db-shm
 # Capacitor native projects
 /ios
 /android
+.claude/settings.local.json

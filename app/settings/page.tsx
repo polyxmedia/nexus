@@ -418,6 +418,7 @@ function CloseAccountSection({ username }: { username: string }) {
 export default function SettingsPage() {
   const { data: session } = useSession();
   const username = session?.user?.name || "";
+  const email = session?.user?.email || "";
   const [settings, setSettings] = useState<SettingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -1104,6 +1105,10 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between py-1.5">
                   <span className="text-xs text-navy-400">Username</span>
                   <span className="text-xs font-mono text-navy-200">{username}</span>
+                </div>
+                <div className="flex items-center justify-between py-1.5">
+                  <span className="text-xs text-navy-400">Email</span>
+                  <span className="text-xs font-mono text-navy-200">{email}</span>
                 </div>
               </div>
             </div>
