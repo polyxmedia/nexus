@@ -1234,7 +1234,8 @@ async function executeGetSignals(input: Record<string, unknown>) {
 }
 
 async function executeGetMarketSnapshot(input: Record<string, unknown>) {
-  const symbol = (input.symbol as string).toUpperCase();
+  if (!input.symbol) return { error: "symbol is required" };
+  const symbol = String(input.symbol).toUpperCase();
 
   const [row] = await db
     .select()
@@ -1739,7 +1740,8 @@ async function executeGetPortfolio() {
 }
 
 async function executeGetLiveQuote(input: Record<string, unknown>) {
-  const symbol = (input.symbol as string).toUpperCase();
+  if (!input.symbol) return { error: "symbol is required" };
+  const symbol = String(input.symbol).toUpperCase();
 
   try {
     const quote = await getQuoteData(symbol);
@@ -1751,7 +1753,8 @@ async function executeGetLiveQuote(input: Record<string, unknown>) {
 }
 
 async function executeGetPriceHistory(input: Record<string, unknown>) {
-  const symbol = (input.symbol as string).toUpperCase();
+  if (!input.symbol) return { error: "symbol is required" };
+  const symbol = String(input.symbol).toUpperCase();
   const full = input.full as boolean || false;
 
   try {
@@ -1818,7 +1821,8 @@ async function executeGetPriceHistory(input: Record<string, unknown>) {
 }
 
 async function executeMonteCarloSimulation(input: Record<string, unknown>) {
-  const symbol = (input.symbol as string).toUpperCase();
+  if (!input.symbol) return { error: "symbol is required" };
+  const symbol = String(input.symbol).toUpperCase();
   const days = (input.days as number) || 63;
   const simulations = Math.min((input.simulations as number) || 10000, 50000);
 
@@ -1854,17 +1858,22 @@ async function executeMonteCarloSimulation(input: Record<string, unknown>) {
     const probDown10 = finalPrices.filter(p => p < currentPrice * 0.9).length / simulations;
     const probUp10 = finalPrices.filter(p => p > currentPrice * 1.1).length / simulations;
 
-    // Build distribution histogram for visualization (30 bins)
+    // Build distribution histogram for visualization (30 bins) - single pass O(n)
     const p5Val = percentile(5);
     const p95Val = percentile(95);
     const binCount = 30;
     const binWidth = (p95Val - p5Val) / binCount;
+    const binCounts = new Array(binCount).fill(0);
+    for (const p of finalPrices) {
+      if (p >= p5Val && p < p95Val) {
+        const idx = Math.min(Math.floor((p - p5Val) / binWidth), binCount - 1);
+        binCounts[idx]++;
+      }
+    }
     const distribution: Array<{ price: number; count: number }> = [];
     for (let b = 0; b < binCount; b++) {
       const lo = p5Val + b * binWidth;
-      const hi = lo + binWidth;
-      const count = finalPrices.filter(p => p >= lo && p < hi).length;
-      distribution.push({ price: +(lo + binWidth / 2).toFixed(2), count });
+      distribution.push({ price: +(lo + binWidth / 2).toFixed(2), count: binCounts[b] });
     }
 
     return {

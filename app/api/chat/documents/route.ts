@@ -108,7 +108,7 @@ async function generatePptx(
     slide.background = { color: bg };
 
     // Section heading
-    slide.addText(section.heading.toUpperCase(), {
+    slide.addText((section.heading || "").toUpperCase(), {
       x: 0.8,
       y: 0.5,
       w: "85%",
@@ -267,7 +267,7 @@ async function generatePdf(
         }
 
         // Section heading
-        doc.fontSize(10).font("Courier").fillColor(accent).text(section.heading.toUpperCase(), 60, doc.y, { characterSpacing: 3 });
+        doc.fontSize(10).font("Courier").fillColor(accent).text((section.heading || "").toUpperCase(), 60, doc.y, { characterSpacing: 3 });
         const lineY = doc.y + 6;
         doc.moveTo(60, lineY).lineTo(150, lineY).strokeColor(accent).lineWidth(1).stroke();
 

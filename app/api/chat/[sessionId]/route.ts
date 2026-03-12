@@ -1,4 +1,4 @@
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getEffectiveUsername } from "@/lib/auth/effective-user";
@@ -455,6 +455,8 @@ export async function POST(
             const assistantContent: Anthropic.ContentBlockParam[] = [];
             if (iterationText) assistantContent.push({ type: "text" as const, text: iterationText });
             const toolResultContent: Anthropic.ToolResultBlockParam[] = [];
+            // Pre-process: parse inputs and build assistant content, separate blocked vs executable tools
+            const executableTools: Array<{ tool: typeof pendingTools[number]; parsedInput: Record<string, unknown> }> = [];
             for (const tool of pendingTools) {
               let parsedInput: Record<string, unknown> = {};
               try { parsedInput = tool.inputJson ? JSON.parse(tool.inputJson) : {}; } catch { parsedInput = {}; }
@@ -468,21 +470,36 @@ export async function POST(
                 allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: blocked });
                 sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: blocked });
                 toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: JSON.stringify(blocked) });
-                continue;
+              } else {
+                executableTools.push({ tool, parsedInput });
               }
-              const toolCtx: ToolContext = { username, sessionId: id, projectId: session.projectId };
-              // Wrap tool execution in a timeout to prevent hanging the entire response
+            }
+            // Execute all non-blocked tools in parallel with timeout
+            const toolCtx: ToolContext = { username, sessionId: id, projectId: session.projectId };
+            const toolPromises = executableTools.map(async ({ tool, parsedInput }) => {
               const toolResult = await Promise.race([
                 executeTool(tool.name, parsedInput, toolCtx),
                 new Promise<{ error: string }>((resolve) =>
                   setTimeout(() => resolve({ error: `Tool ${tool.name} timed out after 20s` }), 20_000)
                 ),
               ]);
-              allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: toolResult });
-              sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: toolResult });
-              // Cap tool result size sent to Claude to prevent token explosion
-              const toolResultJson = truncateToolResult(JSON.stringify(toolResult), 12000);
-              toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: toolResultJson });
+              return { tool, toolResult };
+            });
+            const toolOutputs = await Promise.allSettled(toolPromises);
+            for (const output of toolOutputs) {
+              if (output.status === "fulfilled") {
+                const { tool, toolResult } = output.value;
+                allToolResults.push({ toolName: tool.name, toolUseId: tool.id, result: toolResult });
+                sendEvent({ type: "tool_result", toolName: tool.name, toolUseId: tool.id, result: toolResult });
+                const toolResultJson = truncateToolResult(JSON.stringify(toolResult), 12000);
+                toolResultContent.push({ type: "tool_result" as const, tool_use_id: tool.id, content: toolResultJson });
+              } else {
+                const toolEntry = executableTools[toolOutputs.indexOf(output)];
+                const errorResult = { error: `Tool ${toolEntry.tool.name} failed: ${output.reason}` };
+                allToolResults.push({ toolName: toolEntry.tool.name, toolUseId: toolEntry.tool.id, result: errorResult });
+                sendEvent({ type: "tool_result", toolName: toolEntry.tool.name, toolUseId: toolEntry.tool.id, result: errorResult });
+                toolResultContent.push({ type: "tool_result" as const, tool_use_id: toolEntry.tool.id, content: JSON.stringify(errorResult) });
+              }
             }
             messages = [...messages, { role: "assistant" as const, content: assistantContent }, { role: "user" as const, content: toolResultContent }];
             // Add separator between iterations so text doesn't merge (e.g. "data.Now" -> "data.\n\nNow")
@@ -568,7 +585,7 @@ Be ruthlessly honest. The whole point is to catch errors the analyst missed.`,
                   sendEvent({ type: "meta_analysis", result: metaResult });
 
                   // Also append to the stored message for history
-                  const metaSummary = `\n\n---\n**Meta-Analysis** (calibration audit):\n${metaResult.issues_found?.map((i: { severity: string; id: string; detail: string }) => `- [${i.severity.toUpperCase()}] ${i.id}: ${i.detail}`).join("\n") || "No issues found."}\n${metaResult.suggested_adjustment ? `\nSuggested adjustment: ${(metaResult.suggested_adjustment.original_probability * 100).toFixed(0)}% -> ${(metaResult.suggested_adjustment.adjusted_probability * 100).toFixed(0)}% (${metaResult.suggested_adjustment.reason})` : ""}`;
+                  const metaSummary = `\n\n---\n**Meta-Analysis** (calibration audit):\n${metaResult.issues_found?.map((i: { severity: string; id: string; detail: string }) => `- [${(i.severity || "INFO").toUpperCase()}] ${i.id || "unknown"}: ${i.detail || ""}`).join("\n") || "No issues found."}\n${metaResult.suggested_adjustment ? `\nSuggested adjustment: ${(metaResult.suggested_adjustment.original_probability * 100).toFixed(0)}% -> ${(metaResult.suggested_adjustment.adjusted_probability * 100).toFixed(0)}% (${metaResult.suggested_adjustment.reason})` : ""}`;
                   await db.update(schema.chatMessages)
                     .set({ content: fullText + metaSummary })
                     .where(and(eq(schema.chatMessages.sessionId, id), eq(schema.chatMessages.role, "assistant")));
