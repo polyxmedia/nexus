@@ -166,7 +166,13 @@ export async function requireTier(
     .from(schema.subscriptions)
     .where(eq(schema.subscriptions.userId, username));
 
-  if (subs.length > 0 && (subs[0].status === "active" || subs[0].status === "trialing")) {
+  // Honor access for canceled subscriptions that still have time remaining on their period
+  const isCanceledButPaid = subs.length > 0
+    && subs[0].status === "canceled"
+    && subs[0].currentPeriodEnd
+    && new Date(subs[0].currentPeriodEnd) > new Date();
+
+  if (subs.length > 0 && (subs[0].status === "active" || subs[0].status === "trialing" || isCanceledButPaid)) {
     // Check if comped subscription has expired
     const isComped = !subs[0].stripeSubscriptionId || subs[0].stripeSubscriptionId?.startsWith("comped_");
     if (isComped && subs[0].currentPeriodEnd) {

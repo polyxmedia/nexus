@@ -38,10 +38,14 @@ export async function GET() {
 
     // Only return tier data for subscriptions with confirmed payment.
     // "incomplete" means the user started checkout but hasn't entered payment details yet.
+    // "canceled" with future period end means user cancelled but still has time left.
     const activeStatuses = ["active", "trialing", "past_due"];
     const isActiveSub = activeStatuses.includes(sub.status || "");
+    const isCanceledButStillPaid = sub.status === "canceled"
+      && sub.currentPeriodEnd
+      && new Date(sub.currentPeriodEnd) > new Date();
 
-    if (!isActiveSub) {
+    if (!isActiveSub && !isCanceledButStillPaid) {
       return NextResponse.json({ subscription: sub, tier: null, isAdmin });
     }
 
