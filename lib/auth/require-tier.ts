@@ -50,9 +50,9 @@ export interface TierLimits {
 }
 
 const DEFAULT_LIMITS: TierLimits = {
-  chatMessages: 10,
+  chatMessages: 0,
   monthlyCredits: 0,
-  warRoomAccess: "none",
+  warRoomAccess: "view",
   tradingIntegration: false,
   apiAccess: false,
   customSignalLayers: false,
@@ -72,7 +72,7 @@ export interface TierCheckResult {
  * Returns TierCheckResult if authorized.
  */
 export async function requireTier(
-  minTier: "analyst" | "operator" | "institution"
+  minTier: "free" | "analyst" | "operator" | "institution"
 ): Promise<{ result: TierCheckResult } | { response: NextResponse }> {
   // Allow internal scheduler calls via CRON_SECRET bearer token
   const cronSecret = process.env.CRON_SECRET;

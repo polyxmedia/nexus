@@ -10,7 +10,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
 
   const { code } = await params;

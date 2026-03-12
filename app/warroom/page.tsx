@@ -254,7 +254,7 @@ export default function WarRoomPage() {
   if (loading || (!data && !error)) {
     return (
       <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
-        <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
+        <UpgradeGate minTier="free" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
         <div className="flex-1 flex items-center justify-center relative">
           {/* Animated grid background */}
           <div className="absolute inset-0 overflow-hidden opacity-[0.07]">
@@ -352,7 +352,7 @@ export default function WarRoomPage() {
   if (error || !data) {
     return (
       <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
-        <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
+        <UpgradeGate minTier="free" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="w-2 h-2 rounded-full bg-accent-rose" />
@@ -395,7 +395,7 @@ export default function WarRoomPage() {
 
   return (
     <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
-      <UpgradeGate minTier="analyst" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
+      <UpgradeGate minTier="free" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
       {/* Top Bar - COP Status */}
       <div className="h-9 border-b border-navy-700 bg-navy-900/95 backdrop-blur-sm flex items-center px-3 gap-0 shrink-0 z-20 font-mono">
         {/* Threat Level */}

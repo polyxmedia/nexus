@@ -28,9 +28,10 @@ export async function GET() {
         .returning();
     }
 
-    return NextResponse.json({
-      widgets: widgets.sort((a, b) => a.position - b.position),
-    });
+    return NextResponse.json(
+      { widgets: widgets.sort((a, b) => a.position - b.position) },
+      { headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120" } },
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -9,7 +9,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { searchKnowledge } from "@/lib/knowledge/engine";
 import { db, schema } from "@/lib/db";
-import { desc } from "drizzle-orm";
+import { desc, isNull, not } from "drizzle-orm";
 
 // ── Types ──
 
@@ -81,27 +81,36 @@ export async function findHistoricalParallels(
 ): Promise<ParallelAnalysis> {
   // 1. Search knowledge bank for relevant entries
   const knowledgeResults = await searchKnowledge(query, {
-    limit: 15,
+    limit: 10,
     useVector: true,
   });
 
   // 2. Search for related predictions (resolved ones are historical data)
-  const predictions = await db
-    .select()
+  const resolvedPredictions = await db
+    .select({
+      category: schema.predictions.category,
+      outcome: schema.predictions.outcome,
+      claim: schema.predictions.claim,
+      confidence: schema.predictions.confidence,
+      deadline: schema.predictions.deadline,
+    })
     .from(schema.predictions)
-    .orderBy(desc(schema.predictions.createdAt));
-
-  const resolvedPredictions = predictions
-    .filter((p) => p.outcome)
-    .slice(0, 20);
+    .where(not(isNull(schema.predictions.outcome)))
+    .orderBy(desc(schema.predictions.resolvedAt))
+    .limit(20);
 
   // 3. Search for related signals
-  const signals = await db
-    .select()
+  const relevantSignals = await db
+    .select({
+      category: schema.signals.category,
+      intensity: schema.signals.intensity,
+      title: schema.signals.title,
+      date: schema.signals.date,
+      description: schema.signals.description,
+    })
     .from(schema.signals)
-    .orderBy(desc(schema.signals.date));
-
-  const relevantSignals = signals.slice(0, 30);
+    .orderBy(desc(schema.signals.date))
+    .limit(30);
 
   // 4. Build context for Claude
   const knowledgeContext = knowledgeResults

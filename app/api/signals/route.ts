@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, and, asc, desc } from "drizzle-orm";
 import { generateSignals } from "@/lib/signals/engine";
 import { requireTier } from "@/lib/auth/require-tier";
 import { validateOrigin } from "@/lib/security/csrf";
@@ -13,22 +13,27 @@ export async function GET(request: NextRequest) {
     const intensity = searchParams.get("intensity");
     const status = searchParams.get("status");
 
-    let query = await db.select().from(schema.signals).orderBy(asc(schema.signals.date));
-
-    const results = query;
-
-    let filtered = results;
-
+    // Build WHERE conditions to push filtering to DB instead of fetching all rows
+    const conditions = [];
     if (intensity) {
-      const intensityNum = parseInt(intensity, 10);
-      filtered = filtered.filter((s) => s.intensity === intensityNum);
+      conditions.push(eq(schema.signals.intensity, parseInt(intensity, 10)));
     }
-
     if (status) {
-      filtered = filtered.filter((s) => s.status === status);
+      conditions.push(eq(schema.signals.status, status));
     }
 
-    return NextResponse.json(filtered);
+    const results = conditions.length > 0
+      ? await db.select().from(schema.signals)
+          .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+          .orderBy(desc(schema.signals.date))
+          .limit(200)
+      : await db.select().from(schema.signals)
+          .orderBy(desc(schema.signals.date))
+          .limit(200);
+
+    return NextResponse.json(results, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

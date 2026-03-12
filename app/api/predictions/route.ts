@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, desc, isNull, not } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
@@ -12,13 +12,28 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const results = await db.select().from(schema.predictions).orderBy(asc(schema.predictions.deadline));
-    let filtered = results;
-    if (status) {
-      if (status === "pending") filtered = filtered.filter((p) => !p.outcome);
-      else if (status === "resolved") filtered = filtered.filter((p) => !!p.outcome);
+
+    // Push status filtering to DB and cap results
+    let results;
+    if (status === "pending") {
+      results = await db.select().from(schema.predictions)
+        .where(isNull(schema.predictions.outcome))
+        .orderBy(asc(schema.predictions.deadline))
+        .limit(200);
+    } else if (status === "resolved") {
+      results = await db.select().from(schema.predictions)
+        .where(not(isNull(schema.predictions.outcome)))
+        .orderBy(desc(schema.predictions.deadline))
+        .limit(200);
+    } else {
+      results = await db.select().from(schema.predictions)
+        .orderBy(desc(schema.predictions.deadline))
+        .limit(300);
     }
-    return NextResponse.json(filtered);
+
+    return NextResponse.json(results, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    });
   } catch (error) { const message = error instanceof Error ? error.message : "Unknown error"; return NextResponse.json({ error: message }, { status: 500 }); }
 }
 

@@ -140,7 +140,10 @@ function NotificationItem({
   onDismiss: (id: number) => void;
 }) {
   return (
-    <div className="group flex items-start gap-2.5 px-4 py-3 border-b border-navy-800/50 last:border-0 hover:bg-navy-800/30 transition-colors">
+    <Link
+      href={`/alerts/${notification.uid}`}
+      className="group flex items-start gap-2.5 px-4 py-3 border-b border-navy-800/50 last:border-0 hover:bg-navy-800/30 transition-colors block"
+    >
       <div className={`mt-0.5 shrink-0 p-1 rounded ${SEVERITY_BG[notification.severity] || SEVERITY_BG[1]}`}>
         <AlertTriangle
           className={`h-3 w-3 ${SEVERITY_COLOR[notification.severity] || SEVERITY_COLOR[1]}`}
@@ -170,6 +173,7 @@ function NotificationItem({
       </div>
       <button
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           onDismiss(notification.id);
         }}
@@ -178,6 +182,6 @@ function NotificationItem({
       >
         <X className="h-3 w-3" />
       </button>
-    </div>
+    </Link>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Bell,
   Plus,
@@ -43,6 +43,7 @@ interface Alert {
 
 interface AlertHistoryItem {
   id: number;
+  uid: string;
   alertId: number;
   triggeredAt: string;
   title: string;
@@ -237,6 +238,7 @@ export default function AlertsPage() {
 
 function AlertsPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [history, setHistory] = useState<AlertHistoryItem[]>([]);
   const [suggestions, setSuggestions] = useState<AlertSuggestion[]>([]);
@@ -812,7 +814,8 @@ function AlertsPageInner() {
               history.map((item) => (
                 <div
                   key={item.id}
-                  className={`border rounded-lg px-4 py-3 transition-colors ${
+                  onClick={() => router.push(`/alerts/${item.uid}`)}
+                  className={`border rounded-lg px-4 py-3 transition-colors cursor-pointer hover:border-navy-600 ${
                     item.dismissed
                       ? "border-navy-800 bg-navy-900/30 opacity-50"
                       : "border-navy-700 bg-navy-900/60"
@@ -826,7 +829,7 @@ function AlertsPageInner() {
                       />
                       <div>
                         <h3 className="text-xs font-medium text-navy-100">{item.title}</h3>
-                        <p className="text-[10px] text-navy-500 mt-0.5">{item.message}</p>
+                        <p className="text-[10px] text-navy-500 mt-0.5 line-clamp-1">{item.message}</p>
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className="text-[9px] font-mono text-navy-600">
                             {new Date(item.triggeredAt).toLocaleString()}
@@ -838,15 +841,18 @@ function AlertsPageInner() {
                       </div>
                     </div>
 
-                    {!item.dismissed && (
-                      <button
-                        onClick={() => dismissHistoryItem(item.id)}
-                        className="text-navy-600 hover:text-navy-300 transition-colors p-1"
-                        title="Dismiss"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!item.dismissed && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); dismissHistoryItem(item.id); }}
+                          className="text-navy-600 hover:text-navy-300 transition-colors p-1"
+                          title="Dismiss"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <ChevronRight className="h-3.5 w-3.5 text-navy-700" />
+                    </div>
                   </div>
                 </div>
               ))

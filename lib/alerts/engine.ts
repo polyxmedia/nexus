@@ -98,6 +98,25 @@ export async function getAlertHistory(limit: number = 50, userId?: string) {
     .limit(limit);
 }
 
+export async function getAlertHistoryItem(uid: string) {
+  const rows = await db.select({
+    history: schema.alertHistory,
+    alert: schema.alerts,
+  })
+    .from(schema.alertHistory)
+    .innerJoin(schema.alerts, eq(schema.alertHistory.alertId, schema.alerts.id))
+    .where(eq(schema.alertHistory.uid, uid))
+    .limit(1);
+  if (rows.length === 0) return null;
+  return rows[0];
+}
+
+export async function dismissAlertHistoryByUid(uid: string) {
+  await db.update(schema.alertHistory)
+    .set({ dismissed: 1 })
+    .where(eq(schema.alertHistory.uid, uid));
+}
+
 export async function dismissAlertHistory(id: number) {
   await db.update(schema.alertHistory)
     .set({ dismissed: 1 })

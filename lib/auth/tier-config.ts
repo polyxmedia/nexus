@@ -7,7 +7,7 @@
  * Never trust the client.
  */
 
-export type MinTier = "analyst" | "operator" | "institution";
+export type MinTier = "free" | "analyst" | "operator" | "institution";
 
 // ── API Route → Minimum Tier ──
 // Every protected route must call requireTier() with the mapped tier.
@@ -18,7 +18,7 @@ export const ROUTE_TIERS: Record<string, MinTier> = {
   "signals": "analyst",
   "predictions": "analyst",
   "dashboard": "analyst",
-  "warroom": "analyst",
+  "warroom": "free",
   "game-theory": "analyst",
   "calendar": "analyst",
   "timeline": "analyst",
@@ -136,7 +136,7 @@ export const PAGE_TIERS: Record<string, MinTier> = {
   "/calendar": "analyst",
   "/timeline": "analyst",
   "/alerts": "analyst",
-  "/warroom": "analyst",
+  "/warroom": "free",
   "/game-theory": "analyst",
   "/graph": "analyst",
   "/narrative": "analyst",

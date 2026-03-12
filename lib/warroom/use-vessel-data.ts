@@ -4,7 +4,7 @@ import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
 import { useDocumentVisible } from "@/lib/hooks/use-visibility";
 import type { VesselResponse } from "./types";
 
-const POLL_INTERVAL = 120_000; // 2min - reduced from 30s to cut Vercel invocations
+const POLL_INTERVAL = 300_000; // 5min
 
 export function useVesselData(enabled: boolean) {
   const visible = useDocumentVisible();

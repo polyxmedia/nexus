@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getAuthorizationUrl, getTwitterOAuthConfig, generatePKCE } from "@/lib/twitter/oauth";
@@ -6,7 +6,7 @@ import { requireAdmin, isNextResponse } from "@/lib/auth/session";
 import crypto from "crypto";
 
 // GET - initiate Twitter OAuth 2.0 flow (admin only, platform-wide integration)
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireAdmin();
   if (isNextResponse(auth)) return auth;
 
@@ -28,7 +28,7 @@ export async function GET() {
     set: { value: JSON.stringify({ state, codeVerifier, createdAt: Date.now() }) },
   });
 
-  const authUrl = getAuthorizationUrl(state, codeChallenge);
+  const authUrl = getAuthorizationUrl(state, codeChallenge, req.nextUrl.origin);
   return NextResponse.json({ url: authUrl });
 }
 

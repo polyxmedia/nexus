@@ -21,7 +21,7 @@ interface SubscriptionState {
   status: string | null;
   currentPeriodEnd: string | null;
   canAccess: (feature: keyof TierLimits) => boolean;
-  meetsMinTier: (minTier: "analyst" | "operator" | "institution") => boolean;
+  meetsMinTier: (minTier: "free" | "analyst" | "operator" | "institution") => boolean;
   refresh: () => Promise<void>;
 }
 
@@ -135,7 +135,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   );
 
   const meetsMinTier = useCallback(
-    (minTier: "analyst" | "operator" | "institution"): boolean => {
+    (minTier: "free" | "analyst" | "operator" | "institution"): boolean => {
       if (isAdmin) return true;
       const userLevel = TIER_LEVELS[tier || "free"] ?? 0;
       const requiredLevel = TIER_LEVELS[minTier] ?? 1;

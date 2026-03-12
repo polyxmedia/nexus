@@ -68,49 +68,72 @@ export const SEED_VESSELS: SeedVessel[] = [
   { mmsi: "217000003", name: "STRAIT RUNNER", baseLat: 1.50, baseLng: 103.80, speed: 11.0, course: 280, vesselType: "cargo", flag: "ID", destination: "JAKARTA" },
 ];
 
-let cachedVessels: VesselState[] | null = null;
-let cacheTimestamp = 0;
+// Fixed epoch: vessels start moving from this point in time
+const EPOCH = new Date("2026-01-01T00:00:00Z").getTime();
+
+// Seeded pseudo-random for deterministic per-vessel variation
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 export function generateVessels(): VesselState[] {
   const now = Date.now();
+  const elapsedHours = (now - EPOCH) / 3_600_000;
 
-  if (!cachedVessels) {
-    cachedVessels = SEED_VESSELS.map((sv) => ({
+  return SEED_VESSELS.map((sv, i) => {
+    // Patrol radius scales with speed: military vessels patrol wider areas
+    const isMil = isMilitaryFlag(sv.flag);
+    const patrolRadius = isMil ? 1.2 : sv.speed > 12 ? 0.6 : 0.35;
+
+    // Each vessel gets unique oscillation frequencies so they don't move in sync
+    const f1 = 0.008 + i * 0.0013;
+    const f2 = 0.005 + i * 0.0009;
+    const f3 = 0.003 + i * 0.0007;
+
+    // Combine multiple sine waves for non-repeating patrol patterns
+    const latOffset =
+      patrolRadius * 0.6 * Math.sin(elapsedHours * f1 + i * 1.7) +
+      patrolRadius * 0.3 * Math.sin(elapsedHours * f2 + i * 3.1) +
+      patrolRadius * 0.1 * Math.cos(elapsedHours * f3 + i * 0.9);
+    const lngOffset =
+      patrolRadius * 0.6 * Math.cos(elapsedHours * f1 + i * 2.3) +
+      patrolRadius * 0.3 * Math.cos(elapsedHours * f2 + i * 0.7) +
+      patrolRadius * 0.1 * Math.sin(elapsedHours * f3 + i * 4.1);
+
+    // Course derived from actual direction of movement (derivative of position)
+    const dLatDt =
+      patrolRadius * 0.6 * f1 * Math.cos(elapsedHours * f1 + i * 1.7) +
+      patrolRadius * 0.3 * f2 * Math.cos(elapsedHours * f2 + i * 3.1);
+    const dLngDt =
+      -patrolRadius * 0.6 * f1 * Math.sin(elapsedHours * f1 + i * 2.3) +
+      -patrolRadius * 0.3 * f2 * Math.sin(elapsedHours * f2 + i * 0.7);
+    const derivedCourse =
+      (Math.atan2(dLngDt, dLatDt) * 180) / Math.PI;
+
+    // Speed varies gently (never below 40% of base)
+    const speedFactor = 0.6 + 0.4 * Math.sin(elapsedHours * 0.01 + i * 2);
+    const effectiveSpeed = sv.speed * speedFactor;
+
+    // Small deterministic jitter that changes each minute
+    const minuteBucket = Math.floor(now / 60_000);
+    const jitterLat = (seededRandom(minuteBucket * 100 + i) - 0.5) * 0.003;
+    const jitterLng = (seededRandom(minuteBucket * 100 + i + 50) - 0.5) * 0.003;
+
+    return {
       mmsi: sv.mmsi,
       name: sv.name,
-      lat: sv.baseLat,
-      lng: sv.baseLng,
-      speed: sv.speed,
-      course: sv.course,
-      heading: sv.course,
-      vesselType: isMilitaryFlag(sv.flag) ? "military" : sv.vesselType,
+      lat: sv.baseLat + latOffset + jitterLat,
+      lng: sv.baseLng + lngOffset + jitterLng,
+      speed: Math.round(effectiveSpeed * 10) / 10,
+      course: Math.round(((derivedCourse % 360) + 360) % 360),
+      heading: Math.round(((derivedCourse % 360) + 360) % 360),
+      vesselType: isMil ? "military" : sv.vesselType,
       flag: sv.flag,
       destination: sv.destination,
       lastUpdate: now,
-    }));
-    cacheTimestamp = now;
-    return cachedVessels;
-  }
-
-  const elapsedHours = (now - cacheTimestamp) / 3_600_000;
-  cachedVessels = cachedVessels.map((v) => {
-    const courseRad = (v.course * Math.PI) / 180;
-    const drift = v.speed * elapsedHours * 0.0166;
-    const jitterLat = (Math.random() - 0.5) * 0.01;
-    const jitterLng = (Math.random() - 0.5) * 0.01;
-
-    return {
-      ...v,
-      lat: v.lat + Math.cos(courseRad) * drift + jitterLat,
-      lng: v.lng + Math.sin(courseRad) * drift + jitterLng,
-      speed: Math.max(0, v.speed + (Math.random() - 0.5) * 1.5),
-      course: (v.course + (Math.random() - 0.5) * 5 + 360) % 360,
-      heading: (v.course + (Math.random() - 0.5) * 5 + 360) % 360,
-      lastUpdate: now,
     };
   });
-  cacheTimestamp = now;
-  return cachedVessels;
 }
 
 /** Search vessels by MMSI or name substring (case-insensitive) */

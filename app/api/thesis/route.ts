@@ -42,9 +42,14 @@ export async function GET(request: NextRequest) {
 
     let results;
     if (status) {
-      results = await db.select().from(schema.theses).where(eq(schema.theses.status, status)).orderBy(desc(schema.theses.generatedAt));
+      results = await db.select().from(schema.theses)
+        .where(eq(schema.theses.status, status))
+        .orderBy(desc(schema.theses.generatedAt))
+        .limit(20);
     } else {
-      results = await db.select().from(schema.theses).orderBy(desc(schema.theses.generatedAt));
+      results = await db.select().from(schema.theses)
+        .orderBy(desc(schema.theses.generatedAt))
+        .limit(20);
     }
 
     // Parse JSON fields
@@ -55,7 +60,9 @@ export async function GET(request: NextRequest) {
       symbols: JSON.parse(r.symbols),
     }));
 
-    return NextResponse.json({ theses });
+    return NextResponse.json({ theses }, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

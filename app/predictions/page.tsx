@@ -1945,200 +1945,210 @@ export default function PredictionsPage() {
         </div>
       )}
 
+      {/* ── Tabs ── */}
+      {!loading && predictions.length > 0 && (
+        <div className="flex items-center gap-0 mb-4 border-b border-navy-700/20">
+          <button
+            onClick={() => { setActiveTab("pending"); setActiveOutcome(null); setCurrentPage(1); }}
+            className={`px-4 py-2 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+              activeTab === "pending"
+                ? "border-accent-cyan text-accent-cyan"
+                : "border-transparent text-navy-500 hover:text-navy-300"
+            }`}
+          >
+            <Clock className="h-3 w-3 inline-block mr-1.5 -mt-0.5" />
+            Pending ({displayPending.length})
+            {resolving && <Loader2 className="h-3 w-3 animate-spin text-accent-cyan inline-block ml-1.5" />}
+          </button>
+          <button
+            onClick={() => { setActiveTab("resolved"); setCurrentPage(1); }}
+            className={`px-4 py-2 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+              activeTab === "resolved"
+                ? "border-accent-cyan text-accent-cyan"
+                : "border-transparent text-navy-500 hover:text-navy-300"
+            }`}
+          >
+            <Target className="h-3 w-3 inline-block mr-1.5 -mt-0.5" />
+            Resolved ({displayResolved.length})
+          </button>
+        </div>
+      )}
+
       {/* ── Prediction cards ── */}
       {loading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-md" />)}
         </div>
       ) : (
-        <div className="space-y-8">
-          {/* Pending */}
-          {displayPending.length > 0 && (
-            <div>
-              <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3 pb-2 border-b border-navy-700/20 flex items-center gap-2">
-                <Clock className="h-3 w-3" />
-                Pending ({displayPending.length})
-                {resolving && <Loader2 className="h-3 w-3 animate-spin text-accent-cyan" />}
-              </h2>
-              <div className="space-y-2">
-                {displayPending.map((p) => {
-                  const overdue = p.deadline <= today;
-                  const grounding = parseGrounding(p.metrics);
-                  const catConfig = CATEGORY_CONFIG[p.category];
-                  const CatIcon = catConfig?.icon || Globe;
-                  const urgency = getUrgency(p);
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => router.push(`/predictions/${p.uuid}`)}
-                      className={`border rounded-md overflow-hidden transition-colors cursor-pointer hover:border-navy-600/60 ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}
-                    >
-                      {/* Urgency progress bar */}
-                      <div className="h-1 w-full bg-navy-800/40">
-                        <div
-                          className={`h-full transition-all ${urgency.color}`}
-                          style={{ width: `${urgency.progress * 100}%` }}
-                        />
-                      </div>
-                      <div className="p-4">
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-                          <div className="flex items-start gap-3 flex-1 min-w-0">
-                            <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
-                              {grounding && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 flex-shrink-0 flex-wrap ml-6 sm:ml-0">
-                            {p.direction && (
-                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                                p.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" :
-                                p.direction === "down" ? "bg-accent-rose/10 text-accent-rose border border-accent-rose/20" :
-                                "bg-navy-800/40 text-navy-400 border border-navy-700/20"
-                              }`}>
-                                {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
-                              </span>
-                            )}
-                            {confidenceBar(p.confidence)}
-                            <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
-                              {p.category}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4 mt-2.5 ml-6">
-                          <span className="text-[10px] text-navy-500 font-mono">
-                            {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          </span>
-                          {/* Urgency badge */}
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
-                            urgency.level === "overdue" ? "bg-signal-5/15 text-signal-5" :
-                            urgency.level === "critical" ? "bg-signal-5/15 text-signal-5" :
-                            urgency.level === "urgent" ? "bg-accent-rose/10 text-accent-rose" :
-                            urgency.level === "soon" ? "bg-accent-amber/10 text-accent-amber" :
-                            "bg-navy-800/40 text-navy-400"
-                          }`}>
-                            {(urgency.level === "overdue" || urgency.level === "critical") && <AlertTriangle className="h-2.5 w-2.5" />}
-                            {urgency.level === "urgent" && <Zap className="h-2.5 w-2.5" />}
-                            {urgency.level === "soon" && <Clock className="h-2.5 w-2.5" />}
-                            {urgency.label}
-                          </span>
-                          <span className="text-[10px] text-navy-600 font-mono">{p.timeframe}</span>
-                          {p.regimeAtCreation && (
-                            <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
-                              p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
-                              p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
-                              "bg-accent-emerald/10 text-accent-emerald"
-                            }`}>
-                              {p.regimeAtCreation}
-                            </span>
-                          )}
-                          {commentCounts[p.id] > 0 && (
-                            <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
-                              <MessageSquare className="h-3 w-3" />
-                              {commentCounts[p.id]}
-                            </span>
-                          )}
-                        </div>
+        <div className="space-y-2">
+          {activeTab === "pending" && paginatedList.map((p) => {
+            const overdue = p.deadline <= today;
+            const grounding = parseGrounding(p.metrics);
+            const catConfig = CATEGORY_CONFIG[p.category];
+            const CatIcon = catConfig?.icon || Globe;
+            const urgency = getUrgency(p);
+            return (
+              <div
+                key={p.id}
+                onClick={() => router.push(`/predictions/${p.uuid}`)}
+                className={`border rounded-md overflow-hidden transition-colors cursor-pointer hover:border-navy-600/60 ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}
+              >
+                <div className="h-1 w-full bg-navy-800/40">
+                  <div
+                    className={`h-full transition-all ${urgency.color}`}
+                    style={{ width: `${urgency.progress * 100}%` }}
+                  />
+                </div>
+                <div className="p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
+                        {grounding && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Resolved */}
-          {displayResolved.length > 0 && (
-            <div>
-              <h2 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3 pb-2 border-b border-navy-700/20 flex items-center gap-2">
-                <Target className="h-3 w-3" />
-                Resolved ({displayResolved.length})
-              </h2>
-              <div className="space-y-2">
-                {displayResolved.map((p) => {
-                  const config = OUTCOME_CONFIG[p.outcome || "expired"] || OUTCOME_CONFIG.expired;
-                  const Icon = config.icon;
-                  const grounding = parseGrounding(p.metrics);
-                  const catConfig = CATEGORY_CONFIG[p.category];
-                  const isHit = p.outcome === "confirmed";
-                  const isMiss = p.outcome === "denied";
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => router.push(`/predictions/${p.uuid}`)}
-                      className={`border rounded-md overflow-hidden cursor-pointer hover:border-navy-600/60 transition-colors ${config.border} ${config.bg}`}
-                    >
-                      <div className="flex">
-                        <div className={`w-14 flex-shrink-0 flex flex-col items-center justify-center gap-1 ${
-                          isHit ? "bg-accent-emerald/15" : isMiss ? "bg-accent-rose/15" : p.outcome === "partial" ? "bg-accent-amber/15" : "bg-navy-800/30"
+                    <div className="flex items-center gap-3 flex-shrink-0 flex-wrap ml-6 sm:ml-0">
+                      {p.direction && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                          p.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" :
+                          p.direction === "down" ? "bg-accent-rose/10 text-accent-rose border border-accent-rose/20" :
+                          "bg-navy-800/40 text-navy-400 border border-navy-700/20"
                         }`}>
-                          <Icon className={`h-5 w-5 ${config.color}`} />
-                          <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${config.color}`}>
-                            {config.label}
-                          </span>
-                          {p.score != null && (
-                            <span className={`text-xs font-bold font-mono ${p.score >= 0.7 ? "text-accent-emerald" : p.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
-                              {(p.score * 100).toFixed(0)}%
-                            </span>
-                          )}
-                        </div>
+                          {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                        </span>
+                      )}
+                      {confidenceBar(p.confidence)}
+                      <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
+                        {p.category}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-2.5 ml-6">
+                    <span className="text-[10px] text-navy-500 font-mono">
+                      {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
+                      urgency.level === "overdue" ? "bg-signal-5/15 text-signal-5" :
+                      urgency.level === "critical" ? "bg-signal-5/15 text-signal-5" :
+                      urgency.level === "urgent" ? "bg-accent-rose/10 text-accent-rose" :
+                      urgency.level === "soon" ? "bg-accent-amber/10 text-accent-amber" :
+                      "bg-navy-800/40 text-navy-400"
+                    }`}>
+                      {(urgency.level === "overdue" || urgency.level === "critical") && <AlertTriangle className="h-2.5 w-2.5" />}
+                      {urgency.level === "urgent" && <Zap className="h-2.5 w-2.5" />}
+                      {urgency.level === "soon" && <Clock className="h-2.5 w-2.5" />}
+                      {urgency.label}
+                    </span>
+                    <span className="text-[10px] text-navy-600 font-mono">{p.timeframe}</span>
+                    {p.regimeAtCreation && (
+                      <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
+                        p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
+                        p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
+                        "bg-accent-emerald/10 text-accent-emerald"
+                      }`}>
+                        {p.regimeAtCreation}
+                      </span>
+                    )}
+                    {commentCounts[p.id] > 0 && (
+                      <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
+                        <MessageSquare className="h-3 w-3" />
+                        {commentCounts[p.id]}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
-                        <div className="flex-1 p-4">
-                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
-                              {p.outcomeNotes && <p className="text-[10px] text-navy-400 mt-1.5 leading-relaxed">{p.outcomeNotes}</p>}
-                              {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                              {p.direction && (
-                                <div className="flex items-center gap-1">
-                                  <span className={`text-[9px] font-mono font-bold ${
-                                    p.direction === "up" ? "text-accent-emerald" : p.direction === "down" ? "text-accent-rose" : "text-navy-400"
-                                  }`}>
-                                    {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
-                                  </span>
-                                  {p.directionCorrect !== null && (
-                                    <span className={`text-[8px] font-mono ${p.directionCorrect === 1 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                                      {p.directionCorrect === 1 ? "OK" : "WRONG"}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {confidenceBar(p.confidence)}
-                              <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
-                                {p.category}
+          {activeTab === "resolved" && paginatedList.map((p) => {
+            const config = OUTCOME_CONFIG[p.outcome || "expired"] || OUTCOME_CONFIG.expired;
+            const Icon = config.icon;
+            const grounding = parseGrounding(p.metrics);
+            const catConfig = CATEGORY_CONFIG[p.category];
+            const isHit = p.outcome === "confirmed";
+            const isMiss = p.outcome === "denied";
+            return (
+              <div
+                key={p.id}
+                onClick={() => router.push(`/predictions/${p.uuid}`)}
+                className={`border rounded-md overflow-hidden cursor-pointer hover:border-navy-600/60 transition-colors ${config.border} ${config.bg}`}
+              >
+                <div className="flex">
+                  <div className={`w-14 flex-shrink-0 flex flex-col items-center justify-center gap-1 ${
+                    isHit ? "bg-accent-emerald/15" : isMiss ? "bg-accent-rose/15" : p.outcome === "partial" ? "bg-accent-amber/15" : "bg-navy-800/30"
+                  }`}>
+                    <Icon className={`h-5 w-5 ${config.color}`} />
+                    <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${config.color}`}>
+                      {config.label}
+                    </span>
+                    {p.score != null && (
+                      <span className={`text-xs font-bold font-mono ${p.score >= 0.7 ? "text-accent-emerald" : p.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
+                        {(p.score * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
+                        {p.outcomeNotes && <p className="text-[10px] text-navy-400 mt-1.5 leading-relaxed">{p.outcomeNotes}</p>}
+                        {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                        {p.direction && (
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[9px] font-mono font-bold ${
+                              p.direction === "up" ? "text-accent-emerald" : p.direction === "down" ? "text-accent-rose" : "text-navy-400"
+                            }`}>
+                              {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                            </span>
+                            {p.directionCorrect !== null && (
+                              <span className={`text-[8px] font-mono ${p.directionCorrect === 1 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                                {p.directionCorrect === 1 ? "OK" : "WRONG"}
                               </span>
-                            </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-4 mt-2.5 flex-wrap">
-                            <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                            {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
-                            {p.regimeAtCreation && (
-                              <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
-                                p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
-                                p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
-                                "bg-accent-emerald/10 text-accent-emerald"
-                              }`}>
-                                {p.regimeAtCreation}
-                              </span>
-                            )}
-                            {p.regimeInvalidated === 1 && (
-                              <span className="text-[9px] font-mono text-navy-500 px-1 py-0.5 rounded bg-navy-800/40">regime invalidated</span>
-                            )}
-                            {commentCounts[p.id] > 0 && (
-                              <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
-                                <MessageSquare className="h-3 w-3" />
-                                {commentCounts[p.id]}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        )}
+                        {confidenceBar(p.confidence)}
+                        <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
+                          {p.category}
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-4 mt-2.5 flex-wrap">
+                      <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
+                      {p.regimeAtCreation && (
+                        <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
+                          p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
+                          p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
+                          "bg-accent-emerald/10 text-accent-emerald"
+                        }`}>
+                          {p.regimeAtCreation}
+                        </span>
+                      )}
+                      {p.regimeInvalidated === 1 && (
+                        <span className="text-[9px] font-mono text-navy-500 px-1 py-0.5 rounded bg-navy-800/40">regime invalidated</span>
+                      )}
+                      {commentCounts[p.id] > 0 && (
+                        <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
+                          <MessageSquare className="h-3 w-3" />
+                          {commentCounts[p.id]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
+            );
+          })}
+
+          {activeList.length === 0 && predictions.length > 0 && (
+            <div className="text-center py-8 text-navy-500">
+              <p className="text-xs">No {activeTab} predictions{hasActiveFilters ? " matching filters" : ""}.</p>
             </div>
           )}
 
@@ -2147,6 +2157,53 @@ export default function PredictionsPage() {
               <Sparkles className="h-8 w-8 mx-auto mb-3 text-navy-600" />
               <p className="text-sm">No predictions yet.</p>
               <p className="text-xs mt-1">Click Generate to create AI predictions from the current intelligence picture.</p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4 pb-2">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+                disabled={safePage <= 1}
+                className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-navy-700/30 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-navy-400 hover:text-navy-200 hover:bg-navy-800/40"
+              >
+                Prev
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((page) => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2)
+                .reduce<(number | "ellipsis")[]>((acc, page, idx, arr) => {
+                  if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                  acc.push(page);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  item === "ellipsis" ? (
+                    <span key={`e${idx}`} className="text-[10px] text-navy-600 px-1">...</span>
+                  ) : (
+                    <button
+                      key={item}
+                      onClick={() => setCurrentPage(item as number)}
+                      className={`w-7 h-7 text-[10px] font-mono rounded transition-colors ${
+                        safePage === item
+                          ? "bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30"
+                          : "text-navy-400 hover:text-navy-200 hover:bg-navy-800/40 border border-navy-700/30"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+                disabled={safePage >= totalPages}
+                className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-navy-700/30 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-navy-400 hover:text-navy-200 hover:bg-navy-800/40"
+              >
+                Next
+              </button>
+              <span className="text-[9px] text-navy-600 font-mono ml-2">
+                {(safePage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(safePage * ITEMS_PER_PAGE, activeList.length)} of {activeList.length}
+              </span>
             </div>
           )}
         </div>

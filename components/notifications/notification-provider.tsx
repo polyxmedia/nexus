@@ -11,6 +11,7 @@ import {
 
 export interface Notification {
   id: number;
+  uid: string;
   alertId: number;
   triggeredAt: string;
   title: string;

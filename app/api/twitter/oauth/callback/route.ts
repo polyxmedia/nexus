@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   // Exchange code for tokens
   try {
-    const tokens = await exchangeCodeForTokens(code, codeVerifier);
+    const tokens = await exchangeCodeForTokens(code, codeVerifier, req.nextUrl.origin);
     const expiresAt = Date.now() + tokens.expires_in * 1000;
 
     // Store tokens encrypted (platform-wide, not per-user)

@@ -4,7 +4,7 @@ import { requireTier } from "@/lib/auth/require-tier";
 import { generateVessels } from "@/lib/warroom/vessels";
 
 export async function GET() {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const vessels = generateVessels();

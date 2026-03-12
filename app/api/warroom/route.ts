@@ -59,7 +59,7 @@ function getActors(): ActorWithGeo[] {
 }
 
 export async function GET() {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const actors = getActors();

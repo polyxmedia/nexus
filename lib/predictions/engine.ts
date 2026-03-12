@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "../db";
-import { eq, desc, isNull, and, gte } from "drizzle-orm";
+import { eq, desc, isNull, not, and, gte } from "drizzle-orm";
 import type { NewPrediction } from "../db/schema";
 import { getQuote, getDailySeries } from "../market-data/provider";
 import { getActiveKnowledge } from "../knowledge/engine";
@@ -25,6 +25,190 @@ import { getCategoryCalibrationAdjustment, applyCalibrationCorrection } from "..
 // ── Constants ──
 
 const MAX_ACTIVE_PREDICTIONS = 500;
+
+// ── Magnitude Plausibility ──
+// Empirical base rates for percentage moves within timeframes.
+// Derived from historical ETF/index data. Used to reject or cap claims
+// where the LLM picks an implausibly large move threshold.
+
+interface MagnitudeProfile {
+  /** Median absolute move in the timeframe (%) */
+  median: number;
+  /** 90th percentile absolute move (%) — roughly the upper bound for "plausible" */
+  p90: number;
+  /** 99th percentile — only in true tail events */
+  p99: number;
+}
+
+/**
+ * Approximate magnitude profiles by asset class and timeframe (calendar days).
+ * Conservative estimates derived from 2010-2025 data.
+ */
+const MAGNITUDE_PROFILES: Record<string, Record<number, MagnitudeProfile>> = {
+  // Broad equity indices (SPY, QQQ, IWM)
+  equity_index: {
+    7:  { median: 1.5, p90: 4.0, p99: 8.0 },
+    14: { median: 2.2, p90: 5.5, p99: 11.0 },
+    30: { median: 3.5, p90: 8.0, p99: 16.0 },
+    90: { median: 6.0, p90: 14.0, p99: 25.0 },
+  },
+  // Leveraged / volatility products (UVXY, SQQQ, TQQQ)
+  leveraged: {
+    7:  { median: 8.0, p90: 20.0, p99: 50.0 },
+    14: { median: 12.0, p90: 30.0, p99: 70.0 },
+    30: { median: 18.0, p90: 45.0, p99: 90.0 },
+    90: { median: 30.0, p90: 70.0, p99: 95.0 },
+  },
+  // Sector ETFs (XLK, XLE, XLF, etc.)
+  sector: {
+    7:  { median: 2.0, p90: 5.0, p99: 10.0 },
+    14: { median: 3.0, p90: 7.0, p99: 14.0 },
+    30: { median: 4.5, p90: 10.0, p99: 20.0 },
+    90: { median: 8.0, p90: 18.0, p99: 30.0 },
+  },
+  // Commodities (USO, GLD, UNG, WEAT)
+  commodity: {
+    7:  { median: 2.5, p90: 6.0, p99: 12.0 },
+    14: { median: 3.5, p90: 8.0, p99: 16.0 },
+    30: { median: 5.0, p90: 12.0, p99: 22.0 },
+    90: { median: 9.0, p90: 20.0, p99: 35.0 },
+  },
+  // Individual stocks (default)
+  stock: {
+    7:  { median: 3.0, p90: 8.0, p99: 18.0 },
+    14: { median: 4.5, p90: 11.0, p99: 22.0 },
+    30: { median: 6.5, p90: 15.0, p99: 30.0 },
+    90: { median: 12.0, p90: 25.0, p99: 45.0 },
+  },
+};
+
+const LEVERAGED_TICKERS = new Set([
+  "UVXY", "VXX", "VIXY", "SVXY", "SVIX",
+  "SQQQ", "TQQQ", "SPXU", "SPXS", "UPRO",
+  "TZA", "TNA", "SOXS", "SOXL", "LABU", "LABD",
+  "NUGT", "DUST", "JNUG", "JDST", "ERX", "ERY",
+  "FAS", "FAZ", "YANG", "YINN",
+]);
+
+const EQUITY_INDEX_TICKERS = new Set([
+  "SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "IVV",
+  "EFA", "EEM", "VEA", "VWO", "ACWI",
+]);
+
+const SECTOR_TICKERS = new Set([
+  "XLK", "XLF", "XLE", "XLV", "XLI", "XLB", "XLP", "XLU", "XLY", "XLRE",
+  "XLC", "XBI", "XHB", "XRT", "XME", "XOP", "KRE", "SMH", "SOXX", "IGV",
+  "EWG", "EWU", "EWJ", "EWQ", // country ETFs used as index proxies
+]);
+
+const COMMODITY_TICKERS = new Set([
+  "USO", "GLD", "SLV", "UNG", "WEAT", "CPER", "DBA", "DBC", "PDBC",
+  "GDX", "GDXJ", "IAU", "SLV", "PPLT",
+]);
+
+function getAssetClass(ticker: string): string {
+  if (LEVERAGED_TICKERS.has(ticker)) return "leveraged";
+  if (EQUITY_INDEX_TICKERS.has(ticker)) return "equity_index";
+  if (SECTOR_TICKERS.has(ticker)) return "sector";
+  if (COMMODITY_TICKERS.has(ticker)) return "commodity";
+  return "stock";
+}
+
+function getClosestTimeframe(days: number): number {
+  const timeframes = [7, 14, 30, 90];
+  return timeframes.reduce((prev, curr) =>
+    Math.abs(curr - days) < Math.abs(prev - days) ? curr : prev
+  );
+}
+
+/**
+ * Assess how plausible a claimed percentage move is for a given instrument and timeframe.
+ * Returns a plausibility score (0-1) and a suggested confidence cap.
+ *
+ * - Moves within p90 are plausible (no cap).
+ * - Moves between p90 and p99 are possible but rare (cap confidence at 35%).
+ * - Moves beyond p99 are extreme tail events (cap confidence at 15%).
+ */
+function assessMagnitudePlausibility(
+  ticker: string,
+  percentageMove: number,
+  timeframeDays: number
+): { plausible: boolean; confidenceCap: number; reason: string } {
+  const assetClass = getAssetClass(ticker);
+  const profiles = MAGNITUDE_PROFILES[assetClass];
+  const tf = getClosestTimeframe(timeframeDays);
+  const profile = profiles[tf];
+
+  const absMove = Math.abs(percentageMove);
+
+  if (absMove <= profile.p90) {
+    return { plausible: true, confidenceCap: 0.85, reason: "within normal range" };
+  }
+
+  if (absMove <= profile.p99) {
+    // Rare but possible: cap confidence proportionally between p90 and p99
+    const ratio = (absMove - profile.p90) / (profile.p99 - profile.p90);
+    const cap = 0.35 - ratio * 0.20; // 35% at p90 boundary, 15% at p99
+    return {
+      plausible: true,
+      confidenceCap: Math.max(0.15, cap),
+      reason: `${absMove.toFixed(1)}% move in ${timeframeDays}d is between p90 (${profile.p90}%) and p99 (${profile.p99}%) for ${assetClass}`,
+    };
+  }
+
+  // Beyond p99: extreme tail event
+  return {
+    plausible: false,
+    confidenceCap: 0.10,
+    reason: `${absMove.toFixed(1)}% move in ${timeframeDays}d exceeds p99 (${profile.p99}%) for ${assetClass}. Historically almost never happens.`,
+  };
+}
+
+// ── Specificity Penalty ──
+// Claims with multiple narrow conditions should have lower confidence.
+// "RSI below 40" + "within 7 days" + "from 43.4" is very specific.
+// "XLK below X on at least 4 of 5 trading days" is extremely specific.
+
+function computeSpecificityPenalty(claim: string): number {
+  let conditions = 0;
+  const lower = claim.toLowerCase();
+
+  // RSI / technical indicator threshold
+  if (/rsi\s*(below|above|will\s*(decline|rise)\s*(below|above))\s*\d+/i.test(lower)) conditions++;
+  // Specific day-count conditions ("at least N days", "on N trading days")
+  if (/at\s+least\s+\d+\s+(trading\s+)?days?/i.test(lower)) conditions++;
+  if (/on\s+\d+\s+of\s+\d+/i.test(lower)) conditions++;
+  // Narrow percentage thresholds ("more than 15%", "at least 10%")
+  if (/(more\s+than|at\s+least|exceed)\s+\d+(\.\d+)?%/i.test(lower)) conditions++;
+  // Narrow price bands ("between $X and $Y")
+  if (/between\s+\$[\d,.]+\s+and\s+\$[\d,.]+/i.test(lower)) conditions++;
+  // Short timeframe (7 days or less)
+  if (/within\s+(3|4|5|6|7)\s+days?/i.test(lower)) conditions++;
+  // Conditional chains ("as ... intensifies", "if ... then")
+  if (/\bas\b.*\b(intensif|accelerat|escalat)/i.test(lower)) conditions++;
+  if (/\bif\b.*\bthen\b/i.test(lower)) conditions++;
+  // Multiple quantitative conditions in one claim
+  const numericMatches = lower.match(/\d+(\.\d+)?(%|\$|days?|trading)/g);
+  if (numericMatches && numericMatches.length >= 3) conditions++;
+
+  // Each condition beyond 1 reduces max confidence by 8%
+  // 0-1 conditions: no penalty (multiplier 1.0)
+  // 2 conditions: 0.92 multiplier
+  // 3 conditions: 0.84 multiplier
+  // 4+ conditions: 0.76 multiplier (hard floor)
+  if (conditions <= 1) return 1.0;
+  return Math.max(0.76, 1.0 - (conditions - 1) * 0.08);
+}
+
+function parseTimeframeDays(timeframe: string): number {
+  const match = timeframe.match(/(\d+)\s*(day|week|month)/i);
+  if (!match) return 14; // default
+  const num = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+  if (unit.startsWith("week")) return num * 7;
+  if (unit.startsWith("month")) return num * 30;
+  return num;
+}
 
 // ── Strategic → Bayesian Scenario Bridge ──
 
@@ -535,17 +719,23 @@ async function adjustConfidenceForBaseRate(rawConfidence: number, category: stri
 
   const baseRateAdjusted = adjustForBaseRate(compounded, baseRate, evidenceStrength);
 
+  // ── Specificity penalty ──
+  // Claims with multiple narrow quantitative conditions are inherently harder to hit.
+  // Each additional condition reduces the joint probability.
+  const specificityMultiplier = computeSpecificityPenalty(claim);
+  const specificityAdjusted = baseRateAdjusted * specificityMultiplier;
+
   // Apply backtest calibration correction on top of base rate adjustment
   try {
     const catAdj = await getCategoryCalibrationAdjustment(category);
     if (catAdj.reliable) {
-      return Math.max(0.05, Math.min(0.85, baseRateAdjusted * catAdj.multiplier));
+      return Math.max(0.05, Math.min(0.85, specificityAdjusted * catAdj.multiplier));
     }
   } catch {
     // Backtest data unavailable, proceed with base rate adjustment only
   }
 
-  return Math.max(0.05, Math.min(0.85, baseRateAdjusted));
+  return Math.max(0.05, Math.min(0.85, specificityAdjusted));
 }
 
 // ── Compound Probability Detection ──
@@ -772,16 +962,24 @@ export async function generatePredictions(options?: { topic?: string }): Promise
     .orderBy(desc(schema.gameTheoryScenarios.id))
     .limit(3);
 
-  // All existing predictions (pending + recently resolved for context)
-  const allPredictions = await db
+  // Pending predictions (for dedup + prompt context)
+  const pendingPredictions = await db
     .select()
     .from(schema.predictions)
+    .where(isNull(schema.predictions.outcome))
     .orderBy(desc(schema.predictions.id));
 
-  const pendingPredictions = allPredictions.filter((p) => !p.outcome);
-  const recentResolved = allPredictions
-    .filter((p) => p.outcome)
-    .slice(0, 10);
+  // Recently resolved predictions (for prompt context + dedup against re-generation)
+  // Limit to last 50 resolved to keep memory and prompt size bounded
+  const recentResolved = await db
+    .select()
+    .from(schema.predictions)
+    .where(not(isNull(schema.predictions.outcome)))
+    .orderBy(desc(schema.predictions.id))
+    .limit(50);
+
+  // Combined for dedup checks (pending + recent resolved)
+  const allPredictions = [...pendingPredictions, ...recentResolved];
 
   // ── Build context sections ──
 
@@ -795,35 +993,44 @@ export async function generatePredictions(options?: { topic?: string }): Promise
         ).join("\n")
       : "  None";
 
+    // Truncate long text fields to prevent prompt overflow
+    const truncate = (text: string, maxLen: number) =>
+      text.length > maxLen ? text.slice(0, maxLen) + "... [truncated]" : text;
+
     thesisContext = `Market Regime: ${t.marketRegime}
 Volatility Outlook: ${t.volatilityOutlook}
 Convergence Density: ${t.convergenceDensity}/10
 Overall Confidence: ${(t.overallConfidence * 100).toFixed(0)}%
 
 EXECUTIVE SUMMARY:
-${t.executiveSummary}
+${truncate(t.executiveSummary, 2000)}
 
 SITUATION ASSESSMENT:
-${t.situationAssessment}
+${truncate(t.situationAssessment, 2000)}
 
 RISK SCENARIOS:
-${t.riskScenarios}
+${truncate(t.riskScenarios, 1500)}
 
 TRADING ACTIONS:
 ${actionsSummary}`;
   }
 
-  const signalsContext = activeSignals.length > 0
-    ? activeSignals.map((s) => {
+  // Cap signals at 30 highest-intensity to prevent prompt overflow
+  const topSignals = activeSignals
+    .sort((a, b) => b.intensity - a.intensity)
+    .slice(0, 30);
+
+  const signalsContext = topSignals.length > 0
+    ? topSignals.map((s) => {
         const parts = [`- ${s.title} (intensity ${s.intensity}/5, ${s.date}, status: ${s.status})`];
-        if (s.geopoliticalContext) parts.push(`  Geopolitical: ${s.geopoliticalContext}`);
+        if (s.geopoliticalContext) parts.push(`  Geopolitical: ${s.geopoliticalContext.slice(0, 200)}`);
         if (s.celestialType) parts.push(`  Celestial: ${s.celestialType}`);
         if (s.hebrewHoliday) parts.push(`  Hebrew Calendar: ${s.hebrewHoliday}`);
-        if (s.historicalPrecedent) parts.push(`  Historical: ${s.historicalPrecedent}`);
+        if (s.historicalPrecedent) parts.push(`  Historical: ${s.historicalPrecedent.slice(0, 200)}`);
         const sectors = safeParse(s.marketSectors, []) as string[];
         if (sectors.length > 0) parts.push(`  Sectors: ${sectors.join(", ")}`);
         return parts.join("\n");
-      }).join("\n")
+      }).join("\n") + (activeSignals.length > 30 ? `\n(${activeSignals.length - 30} lower-intensity signals omitted)` : "")
     : "No active signals";
 
   // Build wartime-aware game theory context
@@ -879,7 +1086,10 @@ ${actionsSummary}`;
       description: s.description ?? "",
       intensity: s.intensity,
     }));
-    bayesianContext = runBayesianGameTheory(signalInputs);
+    const rawBayesian = runBayesianGameTheory(signalInputs);
+    bayesianContext = rawBayesian.length > 4000
+      ? rawBayesian.slice(0, 4000) + "\n... [truncated]"
+      : rawBayesian;
   } catch {
     // Bayesian analysis is best-effort
   }
@@ -894,7 +1104,10 @@ ${actionsSummary}`;
       anthropicKey
     );
     if (customBayesian) {
-      bayesianContext += "\n\n── CONTEXT-DERIVED CUSTOM SCENARIOS ──\n" + customBayesian;
+      const cappedCustom = customBayesian.length > 3000
+        ? customBayesian.slice(0, 3000) + "\n... [truncated]"
+        : customBayesian;
+      bayesianContext += "\n\n── CONTEXT-DERIVED CUSTOM SCENARIOS ──\n" + cappedCustom;
     }
   } catch {
     // Custom scenario generation is best-effort
@@ -903,16 +1116,18 @@ ${actionsSummary}`;
   // Build a structured coverage map: what tickers/assets/events are already predicted
   const coverageMap = buildCoverageMap(pendingPredictions.map((p) => p.claim));
 
+  // Summarise pending predictions compactly: coverage map + recent 20 for detail
   const pendingContext = pendingPredictions.length > 0
     ? [
-        `There are ${pendingPredictions.length} open predictions. You MUST NOT generate any prediction that covers the same underlying asset, ticker, or event as any of these:`,
-        "",
-        ...pendingPredictions.map((p, i) =>
-          `${i + 1}. [${p.category}, deadline ${p.deadline}] ${p.claim}`
-        ),
-        "",
-        `Assets/tickers already covered (DO NOT predict on these again): ${[...coverageMap.tickers].join(", ")}`,
+        `There are ${pendingPredictions.length} open predictions.`,
+        `Assets/tickers already covered (DO NOT predict on these): ${[...coverageMap.tickers].join(", ")}`,
         `Events already covered: ${[...coverageMap.events].join("; ")}`,
+        "",
+        `Recent pending (${Math.min(20, pendingPredictions.length)} of ${pendingPredictions.length}):`,
+        ...pendingPredictions.slice(0, 20).map((p, i) =>
+          `${i + 1}. [${p.category}] ${p.claim.slice(0, 120)}${p.claim.length > 120 ? "..." : ""}`
+        ),
+        pendingPredictions.length > 20 ? `(${pendingPredictions.length - 20} more omitted — check coverage map above)` : "",
       ].join("\n")
     : "No existing predictions — you may generate freely.";
 
@@ -928,15 +1143,19 @@ ${actionsSummary}`;
     ? performanceReport.promptSection
     : "Not enough resolved predictions yet to compute performance feedback.";
 
-  // Knowledge bank context
+  // Knowledge bank context — limit to 30 most recent to avoid prompt overflow
   let knowledgeContext = "No knowledge entries stored.";
   try {
     const activeKnowledge = await getActiveKnowledge();
     if (activeKnowledge.length > 0) {
-      knowledgeContext = activeKnowledge.map((k) => {
+      const recentKnowledge = activeKnowledge.slice(0, 30);
+      knowledgeContext = recentKnowledge.map((k) => {
         const tags = k.tags ? safeParse(k.tags, []) as string[] : [];
-        return `- [${k.category}] "${k.title}" (confidence: ${((k.confidence || 0.8) * 100).toFixed(0)}%, tags: ${tags.join(", ")})\n  ${k.content.slice(0, 300)}...`;
-      }).join("\n\n");
+        return `- [${k.category}] "${k.title}" (confidence: ${((k.confidence || 0.8) * 100).toFixed(0)}%, tags: ${tags.join(", ")})\n  ${k.content.slice(0, 200)}`;
+      }).join("\n");
+      if (activeKnowledge.length > 30) {
+        knowledgeContext += `\n(${activeKnowledge.length - 30} older entries omitted)`;
+      }
     }
   } catch {
     knowledgeContext = "Knowledge bank unavailable.";
@@ -1016,15 +1235,8 @@ ${signalsContext}
 ═══ GAME THEORY ANALYSIS (Nash Equilibria) ═══
 ${gameTheoryContext}
 
-═══ BAYESIAN N-PLAYER GAME THEORY (Fearon bargaining, actor types, escalation probability) ═══
+═══ BAYESIAN N-PLAYER GAME THEORY ═══
 ${bayesianContext}
-
-BAYESIAN ANALYSIS INTEGRATION RULES:
-- If bargaining range < 20% for a scenario (Fearon failure), predictions MUST reflect elevated conflict probability. Do not assume diplomatic resolution.
-- If escalation probability > 50%, weight predictions toward conflict/disruption outcomes rather than status quo.
-- Use dominant actor types to inform predictions: hawkish/escalatory dominant types = higher conflict probability; cooperative/calculating = negotiation more likely.
-- Audience cost constraints limit actor strategy space. If an actor cannot back down, factor this into your confidence for escalation scenarios.
-- Bayesian equilibria with "no_agreement" Fearon condition override Nash equilibria from the standard analysis. The Bayesian analysis incorporates incomplete information and is more realistic.
 
 ═══ EXISTING PENDING PREDICTIONS — READ CAREFULLY BEFORE GENERATING ═══
 ${pendingContext}
@@ -1038,76 +1250,39 @@ ${feedbackContext}
 ═══ BASE RATE ANCHORS (start from these, adjust with evidence) ═══
 ${baseRateContext}${actorBeliefContext}
 
-CRITICAL FORMAT RULES — every claim MUST be a falsifiable prediction about what WILL happen:
-- CORRECT: "SPY will close below $500 within 14 days" (states what will happen, measurable)
-- WRONG: "Execute regime change to TRANSITION" (action command, not a prediction)
-- WRONG: "Monitor USD/JPY for 152.00 break" (monitoring instruction, not a prediction)
-- WRONG: "Increase WTI allocation to 80%" (portfolio action, not a prediction)
-- WRONG: "Activate European energy protocols" (action command, not a prediction)
-- WRONG: "Track VIX for spike above 20" (tracking instruction, not a prediction)
-- Every claim must start with a SUBJECT (asset, country, entity) followed by "will" + measurable outcome
-- NEVER start claims with imperative verbs: execute, activate, initiate, monitor, track, watch, implement, increase, decrease, adjust, deploy, hedge, rotate, buy, sell
+FORMAT: SUBJECT + "will" + measurable outcome. No imperatives (execute, monitor, track, buy, sell, activate, adjust).
 
-STRICT UNIQUENESS RULES — violations will be rejected:
-1. Do NOT generate any prediction on a ticker or asset that already has an open prediction above (e.g., if SPY already has a pending prediction, do not add another SPY prediction).
-2. Do NOT generate geopolitical predictions on countries or actors already covered above (e.g., if Iran already has a pending prediction, skip Iran).
-3. Do NOT vary thresholds of existing predictions (e.g., "SPY below 515" when "SPY below 510" is already pending — this is still a duplicate).
-4. Every prediction must cover a DIFFERENT underlying asset or a materially different event from all pending ones.
-5. If all meaningful signals are already covered by existing predictions, return an empty array [].
+UNIQUENESS: No duplicate tickers/events vs pending. No threshold variants. Return [] if all covered.
 
-CONFIDENCE CALIBRATION RULES — calibrate based on your actual track record:
-- COMPOUND PROBABILITY: If your prediction requires a scenario to happen first (e.g., "Hormuz closes THEN oil spikes"), your confidence must be P(scenario) * P(outcome | scenario). Do NOT assign the conditional probability alone.
-- BASE RATES: Specific price targets within narrow windows confirm ~25-35% of the time. Geopolitical "at least one announcement" claims confirm ~40-60%. Celestial-triggered claims have NO causal mechanism — assign the same confidence as the underlying market/geo claim without celestial bonus.
-- TRACK RECORD ADJUSTMENT: Your calibration feedback section above contains your ACTUAL hit rate and Brier score. If it shows you are underconfident (hit rate exceeds stated confidence), you MUST increase your confidence levels accordingly. If it shows overconfidence, reduce them. Follow the calibration feedback data, not assumptions.
-- RANGE: Use the full 0.10-0.90 range. Match confidence to your actual calibration data. If your hit rate is high, higher confidence is appropriate and improves your Brier score.
-- NO CONTRADICTIONS: Do not predict opposite outcomes for the same asset (e.g., BTC above $100k AND BTC below $60k).
+CONFIDENCE: Compound P(trigger)*P(outcome|trigger). Range 0.10-0.90. Follow calibration feedback above. No contradictions. Price targets base rate ~25-35%, geo announcements ~40-60%.
 
-DIRECTION + LEVEL RULES:
-- For market predictions, always specify a DIRECTION (up/down/flat) and, where possible, a specific PRICE TARGET.
-- Include the reference symbol (ticker) for any price target.
-- Example: "SPY drops below $500 within 14 days" → direction: "down", price_target: 500, reference_symbol: "SPY"
-- Directional-only claims (no price target) will be scored more leniently but are less valuable.
+MAGNITUDE: Equity indices 7d typical 1-4% (>8% needs <15% confidence). Sector ETFs 2-5%. Leveraged 8-20%. Prefer price-levels over RSI/MACD. Multi-condition claims max 0.40 confidence. Prefer conservative thresholds.
+DIRECTION: Always specify direction (up/down/flat) + price_target + reference_symbol where possible.
 
-Respond ONLY with a JSON array. Each prediction must include all fields:
-[
-  {
-    "claim": "Specific falsifiable claim with measurable threshold",
-    "timeframe": "7 days" | "14 days" | "30 days" | "90 days",
-    "deadline": "YYYY-MM-DD",
-    "confidence": 0.10-0.90,
-    "category": "market" | "geopolitical" | "celestial",
-    "grounding": "Derived from: [specific thesis element / signal / game theory outcome / Bayesian equilibrium / Fearon assessment]. Compound probability: P(trigger) * P(outcome|trigger) = X",
-    "direction": "up" | "down" | "flat" | null,
-    "price_target": number | null,
-    "reference_symbol": "TICKER" | null
-  }
-]`;
+Respond ONLY with JSON array:
+[{"claim":"Specific falsifiable claim","timeframe":"7 days","deadline":"YYYY-MM-DD","confidence":0.50,"category":"market","grounding":"Derived from: ...","direction":"down","price_target":500,"reference_symbol":"SPY"}]`;
 
   // ── Red Team Adversarial Challenge (Tetlock GJP structured disagreement) ──
 
   const client = new Anthropic({ apiKey: anthropicKey });
 
-  const redTeamPrompt = `You are reviewing the following intelligence picture. Argue AGAINST the prevailing thesis direction and identify weaknesses.
+  // Use thesis summary only for red team to avoid duplicating full context
+  const thesisSummary = latestThesis.length > 0
+    ? `Regime: ${latestThesis[0].marketRegime}, Confidence: ${(latestThesis[0].overallConfidence * 100).toFixed(0)}%\n${latestThesis[0].executiveSummary?.slice(0, 500) || "No summary"}`
+    : "No thesis";
 
-═══ ACTIVE THESIS ═══
-${thesisContext}
+  const redTeamPrompt = `Argue AGAINST the prevailing thesis direction and identify weaknesses.
 
-═══ ACTIVE SIGNALS ═══
-${signalsContext}
-
-═══ GAME THEORY ANALYSIS ═══
-${gameTheoryContext}
-
-═══ BAYESIAN N-PLAYER ANALYSIS ═══
-${bayesianContext}
+THESIS: ${thesisSummary}
+REGIME: ${currentRegime}
+SIGNALS: ${activeSignals.length} active (${activeSignals.map(s => s.title).join(", ")})
 
 Your task:
 1. Identify the 3 strongest counterarguments to the current thesis direction.
-2. Challenge the Bayesian analysis assumptions: are the actor type distributions plausible? Is the Fearon bargaining assessment too hawkish or dovish?
-3. Identify what would need to be true for the thesis to be completely wrong.
-3. Name the weakest assumptions the thesis relies on.
+2. What would need to be true for the thesis to be completely wrong?
+3. Name the weakest assumptions.
 
-Output a brief devil's advocate summary.`;
+Output a brief devil's advocate summary (max 300 words).`;
 
   let redTeamChallenge = "";
   try {
@@ -1162,6 +1337,15 @@ Output a brief devil's advocate summary.`;
   const existingClaims = allPredictions.map((p) => normalizeClaim(p.claim));
   const existingTickers = coverageMap.tickers;
 
+  // Build a richer dedup index: ticker + direction + deadline window for semantic dedup
+  const existingPredictionIndex = allPredictions.map((p) => ({
+    normalized: normalizeClaim(p.claim),
+    tickers: extractTickers(p.claim),
+    direction: p.direction,
+    deadline: p.deadline,
+    outcome: p.outcome,
+  }));
+
   const created: NewPrediction[] = [];
   for (const p of parsed) {
     // 0. Meta-system content filter — reject junk that isn't a real prediction
@@ -1169,7 +1353,7 @@ Output a brief devil's advocate summary.`;
 
     const normalized = normalizeClaim(p.claim);
 
-    // 1. Exact / near-exact text match (>50% word overlap)
+    // 1. Exact / near-exact text match (>40% word overlap — tightened from 50%)
     const textDuplicate = existingClaims.some((existing) => {
       if (existing === normalized) return true;
       const newWords = new Set(normalized.split(" ").filter((w) => w.length > 3));
@@ -1177,10 +1361,38 @@ Output a brief devil's advocate summary.`;
       if (newWords.size === 0 || existingWords.length === 0) return false;
       const overlap = existingWords.filter((w) => newWords.has(w)).length;
       const overlapRatio = overlap / Math.max(newWords.size, existingWords.length);
-      return overlapRatio > 0.5;
+      return overlapRatio > 0.40;
     });
 
     if (textDuplicate) continue;
+
+    // 1b. Semantic dedup: same ticker + same direction + overlapping deadline window
+    // Catches cases like "QQQ RSI below 40 in 7 days" and "QQQ RSI below 38 in 14 days"
+    // which are effectively the same bet with slightly different thresholds.
+    const newDirection = p.direction && ["up", "down", "flat"].includes(p.direction) ? p.direction : null;
+    const newTicks = extractTickers(p.claim);
+    if (newTicks.length > 0 && newDirection) {
+      const semanticDuplicate = existingPredictionIndex.some((existing) => {
+        // Only block against predictions from last 14 days (resolved or pending)
+        if (existing.deadline) {
+          const deadlineDiff = Math.abs(
+            new Date(p.deadline).getTime() - new Date(existing.deadline).getTime()
+          );
+          // If deadlines are more than 21 days apart, different enough
+          if (deadlineDiff > 21 * 24 * 60 * 60 * 1000) return false;
+        }
+        // Same direction
+        if (existing.direction !== newDirection) return false;
+        // Overlapping tickers
+        const sharedTicker = newTicks.some((t) => existing.tickers.includes(t));
+        return sharedTicker;
+      });
+
+      if (semanticDuplicate) {
+        console.log(`[predictions] SEMANTIC DEDUP: Same ticker+direction+timeframe window. Rejected: ${p.claim.slice(0, 80)}...`);
+        continue;
+      }
+    }
 
     // 2. Ticker-level deduplication — if this prediction mentions a ticker already covered, reject
     //    Skip ticker dedup for user-requested topics (they explicitly asked for it)
@@ -1246,13 +1458,49 @@ Output a brief devil's advocate summary.`;
       }
     }
 
+    // ── GUARD 4: Magnitude plausibility check ──
+    // If the claim involves a percentage move or we can compute one from price target + current price,
+    // verify the magnitude is historically plausible for this instrument and timeframe.
+    let magnitudeConfidenceCap = 0.85; // default: no additional cap
+    if (referenceSymbol && priceTarget && direction && referencePrices[referenceSymbol]) {
+      const currentPrice = referencePrices[referenceSymbol];
+      const impliedMove = ((priceTarget - currentPrice) / currentPrice) * 100;
+      const timeframeDays = parseTimeframeDays(p.timeframe);
+
+      const plausibility = assessMagnitudePlausibility(referenceSymbol, impliedMove, timeframeDays);
+      magnitudeConfidenceCap = plausibility.confidenceCap;
+
+      if (!plausibility.plausible) {
+        console.warn(`[predictions] MAGNITUDE WARNING: ${plausibility.reason}. Capping confidence at ${(plausibility.confidenceCap * 100).toFixed(0)}%. Claim: ${p.claim.slice(0, 80)}...`);
+      } else if (plausibility.confidenceCap < 0.50) {
+        console.log(`[predictions] Magnitude cap applied: ${plausibility.reason}. Cap: ${(plausibility.confidenceCap * 100).toFixed(0)}%`);
+      }
+    }
+
+    // Also check percentage moves stated directly in the claim text
+    const pctMatch = p.claim.match(/(gain|lose|rise|fall|decline|drop|surge|crash)\s+(more\s+than\s+)?(\d+(?:\.\d+)?)%/i);
+    if (pctMatch && referenceSymbol) {
+      const statedPct = parseFloat(pctMatch[3]);
+      const timeframeDays = parseTimeframeDays(p.timeframe);
+      const pctPlausibility = assessMagnitudePlausibility(referenceSymbol, statedPct, timeframeDays);
+      magnitudeConfidenceCap = Math.min(magnitudeConfidenceCap, pctPlausibility.confidenceCap);
+
+      if (!pctPlausibility.plausible) {
+        console.warn(`[predictions] PERCENTAGE MAGNITUDE WARNING: ${pctPlausibility.reason}. Cap: ${(pctPlausibility.confidenceCap * 100).toFixed(0)}%. Claim: ${p.claim.slice(0, 80)}...`);
+      }
+    }
+
+    // Compute confidence with all adjustments, then enforce magnitude cap
+    const baseConfidence = await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim);
+    const finalConfidence = Math.min(baseConfidence, magnitudeConfidenceCap);
+
     const rows = await db
       .insert(schema.predictions)
       .values({
         claim: p.claim,
         timeframe: p.timeframe,
         deadline: p.deadline,
-        confidence: await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim),
+        confidence: finalConfidence,
         category,
         metrics: p.grounding ? JSON.stringify({ grounding: p.grounding }) : null,
         regimeAtCreation: currentRegime,

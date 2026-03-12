@@ -61,12 +61,17 @@ export async function POST(request: NextRequest) {
 
     const holidayNames = holidays.map(h => h.name);
 
-    // Check for signals on or near this date
-    const allSignals = await db.select().from(schema.signals);
-    const signals = allSignals.filter(s => {
-      const diff = Math.abs(new Date(s.date).getTime() - d.getTime());
-      return diff < 3 * 24 * 60 * 60 * 1000; // within 3 days
-    });
+    // Check for signals on or near this date (within 3 days)
+    const threeDaysBefore = new Date(d.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const threeDaysAfter = new Date(d.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const signals = await db.select().from(schema.signals)
+      .where(
+        and(
+          gte(schema.signals.date, threeDaysBefore),
+          lte(schema.signals.date, threeDaysAfter)
+        )
+      )
+      .limit(30);
 
     const signalContext = signals.map(s => `- ${s.title} (intensity ${s.intensity}/5, category: ${s.category})`).join("\n");
 

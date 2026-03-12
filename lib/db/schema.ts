@@ -296,6 +296,7 @@ export const alerts = pgTable("alerts", {
 
 export const alertHistory = pgTable("alert_history", {
   id: serial("id").primaryKey(),
+  uid: text("uid").notNull().$defaultFn(() => crypto.randomUUID()),
   alertId: integer("alert_id").notNull().references(() => alerts.id),
   triggeredAt: text("triggered_at").notNull().$defaultFn(() => new Date().toISOString()),
   title: text("title").notNull(),

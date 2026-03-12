@@ -546,16 +546,20 @@ export function findBayesianEquilibria(
         Math.abs(avgPayoff) > 4 ? "high" : Math.abs(avgPayoff) > 2 ? "medium" : "low";
 
       // Probability based on type distribution alignment
-      // Joint probability of the dominant type realization that supports this equilibrium.
-      // No arbitrary scaling: the raw joint probability from belief distributions
-      // correctly reflects how likely this type combination is.
-      // For N actors with top-type probability ~0.3 each, joint prob ~0.09 (2 actors)
-      // which is appropriate since many equilibria may coexist.
-      let prob = 1;
+      // Use geometric mean of dominant type probabilities to avoid joint probability
+      // death spiral with many actors (0.3^6 = 0.0007 for 6 actors).
+      // Geometric mean preserves relative ranking while keeping values interpretable:
+      // 6 actors at 0.3 each -> geomean = 0.3, not 0.0007.
+      let probProduct = 1;
+      let actorCount = 0;
       for (const actor of actors) {
         const dist = beliefs[actor]?.typeDistribution;
-        if (dist) prob *= dist[dominantTypes[actor]];
+        if (dist) {
+          probProduct *= dist[dominantTypes[actor]];
+          actorCount++;
+        }
       }
+      const prob = actorCount > 0 ? Math.pow(probProduct, 1 / actorCount) : 0;
 
       equilibria.push({
         strategyProfile: profile,
