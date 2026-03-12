@@ -41,12 +41,32 @@ export function CountryClickLayer({ onCountryClick }: CountryClickLayerProps) {
 
   useMapEvents({
     click(e) {
-      // Don't trigger country click if clicking on an existing marker/layer
-      // Check if the click target is the map tile itself
+      // Don't trigger country click if clicking on an existing marker/layer.
+      // Only fire for clicks directly on the map tiles or container background.
       const target = e.originalEvent?.target as HTMLElement;
-      if (target && !target.classList.contains("leaflet-container") &&
-          !target.classList.contains("leaflet-tile") &&
-          !target.closest(".leaflet-tile-pane")) {
+      if (!target) return;
+
+      // Allow: clicks on the map container itself or tile images
+      const isTileClick =
+        target.classList.contains("leaflet-container") ||
+        target.classList.contains("leaflet-tile") ||
+        target.closest(".leaflet-tile-pane");
+
+      // Block: clicks on markers, popups, tooltips, controls, overlays, SVGs, clusters
+      const isMarkerClick =
+        target.closest(".leaflet-marker-pane") ||
+        target.closest(".leaflet-marker-icon") ||
+        target.closest(".leaflet-popup-pane") ||
+        target.closest(".leaflet-tooltip-pane") ||
+        target.closest(".leaflet-overlay-pane") ||
+        target.closest(".leaflet-control-container") ||
+        target.closest(".marker-cluster") ||
+        target.tagName === "svg" ||
+        target.tagName === "path" ||
+        target.tagName === "circle" ||
+        target.closest("svg");
+
+      if (!isTileClick || isMarkerClick) {
         return;
       }
 

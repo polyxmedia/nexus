@@ -43,9 +43,9 @@ export async function GET() {
     });
 
     if (!res.ok) {
+      // Return 200 with empty data so SWR can consume it (SWR throws on non-2xx)
       return NextResponse.json(
-        { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0, error: "upstream_unavailable" },
-        { status: 502 }
+        { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0, error: "upstream_unavailable" }
       );
     }
 
@@ -91,9 +91,9 @@ export async function GET() {
     return NextResponse.json(response);
   } catch (error) {
     console.error("Aircraft API error:", error);
+    // Return 200 with empty data so SWR can consume it (SWR throws on non-2xx)
     return NextResponse.json(
-      { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0, error: "fetch_failed" },
-      { status: 502 }
+      { aircraft: [], timestamp: Date.now(), totalCount: 0, militaryCount: 0, error: "fetch_failed" }
     );
   }
 }
