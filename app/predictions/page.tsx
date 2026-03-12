@@ -220,6 +220,9 @@ export default function PredictionsPage() {
   const [resolving, setResolving] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeOutcome, setActiveOutcome] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"pending" | "resolved">("pending");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
   const [confidenceRange, setConfidenceRange] = useState<[number, number]>([0, 1]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"deadline" | "confidence" | "created">("deadline");
@@ -319,7 +322,8 @@ export default function PredictionsPage() {
 
   useEffect(() => {
     if (!statusMessage) return;
-    const t = setTimeout(() => setStatusMessage(null), 5000);
+    if (statusMessage.type === "info") return;
+    const t = setTimeout(() => setStatusMessage(null), 8000);
     return () => clearTimeout(t);
   }, [statusMessage]);
 
@@ -341,13 +345,19 @@ export default function PredictionsPage() {
 
   const aiGenerate = async () => {
     setGenerating(true);
-    setStatusMessage(null);
+    setStatusMessage({ text: "Generating predictions from intelligence picture... this may take up to 60s", type: "info" });
     try {
       const res = await fetch("/api/predictions/generate", { method: "POST" });
+      if (!res.ok) {
+        const text = await res.text();
+        try { const data = JSON.parse(text); setStatusMessage({ text: data.error || `Generation failed (${res.status})`, type: "error" }); }
+        catch { setStatusMessage({ text: `Generation failed (${res.status})`, type: "error" }); }
+        return;
+      }
       const data = await res.json();
       if (data.error) setStatusMessage({ text: data.error, type: "error" });
-      else { setStatusMessage({ text: `Generated ${data.count} new predictions`, type: "success" }); fetchPredictions(); fetchFeedback(); }
-    } catch { setStatusMessage({ text: "Failed to generate predictions", type: "error" }); }
+      else { setStatusMessage({ text: `Generated ${data.count} new prediction${data.count !== 1 ? "s" : ""}`, type: "success" }); fetchPredictions(); fetchFeedback(); }
+    } catch { setStatusMessage({ text: "Failed to generate predictions - request may have timed out", type: "error" }); }
     finally { setGenerating(false); }
   };
 
@@ -680,14 +690,15 @@ export default function PredictionsPage() {
     });
   };
 
-  const displayPending = activeOutcome === null || activeOutcome === "pending"
-    ? sortPredictions(filterPredictions(pending))
-    : [];
-  const displayResolved = activeOutcome === null || activeOutcome !== "pending"
-    ? sortPredictions(
-        filterPredictions(resolved).filter((p) => activeOutcome ? p.outcome === activeOutcome : true)
-      )
-    : [];
+  const displayPending = sortPredictions(filterPredictions(pending));
+  const displayResolved = sortPredictions(
+    filterPredictions(resolved).filter((p) => activeOutcome ? p.outcome === activeOutcome : true)
+  );
+
+  const activeList = activeTab === "pending" ? displayPending : displayResolved;
+  const totalPages = Math.max(1, Math.ceil(activeList.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedList = activeList.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
   const hasActiveFilters = activeCategory !== null || activeOutcome !== null || confidenceRange[0] > 0 || confidenceRange[1] < 1 || searchQuery.trim() !== "" || dateFrom !== "" || dateTo !== "";
 
@@ -699,6 +710,7 @@ export default function PredictionsPage() {
     setSortBy("deadline");
     setDateFrom("");
     setDateTo("");
+    setCurrentPage(1);
   };
 
   const daysUntil = (dateStr: string) => {
@@ -1792,38 +1804,32 @@ export default function PredictionsPage() {
               />
             </div>
 
-            <div className="flex h-7 rounded-md border border-navy-700/30 overflow-x-auto max-w-full">
-              <button
-                onClick={() => setActiveOutcome(null)}
-                className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                  activeOutcome === null ? "bg-accent-cyan/10 text-accent-cyan" : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setActiveOutcome(activeOutcome === "pending" ? null : "pending")}
-                className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors border-l border-navy-700/30 ${
-                  activeOutcome === "pending" ? "bg-accent-cyan/10 text-accent-cyan" : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
-                }`}
-              >
-                Pending
-              </button>
-              {(["confirmed", "denied", "partial"] as const).map((outcome) => {
-                const cfg = OUTCOME_CONFIG[outcome];
-                return (
-                  <button
-                    key={outcome}
-                    onClick={() => setActiveOutcome(activeOutcome === outcome ? null : outcome)}
-                    className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors border-l border-navy-700/30 ${
-                      activeOutcome === outcome ? `${cfg.bg} ${cfg.color}` : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
-                    }`}
-                  >
-                    {cfg.label}
-                  </button>
-                );
-              })}
-            </div>
+            {activeTab === "resolved" && (
+              <div className="flex h-7 rounded-md border border-navy-700/30 overflow-x-auto max-w-full">
+                <button
+                  onClick={() => { setActiveOutcome(null); setCurrentPage(1); }}
+                  className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
+                    activeOutcome === null ? "bg-accent-cyan/10 text-accent-cyan" : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
+                  }`}
+                >
+                  All
+                </button>
+                {(["confirmed", "denied", "partial"] as const).map((outcome) => {
+                  const cfg = OUTCOME_CONFIG[outcome];
+                  return (
+                    <button
+                      key={outcome}
+                      onClick={() => { setActiveOutcome(activeOutcome === outcome ? null : outcome); setCurrentPage(1); }}
+                      className={`px-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors border-l border-navy-700/30 ${
+                        activeOutcome === outcome ? `${cfg.bg} ${cfg.color}` : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
+                      }`}
+                    >
+                      {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] text-navy-500 uppercase tracking-wider">Conf:</span>
@@ -1882,7 +1888,7 @@ export default function PredictionsPage() {
             <div className="flex-1" />
 
             <span className="text-[9px] text-navy-600 font-mono">
-              {displayPending.length + displayResolved.length}/{predictions.length} shown
+              {activeList.length} {activeTab} / {predictions.length} total
             </span>
             {hasActiveFilters && (
               <button onClick={clearFilters} className="text-[9px] text-accent-cyan hover:text-accent-cyan/80 underline">

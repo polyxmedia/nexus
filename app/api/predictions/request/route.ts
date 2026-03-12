@@ -1,3 +1,5 @@
+export const maxDuration = 120;
+
 import { NextRequest, NextResponse } from "next/server";
 import { generatePredictions } from "@/lib/predictions/engine";
 import { requireTier } from "@/lib/auth/require-tier";
