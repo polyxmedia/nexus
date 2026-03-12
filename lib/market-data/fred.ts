@@ -108,28 +108,24 @@ export async function getMacroSnapshot(): Promise<Record<string, FredSeriesData>
 
   const results: Record<string, FredSeriesData> = {};
 
-  for (let i = 0; i < keys.length; i += 5) {
-    const batch = keys.slice(i, i + 5);
-    const batchResults = await Promise.allSettled(
-      batch.map(async (key) => {
-        const series = FRED_SERIES[key];
-        const points = await getFredSeries(series.id, 10);
-        const latest = points.length > 0 ? points[points.length - 1] : null;
-        const previous = points.length > 1 ? points[points.length - 2] : null;
-        const change = latest && previous ? latest.value - previous.value : null;
-        const changePercent = latest && previous && previous.value !== 0
-          ? ((latest.value - previous.value) / Math.abs(previous.value)) * 100
-          : null;
+  // Fetch all series in parallel (each has its own 10s timeout + 1h cache)
+  const allResults = await Promise.allSettled(
+    keys.map(async (key) => {
+      const series = FRED_SERIES[key];
+      const points = await getFredSeries(series.id, 10);
+      const latest = points.length > 0 ? points[points.length - 1] : null;
+      const previous = points.length > 1 ? points[points.length - 2] : null;
+      const change = latest && previous ? latest.value - previous.value : null;
+      const changePercent = latest && previous && previous.value !== 0
+        ? ((latest.value - previous.value) / Math.abs(previous.value)) * 100
+        : null;
 
-        return { key, data: { id: series.id, name: series.name, unit: series.unit, latest, previous, change, changePercent, history: points } as FredSeriesData };
-      })
-    );
+      return { key, data: { id: series.id, name: series.name, unit: series.unit, latest, previous, change, changePercent, history: points } as FredSeriesData };
+    })
+  );
 
-    for (const result of batchResults) {
-      if (result.status === "fulfilled") results[result.value.key] = result.value.data;
-    }
-
-    if (i + 5 < keys.length) await new Promise(r => setTimeout(r, 500));
+  for (const result of allResults) {
+    if (result.status === "fulfilled") results[result.value.key] = result.value.data;
   }
 
   cache.set(cacheKey, { data: results, expiry: Date.now() + CACHE_TTL });

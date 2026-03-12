@@ -79,55 +79,50 @@ export async function findHistoricalParallels(
   query: string,
   apiKey: string
 ): Promise<ParallelAnalysis> {
-  // 1. Search knowledge bank for relevant entries
-  const knowledgeResults = await searchKnowledge(query, {
-    limit: 10,
-    useVector: true,
-  });
+  // 1. Run all data queries in parallel
+  const [knowledgeResults, resolvedPredictions, relevantSignals] = await Promise.all([
+    searchKnowledge(query, { limit: 8, useVector: true }).catch(() => []),
+    db
+      .select({
+        category: schema.predictions.category,
+        outcome: schema.predictions.outcome,
+        claim: schema.predictions.claim,
+        confidence: schema.predictions.confidence,
+        deadline: schema.predictions.deadline,
+      })
+      .from(schema.predictions)
+      .where(not(isNull(schema.predictions.outcome)))
+      .orderBy(desc(schema.predictions.resolvedAt))
+      .limit(15),
+    db
+      .select({
+        category: schema.signals.category,
+        intensity: schema.signals.intensity,
+        title: schema.signals.title,
+        date: schema.signals.date,
+        description: schema.signals.description,
+      })
+      .from(schema.signals)
+      .orderBy(desc(schema.signals.date))
+      .limit(20),
+  ]);
 
-  // 2. Search for related predictions (resolved ones are historical data)
-  const resolvedPredictions = await db
-    .select({
-      category: schema.predictions.category,
-      outcome: schema.predictions.outcome,
-      claim: schema.predictions.claim,
-      confidence: schema.predictions.confidence,
-      deadline: schema.predictions.deadline,
-    })
-    .from(schema.predictions)
-    .where(not(isNull(schema.predictions.outcome)))
-    .orderBy(desc(schema.predictions.resolvedAt))
-    .limit(20);
-
-  // 3. Search for related signals
-  const relevantSignals = await db
-    .select({
-      category: schema.signals.category,
-      intensity: schema.signals.intensity,
-      title: schema.signals.title,
-      date: schema.signals.date,
-      description: schema.signals.description,
-    })
-    .from(schema.signals)
-    .orderBy(desc(schema.signals.date))
-    .limit(30);
-
-  // 4. Build context for Claude
+  // 2. Build context for Claude (truncated to keep prompt fast)
   const knowledgeContext = knowledgeResults
-    .map((k) => `[${k.category}] ${k.title}: ${k.content.slice(0, 500)}`)
+    .map((k) => `[${k.category}] ${k.title}: ${k.content.slice(0, 300)}`)
     .join("\n\n");
 
   const predictionsContext = resolvedPredictions
     .map(
       (p) =>
-        `[${p.category} | ${p.outcome}] "${p.claim}" (confidence: ${(p.confidence * 100).toFixed(0)}%, deadline: ${p.deadline})`
+        `[${p.category} | ${p.outcome}] "${p.claim}" (conf: ${(p.confidence * 100).toFixed(0)}%, dl: ${p.deadline})`
     )
     .join("\n");
 
   const signalsContext = relevantSignals
     .map(
       (s) =>
-        `[${s.category} int:${s.intensity}] ${s.title} (${s.date}): ${s.description.slice(0, 200)}`
+        `[${s.category} int:${s.intensity}] ${s.title} (${s.date}): ${s.description.slice(0, 150)}`
     )
     .join("\n");
 
@@ -146,12 +141,12 @@ ${signalsContext || "No signal data."}
 
 Identify the strongest structural parallels. Be specific about dates, outcomes, and probabilities.`;
 
-  // 5. Call Claude for synthesis
-  const client = new Anthropic({ apiKey });
+  // 3. Call Claude for synthesis (with 30s timeout)
+  const client = new Anthropic({ apiKey, timeout: 30_000 });
 
   const response = await client.messages.create({
     model: PARALLELS_MODEL,
-    max_tokens: 2000,
+    max_tokens: 1500,
     system: PARALLELS_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });

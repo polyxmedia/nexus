@@ -475,12 +475,18 @@ export async function POST(
               }
             }
             // Execute all non-blocked tools in parallel with timeout
+            // Heavy tools (AI calls, multi-API fetches) get 45s; everything else 20s
+            const SLOW_TOOLS = new Set([
+              "search_historical_parallels", "get_macro_data", "generate_narrative_report",
+              "run_bayesian_analysis", "get_gamma_exposure",
+            ]);
             const toolCtx: ToolContext = { username, sessionId: id, projectId: session.projectId };
             const toolPromises = executableTools.map(async ({ tool, parsedInput }) => {
+              const timeoutMs = SLOW_TOOLS.has(tool.name) ? 45_000 : 20_000;
               const toolResult = await Promise.race([
                 executeTool(tool.name, parsedInput, toolCtx),
                 new Promise<{ error: string }>((resolve) =>
-                  setTimeout(() => resolve({ error: `Tool ${tool.name} timed out after 20s` }), 20_000)
+                  setTimeout(() => resolve({ error: `Tool ${tool.name} timed out after ${timeoutMs / 1000}s` }), timeoutMs)
                 ),
               ]);
               return { tool, toolResult };
