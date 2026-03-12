@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { HDate, HebrewCalendar } from "@hebcal/core";
 import { db, schema } from "@/lib/db";
+import { and, gte, lte } from "drizzle-orm";
 import { getCyclicalReading } from "@/lib/signals/structural-cycles";
 import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getModel } from "@/lib/ai/model";

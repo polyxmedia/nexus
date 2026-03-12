@@ -150,6 +150,8 @@ export async function GET() {
           generatedAt: cached[0].generatedAt,
           cached: true,
         },
+      }, {
+        headers: { "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600" },
       });
     }
   } catch {

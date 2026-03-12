@@ -13,23 +13,28 @@ export async function GET(request: NextRequest) {
     const intensity = searchParams.get("intensity");
     const status = searchParams.get("status");
 
-    // Build WHERE conditions to push filtering to DB instead of fetching all rows
-    const conditions = [];
-    if (intensity) {
-      conditions.push(eq(schema.signals.intensity, parseInt(intensity, 10)));
+    // Push filtering to DB instead of fetching all rows
+    let results;
+    if (intensity && status) {
+      results = await db.select().from(schema.signals)
+        .where(and(eq(schema.signals.intensity, parseInt(intensity, 10)), eq(schema.signals.status, status)))
+        .orderBy(desc(schema.signals.date))
+        .limit(200);
+    } else if (intensity) {
+      results = await db.select().from(schema.signals)
+        .where(eq(schema.signals.intensity, parseInt(intensity, 10)))
+        .orderBy(desc(schema.signals.date))
+        .limit(200);
+    } else if (status) {
+      results = await db.select().from(schema.signals)
+        .where(eq(schema.signals.status, status))
+        .orderBy(desc(schema.signals.date))
+        .limit(200);
+    } else {
+      results = await db.select().from(schema.signals)
+        .orderBy(desc(schema.signals.date))
+        .limit(200);
     }
-    if (status) {
-      conditions.push(eq(schema.signals.status, status));
-    }
-
-    const results = conditions.length > 0
-      ? await db.select().from(schema.signals)
-          .where(conditions.length === 1 ? conditions[0] : and(...conditions))
-          .orderBy(desc(schema.signals.date))
-          .limit(200)
-      : await db.select().from(schema.signals)
-          .orderBy(desc(schema.signals.date))
-          .limit(200);
 
     return NextResponse.json(results, {
       headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },

@@ -845,7 +845,13 @@ export function runBayesianAnalysis(
       .join(", ");
     mostLikelyOutcome = `Most likely: ${strategies}. ${topEq.fearonCondition === "agreement_possible" ? "Diplomatic resolution feasible." : "Fragile outcome, monitor for deterioration."}`;
     direction = topEq.marketImpact.direction;
-    confidence = topEq.probability * (topEq.stability === "stable" ? 0.8 : 0.5);
+    // Confidence combines equilibrium probability with stability and equilibrium count.
+    // A single dominant stable equilibrium = high confidence.
+    // Multiple competing equilibria or fragile ones = lower confidence.
+    const stabilityFactor = topEq.stability === "stable" ? 0.85 : 0.55;
+    const dominanceFactor = equilibria.length === 1 ? 1.0 :
+      topEq.probability / Math.max(0.01, equilibria.reduce((s, e) => s + e.probability, 0));
+    confidence = stabilityFactor * (0.5 + 0.5 * dominanceFactor) * (0.6 + 0.4 * topEq.probability);
   }
 
   return {

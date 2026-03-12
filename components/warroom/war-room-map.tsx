@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   MapContainer,
   CircleMarker,
@@ -111,9 +111,21 @@ function strategicIcon(type: string) {
 
 function FlyToZone({ center }: { center: [number, number] }) {
   const map = useMap();
+  const prevCenter = useRef<[number, number] | null>(null);
+
   useEffect(() => {
+    // Only pan if the center actually changed (not just a new array reference)
+    if (
+      prevCenter.current &&
+      prevCenter.current[0] === center[0] &&
+      prevCenter.current[1] === center[1]
+    ) {
+      return;
+    }
+    prevCenter.current = center;
     map.panTo(center, { animate: true, duration: 0.8 });
   }, [map, center]);
+
   return null;
 }
 

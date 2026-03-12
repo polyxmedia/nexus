@@ -137,7 +137,9 @@ export async function GET() {
       metrics,
     };
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    });
   } catch (error) {
     console.error("War room API error:", error);
     return NextResponse.json({ error: "Failed to load war room data" }, { status: 500 });

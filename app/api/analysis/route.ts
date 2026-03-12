@@ -78,12 +78,14 @@ export async function GET(request: NextRequest) {
 
     if (signalId) {
       const id = parseInt(signalId, 10);
-      results = await db.select().from(schema.analyses).where(eq(schema.analyses.signalId, id)).orderBy(desc(schema.analyses.createdAt));
+      results = await db.select().from(schema.analyses).where(eq(schema.analyses.signalId, id)).orderBy(desc(schema.analyses.createdAt)).limit(50);
     } else {
-      results = await db.select().from(schema.analyses).orderBy(desc(schema.analyses.createdAt));
+      results = await db.select().from(schema.analyses).orderBy(desc(schema.analyses.createdAt)).limit(50);
     }
 
-    return NextResponse.json(results);
+    return NextResponse.json(results, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
