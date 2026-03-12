@@ -55,9 +55,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
   const { status: authStatus } = useSession();
 
+  const initialFetchDone = React.useRef(false);
+
   const fetchSubscription = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only show loading spinner on initial fetch, not on polling refreshes
+      if (!initialFetchDone.current) setLoading(true);
       const r = await fetch("/api/subscription");
       if (r.status === 401) {
         setTier(null);
@@ -94,6 +97,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         setTierName(null);
         setLimits(null);
       }
+      initialFetchDone.current = true;
       setLoading(false);
     } catch {
       setTier("free");
@@ -102,6 +106,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       setIsAdmin(false);
       setStatus(null);
       setCurrentPeriodEnd(null);
+      initialFetchDone.current = true;
       setLoading(false);
     }
   }, []);

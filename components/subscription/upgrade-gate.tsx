@@ -154,36 +154,10 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
     }
   }, [matchedTierId]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-4 h-4 border-2 border-navy-600 border-t-navy-300 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (meetsMinTier(minTier)) {
-    return <>{children}</>;
-  }
-
-  // Not authenticated - redirect to login
-  if (tier === null && !loading) {
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-4 h-4 border-2 border-navy-600 border-t-navy-300 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const perks = TIER_PERKS[minTier] || TIER_PERKS.analyst;
-  const stat = LIVE_STATS[statIndex];
-  const StatIcon = stat.icon;
   const priceDisplay = tierPrice ? `$${(tierPrice / 100).toFixed(0)}/mo` : null;
 
-  // Show payment form
+  // Show payment form -- must be checked BEFORE loading so that polling
+  // during checkout doesn't unmount the Stripe Elements form
   if (showCheckout && clientSecret) {
     return (
       <div className="relative min-h-[70vh] flex items-center justify-center">
@@ -221,6 +195,34 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
       </div>
     );
   }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-4 h-4 border-2 border-navy-600 border-t-navy-300 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (meetsMinTier(minTier)) {
+    return <>{children}</>;
+  }
+
+  // Not authenticated - redirect to login
+  if (tier === null) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-4 h-4 border-2 border-navy-600 border-t-navy-300 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const perks = TIER_PERKS[minTier] || TIER_PERKS.analyst;
+  const stat = LIVE_STATS[statIndex];
+  const StatIcon = stat.icon;
 
   return (
     <div className="relative min-h-[70vh]">
