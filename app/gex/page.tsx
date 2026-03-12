@@ -9,10 +9,10 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
-  BookOpen,
   ChevronDown,
   ChevronRight,
   Clock,
+  Eye,
   Gauge,
   Layers,
   Radio,
@@ -155,79 +155,194 @@ const TRIGGER_COLORS: Record<string, string> = {
   flip: "text-accent-amber",
 };
 
-// ── Sub-components ──
+// ── Info Tooltip ──
 
-function FragilityGauge({ fragility, regime }: { fragility: FragilityData; regime: string }) {
-  const colors = FRAGILITY_COLORS[fragility.level];
-  const needleRad = Math.PI * (1 - fragility.score / 100); // π (left) to 0 (right)
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button
+        onClick={() => setOpen(!open)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-navy-600/50 text-navy-500 hover:text-navy-300 hover:border-navy-500/50 transition-colors cursor-help"
+        aria-label="More info"
+      >
+        <span className="text-[8px] font-mono font-bold leading-none">i</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2.5 rounded-lg bg-navy-800 border border-navy-700/60 shadow-xl">
+          <p className="text-[10px] text-navy-300 leading-relaxed">{text}</p>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-navy-800 border-r border-b border-navy-700/60 rotate-45" />
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ── NEW: Regime Summary Banner ──
+
+function RegimeSummaryBanner({
+  data,
+  selectedSummary,
+}: {
+  data: GEXResponse;
+  selectedSummary: GEXSummary;
+}) {
+  const rc = REGIME_COLORS[data.aggregateRegime];
+  const fc = FRAGILITY_COLORS[data.fragility.level];
+
+  // Determine the primary data source quality
+  const liveCount = data.summaries.filter((s) => s.dataSource === "live").length;
+  const avgConfidence = data.summaries.reduce((sum, s) => sum + s.confidence, 0) / data.summaries.length;
+  const isEstimated = liveCount === 0;
+
+  // Build the actionable read
+  const regimeVerb = data.aggregateRegime === "dampening"
+    ? "Dealers are net long gamma. Expect range compression and mean reversion."
+    : data.aggregateRegime === "amplifying"
+    ? "Dealers are net short gamma. Moves will be amplified by hedging flows."
+    : "Gamma is near the flip level. Positioning is balanced, watch for directional triggers.";
+
+  const flipNote = selectedSummary.flipDistance > 0
+    ? `Gamma flip at ${formatPrice(selectedSummary.zeroGammaLevel)} (${selectedSummary.flipDistance}% from spot).`
+    : "";
+
+  const opexNote = data.opex.daysUntil <= 2
+    ? `OPEX in ${data.opex.daysUntil}d -- gamma pinning and charm decay will dominate.`
+    : data.opex.daysUntil <= 5
+    ? `${data.opex.type} OPEX in ${data.opex.daysUntil}d. Gamma concentration rising.`
+    : "";
 
   return (
-    <div className={`border ${fragility.level === "critical" ? "border-accent-rose/40" : fragility.level === "elevated" ? "border-accent-amber/40" : "border-navy-700/40"} rounded-lg ${colors.bg} p-5`}>
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-            Market Fragility
-          </span>
-          <div className={`mt-1 font-mono text-2xl font-light tracking-wider ${colors.text}`}>
-            {fragility.level.toUpperCase()}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className={`font-mono text-3xl font-light tabular-nums ${colors.text}`}>
-            {fragility.score}
-          </div>
-          <span className="text-[10px] font-mono text-navy-600">/ 100</span>
-        </div>
-      </div>
-
-      {/* Gauge arc */}
-      <div className="relative h-16 mb-3 flex items-end justify-center">
-        <svg viewBox="0 0 200 100" className="w-full max-w-[280px] h-auto">
-          {/* Background arc */}
-          <path
-            d="M 10 95 A 90 90 0 0 1 190 95"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="6"
-            className="text-navy-800"
-          />
-          {/* Colored segments */}
-          <path d="M 10 95 A 90 90 0 0 1 55 20" fill="none" stroke="currentColor" strokeWidth="6" className="text-accent-emerald/40" />
-          <path d="M 55 20 A 90 90 0 0 1 100 5" fill="none" stroke="currentColor" strokeWidth="6" className="text-accent-cyan/40" />
-          <path d="M 100 5 A 90 90 0 0 1 145 20" fill="none" stroke="currentColor" strokeWidth="6" className="text-accent-amber/40" />
-          <path d="M 145 20 A 90 90 0 0 1 190 95" fill="none" stroke="currentColor" strokeWidth="6" className="text-accent-rose/40" />
-          {/* Needle */}
-          <line
-            x1="100"
-            y1="95"
-            x2={100 + 70 * Math.cos(needleRad)}
-            y2={95 - 70 * Math.sin(needleRad)}
-            stroke="currentColor"
-            strokeWidth="2"
-            className={colors.text}
-          />
-          <circle cx="100" cy="95" r="4" fill="currentColor" className={colors.text} />
-        </svg>
-      </div>
-
-      {/* Component breakdown */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Regime", value: fragility.components.regime, max: 60 },
-          { label: "Signals", value: fragility.components.signals, max: 45 },
-          { label: "OPEX", value: fragility.components.opex, max: 10 },
-          { label: "Divergence", value: fragility.components.divergence, max: 10 },
-        ].map((c) => (
-          <div key={c.label} className="text-center">
-            <div className="h-1 rounded-full bg-navy-800 mb-1">
-              <div
-                className={`h-1 rounded-full ${colors.fill} transition-all duration-700`}
-                style={{ width: `${c.max > 0 ? Math.min((c.value / c.max) * 100, 100) : 0}%` }}
-              />
+    <div className={`border ${rc.border} rounded-lg ${rc.bg} p-4`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
+            <div className={`flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider ${rc.text}`}>
+              <Activity className="h-3.5 w-3.5" />
+              {data.aggregateRegime} regime
             </div>
-            <span className="text-[9px] font-mono text-navy-600 uppercase">{c.label}</span>
+            <div className={`flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider ${fc.text}`}>
+              Fragility: {data.fragility.score}/100
+            </div>
+            {isEstimated && (
+              <div className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-accent-amber bg-accent-amber/10 px-2 py-0.5 rounded">
+                <Eye className="h-3 w-3" />
+                Estimated data ({(avgConfidence * 100).toFixed(0)}% confidence)
+              </div>
+            )}
+            {!isEstimated && (
+              <div className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-accent-emerald bg-accent-emerald/10 px-2 py-0.5 rounded">
+                <Eye className="h-3 w-3" />
+                Live options data ({liveCount}/{data.summaries.length})
+              </div>
+            )}
           </div>
-        ))}
+          <p className="text-xs text-navy-200 leading-relaxed">
+            {regimeVerb} {flipNote} {opexNote}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="font-mono text-[10px] text-navy-600 uppercase tracking-wider">
+            {selectedSummary.ticker} Spot
+          </div>
+          <div className="font-mono text-lg text-navy-100 tabular-nums">
+            ${selectedSummary.spotPrice.toFixed(2)}
+          </div>
+          <div className="font-mono text-[10px] text-navy-500">
+            1D implied: {selectedSummary.impliedMove1Day}%
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-components ──
+
+function FragilityGauge({ fragility }: { fragility: FragilityData }) {
+  const colors = FRAGILITY_COLORS[fragility.level];
+  const needleAngle = -90 + (fragility.score / 100) * 180;
+
+  const components = [
+    { label: "Regime", value: fragility.components.regime, max: 60, desc: "Gamma positioning" },
+    { label: "Signals", value: fragility.components.signals, max: 45, desc: "Active convergence" },
+    { label: "OPEX", value: fragility.components.opex, max: 10, desc: "Expiry proximity" },
+    { label: "Divergence", value: fragility.components.divergence, max: 10, desc: "Flow conflict" },
+  ];
+
+  return (
+    <div className={`border ${fragility.level === "critical" ? "border-accent-rose/40" : fragility.level === "elevated" ? "border-accent-amber/40" : "border-navy-700/40"} rounded-lg bg-navy-950/60 p-5 flex flex-col`}>
+      <div className="flex items-center gap-2 mb-5">
+        <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
+          Market Fragility
+        </span>
+        <InfoTip text="Composite score (0-100) measuring how vulnerable the market is to sharp moves. Combines gamma regime, signal convergence, OPEX proximity, and flow divergence. Higher scores mean dealers are less able to absorb shocks." />
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="relative w-full max-w-[240px] mx-auto">
+          <svg viewBox="0 0 200 120" className="w-full h-auto overflow-visible">
+            <path d="M 15 105 A 85 85 0 0 1 185 105" fill="none" stroke="currentColor" strokeWidth="3" className="text-navy-800/60" />
+            <path d="M 15 105 A 85 85 0 0 1 57.5 25" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" className="text-accent-emerald/25" />
+            <path d="M 57.5 25 A 85 85 0 0 1 100 13" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" className="text-accent-cyan/25" />
+            <path d="M 100 13 A 85 85 0 0 1 142.5 25" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" className="text-accent-amber/25" />
+            <path d="M 142.5 25 A 85 85 0 0 1 185 105" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" className="text-accent-rose/25" />
+            {fragility.score > 0 && (
+              <path
+                d="M 15 105 A 85 85 0 0 1 185 105"
+                fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round"
+                className={colors.text}
+                style={{ strokeDasharray: `${(fragility.score / 100) * 267} 267`, opacity: 0.6, transition: "stroke-dasharray 1s ease-out" }}
+              />
+            )}
+            {[0, 25, 50, 75, 100].map((tick) => {
+              const angle = Math.PI * (1 - tick / 100);
+              return (
+                <line key={tick} x1={100 + 76 * Math.cos(angle)} y1={105 - 76 * Math.sin(angle)} x2={100 + 82 * Math.cos(angle)} y2={105 - 82 * Math.sin(angle)} stroke="currentColor" strokeWidth="1.5" className="text-navy-600" />
+              );
+            })}
+            <g style={{ transform: `rotate(${needleAngle}deg)`, transformOrigin: "100px 105px", transition: "transform 1s ease-out" }}>
+              <line x1="100" y1="105" x2="100" y2="32" stroke="currentColor" strokeWidth="1.5" className={colors.text} />
+              <circle cx="100" cy="32" r="2" fill="currentColor" className={colors.text} />
+            </g>
+            <circle cx="100" cy="105" r="5" fill="currentColor" className="text-navy-700" />
+            <circle cx="100" cy="105" r="2.5" fill="currentColor" className={colors.text} />
+            <text x="12" y="118" className="fill-navy-600" style={{ fontSize: "7px", fontFamily: "monospace" }}>0</text>
+            <text x="91" y="8" className="fill-navy-600" style={{ fontSize: "7px", fontFamily: "monospace" }}>50</text>
+            <text x="180" y="118" className="fill-navy-600" style={{ fontSize: "7px", fontFamily: "monospace" }}>100</text>
+          </svg>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center pb-1">
+            <div className={`font-mono text-2xl font-light tabular-nums tracking-tight ${colors.text}`}>{fragility.score}</div>
+            <div className={`font-mono text-[10px] uppercase tracking-widest ${colors.text} opacity-70`}>{fragility.level}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-2.5">
+        {components.map((c) => {
+          const pct = c.max > 0 ? Math.min((c.value / c.max) * 100, 100) : 0;
+          return (
+            <div key={c.label}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider w-20">{c.label}</span>
+                  <span className="text-[9px] text-navy-600 hidden lg:inline">{c.desc}</span>
+                </div>
+                <span className="text-[10px] font-mono tabular-nums text-navy-400">
+                  {c.value}<span className="text-navy-700">/{c.max}</span>
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-navy-800/80">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-700 ${pct > 70 ? "bg-accent-rose/70" : pct > 40 ? "bg-accent-amber/70" : "bg-accent-emerald/70"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -245,12 +360,11 @@ function CrossAssetStrip({ summaries }: { summaries: GEXSummary[] }) {
               <span className="font-mono text-sm text-navy-300 tabular-nums">${s.spotPrice.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-2 mb-2">
-              <span className={`text-[10px] font-mono uppercase tracking-wider ${rc.text}`}>
-                {s.regime}
-              </span>
+              <span className={`text-[10px] font-mono uppercase tracking-wider ${rc.text}`}>{s.regime}</span>
               <span className={`text-[10px] font-mono ${s.dataSource === "live" ? "text-accent-emerald" : "text-accent-amber"}`}>
                 {s.dataSource === "live" ? "LIVE" : "EST"}
               </span>
+              <span className="text-[9px] font-mono text-navy-600">{(s.confidence * 100).toFixed(0)}%</span>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
               <div>
@@ -279,80 +393,71 @@ function CrossAssetStrip({ summaries }: { summaries: GEXSummary[] }) {
   );
 }
 
-function KeyLevelsLadder({ summary }: { summary: GEXSummary }) {
-  // Build a vertical price ladder showing key levels
-  const allPrices = [
-    { price: summary.callWall, label: "CALL WALL", color: "text-accent-rose", bgColor: "bg-accent-rose" },
-    { price: summary.zeroGammaLevel, label: "ZERO GAMMA", color: "text-accent-amber", bgColor: "bg-accent-amber" },
-    { price: summary.spotPrice, label: "SPOT", color: "text-navy-100", bgColor: "bg-navy-100" },
-    { price: summary.putWall, label: "PUT WALL", color: "text-accent-emerald", bgColor: "bg-accent-emerald" },
-  ].sort((a, b) => b.price - a.price);
+// ── NEW: Redesigned Key Levels (no overlap) ──
 
-  const maxPrice = Math.max(...allPrices.map((p) => p.price));
-  const minPrice = Math.min(...allPrices.map((p) => p.price));
-  const range = maxPrice - minPrice || 1;
+function KeyLevelsLadder({ summary }: { summary: GEXSummary }) {
+  const levels = [
+    { price: summary.callWall, label: "CALL WALL", color: "text-accent-rose", dotColor: "bg-accent-rose" },
+    { price: summary.zeroGammaLevel, label: "ZERO GAMMA", color: "text-accent-amber", dotColor: "bg-accent-amber" },
+    { price: summary.spotPrice, label: "SPOT", color: "text-navy-100", dotColor: "bg-navy-100" },
+    { price: summary.putWall, label: "PUT WALL", color: "text-accent-emerald", dotColor: "bg-accent-emerald" },
+  ].sort((a, b) => b.price - a.price);
 
   return (
     <div className="border border-navy-700/40 rounded-lg bg-navy-950/60 p-4">
       <div className="flex items-center gap-2 mb-4">
         <Layers className="h-3.5 w-3.5 text-navy-500" />
         <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-          Key Levels
+          Key Levels <InfoTip text="Strike prices with the highest gamma exposure. These act as magnets or barriers for price. Positive GEX strikes dampen moves (dealers buy dips, sell rips). Negative GEX strikes amplify moves." />
         </span>
       </div>
 
-      <div className="relative h-48 flex">
-        {/* Vertical price bar */}
-        <div className="relative w-2 bg-navy-800 rounded-full mr-4 flex-shrink-0">
-          {allPrices.map((level) => {
-            const pct = ((maxPrice - level.price) / range) * 100;
-            return (
-              <div
-                key={level.label}
-                className={`absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full ${level.bgColor} ring-2 ring-navy-950`}
-                style={{ top: `${Math.min(Math.max(pct, 2), 98)}%`, transform: "translate(-50%, -50%)" }}
-              />
-            );
-          })}
-          {/* Range fill between put wall and call wall */}
-          <div
-            className="absolute left-0 w-full bg-navy-600/20 rounded"
-            style={{
-              top: `${((maxPrice - summary.callWall) / range) * 100}%`,
-              height: `${((summary.callWall - summary.putWall) / range) * 100}%`,
-            }}
-          />
-        </div>
+      {/* Row-based layout avoids overlap */}
+      <div className="space-y-0">
+        {levels.map((level, i) => {
+          const isSpot = level.label === "SPOT";
+          const pctFromSpot = ((level.price - summary.spotPrice) / summary.spotPrice * 100).toFixed(2);
+          const showDistance = !isSpot && summary.spotPrice > 0;
 
-        {/* Labels */}
-        <div className="relative flex-1">
-          {allPrices.map((level) => {
-            const pct = ((maxPrice - level.price) / range) * 100;
-            const isSpot = level.label === "SPOT";
-            return (
-              <div
-                key={level.label}
-                className="absolute left-0 flex items-center gap-2"
-                style={{ top: `${Math.min(Math.max(pct, 2), 98)}%`, transform: "translateY(-50%)" }}
-              >
-                <span className={`text-[10px] font-mono uppercase tracking-wider ${level.color} ${isSpot ? "font-semibold" : ""}`}>
-                  {level.label}
-                </span>
-                <span className={`text-[11px] font-mono tabular-nums ${isSpot ? "text-navy-100" : "text-navy-400"}`}>
-                  {formatPrice(level.price)}
-                </span>
-                {isSpot && (
-                  <span className="text-[9px] font-mono text-navy-600">
-                    ({summary.regime === "dampening" ? "STABLE ZONE" : summary.regime === "amplifying" ? "FRAGILE ZONE" : "INFLECTION"})
+          return (
+            <div key={level.label}>
+              <div className={`flex items-center gap-3 py-2.5 px-2 rounded ${isSpot ? "bg-navy-800/40" : "hover:bg-navy-800/20"} transition-colors`}>
+                <div className={`w-2 h-2 rounded-full shrink-0 ${level.dotColor}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-mono uppercase tracking-wider ${level.color} ${isSpot ? "font-semibold" : ""}`}>
+                      {level.label}
+                    </span>
+                    {isSpot && (
+                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                        summary.regime === "dampening" ? "bg-accent-emerald/10 text-accent-emerald" :
+                        summary.regime === "amplifying" ? "bg-accent-rose/10 text-accent-rose" :
+                        "bg-accent-amber/10 text-accent-amber"
+                      }`}>
+                        {summary.regime === "dampening" ? "STABLE" : summary.regime === "amplifying" ? "FRAGILE" : "INFLECTION"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className={`font-mono text-xs tabular-nums ${isSpot ? "text-navy-100 font-semibold" : "text-navy-300"}`}>
+                    {formatPrice(level.price)}
                   </span>
-                )}
+                  {showDistance && (
+                    <span className="text-[9px] font-mono text-navy-600 ml-2">
+                      {Number(pctFromSpot) > 0 ? "+" : ""}{pctFromSpot}%
+                    </span>
+                  )}
+                </div>
               </div>
-            );
-          })}
-        </div>
+              {i < levels.length - 1 && (
+                <div className="ml-3 border-l border-navy-800 h-1" />
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Dealer flow arrows */}
       <div className="mt-3 border-t border-navy-800 pt-3">
         <div className="flex items-center justify-between text-[10px] font-mono">
           <div className="flex items-center gap-1.5">
@@ -377,7 +482,7 @@ function TriggerCascade({ triggers }: { triggers: TriggerLevel[] }) {
       <div className="flex items-center gap-2 mb-3">
         <Zap className="h-3.5 w-3.5 text-accent-amber" />
         <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-          Trigger Cascade
+          Trigger Cascade <InfoTip text="Ordered sequence of price levels that, if breached, would force dealer re-hedging and potentially trigger a cascade of further moves. Watch for clustering near current price." />
         </span>
       </div>
       <div className="space-y-1">
@@ -399,7 +504,6 @@ function TriggerCascade({ triggers }: { triggers: TriggerLevel[] }) {
                 <span className="font-mono text-[11px] text-navy-300 tabular-nums flex-1 text-left">
                   {formatPrice(t.price)}
                 </span>
-                {/* Intensity bar */}
                 <div className="w-12 h-1 rounded-full bg-navy-800">
                   <div
                     className={`h-1 rounded-full ${color.replace("text-", "bg-")}`}
@@ -439,7 +543,7 @@ function ScenarioModeler({ profile, spotPrice }: { profile: ScenarioPoint[]; spo
         <div className="flex items-center gap-2">
           <Gauge className="h-3.5 w-3.5 text-accent-cyan" />
           <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-            Scenario Modeler
+            Scenario Modeler <InfoTip text="Interactive chart showing how net gamma exposure changes across strike prices. Hover to see the gamma value at each strike. The zero-crossing point (gamma flip) is where dealer hedging switches from stabilizing to destabilizing." />
           </span>
         </div>
         {activePoint && (
@@ -459,14 +563,12 @@ function ScenarioModeler({ profile, spotPrice }: { profile: ScenarioPoint[]; spo
         Hover to see how net gamma changes as price moves. Regime shifts shown by color.
       </p>
 
-      {/* Bar chart */}
       <div className="flex items-end gap-px h-24">
         {profile.map((point, i) => {
           const height = (Math.abs(point.netGEX) / maxAbsGEX) * 100;
           const isPositive = point.netGEX >= 0;
           const isZero = point.spotDelta === 0;
           const isHovered = hoverIndex === i;
-          const rc = REGIME_COLORS[point.regime];
 
           return (
             <div
@@ -478,16 +580,11 @@ function ScenarioModeler({ profile, spotPrice }: { profile: ScenarioPoint[]; spo
               <div
                 className={`w-full rounded-t transition-all duration-100 ${
                   isHovered
-                    ? isPositive
-                      ? "bg-accent-emerald/60"
-                      : "bg-accent-rose/60"
-                    : isPositive
-                      ? "bg-accent-emerald/25"
-                      : "bg-accent-rose/25"
+                    ? isPositive ? "bg-accent-emerald/60" : "bg-accent-rose/60"
+                    : isPositive ? "bg-accent-emerald/25" : "bg-accent-rose/25"
                 } ${isZero ? "ring-1 ring-navy-400" : ""}`}
                 style={{ height: `${Math.max(height, 2)}%` }}
               />
-              {/* Regime change indicators */}
               {i > 0 && profile[i - 1].regime !== point.regime && (
                 <div className="absolute -top-1 w-full h-px bg-accent-amber" />
               )}
@@ -496,7 +593,6 @@ function ScenarioModeler({ profile, spotPrice }: { profile: ScenarioPoint[]; spo
         })}
       </div>
 
-      {/* X-axis labels */}
       <div className="flex justify-between mt-1">
         <span className="text-[9px] font-mono text-navy-600">-5%</span>
         <span className="text-[9px] font-mono text-navy-500">SPOT</span>
@@ -506,11 +602,23 @@ function ScenarioModeler({ profile, spotPrice }: { profile: ScenarioPoint[]; spo
   );
 }
 
+// ── NEW: Redesigned Gamma Profile as dual-sided vertical bar chart ──
+
 function GammaProfile({ summary }: { summary: GEXSummary }) {
-  const maxAbsGamma = Math.max(
-    ...summary.levels.map((l) => Math.abs(l.netGamma)),
-    1
-  );
+  const [hoveredStrike, setHoveredStrike] = useState<number | null>(null);
+
+  // Take the most significant levels around spot
+  const sorted = [...summary.levels].sort((a, b) => a.strike - b.strike);
+  const spotIdx = sorted.findIndex((l) => l.strike >= summary.spotPrice);
+  const windowSize = 12;
+  const start = Math.max(0, (spotIdx > 0 ? spotIdx : Math.floor(sorted.length / 2)) - windowSize);
+  const visibleLevels = sorted.slice(start, start + windowSize * 2 + 1);
+
+  const maxCallGamma = Math.max(...visibleLevels.map((l) => Math.abs(l.callGamma)), 1);
+  const maxPutGamma = Math.max(...visibleLevels.map((l) => Math.abs(l.putGamma)), 1);
+  const maxGamma = Math.max(maxCallGamma, maxPutGamma);
+
+  const hoveredLevel = hoveredStrike !== null ? visibleLevels.find((l) => l.strike === hoveredStrike) : null;
 
   return (
     <div className="border border-navy-700/40 rounded-lg bg-navy-950/60 p-4">
@@ -518,51 +626,101 @@ function GammaProfile({ summary }: { summary: GEXSummary }) {
         <div className="flex items-center gap-2">
           <Sigma className="h-3.5 w-3.5 text-navy-500" />
           <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-            Gamma Profile
+            Gamma Profile <InfoTip text="Dual-sided chart showing call gamma (up, green) vs put gamma (down, red) at each strike. The strike with the tallest bar creates the strongest support or resistance. Spot price highlighted." />
           </span>
         </div>
-        <div className="flex items-center gap-4 text-[9px] font-mono text-navy-600">
-          <span>NEG (amplify)</span>
-          <span>POS (dampen)</span>
+        {hoveredLevel ? (
+          <div className="flex items-center gap-3 text-[10px] font-mono">
+            <span className="text-navy-300">{formatPrice(hoveredLevel.strike)}</span>
+            <span className="text-accent-emerald">C: {formatNumber(hoveredLevel.callGamma)}</span>
+            <span className="text-accent-rose">P: {formatNumber(hoveredLevel.putGamma)}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 text-[9px] font-mono text-navy-600">
+            <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-accent-emerald/40" /> Calls</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-accent-rose/40" /> Puts</span>
+          </div>
+        )}
+      </div>
+
+      {/* Dual bar chart: calls up, puts down */}
+      <div className="relative">
+        {/* Call gamma bars (upward) */}
+        <div className="flex items-end gap-px h-20">
+          {visibleLevels.map((level) => {
+            const height = maxGamma > 0 ? (Math.abs(level.callGamma) / maxGamma) * 100 : 0;
+            const isNearSpot = Math.abs(level.strike - summary.spotPrice) / summary.spotPrice < 0.005;
+            const isHovered = hoveredStrike === level.strike;
+
+            return (
+              <div
+                key={`call-${level.strike}`}
+                className="flex-1 flex flex-col justify-end cursor-crosshair"
+                onMouseEnter={() => setHoveredStrike(level.strike)}
+                onMouseLeave={() => setHoveredStrike(null)}
+              >
+                <div
+                  className={`w-full rounded-t transition-all duration-100 ${
+                    isHovered ? "bg-accent-emerald/60" : isNearSpot ? "bg-accent-emerald/50" : "bg-accent-emerald/25"
+                  }`}
+                  style={{ height: `${Math.max(height, 1)}%` }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Center line with spot marker */}
+        <div className="relative h-5 border-t border-b border-navy-700/40 flex items-center">
+          {visibleLevels.map((level, i) => {
+            const isNearSpot = Math.abs(level.strike - summary.spotPrice) / summary.spotPrice < 0.005;
+            return (
+              <div key={`label-${level.strike}`} className="flex-1 text-center">
+                {isNearSpot && (
+                  <div className="flex items-center justify-center gap-0.5">
+                    <div className="w-1 h-1 rounded-full bg-navy-100" />
+                    <span className="text-[7px] font-mono text-navy-300 uppercase">Spot</span>
+                  </div>
+                )}
+                {i === 0 && !visibleLevels.some((l) => Math.abs(l.strike - summary.spotPrice) / summary.spotPrice < 0.005) && (
+                  <span className="text-[7px] font-mono text-navy-600">{visibleLevels[0].strike.toFixed(0)}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Put gamma bars (downward) */}
+        <div className="flex items-start gap-px h-20">
+          {visibleLevels.map((level) => {
+            const height = maxGamma > 0 ? (Math.abs(level.putGamma) / maxGamma) * 100 : 0;
+            const isNearSpot = Math.abs(level.strike - summary.spotPrice) / summary.spotPrice < 0.005;
+            const isHovered = hoveredStrike === level.strike;
+
+            return (
+              <div
+                key={`put-${level.strike}`}
+                className="flex-1 flex flex-col justify-start cursor-crosshair"
+                onMouseEnter={() => setHoveredStrike(level.strike)}
+                onMouseLeave={() => setHoveredStrike(null)}
+              >
+                <div
+                  className={`w-full rounded-b transition-all duration-100 ${
+                    isHovered ? "bg-accent-rose/60" : isNearSpot ? "bg-accent-rose/50" : "bg-accent-rose/25"
+                  }`}
+                  style={{ height: `${Math.max(height, 1)}%` }}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <div className="max-h-56 overflow-y-auto space-y-px">
-        {summary.levels.map((level) => {
-          const normalizedNet = maxAbsGamma > 0 ? level.netGamma / maxAbsGamma : 0;
-          const barWidth = Math.min(Math.abs(normalizedNet) * 100, 100);
-          const isPositive = level.netGamma >= 0;
-          const isNearSpot =
-            Math.abs(level.strike - summary.spotPrice) / summary.spotPrice < 0.005;
-
-          return (
-            <div
-              key={level.strike}
-              className={`flex items-center gap-2 py-0.5 ${isNearSpot ? "bg-navy-800/40 rounded" : ""}`}
-            >
-              <span className={`w-14 text-right font-mono text-[10px] tabular-nums ${isNearSpot ? "text-navy-100 font-semibold" : "text-navy-500"}`}>
-                {level.strike.toFixed(0)}
-              </span>
-              <div className="relative flex h-3 flex-1 items-center">
-                <div className="absolute left-1/2 top-0 h-full w-px bg-navy-700/40" />
-                {isPositive ? (
-                  <div
-                    className="absolute left-1/2 h-2.5 rounded-r bg-accent-emerald/30"
-                    style={{ width: `${barWidth / 2}%` }}
-                  />
-                ) : (
-                  <div
-                    className="absolute right-1/2 h-2.5 rounded-l bg-accent-rose/30"
-                    style={{ width: `${barWidth / 2}%` }}
-                  />
-                )}
-              </div>
-              <span className="w-14 font-mono text-[9px] text-navy-600 tabular-nums text-right">
-                {formatNumber(level.netGamma)}
-              </span>
-            </div>
-          );
-        })}
+      {/* Strike range */}
+      <div className="flex justify-between mt-1">
+        <span className="text-[9px] font-mono text-navy-600">{visibleLevels.length > 0 ? formatPrice(visibleLevels[0].strike) : ""}</span>
+        <span className="text-[9px] font-mono text-navy-500">Strike Range</span>
+        <span className="text-[9px] font-mono text-navy-600">{visibleLevels.length > 0 ? formatPrice(visibleLevels[visibleLevels.length - 1].strike) : ""}</span>
       </div>
     </div>
   );
@@ -576,7 +734,7 @@ function FlowDivergenceCard({ divergence }: { divergence: FlowDivergence }) {
       <div className="flex items-center gap-2 mb-2">
         <AlertTriangle className="h-3.5 w-3.5 text-accent-amber" />
         <span className="text-[10px] font-mono uppercase tracking-widest text-accent-amber">
-          Flow Divergence Detected
+          Flow Divergence Detected <InfoTip text="Flags when options flow contradicts the prevailing gamma regime. For example, heavy put buying during positive gamma suggests smart money is positioning for a regime change. These divergences often precede sharp moves." />
         </span>
       </div>
       <p className="text-xs text-navy-300 leading-relaxed">
@@ -604,7 +762,7 @@ function OpexClock({ opex }: { opex: OpexData }) {
       <div className="flex items-center gap-2 mb-3">
         <Clock className="h-3.5 w-3.5 text-navy-500" />
         <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-          OPEX Gamma Clock
+          OPEX Gamma Clock <InfoTip text="Countdown to options expiration. As OPEX approaches, gamma increases sharply (charm effect) and dealers must hedge more aggressively. The final 24-48 hours typically see the most pronounced gamma-driven moves." />
         </span>
       </div>
 
@@ -661,7 +819,7 @@ function SignalConvergencePanel({ signals, regime }: { signals: ActiveSignal[]; 
       <div className="flex items-center gap-2 mb-3">
         <Radio className="h-3.5 w-3.5 text-accent-cyan" />
         <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-          Signal Convergence
+          Signal Convergence <InfoTip text="Shows when multiple gamma indicators align in the same direction. Convergence of negative gamma, flow divergence, and OPEX proximity creates compound risk." />
         </span>
         {regime === "amplifying" && (
           <span className="text-[9px] font-mono uppercase tracking-wider bg-accent-rose/15 text-accent-rose px-1.5 py-0.5 rounded">
@@ -683,9 +841,7 @@ function SignalConvergencePanel({ signals, regime }: { signals: ActiveSignal[]; 
               {Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
-                  className={`w-1 h-3 rounded-sm ${
-                    i < s.intensity ? "bg-accent-rose" : "bg-navy-800"
-                  }`}
+                  className={`w-1 h-3 rounded-sm ${i < s.intensity ? "bg-accent-rose" : "bg-navy-800"}`}
                 />
               ))}
             </div>
@@ -693,85 +849,6 @@ function SignalConvergencePanel({ signals, regime }: { signals: ActiveSignal[]; 
             <span className="text-[11px] text-navy-300 truncate flex-1">{s.title}</span>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function HistoricalContext({ regime }: { regime: string }) {
-  // Reference events with documented gamma regimes and verified price moves.
-  // Regime classifications sourced from SpotGamma/SqueezeMetrics contemporaneous reports.
-  const references = [
-    {
-      event: "SVB Collapse",
-      date: "Mar 2023",
-      regime: "amplifying",
-      outcome: "SPY -4.6% in 3 sessions. Negative gamma accelerated selling into bank contagion fears.",
-    },
-    {
-      event: "Oct 2023 Rally",
-      date: "Oct 2023",
-      regime: "dampening",
-      outcome: "SPY +10.8% in 6 weeks. Positive gamma pinned market, allowing steady grind higher.",
-    },
-    {
-      event: "Japan Carry Unwind",
-      date: "Aug 2024",
-      regime: "amplifying",
-      outcome: "SPY -5.8% in 3 days. VIX > 60. Negative gamma + macro shock = cascading unwind.",
-    },
-    {
-      event: "Pre-Election Hedge",
-      date: "Oct 2024",
-      regime: "neutral",
-      outcome: "SPY range-bound. Hedging activity elevated but balanced. Post-election gamma flip drove rally.",
-    },
-  ];
-
-  // Highlight events with the same regime as current
-  const sameRegime = references.filter((r) => r.regime === regime);
-
-  return (
-    <div className="border border-navy-700/40 rounded-lg bg-navy-950/60 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <BookOpen className="h-3.5 w-3.5 text-navy-500" />
-        <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-          Historical Context
-        </span>
-      </div>
-
-      <div className="space-y-2.5">
-        {references.map((ref) => {
-          const matchesRegime = sameRegime.includes(ref);
-          return (
-            <div
-              key={ref.event}
-              className={`p-2.5 rounded border ${
-                matchesRegime
-                  ? "border-accent-cyan/30 bg-accent-cyan/[0.04]"
-                  : "border-navy-800/40 bg-navy-900/20"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-navy-200 font-medium">{ref.event}</span>
-                  {matchesRegime && (
-                    <span className="text-[9px] font-mono uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 px-1 py-0.5 rounded">
-                      SAME REGIME
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] font-mono text-navy-600">{ref.date}</span>
-              </div>
-              <div className="flex items-center gap-3 mb-1">
-                <span className={`text-[9px] font-mono uppercase ${REGIME_COLORS[ref.regime as keyof typeof REGIME_COLORS]?.text || "text-navy-500"}`}>
-                  {ref.regime}
-                </span>
-              </div>
-              <p className="text-[10px] text-navy-500 leading-relaxed">{ref.outcome}</p>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
@@ -802,7 +879,6 @@ export default function GEXPage() {
 
   useEffect(() => {
     fetchGEX();
-    // 15min poll, pause when tab hidden
     const startPolling = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (document.visibilityState === "visible") {
@@ -834,6 +910,7 @@ export default function GEXPage() {
 
         {loading ? (
           <div className="space-y-4">
+            <Skeleton className="h-20" />
             <div className="grid grid-cols-3 gap-4">
               <Skeleton className="h-64" />
               <Skeleton className="h-64 col-span-2" />
@@ -846,19 +923,22 @@ export default function GEXPage() {
               <Skeleton className="h-80" />
             </div>
           </div>
-        ) : data ? (
+        ) : data && selectedSummary ? (
           <div className="space-y-4">
+
+            {/* ── Row 0: Regime Summary Banner ── */}
+            <RegimeSummaryBanner data={data} selectedSummary={selectedSummary} />
 
             {/* ── Row 1: Fragility Gauge + Cross-Asset Narrative ── */}
             <div className="grid grid-cols-3 gap-4">
-              <FragilityGauge fragility={data.fragility} regime={data.aggregateRegime} />
+              <FragilityGauge fragility={data.fragility} />
 
               <div className="col-span-2 border border-navy-700/40 rounded-lg bg-navy-950/60 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Activity className="h-3.5 w-3.5 text-navy-500" />
                     <span className="text-[10px] font-mono uppercase tracking-widest text-navy-500">
-                      Cross-Asset Regime
+                      Cross-Asset Regime <InfoTip text="Current gamma regime across equities, bonds, commodities, and volatility. Shows whether dealer positioning is dampening or amplifying moves in each asset class. Cross-asset alignment increases systemic risk." />
                     </span>
                   </div>
                   <span className="font-mono text-[10px] text-navy-600">
@@ -874,7 +954,7 @@ export default function GEXPage() {
               </div>
             </div>
 
-            {/* ── Row 2: Ticker Selector + Detail ── */}
+            {/* ── Row 2: Ticker Selector ── */}
             <div className="flex items-center gap-1 border-b border-navy-800 pb-2">
               {data.summaries.map((s) => {
                 const isSelected = s.ticker === selectedTicker;
@@ -896,54 +976,38 @@ export default function GEXPage() {
               })}
             </div>
 
-            {selectedSummary && (
-              <>
-                {/* ── Row 3: Key Levels + Trigger Cascade + Gamma Profile ── */}
-                <div className="grid grid-cols-3 gap-4">
-                  <KeyLevelsLadder summary={selectedSummary} />
-                  <TriggerCascade triggers={selectedSummary.triggerLevels} />
-                  <GammaProfile summary={selectedSummary} />
-                </div>
+            {/* ── Row 3: Key Levels + Trigger Cascade + Gamma Profile ── */}
+            <div className="grid grid-cols-3 gap-4">
+              <KeyLevelsLadder summary={selectedSummary} />
+              <TriggerCascade triggers={selectedSummary.triggerLevels} />
+              <GammaProfile summary={selectedSummary} />
+            </div>
 
-                {/* ── Row 4: Scenario Modeler + Flow Divergence ── */}
-                <div className="grid grid-cols-2 gap-4">
-                  <ScenarioModeler
-                    profile={selectedSummary.scenarioProfile}
-                    spotPrice={selectedSummary.spotPrice}
-                  />
-                  <div className="space-y-4">
-                    <FlowDivergenceCard divergence={selectedSummary.flowDivergence} />
-                    <OpexClock opex={data.opex} />
-                  </div>
-                </div>
+            {/* ── Row 4: Scenario Modeler + Flow Divergence + OPEX ── */}
+            <div className="grid grid-cols-2 gap-4">
+              <ScenarioModeler
+                profile={selectedSummary.scenarioProfile}
+                spotPrice={selectedSummary.spotPrice}
+              />
+              <div className="space-y-4">
+                <FlowDivergenceCard divergence={selectedSummary.flowDivergence} />
+                <OpexClock opex={data.opex} />
+              </div>
+            </div>
 
-                {/* ── Row 5: Signal Convergence + Historical Context ── */}
-                <div className="grid grid-cols-2 gap-4">
-                  <SignalConvergencePanel
-                    signals={data.activeSignals}
-                    regime={data.aggregateRegime}
-                  />
-                  <HistoricalContext
-                    regime={data.aggregateRegime}
-                  />
-                </div>
-              </>
-            )}
+            {/* ── Row 5: Signal Convergence ── */}
+            <SignalConvergencePanel
+              signals={data.activeSignals}
+              regime={data.aggregateRegime}
+            />
 
             {/* ── Methodology ── */}
             <div className="border-t border-navy-800 pt-4 mt-2">
-              <div className="flex items-center gap-2 mb-2">
-                <BookOpen className="h-3 w-3 text-navy-600" />
-                <span className="text-[9px] font-mono uppercase tracking-widest text-navy-600">
-                  Methodology
-                </span>
-              </div>
               <p className="text-[10px] text-navy-600 leading-relaxed max-w-3xl">
                 GEX computed from options chain gamma and open interest per strike. Net GEX = (call gamma x call OI) - (put gamma x put OI) x 100 x spot.
                 Positive net gamma implies dealer hedging suppresses moves (dampening). Negative implies amplification.
                 Trigger levels derived from cumulative gamma inflection points and OI concentration.
                 Fragility score combines GEX regime, active signal intensity, OPEX proximity, and flow divergence.
-                Scenario modeler re-estimates gamma at shifted spot levels using exponential proximity decay.
                 When live options data is unavailable, synthetic estimation uses VIX and put/call ratio as proxies (lower confidence).
               </p>
             </div>

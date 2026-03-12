@@ -314,6 +314,21 @@ export default function TimelinePage() {
                   ? "border-l-accent-amber border-l-[3px]"
                   : "";
 
+            // Build click-through URL based on event type
+            const clickUrl = (() => {
+              if (event.type === "prediction") {
+                const uuid = event.metadata?.uuid as string | undefined;
+                return uuid ? `/predictions/${uuid}` : null;
+              }
+              if (event.type === "signal" && event.sourceId) return `/signals/${event.sourceId}`;
+              if (event.type === "trade") return "/trading";
+              if (event.type === "thesis") return "/knowledge";
+              if (event.type === "alert") return "/alerts";
+              if (event.type === "news" && event.metadata?.url) return null; // handled separately
+              if (event.type === "economic" && event.metadata?.seriesId) return null;
+              return null;
+            })();
+
             return (
               <div key={event.id} className="flex items-start gap-3 group">
                 <div className="w-[7rem] text-right pt-2">
@@ -322,7 +337,13 @@ export default function TimelinePage() {
                 <div className="flex items-center justify-center w-3 pt-2 z-10">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.color }} />
                 </div>
-                <div className={`flex-1 bg-navy-900/60 border border-navy-800 rounded-lg px-4 py-3 hover:border-navy-700 transition-colors group-hover:bg-navy-900/80 max-w-2xl ${outcomeBorder}`}>
+                <div
+                  onClick={() => {
+                    if (clickUrl) router.push(clickUrl);
+                    else if (event.type === "news" && event.metadata?.url) window.open(String(event.metadata.url), "_blank", "noopener");
+                    else if (event.type === "economic" && event.metadata?.seriesId) window.open(`https://fred.stlouisfed.org/series/${event.metadata.seriesId}`, "_blank", "noopener");
+                  }}
+                  className={`flex-1 bg-navy-900/60 border border-navy-800 rounded-lg px-4 py-3 hover:border-navy-700 transition-colors group-hover:bg-navy-900/80 max-w-2xl ${outcomeBorder} ${clickUrl || event.type === "news" || event.type === "economic" ? "cursor-pointer" : ""}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <Icon className="h-3 w-3" style={{ color: config.color }} />
                     <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: config.color }}>
@@ -378,6 +399,42 @@ export default function TimelinePage() {
                   {event.description && (
                     <p className="text-[10px] text-navy-500 mt-1 line-clamp-2">{event.description}</p>
                   )}
+
+                  {/* Prediction detail row: confidence + direction + deadline */}
+                  {isPrediction && !outcome && event.metadata?.confidence != null && (
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-16 h-1.5 rounded-full bg-navy-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              Number(event.metadata.confidence) >= 0.7 ? "bg-accent-emerald/70" :
+                              Number(event.metadata.confidence) >= 0.5 ? "bg-accent-amber/70" :
+                              "bg-navy-500"
+                            }`}
+                            style={{ width: `${Number(event.metadata.confidence) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-[9px] font-mono text-navy-500">
+                          {(Number(event.metadata.confidence) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      {event.metadata?.direction && (
+                        <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded ${
+                          event.metadata.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald" :
+                          event.metadata.direction === "down" ? "bg-accent-rose/10 text-accent-rose" :
+                          "bg-navy-700/40 text-navy-500"
+                        }`}>
+                          {String(event.metadata.direction)}
+                        </span>
+                      )}
+                      {event.metadata?.deadline && (
+                        <span className="text-[9px] font-mono text-navy-600">
+                          due {String(event.metadata.deadline)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {event.sourceType && (
                     <div className="mt-2 text-[9px] text-navy-600 font-mono">
                       {event.sourceType === "news_feed" && event.metadata?.source
