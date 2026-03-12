@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { desc, and, eq, gte, lte, inArray } from "drizzle-orm";
+import { desc, and, eq, gte, lte, inArray, type SQL } from "drizzle-orm";
 import { getCachedNews } from "../news/sync";
 import { getFredSeries, FRED_SERIES, type FredSeriesId } from "../market-data/fred";
 
@@ -216,7 +216,7 @@ function hashCode(str: string): number {
 }
 
 export async function getTimeline(options: { from?: string; to?: string; types?: string[]; categories?: string[]; minSeverity?: number; limit?: number; }): Promise<TimelineEntry[]> {
-  const conditions = [];
+  const conditions: SQL[] = [];
   if (options.from) conditions.push(gte(schema.timelineEvents.timestamp, options.from));
   if (options.to) conditions.push(lte(schema.timelineEvents.timestamp, options.to));
   if (options.types && options.types.length > 0) conditions.push(inArray(schema.timelineEvents.type, options.types));
