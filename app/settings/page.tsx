@@ -1197,7 +1197,7 @@ export default function SettingsPage() {
                   ) : (
                     <div>
                       <span className="text-lg font-bold text-navy-100 font-mono">Free</span>
-                      <p className="text-xs text-navy-400 mt-1">No active subscription. Choose a plan below to unlock full access.</p>
+                      <p className="text-xs text-navy-400 mt-1">War Room access included. Choose a plan below to unlock full platform.</p>
                     </div>
                   )}
                 </div>

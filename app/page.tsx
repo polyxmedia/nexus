@@ -841,10 +841,10 @@ export default function LandingPage() {
                   <ArrowUpRight className="h-3 w-3 text-navy-500 group-hover:text-navy-300 transition-colors" />
                 </Link>
                 <Link
-                  href="/warroom"
+                  href="/register"
                   className="text-[11px] font-mono tracking-widest uppercase text-navy-500 hover:text-navy-300 transition-colors"
                 >
-                  War Room
+                  Start for free
                 </Link>
                 <a
                   href="#features"
@@ -962,8 +962,11 @@ export default function LandingPage() {
             <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4">
               Pick what fits
             </h2>
-            <p className="text-sm text-navy-400 max-w-md mx-auto mb-8">
+            <p className="text-sm text-navy-400 max-w-md mx-auto mb-3">
               2-day free trial on everything. Cancel anytime before you're charged.
+            </p>
+            <p className="text-xs text-navy-500 max-w-md mx-auto mb-8">
+              Or start for free with War Room access, no card required.
             </p>
             <div className="flex items-center justify-center gap-3">
               <span className={`text-xs font-medium transition-colors ${!billingAnnual ? "text-navy-100" : "text-navy-500"}`}>Monthly</span>

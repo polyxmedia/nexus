@@ -327,7 +327,7 @@ function RegisterForm() {
               Create your account
             </h1>
             <p className="text-[13px] text-navy-500 mt-3 font-sans">
-              2-day free trial. Full platform access.
+              Start for free with War Room access. Upgrade anytime for full platform.
             </p>
           </div>
 
