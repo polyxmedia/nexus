@@ -10,10 +10,11 @@ const TWITTER_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 const SCOPES = ["tweet.read", "tweet.write", "users.read", "offline.access"].join(" ");
 
 export function getTwitterOAuthConfig() {
-  const clientId = process.env.TWITTER_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.TWITTER_OAUTH_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
+  const clientId = process.env.TWITTER_OAUTH_CLIENT_ID?.trim();
+  const clientSecret = process.env.TWITTER_OAUTH_CLIENT_SECRET?.trim();
+  if (!clientId) return null;
+  // clientSecret is optional: public clients (PKCE-only) don't have one
+  return { clientId, clientSecret: clientSecret || null };
 }
 
 /**
@@ -55,22 +56,26 @@ export async function exchangeCodeForTokens(code: string, codeVerifier: string, 
   const config = getTwitterOAuthConfig();
   if (!config) throw new Error("Twitter OAuth not configured");
 
-  // X API requires Basic auth header with client_id:client_secret
-  const basicAuth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
+  // Build request: confidential clients use Basic auth, public clients send client_id in body
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+  const body: Record<string, string> = {
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: getRedirectUri(baseUrl),
+    code_verifier: codeVerifier,
+  };
 
-  const res = await fetch(TWITTER_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${basicAuth}`,
-    },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: getRedirectUri(baseUrl),
-      code_verifier: codeVerifier,
-    }),
-  });
+  if (config.clientSecret) {
+    // Confidential client: Basic auth
+    headers.Authorization = `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`;
+  } else {
+    // Public client (PKCE-only): client_id in body
+    body.client_id = config.clientId;
+  }
+
+  const res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers, body: new URLSearchParams(body) });
 
   if (!res.ok) {
     const text = await res.text();
@@ -88,19 +93,21 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
   const config = getTwitterOAuthConfig();
   if (!config) throw new Error("Twitter OAuth not configured");
 
-  const basicAuth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+  const body: Record<string, string> = {
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+  };
 
-  const res = await fetch(TWITTER_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${basicAuth}`,
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-    }),
-  });
+  if (config.clientSecret) {
+    headers.Authorization = `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`;
+  } else {
+    body.client_id = config.clientId;
+  }
+
+  const res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers, body: new URLSearchParams(body) });
 
   if (!res.ok) {
     const text = await res.text();
