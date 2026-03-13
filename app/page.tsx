@@ -260,24 +260,6 @@ const tiers = [
     cta: "Go Operational",
     highlighted: true,
   },
-  {
-    name: "Station",
-    price: "£499",
-    priceAnnual: "£424",
-    period: "/mo",
-    description: "Family office / RIA",
-    features: [
-      "Everything in Operator",
-      "API access",
-      "White-label briefings",
-      "PDF intelligence exports",
-      "Unlimited AI credits",
-      "Custom data integrations",
-      "Priority support",
-    ],
-    cta: "Contact Us",
-    highlighted: false,
-  },
 ];
 
 // ── Animated Chat Simulation ──
@@ -975,7 +957,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
             {tiers.map((tier) => (
               <div
                 key={tier.name}
@@ -1005,7 +987,7 @@ export default function LandingPage() {
                       <span className="text-sm text-navy-500">{tier.period}</span>
                     )}
                   </div>
-                  {billingAnnual && tier.price !== "Custom" && (
+                  {billingAnnual && (
                     <span className="text-[10px] text-navy-500 font-mono">billed annually</span>
                   )}
                   <p className="text-[11px] text-navy-400 mt-2">{tier.description}</p>
@@ -1032,6 +1014,30 @@ export default function LandingPage() {
                 </Link>
               </div>
             ))}
+          </div>
+
+          {/* Station - institutional tier */}
+          <div className="max-w-3xl mx-auto mt-6">
+            <div className="rounded-lg border border-navy-700/40 bg-navy-900/30 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div>
+                <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-navy-300 mb-1">Station</h3>
+                <p className="text-[11px] text-navy-400 mb-3">Family office / RIA / institutional desk</p>
+                <div className="flex flex-wrap gap-x-6 gap-y-1">
+                  {["Everything in Operator", "API access", "White-label briefings", "PDF exports", "Unlimited credits", "Custom integrations"].map((f) => (
+                    <div key={f} className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 text-navy-500 flex-shrink-0" />
+                      <span className="text-[11px] text-navy-400">{f}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <a
+                href="mailto:station@nexushq.xyz?subject=Station%20Enquiry"
+                className="flex-shrink-0 text-xs font-medium rounded-lg px-6 py-2.5 bg-navy-800/60 hover:bg-navy-800 text-navy-300 hover:text-navy-100 border border-navy-700/40 hover:border-navy-600/60 transition-all duration-300"
+              >
+                Contact Us
+              </a>
+            </div>
           </div>
         </div>
       </section>
