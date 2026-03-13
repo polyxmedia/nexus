@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);

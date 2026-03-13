@@ -380,15 +380,15 @@ registerJob("ig-token-refresh", 45 * 60_000, async () => {
 registerJob("twitter-analyst", 4 * 60 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
   // Generate and post analyst commentary tweet every 4 hours
-  const res = await internalFetch(`${getBaseUrl()}/api/twitter/analyst`, { method: "POST", headers: internalHeaders() });
-  if (!res.ok) throw new Error(`Twitter analyst tweet failed: ${res.status}`);
+  const { runAnalystTweet } = await import("@/lib/twitter/analyst");
+  await runAnalystTweet();
 }, { ai: true });
 
 registerJob("twitter-replies", 2 * 60 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
   // Find relevant threads and reply with analytical value every 2 hours
-  const res = await internalFetch(`${getBaseUrl()}/api/twitter/replies`, { method: "POST", headers: internalHeaders() });
-  if (!res.ok) throw new Error(`Twitter replies failed: ${res.status}`);
+  const { runThreadReplies } = await import("@/lib/twitter/replies");
+  await runThreadReplies();
 }, { ai: true });
 
 registerJob("macro-cache-refresh", 15 * 60_000, async () => {

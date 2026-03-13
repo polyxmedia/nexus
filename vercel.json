@@ -26,12 +26,20 @@
       "schedule": "30 * * * *"
     },
     {
-      "path": "/api/scheduler/cron?jobs=systemic-risk-check,collection-gaps-check,twitter-replies",
+      "path": "/api/scheduler/cron?jobs=systemic-risk-check,collection-gaps-check",
       "schedule": "0 */2 * * *"
     },
     {
-      "path": "/api/scheduler/cron?jobs=prediction-cycle,nowcast-update,twitter-analyst",
+      "path": "/api/scheduler/cron?jobs=twitter-replies",
+      "schedule": "15 */2 * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=prediction-cycle,nowcast-update",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/scheduler/cron?jobs=twitter-analyst",
+      "schedule": "30 */4 * * *"
     },
     {
       "path": "/api/scheduler/cron?jobs=thesis-branch-generation,actor-profile-update",
