@@ -165,9 +165,13 @@ function CreditMeter() {
     };
     startPolling();
     document.addEventListener("visibilitychange", startPolling);
+    // Refresh immediately when credits change (e.g. after chat message)
+    const onCreditsChanged = () => refreshCredits();
+    window.addEventListener("nexus:credits-changed", onCreditsChanged);
     return () => {
       if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", startPolling);
+      window.removeEventListener("nexus:credits-changed", onCreditsChanged);
     };
   }, []);
 

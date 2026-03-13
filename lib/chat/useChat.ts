@@ -288,6 +288,8 @@ export function useChat(sessionId: string) {
       } finally {
         setIsStreaming(false);
         abortRef.current = null;
+        // Notify sidebar to refresh credits after chat response
+        window.dispatchEvent(new CustomEvent("nexus:credits-changed"));
       }
     },
     [sessionId, isStreaming]

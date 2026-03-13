@@ -664,8 +664,26 @@ export default function SettingsPage() {
       .then((data) => setAlpacaOAuth(data))
       .catch((err) => console.error("[Settings] Alpaca OAuth status check failed:", err));
 
-    // Handle OAuth callback params
+    // Handle subscription success redirect (3DS return)
     const callbackParams = new URLSearchParams(window.location.search);
+    if (callbackParams.get("status") === "sub_success") {
+      setCheckoutResult({ type: "success", message: "Subscription activated successfully." });
+      window.history.replaceState({}, "", window.location.pathname + "?tab=subscription");
+      // Poll until webhook processes
+      (async () => {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise((r) => setTimeout(r, attempt === 0 ? 1000 : 2000));
+          try {
+            const subRes = await fetch("/api/subscription");
+            const subData = await subRes.json();
+            setSubscription(subData);
+            if (subData.tier) break;
+          } catch { /* retry */ }
+        }
+      })();
+    }
+
+    // Handle OAuth callback params
     if (callbackParams.get("coinbase") === "connected") {
       setCoinbaseOAuth({ oauthAvailable: true, connected: true });
       window.history.replaceState({}, "", window.location.pathname + "?tab=connections");
@@ -1321,12 +1339,16 @@ export default function SettingsPage() {
                                 setCheckoutTierId(null);
                                 setCheckoutClientSecret(null);
                                 setCheckoutResult({ type: "success", message: "Subscription activated successfully." });
-                                // Refresh subscription data
-                                try {
-                                  const subRes = await fetch("/api/subscription");
-                                  const subData = await subRes.json();
-                                  setSubscription(subData);
-                                } catch { /* will refresh on next load */ }
+                                // Poll subscription until webhook processes (status changes from incomplete)
+                                for (let attempt = 0; attempt < 10; attempt++) {
+                                  await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 2000));
+                                  try {
+                                    const subRes = await fetch("/api/subscription");
+                                    const subData = await subRes.json();
+                                    setSubscription(subData);
+                                    if (subData.tier) break; // webhook processed, tier is set
+                                  } catch { /* retry */ }
+                                }
                               }}
                               onError={(msg) => {
                                 setCheckoutResult({ type: "error", message: msg });
