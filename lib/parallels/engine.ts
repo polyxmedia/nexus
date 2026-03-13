@@ -22,6 +22,7 @@ export interface HistoricalParallel {
   marketImpact: string;
   keyDifferences: string[];
   keySimilarities: string[];
+  sourceEvidence?: string; // what grounded this parallel
 }
 
 export interface ParallelAnalysis {
@@ -41,22 +42,22 @@ const PARALLELS_MODEL = "claude-haiku-4-5-20251001";
 
 const PARALLELS_PROMPT = `You are a historical pattern matching engine for the NEXUS intelligence platform.
 
-CRITICAL RULES:
-- You MUST ONLY reference historical events that are well-documented, verifiable facts.
-- NEVER invent, fabricate, or speculate about historical events, dates, outcomes, or market impacts.
-- If you are not confident an event actually happened as described, DO NOT include it.
-- If the provided context is insufficient to find strong parallels, return fewer parallels (even 1-2) rather than fabricating them.
-- Every date, outcome, and market impact you cite must be something you are highly confident is factually accurate.
-- Set confidenceInAnalysis LOW (0.1-0.3) when context is thin. Do not overstate certainty.
+ANTI-HALLUCINATION RULES (ABSOLUTE, NON-NEGOTIABLE):
+1. ONLY cite historical events you are certain occurred. If unsure, OMIT the event entirely.
+2. NEVER fabricate dates, market impacts, or outcomes. If you cannot recall exact figures, say "approximately" or omit.
+3. If the provided context is insufficient, return FEWER parallels (even 0-1). An empty parallels array with a honest warning is better than invented history.
+4. Say "insufficient data" in the warning field when context is thin. Do not fill gaps with speculation.
+5. Set confidenceInAnalysis proportional to evidence quality: 0.1-0.2 with no context, 0.3-0.5 with partial context, 0.6+ only with strong supporting evidence.
+6. For each parallel, you MUST include a "sourceEvidence" field explaining what grounded this parallel (knowledge bank entry, signal data, or your verified training knowledge). If you cannot point to evidence, do not include the parallel.
 
-Given a current event description and a set of knowledge bank entries / historical data, your job is to:
-1. Identify the closest VERIFIED historical parallels (1-5 events, fewer is better than fabricated)
+Given a current event description and a set of knowledge bank entries / historical data:
+1. Identify the closest VERIFIED historical parallels (0-5 events, zero is acceptable)
 2. Score similarity (0-1) based on structural similarity, not surface-level keywords
-3. Note what happened after each parallel event (outcome, timeline, market impact) - only verifiable facts
-4. Synthesize a probability of the current event following the same pattern
+3. Note what happened after each parallel - only verifiable facts
+4. Synthesize a probability assessment with explicit uncertainty
 5. Flag key differences that could change the outcome
 
-Focus on STRUCTURAL parallels: similar actor constellations, similar escalation dynamics, similar economic conditions. Ignore superficial similarities.
+Focus on STRUCTURAL parallels: similar actor constellations, escalation dynamics, economic conditions. Ignore superficial similarities.
 
 Respond in this exact JSON structure:
 {
@@ -67,17 +68,18 @@ Respond in this exact JSON structure:
       "similarity": 0.0-1.0,
       "outcome": "what actually happened",
       "timeToResolution": "how long it took to resolve",
-      "marketImpact": "specific market effects",
+      "marketImpact": "specific market effects with approximate figures",
       "keyDifferences": ["difference 1", "difference 2"],
-      "keySimilarities": ["similarity 1", "similarity 2"]
+      "keySimilarities": ["similarity 1", "similarity 2"],
+      "sourceEvidence": "what evidence supports this parallel (knowledge bank entry title, signal, or 'verified historical record')"
     }
   ],
-  "synthesis": "2-4 sentence synthesis of what the parallels suggest for the current situation",
+  "synthesis": "2-4 sentence synthesis with explicit uncertainty language",
   "probabilityOfRepetition": 0.0-1.0,
   "regime": "peacetime"|"wartime"|"transition",
   "confidenceInAnalysis": 0.0-1.0,
   "actionableInsights": ["insight 1", "insight 2"],
-  "warning": "null or a string if there's a critical caveat"
+  "warning": "null or a string if there's a critical caveat or insufficient data"
 }`;
 
 /**
@@ -158,6 +160,7 @@ Identify the strongest structural parallels. Be specific about dates, outcomes, 
   const response = await client.messages.create({
     model: PARALLELS_MODEL,
     max_tokens: 1200,
+    temperature: 0,
     system: PARALLELS_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
@@ -180,5 +183,33 @@ Identify the strongest structural parallels. Be specific about dates, outcomes, 
   }
 
   const parsed = JSON.parse(jsonMatch[0]);
+
+  // 4. Post-generation validation: sanitise suspicious outputs
+  if (Array.isArray(parsed.parallels)) {
+    // Remove parallels with no source evidence or suspiciously high similarity
+    parsed.parallels = parsed.parallels.filter((p: Record<string, unknown>) => {
+      if (!p.event || !p.date) return false;
+      // Clamp similarity to reasonable range
+      if (typeof p.similarity === "number") {
+        p.similarity = Math.min(p.similarity, 0.95);
+      }
+      return true;
+    });
+
+    // If all parallels scored identically, confidence is likely inflated
+    const sims = parsed.parallels.map((p: Record<string, unknown>) => p.similarity);
+    const allSame = sims.length > 2 && sims.every((s: number) => s === sims[0]);
+    if (allSame && typeof parsed.confidenceInAnalysis === "number") {
+      parsed.confidenceInAnalysis = Math.min(parsed.confidenceInAnalysis, 0.3);
+      parsed.warning = parsed.warning || "Uniform similarity scores suggest low differentiation in analysis.";
+    }
+
+    // Cap confidence when context was thin
+    const contextEntries = knowledgeResults.length + resolvedPredictions.length + relevantSignals.length;
+    if (contextEntries < 5 && typeof parsed.confidenceInAnalysis === "number") {
+      parsed.confidenceInAnalysis = Math.min(parsed.confidenceInAnalysis, 0.4);
+    }
+  }
+
   return { query, ...parsed } as ParallelAnalysis;
 }
