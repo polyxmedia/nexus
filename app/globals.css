@@ -298,6 +298,15 @@ body {
   background: var(--color-navy-600);
 }
 
+/* Hide scrollbar utility */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── War Room Utility Classes ── */
 .wr-shadow-sm {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
