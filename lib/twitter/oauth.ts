@@ -56,26 +56,35 @@ export async function exchangeCodeForTokens(code: string, codeVerifier: string, 
   const config = getTwitterOAuthConfig();
   if (!config) throw new Error("Twitter OAuth not configured");
 
-  // Build request: confidential clients use Basic auth, public clients send client_id in body
-  const headers: Record<string, string> = {
-    "Content-Type": "application/x-www-form-urlencoded",
-  };
+  // Always include client_id in body (Twitter requires it for PKCE flows)
   const body: Record<string, string> = {
     grant_type: "authorization_code",
     code,
     redirect_uri: getRedirectUri(baseUrl),
     code_verifier: codeVerifier,
+    client_id: config.clientId,
   };
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+
+  // Confidential clients: also send Basic auth header
   if (config.clientSecret) {
-    // Confidential client: Basic auth
     headers.Authorization = `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`;
-  } else {
-    // Public client (PKCE-only): client_id in body
-    body.client_id = config.clientId;
   }
 
-  const res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers, body: new URLSearchParams(body) });
+  let res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers, body: new URLSearchParams(body) });
+
+  // Fallback: if Basic auth fails, retry with client_secret in body instead
+  // (some Twitter app configurations prefer body credentials over header)
+  if (!res.ok && config.clientSecret && res.status === 401) {
+    const fallbackBody = { ...body, client_secret: config.clientSecret };
+    const fallbackHeaders: Record<string, string> = {
+      "Content-Type": "application/x-www-form-urlencoded",
+    };
+    res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers: fallbackHeaders, body: new URLSearchParams(fallbackBody) });
+  }
 
   if (!res.ok) {
     const text = await res.text();
@@ -93,21 +102,27 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
   const config = getTwitterOAuthConfig();
   if (!config) throw new Error("Twitter OAuth not configured");
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/x-www-form-urlencoded",
-  };
   const body: Record<string, string> = {
     grant_type: "refresh_token",
     refresh_token: refreshToken,
+    client_id: config.clientId,
+  };
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
   };
 
   if (config.clientSecret) {
     headers.Authorization = `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`;
-  } else {
-    body.client_id = config.clientId;
   }
 
-  const res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers, body: new URLSearchParams(body) });
+  let res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers, body: new URLSearchParams(body) });
+
+  if (!res.ok && config.clientSecret && res.status === 401) {
+    const fallbackBody = { ...body, client_secret: config.clientSecret };
+    const fallbackHeaders: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+    res = await fetch(TWITTER_TOKEN_URL, { method: "POST", headers: fallbackHeaders, body: new URLSearchParams(fallbackBody) });
+  }
 
   if (!res.ok) {
     const text = await res.text();
