@@ -600,13 +600,48 @@ const SYMBOL_CORRECTIONS: Record<string, string> = {
   "FTSE": "EWU",      // iShares MSCI United Kingdom ETF
   "NIKKEI": "EWJ",    // iShares MSCI Japan ETF
   "CAC": "EWQ",       // iShares MSCI France ETF
-  // Commodities - use ETF equivalents (futures tickers return wrong units)
-  "HG": "CPER",       // United States Copper Index Fund (HG returns wrong unit from Twelve Data)
-  "NG": "UNG",        // United States Natural Gas Fund (NG returns wrong instrument)
-  "CL": "USO",        // United States Oil Fund
-  "SI": "SLV",        // iShares Silver Trust
-  "ZW": "WEAT",       // Teucrium Wheat Fund
 };
+
+/**
+ * Commodity name aliases → canonical futures symbols.
+ * These map natural-language commodity names (extracted from prediction claims)
+ * to the symbols that data providers recognise for the actual underlying commodity.
+ *
+ * IMPORTANT: We do NOT map commodity futures to ETF proxies (e.g. CL → USO) because
+ * ETFs trade at completely different price levels than the underlying commodity.
+ * A prediction "WTI crude above $85/barrel" cannot be verified against USO at $75/share.
+ */
+const COMMODITY_NAME_ALIASES: Record<string, string> = {
+  // Oil
+  "WTI": "CL",
+  "CRUDE": "CL",
+  "BRENT": "BZ",
+  // Metals
+  "GOLD": "GC",
+  "SILVER": "SI",
+  "COPPER": "HG",
+  "PLATINUM": "PL",
+  "PALLADIUM": "PA",
+  // Agriculture
+  "WHEAT": "ZW",
+  "CORN": "ZC",
+  "SOYBEANS": "ZS",
+  "SOYBEAN": "ZS",
+  // Energy
+  "NATGAS": "NG",
+  "GAS": "NG",
+};
+
+/**
+ * Symbols that should NEVER be resolved via data-driven fast resolution
+ * because our data providers don't return accurate prices for these futures contracts.
+ * These must go through AI resolution (which can cross-reference multiple sources).
+ */
+const DATA_UNRESOLVABLE_SYMBOLS = new Set([
+  // Futures contracts: data providers return ETF proxies or wrong units
+  "CL", "BZ", "GC", "SI", "HG", "PL", "PA",  // energy & metals
+  "ZW", "ZC", "ZS", "NG",                      // agriculture & natgas
+]);
 
 /**
  * Detect claim types that cannot be resolved by single-instrument threshold checks.
@@ -662,8 +697,9 @@ async function validateAndCorrectSymbol(
   priceTarget: number | null,
   apiKey: string
 ): Promise<{ correctedSymbol: string; price: number } | null> {
-  // Apply known corrections
-  const corrected = SYMBOL_CORRECTIONS[symbol] || symbol;
+  // Apply commodity name aliases first, then symbol corrections
+  const aliased = COMMODITY_NAME_ALIASES[symbol] || symbol;
+  const corrected = SYMBOL_CORRECTIONS[aliased] || aliased;
 
   try {
     const quote = await getQuote(corrected, apiKey);
@@ -1711,8 +1747,32 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
 
   if (candidates.length === 0) return [];
 
-  // Fetch current + historical data for all unique symbols
-  const symbols = [...new Set<string>(candidates.map((p) => p.referenceSymbol!))];
+  // Resolve commodity name aliases (WTI → CL, GOLD → GC, etc.)
+  // and skip symbols that can't be accurately verified via data providers
+  const resolvedSymbols = new Map<string, string>(); // original → resolved
+  for (const p of candidates) {
+    const sym = p.referenceSymbol!;
+    if (!resolvedSymbols.has(sym)) {
+      const aliased = COMMODITY_NAME_ALIASES[sym] || sym;
+      const corrected = SYMBOL_CORRECTIONS[aliased] || aliased;
+      resolvedSymbols.set(sym, corrected);
+    }
+  }
+
+  // Filter out candidates whose resolved symbols can't be priced by our data providers
+  const dataResolvable = candidates.filter((p) => {
+    const resolved = resolvedSymbols.get(p.referenceSymbol!) || p.referenceSymbol!;
+    if (DATA_UNRESOLVABLE_SYMBOLS.has(resolved)) {
+      console.log(`[resolveByData] Skipping prediction ${p.id}: ${p.referenceSymbol} (→ ${resolved}) is a commodity futures contract that requires AI resolution for accurate pricing`);
+      return false;
+    }
+    return true;
+  });
+
+  if (dataResolvable.length === 0) return [];
+
+  // Fetch current + historical data for all unique resolved symbols
+  const symbols = [...new Set<string>(dataResolvable.map((p) => resolvedSymbols.get(p.referenceSymbol!) || p.referenceSymbol!))];
   const marketData: Record<string, { current: number; history: Array<{ date: string; close: number; high: number; low: number }> }> = {};
 
   for (let i = 0; i < symbols.length; i += 5) {
@@ -1741,8 +1801,9 @@ export async function resolveByData(): Promise<Array<{ id: number; outcome: stri
 
   const results: Array<{ id: number; outcome: string; score: number; notes: string }> = [];
 
-  for (const p of candidates) {
-    const data = marketData[p.referenceSymbol!];
+  for (const p of dataResolvable) {
+    const resolvedSym = resolvedSymbols.get(p.referenceSymbol!) || p.referenceSymbol!;
+    const data = marketData[resolvedSym];
     if (!data) continue;
 
     const target = p.priceTarget!;
@@ -1969,8 +2030,15 @@ async function executeResolutionTool(
     const symbol = (input.symbol as string || "").trim();
     if (!symbol) return JSON.stringify({ error: "No symbol provided" });
 
-    // Apply symbol corrections
-    const corrected = SYMBOL_CORRECTIONS[symbol] || symbol;
+    // Apply commodity name aliases first, then symbol corrections
+    const aliased = COMMODITY_NAME_ALIASES[symbol] || symbol;
+    const corrected = SYMBOL_CORRECTIONS[aliased] || aliased;
+
+    // Warn if this is a commodity futures symbol that may not price correctly
+    const isCommodityFutures = DATA_UNRESOLVABLE_SYMBOLS.has(corrected);
+    const commodityWarning = isCommodityFutures
+      ? `WARNING: "${symbol}" is a commodity futures contract. Our data provider may return an ETF proxy price instead of the actual futures price. Do NOT compare ETF share prices against commodity price targets (e.g. USO ~$75 is NOT the same as WTI crude ~$70/barrel). If the returned price seems inconsistent with the prediction's price target units, mark this prediction as "skip" with a note about instrument mismatch.`
+      : undefined;
 
     try {
       const [quote, daily] = await Promise.all([
@@ -1989,6 +2057,7 @@ async function executeResolutionTool(
         symbol: corrected,
         original_symbol: symbol !== corrected ? symbol : undefined,
         correction_note,
+        commodity_warning: commodityWarning,
         current_price: quote.price,
         change: quote.change,
         change_percent: quote.changePercent,
@@ -2088,6 +2157,7 @@ CRITICAL RULES:
 8. If any data seems wrong (e.g. a price that's wildly different from what you'd expect for that instrument), note this and mark as "skip".
 9. NEVER confirm a prediction without citing specific prices and dates from tool results.
 10. If the prediction was ALREADY TRUE when it was created (start price already past the target), outcome is "denied" with note "Invalid: target already met at creation."
+11. CRITICAL - COMMODITY FUTURES: Never use ETF proxies (USO, UNG, CPER, SLV, WEAT) to verify commodity price targets stated in per-unit terms ($85/barrel, $4.50/pound, $2000/oz). ETF share prices are completely different from underlying commodity prices. If you can only get ETF data for a commodity prediction, mark as "skip" with note "Instrument mismatch: need actual futures/spot price, not ETF proxy."
 
 SCORING:
 - confirmed (both direction and level correct): score = 1.0
