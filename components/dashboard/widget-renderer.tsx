@@ -75,6 +75,8 @@ function MetricWidget({ config }: { config: { metric: string } }) {
 
   const { data: warroomData, isLoading: warroomLoading } = useSwrFetch(needsWarroom ? "/api/warroom" : null, { dedupingInterval: 30_000 });
   const { data: macroData, isLoading: macroLoading } = useSwrFetch(needsMacro ? "/api/macro" : null, { dedupingInterval: 60_000 });
+  const today = needsMacro ? new Date().toISOString().slice(0, 10) : "";
+  const { data: vixFallbackData } = useSwrFetch(needsMacro ? `/api/calendar/market-snapshot?date=${today}` : null, { dedupingInterval: 120_000 });
   const { data: portfolioData, isLoading: portfolioLoading } = useSwrFetch(needsPortfolio ? "/api/trading212/account" : null, { dedupingInterval: 30_000 });
   const { data: thesisData, isLoading: thesisLoading } = useSwrFetch(needsThesis ? "/api/thesis?status=active" : null, { dedupingInterval: 30_000 });
   const { data: predData, isLoading: predLoading } = useSwrFetch(needsPredictions ? "/api/predictions" : null, { dedupingInterval: 30_000 });
@@ -120,10 +122,16 @@ function MetricWidget({ config }: { config: { metric: string } }) {
         case "vix": {
           const md = macroData as Record<string, { latest?: { value: number }; previous?: { value: number } }> | undefined;
           const vixSeries = md?.VIXCLS;
-          const vixVal = vixSeries?.latest?.value ?? null;
-          const prevVal = vixSeries?.previous?.value ?? null;
-          const changeStr = vixVal != null && prevVal != null ? `${vixVal > prevVal ? "+" : ""}${(vixVal - prevVal).toFixed(2)} (${vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent"})` : vixVal != null ? (vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent") : "";
-          return { label: "VIX", value: vixVal != null ? vixVal.toFixed(2) : "N/A", change: changeStr, changeColor: (vixVal != null ? (vixVal >= 30 ? "red" : vixVal >= 20 ? "neutral" : "green") : "neutral") as "green" | "red" | "neutral" };
+          let vixVal = vixSeries?.latest?.value ?? null;
+          let prevVal = vixSeries?.previous?.value ?? null;
+          // Fallback: use Yahoo Finance VIX if FRED VIXCLS is unavailable
+          if (vixVal == null && vixFallbackData) {
+            const fb = vixFallbackData as Record<string, { close?: number; change?: number }>;
+            if (fb?.VIX?.close) { vixVal = fb.VIX.close; prevVal = fb.VIX.change != null ? fb.VIX.close - fb.VIX.change : null; }
+          }
+          const regime = vixVal != null ? (vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent") : "unavailable";
+          const changeStr = vixVal != null && prevVal != null ? `${vixVal > prevVal ? "+" : ""}${(vixVal - prevVal).toFixed(2)} (${regime})` : regime;
+          return { label: "VIX", value: vixVal != null ? vixVal.toFixed(2) : "...", change: changeStr, changeColor: (vixVal != null ? (vixVal >= 30 ? "red" : vixVal >= 20 ? "neutral" : "green") : "neutral") as "green" | "red" | "neutral" };
         }
         default:
           return { label: config.metric, value: "N/A" };
