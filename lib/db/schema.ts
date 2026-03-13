@@ -769,3 +769,31 @@ export const gprReadings = pgTable("gpr_readings", {
   threatsToActsRatio: doublePrecision("threats_to_acts_ratio").notNull().default(1),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
+
+export const partnerProspects = pgTable("partner_prospects", {
+  id: serial("id").primaryKey(),
+  channelId: text("channel_id").unique(),
+  channelName: text("channel_name").notNull(),
+  channelUrl: text("channel_url"),
+  subscriberCount: integer("subscriber_count"),
+  videoCount: integer("video_count"),
+  description: text("description"),
+  thumbnailUrl: text("thumbnail_url"),
+  contactEmail: text("contact_email"),
+  status: text("status").notNull().default("prospect"),
+  notes: text("notes"),
+  commissionRate: integer("commission_rate").default(20),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const partnerOutreach = pgTable("partner_outreach", {
+  id: serial("id").primaryKey(),
+  prospectId: integer("prospect_id").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  toEmail: text("to_email").notNull(),
+  status: text("status").notNull().default("draft"),
+  sentAt: text("sent_at"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});

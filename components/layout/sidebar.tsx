@@ -249,18 +249,32 @@ export function Sidebar() {
           Referrals
         </Link>
         {isAdmin && (
-          <Link
-            href="/admin"
-            className={cn(
-              "mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
-              pathname.startsWith("/admin")
-                ? "bg-navy-800/80 text-navy-100"
-                : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
-            )}
-          >
-            <Lock className="h-4 w-4 shrink-0 opacity-70" />
-            Admin
-          </Link>
+          <>
+            <Link
+              href="/partnerships"
+              className={cn(
+                "mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
+                pathname.startsWith("/partnerships")
+                  ? "bg-navy-800/80 text-navy-100"
+                  : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
+              )}
+            >
+              <Briefcase className="h-4 w-4 shrink-0 opacity-70" />
+              Partnerships
+            </Link>
+            <Link
+              href="/admin"
+              className={cn(
+                "mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
+                pathname.startsWith("/admin")
+                  ? "bg-navy-800/80 text-navy-100"
+                  : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
+              )}
+            >
+              <Lock className="h-4 w-4 shrink-0 opacity-70" />
+              Admin
+            </Link>
+          </>
         )}
         <Link
           href="/settings"
