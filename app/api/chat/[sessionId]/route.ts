@@ -41,8 +41,10 @@ Instead, focus entirely on:
 
 When using tools, still gather data, but interpret it through the narrative/belief lens rather than the quantitative convergence framework.`;
 
+const XML_GUARD = "\n\nCRITICAL: NEVER output raw XML tool calls as text. Do not write <function_calls>, <invoke>, or any XML-formatted tool invocations in your response. Use the tool calling API provided by the system. Any tool calls rendered as visible text to the user is a failure mode.\n";
+
 async function getSystemPromptWithMode(username?: string, projectId?: number | null): Promise<string> {
-  let prompt = await loadPrompt("chat_system");
+  let prompt = await loadPrompt("chat_system") + XML_GUARD;
 
   try {
     const jiangRow = await db
@@ -430,9 +432,12 @@ export async function POST(
               }
             } else if (event.type === "content_block_delta") {
               if (event.delta.type === "text_delta") {
+                // Buffer text to detect and strip hallucinated XML tool calls
                 iterationText += event.delta.text;
                 fullText += event.delta.text;
-                sendEvent({ type: "text_delta", delta: event.delta.text });
+                // Strip XML tool call syntax that should never appear in user-facing text
+                const cleaned = event.delta.text.replace(/<\/?function_calls>|<\/?invoke[^>]*>|<\/?parameter[^>]*>/g, "");
+                if (cleaned) sendEvent({ type: "text_delta", delta: cleaned });
               } else if (event.delta.type === "input_json_delta") {
                 if (currentToolIndex >= 0) pendingTools[currentToolIndex].inputJson += event.delta.partial_json;
               }
