@@ -97,8 +97,8 @@ export interface PerformanceReport {
 // ── Constants ──
 
 const MIN_TOTAL_FOR_REPORT = 3;
-const MIN_BUCKET_SIZE = 3;
-const MIN_CATEGORY_SIZE = 3;
+const MIN_BUCKET_SIZE = 5;  // Academic standard: minimum 5 per bucket for reliable calibration stats
+const MIN_CATEGORY_SIZE = 5;
 const DECAY_HALF_LIFE_DAYS = 60;
 const EPSILON = 1e-7; // prevent log(0)
 
@@ -479,25 +479,33 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     : null;
 
   // ── Calibration buckets (proper reliability diagram data) ──
+  // Use scoreable set (preEvent only, excludes invalidated/post_event) for consistency
+  // with the headline Brier score. This ensures the reliability diagram reflects
+  // the same population as the scoring metrics.
 
-  const bucketDefs: { min: number; max: number; label: string; midpoint: number }[] = [
-    { min: 0.0, max: 0.35, label: "low (0-35%)", midpoint: 0.175 },
-    { min: 0.35, max: 0.5, label: "med-low (35-50%)", midpoint: 0.425 },
-    { min: 0.5, max: 0.65, label: "medium (50-65%)", midpoint: 0.575 },
-    { min: 0.65, max: 0.8, label: "high (65-80%)", midpoint: 0.725 },
-    { min: 0.8, max: 1.01, label: "very high (80%+)", midpoint: 0.9 },
+  const bucketDefs: { min: number; max: number; label: string }[] = [
+    { min: 0.0, max: 0.35, label: "low (0-35%)" },
+    { min: 0.35, max: 0.5, label: "med-low (35-50%)" },
+    { min: 0.5, max: 0.65, label: "medium (50-65%)" },
+    { min: 0.65, max: 0.8, label: "high (65-80%)" },
+    { min: 0.8, max: 1.01, label: "very high (80%+)" },
   ];
 
   const calibration: CalibrationBucket[] = bucketDefs.map((bucket) => {
-    const inBucket = nonExpired.filter((p) => p.confidence >= bucket.min && p.confidence < bucket.max);
+    const inBucket = scoreable.filter((p) => p.confidence >= bucket.min && p.confidence < bucket.max);
     const confirmedInBucket = inBucket.filter((p) => p.outcome === "confirmed").length;
     const confirmedRate = inBucket.length > 0 ? confirmedInBucket / inBucket.length : 0;
+    // Use mean confidence in bucket as midpoint (not hardcoded bin center)
+    // for a more accurate reliability diagram per Bröcker & Smith (2007)
+    const midpoint = inBucket.length > 0
+      ? inBucket.reduce((s, p) => s + p.confidence, 0) / inBucket.length
+      : (bucket.min + Math.min(bucket.max, 1)) / 2;
     const bucketBrier = inBucket.length > 0
       ? inBucket.reduce((s, p) => s + Math.pow(p.confidence - outcomeToNumeric(p.outcome!), 2), 0) / inBucket.length
       : 0;
     return {
       range: bucket.label,
-      midpoint: bucket.midpoint,
+      midpoint,
       count: inBucket.length,
       confirmedRate,
       brierContribution: bucketBrier,
@@ -506,15 +514,23 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
   });
 
   // ── Category breakdown ──
+  // Use nonExpired for display stats (total/confirmed/denied) but scoreable
+  // population for Brier to stay consistent with the headline metric.
 
   const categories = ["market", "geopolitical", "celestial"];
   const byCategory: CategoryStats[] = categories
     .map((cat) => {
       const inCat = resolved.filter((p) => p.category === cat);
       if (inCat.length === 0) return null;
-      const catNonExpired = inCat.filter((p) => p.outcome !== "expired");
+      const catNonExpired = inCat.filter((p) =>
+        p.outcome !== "expired" && p.outcome !== "post_event" && p.regimeInvalidated !== 1
+      );
+      const catScoreable = catNonExpired.filter((p) => p.preEvent === 1);
       const catConfirmed = catNonExpired.filter((p) => p.outcome === "confirmed").length;
-      const catBrier = brierScore(catNonExpired.map((p) => ({ confidence: p.confidence, outcome: p.outcome! })));
+      // Brier from scoreable (preEvent only) for consistency with headline
+      const catBrier = catScoreable.length > 0
+        ? brierScore(catScoreable.map((p) => ({ confidence: p.confidence, outcome: p.outcome! })))
+        : brierScore(catNonExpired.map((p) => ({ confidence: p.confidence, outcome: p.outcome! })));
       const catAvgConf = catNonExpired.length > 0
         ? catNonExpired.reduce((s, p) => s + p.confidence, 0) / catNonExpired.length
         : 0;
@@ -535,6 +551,7 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     .filter((c): c is CategoryStats => c !== null);
 
   // ── Timeframe accuracy ──
+  // Use nonExpired for counts/accuracy display, scoreable for Brier consistency
 
   const timeframeAccuracy: Record<string, { count: number; brierScore: number; binaryAccuracy: number; reliable: boolean }> = {};
   for (const p of nonExpired) {
@@ -545,14 +562,17 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     timeframeAccuracy[tf].count++;
   }
   for (const tf of Object.keys(timeframeAccuracy)) {
-    const tfPreds = nonExpired.filter((p) => (p.timeframe || "unknown") === tf);
-    const tfBrier = brierScore(tfPreds.map((p) => ({ confidence: p.confidence, outcome: p.outcome! })));
-    const tfConfirmed = tfPreds.filter((p) => p.outcome === "confirmed").length;
+    const tfDisplay = nonExpired.filter((p) => (p.timeframe || "unknown") === tf);
+    const tfScoreable = scoreable.filter((p) => (p.timeframe || "unknown") === tf);
+    const tfBrier = tfScoreable.length > 0
+      ? brierScore(tfScoreable.map((p) => ({ confidence: p.confidence, outcome: p.outcome! })))
+      : brierScore(tfDisplay.map((p) => ({ confidence: p.confidence, outcome: p.outcome! })));
+    const tfConfirmed = tfDisplay.filter((p) => p.outcome === "confirmed").length;
     timeframeAccuracy[tf] = {
-      count: tfPreds.length,
+      count: tfDisplay.length,
       brierScore: tfBrier,
-      binaryAccuracy: tfPreds.length > 0 ? tfConfirmed / tfPreds.length : 0,
-      reliable: tfPreds.length >= MIN_BUCKET_SIZE,
+      binaryAccuracy: tfDisplay.length > 0 ? tfConfirmed / tfDisplay.length : 0,
+      reliable: tfDisplay.length >= MIN_BUCKET_SIZE,
     };
   }
 
