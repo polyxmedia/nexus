@@ -41,10 +41,18 @@ const PARALLELS_MODEL = "claude-haiku-4-5-20251001";
 
 const PARALLELS_PROMPT = `You are a historical pattern matching engine for the NEXUS intelligence platform.
 
+CRITICAL RULES:
+- You MUST ONLY reference historical events that are well-documented, verifiable facts.
+- NEVER invent, fabricate, or speculate about historical events, dates, outcomes, or market impacts.
+- If you are not confident an event actually happened as described, DO NOT include it.
+- If the provided context is insufficient to find strong parallels, return fewer parallels (even 1-2) rather than fabricating them.
+- Every date, outcome, and market impact you cite must be something you are highly confident is factually accurate.
+- Set confidenceInAnalysis LOW (0.1-0.3) when context is thin. Do not overstate certainty.
+
 Given a current event description and a set of knowledge bank entries / historical data, your job is to:
-1. Identify the closest historical parallels (3-7 events)
+1. Identify the closest VERIFIED historical parallels (1-5 events, fewer is better than fabricated)
 2. Score similarity (0-1) based on structural similarity, not surface-level keywords
-3. Note what happened after each parallel event (outcome, timeline, market impact)
+3. Note what happened after each parallel event (outcome, timeline, market impact) - only verifiable facts
 4. Synthesize a probability of the current event following the same pattern
 5. Flag key differences that could change the outcome
 
