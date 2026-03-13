@@ -27,7 +27,7 @@ import { useSubscription } from "@/lib/hooks/useSubscription";
 
 // ── Types ──
 
-type MinTier = "analyst" | "operator" | "institution";
+type MinTier = "free" | "analyst" | "operator" | "institution";
 
 interface Widget {
   id: number;
@@ -76,26 +76,26 @@ const STORE_CATEGORIES = [
 
 const STORE_ITEMS: StoreItem[] = [
   // Intelligence
-  { type: "metric", name: "Threat Level", description: "Geopolitical escalation indicator", category: "intelligence", defaultWidth: 1, defaultConfig: { metric: "threat_level" }, accent: "rose", minTier: "analyst" },
-  { type: "thesis", name: "Active Thesis", description: "AI-generated market thesis with regime and confidence", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "analyst" },
-  { type: "signals", name: "Signal Feed", description: "Filtered intelligence signals by intensity", category: "intelligence", defaultWidth: 1, defaultConfig: { minIntensity: 4 }, accent: "amber", minTier: "analyst" },
-  { type: "predictions", name: "Prediction Scorecard", description: "Accuracy tracking with Brier scoring", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "analyst" },
-  { type: "calendar", name: "Calendar", description: "Hebrew, Islamic & economic calendar events", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "analyst" },
+  { type: "metric", name: "Threat Level", description: "Geopolitical escalation indicator", category: "intelligence", defaultWidth: 1, defaultConfig: { metric: "threat_level" }, accent: "rose", minTier: "free" },
+  { type: "thesis", name: "Active Thesis", description: "AI-generated market thesis with regime and confidence", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "free" },
+  { type: "signals", name: "Signal Feed", description: "Filtered intelligence signals by intensity", category: "intelligence", defaultWidth: 1, defaultConfig: { minIntensity: 4 }, accent: "amber", minTier: "free" },
+  { type: "predictions", name: "Prediction Scorecard", description: "Accuracy tracking with Brier scoring", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "free" },
+  { type: "calendar", name: "Calendar", description: "Hebrew, Islamic & economic calendar events", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "free" },
   { type: "prediction_markets", name: "Prediction Markets", description: "Polymarket & Kalshi probability pricing", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "amber", minTier: "operator" },
   { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider clusters", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "rose", minTier: "operator" },
   // Markets
-  { type: "metric", name: "Market Regime", description: "Risk-on/risk-off classification", category: "markets", defaultWidth: 1, defaultConfig: { metric: "market_regime" }, accent: "cyan", minTier: "analyst" },
-  { type: "metric", name: "VIX Gauge", description: "CBOE Volatility Index level", category: "markets", defaultWidth: 1, defaultConfig: { metric: "vix" }, accent: "rose", minTier: "analyst" },
-  { type: "chart", name: "Price Chart", description: "Candlestick chart for any ticker symbol", category: "markets", defaultWidth: 2, defaultConfig: { symbol: "SPY", range: "3m" }, accent: "cyan", minTier: "analyst" },
+  { type: "metric", name: "Market Regime", description: "Risk-on/risk-off classification", category: "markets", defaultWidth: 1, defaultConfig: { metric: "market_regime" }, accent: "cyan", minTier: "free" },
+  { type: "metric", name: "VIX Gauge", description: "CBOE Volatility Index level", category: "markets", defaultWidth: 1, defaultConfig: { metric: "vix" }, accent: "rose", minTier: "free" },
+  { type: "chart", name: "Price Chart", description: "Candlestick chart for any ticker symbol", category: "markets", defaultWidth: 2, defaultConfig: { symbol: "SPY", range: "3m" }, accent: "cyan", minTier: "free" },
   { type: "macro", name: "Macro Dashboard", description: "Key economic indicators from FRED", category: "markets", defaultWidth: 2, defaultConfig: { series: ["UNRATE", "ICSA", "CPIAUCSL", "VIXCLS", "GOLDAMGBD228NLBM", "DCOILWTICO"] }, accent: "emerald", minTier: "operator" },
   { type: "options", name: "Put/Call Ratio", description: "CBOE equity options sentiment", category: "markets", defaultWidth: 1, defaultConfig: { view: "pcr" }, accent: "amber", minTier: "operator" },
   { type: "currency_stress", name: "Currency Stress", description: "Dollar index, EUR, JPY, CNY trends", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
   { type: "commodities", name: "Commodity Complex", description: "Gold, WTI, Brent, Natural Gas", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "operator" },
   // Analytics
   { type: "metric", name: "Portfolio Value", description: "Live portfolio value with P&L", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "portfolio_value" }, accent: "emerald", minTier: "operator" },
-  { type: "metric", name: "Thesis Confidence", description: "Active thesis confidence level", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "thesis_confidence" }, accent: "cyan", minTier: "analyst" },
-  { type: "metric", name: "Prediction Accuracy", description: "Overall prediction accuracy rate", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "prediction_accuracy" }, accent: "amber", minTier: "analyst" },
-  { type: "metric", name: "Convergence Density", description: "Multi-layer signal convergence", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "convergence_density" }, accent: "cyan", minTier: "analyst" },
+  { type: "metric", name: "Thesis Confidence", description: "Active thesis confidence level", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "thesis_confidence" }, accent: "cyan", minTier: "free" },
+  { type: "metric", name: "Prediction Accuracy", description: "Overall prediction accuracy rate", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "prediction_accuracy" }, accent: "amber", minTier: "free" },
+  { type: "metric", name: "Convergence Density", description: "Multi-layer signal convergence", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "convergence_density" }, accent: "cyan", minTier: "free" },
   { type: "risk", name: "Portfolio Risk", description: "VaR, Sharpe ratio, and drawdown", category: "analytics", defaultWidth: 1, defaultConfig: { view: "var" }, accent: "rose", minTier: "operator" },
   { type: "credit_stress", name: "Credit Stress Monitor", description: "HY & IG OAS spreads with stress regime", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "rose", minTier: "operator" },
   { type: "liquidity", name: "Dollar Liquidity Index", description: "Fed balance sheet net liquidity", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
@@ -105,7 +105,7 @@ const STORE_ITEMS: StoreItem[] = [
   { type: "housing_consumer", name: "Housing & Consumer", description: "Housing starts, sentiment, retail sales", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "operator" },
   { type: "gdp_nowcast", name: "GDP Nowcast", description: "Real GDP growth with regime classification", category: "analytics", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
   // Data Feeds
-  { type: "news", name: "News Feed", description: "Reuters, BBC, Al Jazeera aggregated feed", category: "data", defaultWidth: 2, defaultConfig: { category: "all", maxItems: 15 }, accent: "cyan", minTier: "analyst" },
+  { type: "news", name: "News Feed", description: "Reuters, BBC, Al Jazeera aggregated feed", category: "data", defaultWidth: 2, defaultConfig: { category: "all", maxItems: 15 }, accent: "cyan", minTier: "free" },
   // AI
   { type: "ai_progression", name: "AI Progression Tracker", description: "Remote Labor Index, AI 2027 timeline, sector risk", category: "ai", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "operator" },
   { type: "quick_chat", name: "Quick Chat", description: "Start a conversation with the AI analyst", category: "ai", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "analyst" },
