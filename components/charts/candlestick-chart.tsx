@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
   type IChartApi,
@@ -205,7 +205,7 @@ export default function CandlestickChart({
   // ── Main chart ──────────────────────────────────────────────────────────
 
   // Deduplicate and sort data by time (lightweight-charts requires strictly ascending unique timestamps)
-  const cleanData = (() => {
+  const cleanData = useMemo(() => {
     const seen = new Set<string>();
     return data
       .slice()
@@ -215,7 +215,7 @@ export default function CandlestickChart({
         seen.add(d.time);
         return true;
       });
-  })();
+  }, [data]);
 
   useEffect(() => {
     if (!mainRef.current || !cleanData.length) return;
@@ -365,7 +365,7 @@ export default function CandlestickChart({
     const chart = createChart(macdRef.current, { ...chartOptions(macdRef.current, 110, true), handleScroll: false, handleScale: false });
     macdChartRef.current = chart;
 
-    const { line, signal, hist } = macdSeries(data);
+    const { line, signal, hist } = macdSeries(cleanData);
 
     const histSeries = chart.addSeries(HistogramSeries, {
       priceScaleId: "right",
@@ -412,7 +412,7 @@ export default function CandlestickChart({
       macdChartRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showMacd, data]);
+  }, [showMacd, cleanData]);
 
   // ── Render ──────────────────────────────────────────────────────────────
 
