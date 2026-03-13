@@ -211,14 +211,29 @@ function detectThresholdCrossings(
 
 export async function getGPRSnapshot(): Promise<GPRSnapshot> {
   // Read last 30 days from postgres (fast indexed query)
-  const [rows, regional] = await Promise.all([
-    db
-      .select()
-      .from(schema.gprReadings)
-      .orderBy(desc(schema.gprReadings.date))
-      .limit(30),
-    fetchRegionalGPR(),
-  ]);
+  // Regional GDELT proxies use cached data if available, otherwise return empty
+  // (the sequential GDELT fetches take 22s+ on cold cache which blows past chat timeouts)
+  const rows = await db
+    .select()
+    .from(schema.gprReadings)
+    .orderBy(desc(schema.gprReadings.date))
+    .limit(30);
+
+  // Use cached regional data if we have it, otherwise return empty and trigger background refresh
+  let regional: RegionalGPR[];
+  if (cachedRegional && Date.now() - regionalCacheTimestamp < REGIONAL_CACHE_TTL) {
+    regional = cachedRegional;
+  } else {
+    // Return empty for now, kick off background refresh
+    regional = REGIONS.map((r) => ({
+      region: r.name,
+      score: 0,
+      trend: "stable" as const,
+      topEvents: [],
+      assetExposure: r.assetExposure,
+    }));
+    fetchRegionalGPR().catch(() => {});
+  }
 
   let history: GPRReading[];
   let current: GPRReading;

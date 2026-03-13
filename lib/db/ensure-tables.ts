@@ -152,6 +152,37 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_twitter_replies_tweet_id ON twitter_replies (tweet_id)`,
   `CREATE INDEX IF NOT EXISTS idx_twitter_replies_author ON twitter_replies (author_username)`,
   `CREATE INDEX IF NOT EXISTS idx_twitter_replies_created_at ON twitter_replies (created_at DESC)`,
+
+  // 0009: data_cache
+  `CREATE TABLE IF NOT EXISTS data_cache (
+    id SERIAL PRIMARY KEY,
+    key TEXT NOT NULL UNIQUE,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT NOW()::TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_data_cache_key ON data_cache (key)`,
+
+  // 0010: blog_posts
+  `CREATE TABLE IF NOT EXISTS blog_posts (
+    id SERIAL PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    excerpt TEXT NOT NULL,
+    body TEXT NOT NULL,
+    category TEXT NOT NULL,
+    prediction_id INTEGER REFERENCES predictions(id),
+    status TEXT NOT NULL DEFAULT 'draft',
+    author TEXT NOT NULL DEFAULT 'NEXUS Research Desk',
+    reading_time INTEGER,
+    tags TEXT,
+    published_at TEXT,
+    created_at TEXT NOT NULL DEFAULT NOW()::TEXT,
+    updated_at TEXT NOT NULL DEFAULT NOW()::TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts (slug)`,
+  `CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts (status)`,
+  `CREATE INDEX IF NOT EXISTS idx_blog_posts_published_at ON blog_posts (published_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_blog_posts_category ON blog_posts (category)`,
 ];
 
 export async function ensureTables() {

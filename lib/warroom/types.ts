@@ -112,6 +112,7 @@ export interface OsintEvent {
   notes: string;
   source: string;
   sourceUrl: string;
+  tone?: number;
 }
 
 export interface OsintResponse {

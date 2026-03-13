@@ -391,6 +391,13 @@ registerJob("twitter-replies", 2 * 60 * 60_000, async () => {
   if (!res.ok) throw new Error(`Twitter replies failed: ${res.status}`);
 }, { ai: true });
 
+registerJob("macro-cache-refresh", 15 * 60_000, async () => {
+  // Refresh FRED macro data + Yahoo market snapshot into DB cache every 15 min
+  const { refreshMacroCache, refreshMarketSnapshotCache } = await import("@/lib/market-data/cache-refresh");
+  await refreshMacroCache();
+  await refreshMarketSnapshotCache();
+});
+
 registerJob("news-sync", 10 * 60_000, async () => {
   // Fetch news from RSS/GDELT/NewsData and cache in DB every 10 minutes
   const { syncNewsToDb } = await import("@/lib/news/sync");

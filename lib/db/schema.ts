@@ -67,6 +67,7 @@ export const predictions = pgTable("predictions", {
   directionCorrect: integer("direction_correct"), // 0 | 1 at resolution
   levelCorrect: integer("level_correct"), // 0 | 1 at resolution
   createdBy: text("created_by"), // username of creator (null = system-generated)
+  tweetId: text("tweet_id"), // X/Twitter tweet ID when prediction was posted
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -760,6 +761,18 @@ export const twitterReplies = pgTable("twitter_replies", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Twitter Post Log ──
+
+export const twitterPosts = pgTable("twitter_posts", {
+  id: serial("id").primaryKey(),
+  tweetId: text("tweet_id").notNull(),
+  tweetType: text("tweet_type").notNull(), // prediction | resolution | analyst | reply
+  content: text("content").notNull(),
+  predictionId: integer("prediction_id").references(() => predictions.id),
+  quoteTweetId: text("quote_tweet_id"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const gprReadings = pgTable("gpr_readings", {
   id: serial("id").primaryKey(),
   date: text("date").notNull().unique(),
@@ -783,6 +796,30 @@ export const partnerProspects = pgTable("partner_prospects", {
   status: text("status").notNull().default("prospect"),
   notes: text("notes"),
   commissionRate: integer("commission_rate").default(20),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const dataCache = pgTable("data_cache", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  data: text("data").notNull(), // JSON stringified
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const blogPosts = pgTable("blog_posts", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  excerpt: text("excerpt").notNull(),
+  body: text("body").notNull(), // markdown with embedded widget directives
+  category: text("category").notNull(), // market | geopolitical | macro | energy | commodities
+  predictionId: integer("prediction_id").references(() => predictions.id),
+  status: text("status").notNull().default("draft"), // draft | published | archived
+  author: text("author").notNull().default("NEXUS Research Desk"),
+  readingTime: integer("reading_time"), // estimated minutes
+  tags: text("tags"), // JSON array of tags
+  publishedAt: text("published_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 });

@@ -22,6 +22,9 @@ export function PublicNav() {
           <Link href="/research/signal-theory" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             RESEARCH
           </Link>
+          <Link href="/blog" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
+            BLOG
+          </Link>
           <Link href="/about" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             ABOUT
           </Link>

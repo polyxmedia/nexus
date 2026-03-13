@@ -10,7 +10,7 @@
       "schedule": "*/10 * * * *"
     },
     {
-      "path": "/api/scheduler/cron?jobs=portfolio-snapshot,alert-check,monitor-sweep",
+      "path": "/api/scheduler/cron?jobs=portfolio-snapshot,alert-check,monitor-sweep,macro-cache-refresh",
       "schedule": "*/15 * * * *"
     },
     {

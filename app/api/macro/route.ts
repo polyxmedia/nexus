@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMacroSnapshot, getYieldCurve, getFredSeries, FRED_SERIES, type FredSeriesId } from "@/lib/market-data/fred";
+import { getMacroSnapshot, getYieldCurve, getFredSeries, FRED_SERIES, type FredSeriesId, type FredSeriesData } from "@/lib/market-data/fred";
+import { readCache, CACHE_KEYS } from "@/lib/market-data/cache-refresh";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
+
+const CACHE_HEADERS = { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=1800" };
+
+// Accept cached data up to 2 hours old before falling back to live
+const MAX_CACHE_AGE_MS = 2 * 60 * 60_000;
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,8 +16,13 @@ export async function GET(req: NextRequest) {
 
   try {
     if (action === "yield_curve") {
+      // Try DB cache first
+      const cached = await readCache<ReturnType<typeof getYieldCurve>>(CACHE_KEYS.YIELD_CURVE, MAX_CACHE_AGE_MS);
+      if (cached) return NextResponse.json(cached.data, { headers: CACHE_HEADERS });
+
+      // Fallback to live
       const curve = await getYieldCurve();
-      return NextResponse.json(curve, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=1800" } });
+      return NextResponse.json(curve, { headers: CACHE_HEADERS });
     }
 
     if (action === "series") {
@@ -29,10 +40,27 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Default: full macro snapshot
+    // Default: full macro snapshot - try DB cache first
+    const cached = await readCache<Record<string, FredSeriesData>>(CACHE_KEYS.MACRO_SNAPSHOT, MAX_CACHE_AGE_MS);
+    if (cached) return NextResponse.json(cached.data, { headers: CACHE_HEADERS });
+
+    // Fallback to live FRED fetch
     const snapshot = await getMacroSnapshot();
-    return NextResponse.json(snapshot, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=1800" } });
+    return NextResponse.json(snapshot, { headers: CACHE_HEADERS });
   } catch (err: unknown) {
+    // If live fetch fails, try stale cache (any age)
+    const action2 = req.nextUrl.searchParams.get("action") || "snapshot";
+    if (action2 === "snapshot" || action2 === "yield_curve") {
+      const key = action2 === "yield_curve" ? CACHE_KEYS.YIELD_CURVE : CACHE_KEYS.MACRO_SNAPSHOT;
+      try {
+        const stale = await readCache(key);
+        if (stale) {
+          console.warn(`[macro] Serving stale cache for ${key} (last updated: ${stale.updatedAt})`);
+          return NextResponse.json(stale.data, { headers: CACHE_HEADERS });
+        }
+      } catch { /* ignore cache read errors */ }
+    }
+
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

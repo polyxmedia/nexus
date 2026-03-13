@@ -296,7 +296,7 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
-  if (publicPages.includes(pathname) || pathname.startsWith("/research")) return null;
+  if (publicPages.includes(pathname) || pathname.startsWith("/research") || pathname.startsWith("/blog")) return null;
 
   const sidebarContent = (
     <div className="flex h-full flex-col">

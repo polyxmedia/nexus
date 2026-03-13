@@ -1288,7 +1288,7 @@ ${baseRateContext}${actorBeliefContext}
 
 FORMAT: SUBJECT + "will" + measurable outcome. No imperatives (execute, monitor, track, buy, sell, activate, adjust).
 
-UNIQUENESS: No duplicate tickers/events vs pending. No threshold variants. Return [] if all covered.
+UNIQUENESS: Avoid duplicating the exact same claim or threshold variant vs pending. But you MUST always generate at least 3 predictions. If major tickers are covered, find new angles: different timeframes, different catalysts, related but uncovered assets, geopolitical outcomes, or cross-asset correlations. NEVER return an empty array.
 
 CONFIDENCE: Compound P(trigger)*P(outcome|trigger). Range 0.10-0.90. Follow calibration feedback above. No contradictions. Price targets base rate ~25-35%, geo announcements ~40-60%.
 
@@ -1369,6 +1369,25 @@ Output a brief devil's advocate summary (max 300 words).`;
     reference_symbol?: string | null;
   }> = JSON.parse(jsonMatch[0]);
 
+  // If Claude returned an empty array, log and retry once with a simpler prompt
+  if (parsed.length === 0) {
+    console.warn("[predictions] Claude returned empty array despite instruction not to. Attempting fallback generation.");
+    const fallbackResponse = await client.messages.create({
+      model: SONNET_MODEL,
+      max_tokens: 1024,
+      system: "You are a prediction engine. Generate exactly 3 falsifiable market or geopolitical predictions for the next 7-30 days. Each must have a clear deadline, measurable outcome, and confidence between 0.10-0.90. Respond ONLY with a JSON array.",
+      messages: [{ role: "user", content: `Today is ${today}. Current regime: ${currentRegime}. Reference prices: ${refPriceLines || "unavailable"}. Generate 3 predictions.\n\nRespond ONLY with JSON array:\n[{"claim":"...","timeframe":"7 days","deadline":"YYYY-MM-DD","confidence":0.50,"category":"market","grounding":"...","direction":"down","price_target":500,"reference_symbol":"SPY"}]` }],
+    });
+    const fallbackText = fallbackResponse.content[0].type === "text" ? fallbackResponse.content[0].text : "";
+    const fallbackMatch = fallbackText.match(/\[[\s\S]*\]/);
+    if (fallbackMatch) {
+      const fallbackParsed = JSON.parse(fallbackMatch[0]);
+      if (fallbackParsed.length > 0) {
+        parsed.push(...fallbackParsed);
+      }
+    }
+  }
+
   // ── Post-generation deduplication (defence-in-depth after prompt-level filtering) ──
   const existingClaims = allPredictions.map((p) => normalizeClaim(p.claim));
   const existingTickers = coverageMap.tickers;
@@ -1430,12 +1449,17 @@ Output a brief devil's advocate summary (max 300 words).`;
       }
     }
 
-    // 2. Ticker-level deduplication — if this prediction mentions a ticker already covered, reject
-    //    Skip ticker dedup for user-requested topics (they explicitly asked for it)
+    // 2. Ticker-level deduplication — only block if same ticker AND same direction
+    //    Allows new predictions on covered tickers if the angle is different (e.g. different direction or no direction)
+    //    Skip ticker dedup entirely for user-requested topics
     const newTickers = extractTickers(p.claim);
-    if (!options?.topic) {
-      const tickerDuplicate = newTickers.some((t) => existingTickers.has(t));
-      if (tickerDuplicate) continue;
+    if (!options?.topic && newDirection) {
+      const tickerAndDirectionDuplicate = newTickers.some((t) =>
+        existingPredictionIndex.some((ex) =>
+          ex.tickers.includes(t) && ex.direction === newDirection && !ex.outcome
+        )
+      );
+      if (tickerAndDirectionDuplicate) continue;
     }
 
     // Validate category

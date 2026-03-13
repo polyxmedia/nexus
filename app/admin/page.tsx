@@ -3,7 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { PageContainer } from "@/components/layout/page-container";
+
+const TrafficMap = dynamic(() => import("@/components/admin/traffic-map"), { ssr: false });
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +57,7 @@ import {
   MousePointer,
   MoreVertical,
   UserCheck,
+  Sparkles,
 } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -391,6 +395,7 @@ const ADMIN_TABS = [
   { id: "base-rates", label: "Base Rates", icon: Activity },
   { id: "og-tester", label: "OG Image", icon: Eye },
   { id: "integrations", label: "Integrations", icon: Globe },
+  { id: "blog", label: "Blog Writer", icon: FileText },
 ];
 
 const PROMPT_CATEGORIES = [
@@ -3159,6 +3164,22 @@ function AnalyticsPanel({
         )}
       </div>
 
+      {/* Traffic Map */}
+      {(analytics.cities.length > 0 || analytics.countries.length > 0) && (
+        <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+            <Globe className="h-3.5 w-3.5 text-accent-cyan opacity-60" />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Visitor Map</span>
+            <span className="text-[9px] font-mono text-navy-600 ml-auto">
+              {analytics.countries.length} countries · {analytics.cities.length} cities
+            </span>
+          </div>
+          <div className="h-[320px]">
+            <TrafficMap cities={analytics.cities} countries={analytics.countries} />
+          </div>
+        </div>
+      )}
+
       {/* Geography: Countries + Cities */}
       <div className="grid grid-cols-2 gap-3">
         <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
@@ -3779,6 +3800,330 @@ function SchedulerPanel() {
   );
 }
 
+/* ── Blog Writer Panel ─────────────────────────────────────────── */
+
+interface BlogPostRecord {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  body: string;
+  category: string;
+  status: string;
+  author: string;
+  readingTime: number | null;
+  tags: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  predictionId: number | null;
+}
+
+function BlogWriterPanel() {
+  const [posts, setPosts] = useState<BlogPostRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [predictionId, setPredictionId] = useState("");
+  const [topic, setTopic] = useState("");
+  const [autoPublish, setAutoPublish] = useState(false);
+  const [editingPost, setEditingPost] = useState<BlogPostRecord | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editExcerpt, setEditExcerpt] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  const loadPosts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/blog");
+      const data = await res.json();
+      setPosts(data.posts || []);
+    } catch {} finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadPosts(); }, [loadPosts]);
+
+  const handleGenerate = async () => {
+    if (!predictionId && !topic.trim()) return;
+    setGenerating(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch("/api/admin/blog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate",
+          predictionId: predictionId ? parseInt(predictionId) : undefined,
+          topic: topic.trim() || undefined,
+          autoPublish,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setStatusMsg(`Generated: "${data.post.title}" [${data.post.status}]`);
+        setPredictionId("");
+        setTopic("");
+        loadPosts();
+      } else {
+        setStatusMsg(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      setStatusMsg(`Failed: ${err}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleAction = async (action: string, id: number) => {
+    try {
+      await fetch("/api/admin/blog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, id }),
+      });
+      loadPosts();
+    } catch {}
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPost) return;
+    setSaving(true);
+    try {
+      await fetch("/api/admin/blog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          id: editingPost.id,
+          title: editTitle,
+          excerpt: editExcerpt,
+          body: editBody,
+        }),
+      });
+      setEditingPost(null);
+      loadPosts();
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
+
+  const openEdit = (post: BlogPostRecord) => {
+    setEditingPost(post);
+    setEditTitle(post.title);
+    setEditExcerpt(post.excerpt);
+    setEditBody(post.body);
+  };
+
+  const statusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      draft: "text-accent-amber border-accent-amber/20 bg-accent-amber/5",
+      published: "text-accent-emerald border-accent-emerald/20 bg-accent-emerald/5",
+      archived: "text-navy-500 border-navy-600/20 bg-navy-800/20",
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded border text-[9px] font-mono uppercase tracking-widest ${colors[status] || colors.draft}`}>
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <p className="text-[11px] text-navy-400">
+        Generate AI-written intelligence articles from predictions or topics. Articles use NEXUS signals, market data, and regime context.
+      </p>
+
+      {/* Generator */}
+      <div className="border border-navy-700/40 rounded-lg bg-navy-900/20 p-5">
+        <div className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-4">Generate Article</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-[10px] font-mono text-navy-500 mb-1 block">Prediction ID (optional)</label>
+            <Input
+              value={predictionId}
+              onChange={(e) => setPredictionId(e.target.value)}
+              placeholder="e.g. 42"
+              className="text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-mono text-navy-500 mb-1 block">Or free topic</label>
+            <Input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="e.g. Iran-Israel escalation impact on oil"
+              className="text-xs"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-[10px] font-mono text-navy-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoPublish}
+              onChange={(e) => setAutoPublish(e.target.checked)}
+              className="rounded border-navy-600"
+            />
+            Auto-publish
+          </label>
+          <Button
+            size="sm"
+            onClick={handleGenerate}
+            disabled={generating || (!predictionId && !topic.trim())}
+          >
+            {generating ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Sparkles className="w-3 h-3 mr-1.5" />}
+            {generating ? "Writing..." : "Generate"}
+          </Button>
+        </div>
+        {statusMsg && (
+          <div className={`mt-3 text-[10px] font-mono ${statusMsg.startsWith("Error") || statusMsg.startsWith("Failed") ? "text-accent-rose" : "text-accent-emerald"}`}>
+            {statusMsg}
+          </div>
+        )}
+      </div>
+
+      {/* Editor modal */}
+      {editingPost && (
+        <Dialog.Root open onOpenChange={(open) => !open && setEditingPost(null)}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] w-full max-w-4xl max-h-[85vh] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-navy-700/60 bg-navy-900/95 backdrop-blur-md shadow-2xl overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700/30">
+                <Dialog.Title className="text-xs font-mono font-semibold text-navy-100 uppercase tracking-wider">
+                  Edit Article
+                </Dialog.Title>
+                <button onClick={() => setEditingPost(null)} className="text-navy-500 hover:text-navy-300">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                  <label className="text-[10px] font-mono text-navy-500 mb-1 block">Title</label>
+                  <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="text-sm" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-navy-500 mb-1 block">Excerpt</label>
+                  <textarea
+                    value={editExcerpt}
+                    onChange={(e) => setEditExcerpt(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-md border border-navy-700/40 bg-navy-900/50 text-sm text-navy-200 resize-none focus:outline-none focus:border-navy-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-navy-500 mb-1 block">Body (Markdown + widgets)</label>
+                  <textarea
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    rows={20}
+                    className="w-full px-3 py-2 rounded-md border border-navy-700/40 bg-navy-950 text-xs text-navy-200 font-mono resize-y focus:outline-none focus:border-navy-500"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-navy-700/30">
+                <button
+                  onClick={() => setEditingPost(null)}
+                  className="px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider text-navy-400 hover:text-navy-200 border border-navy-700/30 transition-colors"
+                >
+                  Cancel
+                </button>
+                <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
+                  {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Save className="w-3 h-3 mr-1.5" />}
+                  Save
+                </Button>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
+
+      {/* Posts list */}
+      <div className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-2">
+        All Articles ({posts.length})
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 animate-pulse">
+              <div className="h-4 w-2/3 bg-navy-800 rounded mb-2" />
+              <div className="h-3 w-1/2 bg-navy-800/50 rounded" />
+            </div>
+          ))}
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-8 text-center">
+          <FileText className="w-6 h-6 text-navy-600 mx-auto mb-2" />
+          <p className="text-xs text-navy-400 font-mono">No articles yet. Generate your first one above.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {posts.map((post) => (
+            <div key={post.id} className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3 flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  {statusBadge(post.status)}
+                  <span className="text-[9px] font-mono text-navy-500 uppercase">{post.category}</span>
+                  {post.predictionId && (
+                    <span className="text-[9px] font-mono text-navy-600">Pred #{post.predictionId}</span>
+                  )}
+                </div>
+                <div className="text-sm text-navy-200 font-medium truncate">{post.title}</div>
+                <div className="text-[10px] text-navy-500 mt-0.5 truncate">{post.excerpt}</div>
+                <div className="text-[9px] font-mono text-navy-600 mt-1">
+                  {post.readingTime && `${post.readingTime} min`}
+                  {post.publishedAt && ` · Published ${new Date(post.publishedAt).toLocaleDateString()}`}
+                  {!post.publishedAt && ` · Created ${new Date(post.createdAt).toLocaleDateString()}`}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={() => openEdit(post)}
+                  className="px-2 py-1 rounded text-[9px] font-mono text-navy-400 hover:text-navy-200 hover:bg-navy-800/50 border border-navy-700/30 transition-colors"
+                >
+                  Edit
+                </button>
+                {post.status === "draft" && (
+                  <button
+                    onClick={() => handleAction("publish", post.id)}
+                    className="px-2 py-1 rounded text-[9px] font-mono text-accent-emerald hover:bg-accent-emerald/10 border border-accent-emerald/20 transition-colors"
+                  >
+                    Publish
+                  </button>
+                )}
+                {post.status === "published" && (
+                  <button
+                    onClick={() => handleAction("unpublish", post.id)}
+                    className="px-2 py-1 rounded text-[9px] font-mono text-accent-amber hover:bg-accent-amber/10 border border-accent-amber/20 transition-colors"
+                  >
+                    Unpublish
+                  </button>
+                )}
+                {post.status === "published" && (
+                  <Link
+                    href={`/blog/${post.slug}`}
+                    target="_blank"
+                    className="px-2 py-1 rounded text-[9px] font-mono text-accent-cyan hover:bg-accent-cyan/10 border border-accent-cyan/20 transition-colors"
+                  >
+                    View
+                  </Link>
+                )}
+                <button
+                  onClick={() => handleAction("delete", post.id)}
+                  className="px-2 py-1 rounded text-[9px] font-mono text-accent-rose hover:bg-accent-rose/10 border border-accent-rose/20 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IntegrationsPanel() {
   const [twitterStatus, setTwitterStatus] = useState<{
     connected: boolean;
@@ -3789,6 +4134,32 @@ function IntegrationsPanel() {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Twitter activity log
+  const [twitterPosts, setTwitterPosts] = useState<{
+    id: number;
+    tweetId: string;
+    tweetType: string;
+    content: string;
+    predictionId: number | null;
+    quoteTweetId: string | null;
+    createdAt: string;
+  }[]>([]);
+  const [twitterStats, setTwitterStats] = useState<{
+    total: number;
+    repliesToday: number;
+    byType: Record<string, number>;
+  }>({ total: 0, repliesToday: 0, byType: {} });
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityFilter, setActivityFilter] = useState<string>("");
+
+  // Tweet composer
+  const [composePrompt, setComposePrompt] = useState("");
+  const [composeDrafts, setComposeDrafts] = useState<string[]>([]);
+  const [composeGenerating, setComposeGenerating] = useState(false);
+  const [composePublishing, setComposePublishing] = useState(false);
+  const [composePublished, setComposePublished] = useState<{ id: string; text: string; url: string }[] | null>(null);
+  const [composeError, setComposeError] = useState<string | null>(null);
 
   // Telegram AI settings
   const [telegramAiEnabled, setTelegramAiEnabled] = useState(true);
@@ -3829,6 +4200,23 @@ function IntegrationsPanel() {
       setMessage({ type: "error", text: "Twitter/X connection failed" });
     }
   }, [fetchStatus]);
+
+  const fetchTwitterActivity = useCallback(async () => {
+    try {
+      const params = activityFilter ? `?type=${activityFilter}` : "";
+      const res = await fetch(`/api/admin/twitter-activity${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTwitterPosts(data.posts || []);
+        setTwitterStats(data.stats || { total: 0, repliesToday: 0, byType: {} });
+      }
+    } catch { /* empty state is fine */ }
+    finally { setActivityLoading(false); }
+  }, [activityFilter]);
+
+  useEffect(() => {
+    fetchTwitterActivity();
+  }, [fetchTwitterActivity]);
 
   const fetchTelegramSettings = useCallback(async () => {
     try {
@@ -3905,6 +4293,63 @@ function IntegrationsPanel() {
     } finally {
       setDisconnecting(false);
     }
+  };
+
+  const generateTweet = async () => {
+    if (!composePrompt.trim()) return;
+    setComposeGenerating(true);
+    setComposeError(null);
+    setComposeDrafts([]);
+    setComposePublished(null);
+    try {
+      const res = await fetch("/api/admin/twitter-compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate", prompt: composePrompt }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setComposeError(data.error || "Generation failed");
+        return;
+      }
+      setComposeDrafts(data.tweets || []);
+    } catch {
+      setComposeError("Failed to generate tweet");
+    } finally {
+      setComposeGenerating(false);
+    }
+  };
+
+  const publishTweet = async () => {
+    if (composeDrafts.length === 0) return;
+    setComposePublishing(true);
+    setComposeError(null);
+    try {
+      const res = await fetch("/api/admin/twitter-compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "publish", tweets: composeDrafts }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setComposeError(data.error || "Publish failed");
+        return;
+      }
+      setComposePublished(data.posted || []);
+      setComposeDrafts([]);
+      setComposePrompt("");
+      fetchTwitterActivity();
+    } catch {
+      setComposeError("Failed to publish");
+    } finally {
+      setComposePublishing(false);
+    }
+  };
+
+  const resetComposer = () => {
+    setComposeDrafts([]);
+    setComposePublished(null);
+    setComposeError(null);
   };
 
   return (
@@ -4006,6 +4451,211 @@ function IntegrationsPanel() {
           </Button>
         )}
       </div>
+
+      {/* Tweet Composer */}
+      {twitterStatus?.connected && (
+        <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+          <div className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100 mb-3">
+            Compose Tweet
+          </div>
+
+          {/* Published confirmation */}
+          {composePublished && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-2 w-2 rounded-full bg-accent-emerald" />
+                <span className="text-[11px] font-mono text-accent-emerald">Published</span>
+              </div>
+              {composePublished.map((tweet, i) => (
+                <div key={tweet.id} className="border border-accent-emerald/20 rounded p-3 bg-accent-emerald/5">
+                  {composePublished.length > 1 && (
+                    <span className="text-[8px] font-mono text-navy-500 mb-1 block">{i + 1}/{composePublished.length}</span>
+                  )}
+                  <p className="text-[11px] text-navy-200 leading-relaxed whitespace-pre-wrap mb-2">{tweet.text}</p>
+                  <a
+                    href={tweet.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-mono text-accent-cyan hover:underline"
+                  >
+                    view on X
+                  </a>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" onClick={resetComposer} className="mt-2">
+                Compose another
+              </Button>
+            </div>
+          )}
+
+          {/* Draft preview */}
+          {!composePublished && composeDrafts.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-[10px] font-mono text-navy-400 uppercase tracking-wider mb-1">Preview</div>
+              {composeDrafts.map((draft, i) => (
+                <div key={i} className="border border-navy-700 rounded p-3 bg-navy-900/50">
+                  {composeDrafts.length > 1 && (
+                    <span className="text-[8px] font-mono text-navy-500 mb-1 block">{i + 1}/{composeDrafts.length}</span>
+                  )}
+                  <textarea
+                    value={draft}
+                    onChange={(e) => {
+                      const updated = [...composeDrafts];
+                      updated[i] = e.target.value;
+                      setComposeDrafts(updated);
+                    }}
+                    className="w-full bg-transparent text-[11px] text-navy-200 leading-relaxed resize-none border-none outline-none font-mono"
+                    rows={3}
+                  />
+                  <div className="flex items-center justify-between mt-1">
+                    <span className={`text-[9px] font-mono ${draft.length > 280 ? "text-accent-rose" : "text-navy-600"}`}>
+                      {draft.length}/280
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+              {composeError && (
+                <div className="text-[10px] font-mono text-accent-rose">{composeError}</div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={publishTweet}
+                  disabled={composePublishing || composeDrafts.some((d) => d.length > 280)}
+                  className="bg-accent-cyan/20 text-accent-cyan border-accent-cyan/30 hover:bg-accent-cyan/30"
+                >
+                  {composePublishing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                  {composeDrafts.length > 1 ? "Publish Thread" : "Publish"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => generateTweet()}>
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Regenerate
+                </Button>
+                <Button variant="outline" size="sm" onClick={resetComposer}>
+                  <X className="h-3 w-3 mr-1" />
+                  Discard
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Prompt input */}
+          {!composePublished && composeDrafts.length === 0 && (
+            <div className="space-y-3">
+              <textarea
+                value={composePrompt}
+                onChange={(e) => setComposePrompt(e.target.value)}
+                placeholder="What should the tweet be about? e.g. 'current regime state and what it means for positioning' or 'thread about our prediction accuracy this month'"
+                className="w-full bg-navy-900/50 border border-navy-700/50 rounded-md px-3 py-2 text-[11px] font-mono text-navy-200 placeholder:text-navy-600 resize-none outline-none focus:border-navy-600 transition-colors"
+                rows={3}
+              />
+
+              {composeError && (
+                <div className="text-[10px] font-mono text-accent-rose">{composeError}</div>
+              )}
+
+              <Button
+                size="sm"
+                onClick={generateTweet}
+                disabled={composeGenerating || !composePrompt.trim()}
+                className="bg-navy-800 text-navy-200 border-navy-700 hover:bg-navy-700"
+              >
+                {composeGenerating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                Generate Preview
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Twitter Activity Log */}
+      {twitterStatus?.connected && (
+        <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-mono text-xs font-semibold uppercase tracking-widest text-navy-100">
+              Post Activity
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono text-navy-500">
+                {twitterStats.repliesToday}/8 replies today
+              </span>
+              <button
+                onClick={() => fetchTwitterActivity()}
+                className="text-[9px] font-mono text-accent-cyan hover:underline"
+              >
+                refresh
+              </button>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div className="flex gap-3 mb-3">
+            {["prediction", "resolution", "analyst", "reply"].map((type) => (
+              <button
+                key={type}
+                onClick={() => setActivityFilter(activityFilter === type ? "" : type)}
+                className={`text-[9px] font-mono uppercase tracking-wider px-2 py-1 rounded transition-colors ${
+                  activityFilter === type
+                    ? "bg-accent-cyan/15 text-accent-cyan"
+                    : "bg-navy-800/50 text-navy-400 hover:text-navy-300"
+                }`}
+              >
+                {type} {twitterStats.byType[type] || 0}
+              </button>
+            ))}
+          </div>
+
+          {/* Post list */}
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {activityLoading ? (
+              <div className="text-[10px] text-navy-500 font-mono py-4 text-center">Loading activity...</div>
+            ) : twitterPosts.length === 0 ? (
+              <div className="text-[10px] text-navy-500 font-mono py-4 text-center">No posts yet, activity will appear here as tweets go out</div>
+            ) : (
+              twitterPosts.map((post) => (
+                <div key={post.id} className="border border-navy-800/50 rounded p-2.5 hover:border-navy-700/50 transition-colors">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[8px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                      post.tweetType === "prediction" ? "bg-accent-cyan/10 text-accent-cyan"
+                        : post.tweetType === "resolution" ? "bg-accent-amber/10 text-accent-amber"
+                        : post.tweetType === "analyst" ? "bg-accent-emerald/10 text-accent-emerald"
+                        : "bg-navy-700/50 text-navy-400"
+                    }`}>
+                      {post.tweetType}
+                    </span>
+                    {post.quoteTweetId && (
+                      <span className="text-[8px] font-mono text-navy-500">quote tweet</span>
+                    )}
+                    <span className="text-[8px] font-mono text-navy-600 ml-auto">
+                      {new Date(post.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-navy-300 leading-relaxed whitespace-pre-wrap">
+                    {post.content.slice(0, 280)}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <a
+                      href={`https://x.com/nexaboratorio/status/${post.tweetId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[8px] font-mono text-accent-cyan hover:underline"
+                    >
+                      view on X
+                    </a>
+                    {post.predictionId && (
+                      <span className="text-[8px] font-mono text-navy-500">
+                        prediction #{post.predictionId}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Telegram Bot AI Card */}
       <div className="border border-navy-700/50 rounded-lg bg-navy-900/30 p-5">
@@ -6291,6 +6941,10 @@ export default function AdminPage() {
 
         <Tabs.Content value="integrations">
           <IntegrationsPanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="blog">
+          <BlogWriterPanel />
         </Tabs.Content>
       </Tabs.Root>
       {/* Confirm Modal */}

@@ -383,30 +383,31 @@ async function fetchRssFeed(feedUrl: string, source: string): Promise<NewsArticl
   }
 }
 
-// ── GDELT (broad global coverage, diverse sources) ──
+// ── GDELT (broad global coverage, diverse sources + multi-language) ──
 
 async function fetchGdeltArticles(): Promise<NewsArticle[]> {
   try {
-    const query = encodeURIComponent("conflict OR geopolitical OR energy OR markets");
-    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=50&format=json&sort=DateDesc`;
+    const { docSearch, multiLangSearch } = await import("@/lib/gdelt/client");
 
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(12_000),
-      cache: "no-store",
-    });
+    // Fetch English + non-English sources in parallel
+    const [enArticles, intlArticles] = await Promise.all([
+      docSearch({ query: "conflict OR geopolitical OR energy OR markets", maxRecords: 50, timeoutMs: 12_000 }),
+      multiLangSearch("conflict OR military OR sanctions OR crisis", { maxRecords: 25, timeoutMs: 12_000 }),
+    ]);
 
-    if (!res.ok) return [];
+    const allArticles = [...enArticles, ...intlArticles];
+    const seen = new Set<string>();
 
-    const json = await res.json();
-    const rawArticles = json?.articles || [];
-
-    return rawArticles
-      .filter((a: Record<string, string>) => {
+    return allArticles
+      .filter((a) => {
         const t = (a.title || "").trim();
         const u = (a.url || "").trim();
-        return t.length >= 5 && u.startsWith("http");
+        if (t.length < 5 || !u.startsWith("http")) return false;
+        if (seen.has(u)) return false;
+        seen.add(u);
+        return true;
       })
-      .map((a: Record<string, string>) => {
+      .map((a) => {
         const title = decodeEntities(a.title.trim());
         const domain = a.domain || "GDELT";
         return {

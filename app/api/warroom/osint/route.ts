@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { OsintEvent, OsintEventType, OsintResponse } from "@/lib/warroom/types";
 import { requireTier } from "@/lib/auth/require-tier";
+import { docSearch, geoSearch, clusterGeoFeatures, type GdeltArticle } from "@/lib/gdelt/client";
 
 function classifyEventType(title: string): OsintEventType {
   const t = title.toLowerCase();
@@ -15,6 +16,14 @@ function classifyEventType(title: string): OsintEventType {
 function extractFatalities(title: string): number {
   const match = title.match(/(\d+)\s*(?:killed|dead|die|fatalities|casualties)/i);
   return match ? parseInt(match[1], 10) : 0;
+}
+
+function parseGdeltDate(seendate: string): string {
+  try {
+    return new Date(seendate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, "$1-$2-$3T$4:$5:$6Z")).toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
 }
 
 // Conflict hotspot seed data - augmented by live GDELT when available
@@ -36,86 +45,86 @@ const SEED_EVENTS: OsintEvent[] = [
   { id: "seed-mm-1", date: new Date().toISOString(), eventType: "battles", actors: "Resistance Forces; Myanmar Military", location: "Shan State, Myanmar", country: "Myanmar", lat: 20.7, lng: 97.0, fatalities: 0, notes: "Ethnic armed organizations advance against junta positions", source: "OSINT aggregation", sourceUrl: "" },
 ];
 
-async function fetchGdeltEvents(): Promise<OsintEvent[]> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+function articleToEvent(article: GdeltArticle, index: number): OsintEvent | null {
+  const title = article.title || "";
+  const geoLat = article.actiongeo_lat;
+  const geoLng = article.actiongeo_long;
 
-    const query = encodeURIComponent("conflict OR military OR attack OR bombing");
-    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=100&format=json&timespan=7d`;
+  if (!geoLat && !geoLng) return null;
+  if (geoLat === 0 && geoLng === 0) return null;
 
-    const res = await fetch(url, {
-      signal: controller.signal,
-      next: { revalidate: 300 },
-    });
-    clearTimeout(timeout);
+  const seenDate = article.seendate || "";
+  const id = `gdelt-${Buffer.from(title.slice(0, 50) + seenDate).toString("base64url").slice(0, 16)}`;
 
-    if (!res.ok) return [];
+  return {
+    id,
+    date: seenDate ? parseGdeltDate(seenDate) : new Date().toISOString(),
+    eventType: classifyEventType(title),
+    actors: "",
+    location: title.length > 80 ? title.slice(0, 77) + "..." : title,
+    country: article.sourcecountry || article.domain?.split(".").pop()?.toUpperCase() || "",
+    lat: geoLat!,
+    lng: geoLng!,
+    fatalities: extractFatalities(title),
+    notes: title,
+    source: article.domain || "GDELT",
+    sourceUrl: article.url || "",
+    tone: article.tone,
+  };
+}
 
-    const data = await res.json();
-    const articles = data.articles || [];
-    const events: OsintEvent[] = [];
-    const seen = new Set<string>();
+async function fetchGdeltEvents(): Promise<{ events: OsintEvent[]; clusters: ReturnType<typeof clusterGeoFeatures> }> {
+  const query = "conflict OR military OR attack OR bombing";
 
-    for (const article of articles) {
-      const title: string = article.title || "";
-      const articleUrl: string = article.url || "";
-      const domain: string = article.domain || "";
-      const seenDate: string = article.seendate || "";
+  // Fetch articles and geo data in parallel
+  const [articles, geoFeatures] = await Promise.all([
+    docSearch({ query, maxRecords: 100, timespan: "7d", timeoutMs: 8000 }),
+    geoSearch({ query, timespan: "7d", timeoutMs: 8000 }),
+  ]);
 
-      const id = `gdelt-${Buffer.from(title.slice(0, 50) + seenDate).toString("base64url").slice(0, 16)}`;
-      if (seen.has(id)) continue;
-      seen.add(id);
-
-      const country = article.sourcecountry || domain.split(".").pop()?.toUpperCase() || "";
-      const geoLat = article.seenlatitude || article.actiongeo_lat;
-      const geoLng = article.seenlongitude || article.actiongeo_long;
-
-      if (!geoLat && !geoLng) continue;
-      if (geoLat === 0 && geoLng === 0) continue;
-
-      events.push({
-        id,
-        date: seenDate
-          ? new Date(seenDate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, "$1-$2-$3T$4:$5:$6Z")).toISOString()
-          : new Date().toISOString(),
-        eventType: classifyEventType(title),
-        actors: "",
-        location: title.length > 80 ? title.slice(0, 77) + "..." : title,
-        country,
-        lat: geoLat,
-        lng: geoLng,
-        fatalities: extractFatalities(title),
-        notes: title,
-        source: domain,
-        sourceUrl: articleUrl,
-      });
+  // Convert articles to events
+  const seen = new Set<string>();
+  const events: OsintEvent[] = [];
+  for (const article of articles) {
+    const event = articleToEvent(article, events.length);
+    if (event && !seen.has(event.id)) {
+      seen.add(event.id);
+      events.push(event);
     }
-
-    return events;
-  } catch {
-    return [];
   }
+
+  // Cluster geo features to detect geographic convergence
+  const clusters = clusterGeoFeatures(geoFeatures, 50);
+
+  return { events, clusters };
 }
 
 export async function GET() {
   const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
   try {
-    // Try live GDELT first, fall back to seed data
-    const liveEvents = await fetchGdeltEvents();
+    const { events: liveEvents, clusters } = await fetchGdeltEvents();
     const events = liveEvents.length > 0 ? liveEvents : SEED_EVENTS;
 
-    const response: OsintResponse = {
+    const response: OsintResponse & { clusters?: unknown } = {
       events,
       timestamp: Date.now(),
       totalCount: events.length,
     };
 
+    // Include geographic clusters when available
+    if (clusters.length > 0) {
+      response.clusters = clusters.map((c) => ({
+        center: { lat: c.center[1], lng: c.center[0] },
+        articleCount: c.count,
+        totalMentions: c.totalMentions,
+        locations: c.features.map((f) => f.properties.name).filter(Boolean),
+      }));
+    }
+
     return NextResponse.json(response);
   } catch (error) {
     console.error("OSINT API error:", error);
-    // Always return seed data on failure
     return NextResponse.json({
       events: SEED_EVENTS,
       timestamp: Date.now(),

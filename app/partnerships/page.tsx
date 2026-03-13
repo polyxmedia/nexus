@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import {
   Search, Plus, Send, FileText, Trash2, ExternalLink, Mail,
@@ -65,6 +66,8 @@ function formatCount(n: number): string {
 }
 
 export default function PartnershipsPage() {
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<YouTubeChannel[]>([]);
@@ -88,15 +91,20 @@ export default function PartnershipsPage() {
   const fetchProspects = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/partnerships");
+      if (res.status === 403 || res.status === 401) {
+        router.replace("/dashboard");
+        return;
+      }
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
+      setIsAdmin(true);
       setProspects(data.prospects || []);
     } catch {
       setError("Failed to load prospects");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchProspects();
@@ -267,6 +275,8 @@ export default function PartnershipsPage() {
     setDraftContext("");
     setError(null);
   }
+
+  if (!isAdmin && !loading) return null;
 
   return (
     <PageContainer title="Partnerships">

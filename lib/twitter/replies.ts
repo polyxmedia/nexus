@@ -12,7 +12,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
-import { searchTweets, replyToTweet, isTwitterConfigured, type SearchedTweet } from "./client";
+import { searchTweets, replyToTweet, isTwitterConfigured, logTweet, type SearchedTweet } from "./client";
 import { detectCurrentRegime } from "@/lib/regime/detection";
 import type { RegimeState } from "@/lib/regime/detection";
 import { getCachedNews } from "@/lib/news/sync";
@@ -66,24 +66,26 @@ const MAX_REPLIES_PER_RUN = 3;
 // How many queries to run per cycle (rotate through them)
 const QUERIES_PER_RUN = 4;
 
-const REPLY_PROMPT = `You are the senior analyst behind NEXUS Intelligence Platform (@nexaboratorio). Someone posted a tweet about a topic you have genuine analytical insight on. Write a reply that adds real value.
+const REPLY_PROMPT = `You reply from NEXUS Intelligence Platform (@nexaboratorio). Someone tweeted about something you have genuine analytical insight on.
 
-RULES:
-- Add substance they can't get elsewhere. Reference specific data points, regime states, historical parallels, or framework-level thinking
-- Never self-promote. Do not mention NEXUS, the platform, or link to anything. Pure analytical value only
-- Match the tone of the conversation. If they're casual, be conversational. If they're technical, go deep
-- Keep it under 260 characters. Dense insight, not filler
-- No emojis ever
-- No "great point" or "interesting thread" or any sycophantic opener. Just add your take
-- If you cannot add genuine analytical value to this specific tweet, return null. Do NOT force a reply
-- Never hedge with "it depends" or "time will tell". State your view with the data behind it
-- Do not start with "I" or "@"
+VOICE RULES (non-negotiable):
+- Write like speech. Chain thoughts with commas, flow naturally
+- Comma splices fine. Contractions always. Ellipsis for pauses
+- No emojis ever. No em dashes (use commas). No ALL CAPS
+- No exclamation marks. No sycophantic openers ("great point", "interesting thread")
+- No "Let's dive in", "Here's the thing", "At the end of the day"
+- No formulaic antithesis. No hollow hype
+- Don't start with "I" or "@"
+- Under 260 characters, dense insight, no filler
+- Add substance they can't get elsewhere, specific data points, regime states, historical parallels
+- Never self-promote. Don't mention NEXUS or link to anything
+- Match the tone of the conversation, casual or technical
+- State your view with data behind it. No "it depends" or "time will tell"
+- If you can't add genuine value, return null
 
 RESPONSE FORMAT:
-Return exactly one JSON object:
 { "reply": "your reply text" }
-Or if this tweet isn't worth replying to:
-{ "reply": null, "reason": "brief reason" }`;
+Or: { "reply": null, "reason": "brief reason" }`;
 
 interface ReplyContext {
   regime: RegimeState;
@@ -316,6 +318,11 @@ export async function runThreadReplies(): Promise<{ searched: number; replied: n
           if (posted) {
             totalReplied++;
             console.log(`[twitter-replies] Replied to @${tweet.authorUsername} (${posted.id}): ${result.reply.slice(0, 80)}...`);
+            await logTweet({
+              tweetId: posted.id,
+              tweetType: "reply",
+              content: result.reply,
+            });
           }
 
           // Rate limit buffer between replies

@@ -151,6 +151,61 @@ export async function postThread(tweets: string[]): Promise<TweetResult[]> {
 }
 
 /**
+ * Quote tweet - post a tweet that references another tweet.
+ * Uses the X API v2 quote_tweet_id parameter.
+ */
+export async function quoteTweet(text: string, quotedTweetId: string): Promise<TweetResult | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+
+  const truncated = text.length > 280 ? text.slice(0, 277) + "..." : text;
+
+  const res = await fetch("https://api.x.com/2/tweets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text: truncated,
+      quote_tweet_id: quotedTweetId,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[twitter] Failed to quote tweet ${quotedTweetId} (${res.status}): ${body}`);
+    return null;
+  }
+
+  const data = await res.json();
+  return { id: data.data.id, text: data.data.text };
+}
+
+/**
+ * Log a tweet to the twitter_posts table for admin visibility.
+ */
+export async function logTweet(opts: {
+  tweetId: string;
+  tweetType: "prediction" | "resolution" | "analyst" | "reply";
+  content: string;
+  predictionId?: number;
+  quoteTweetId?: string;
+}): Promise<void> {
+  try {
+    await db.insert(schema.twitterPosts).values({
+      tweetId: opts.tweetId,
+      tweetType: opts.tweetType,
+      content: opts.content,
+      predictionId: opts.predictionId || null,
+      quoteTweetId: opts.quoteTweetId || null,
+    });
+  } catch (err) {
+    console.error("[twitter] Failed to log tweet:", err);
+  }
+}
+
+/**
  * Reply to a specific tweet.
  */
 export async function replyToTweet(tweetId: string, text: string): Promise<TweetResult | null> {
