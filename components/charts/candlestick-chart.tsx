@@ -351,12 +351,12 @@ export default function CandlestickChart({
       rsiChartRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showRsi, data]);
+  }, [showRsi, cleanData]);
 
   // ── MACD sub-chart ──────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!macdRef.current || !data.length || !showMacd) {
+    if (!macdRef.current || !cleanData.length || !showMacd) {
       macdChartRef.current?.remove();
       macdChartRef.current = null;
       return;

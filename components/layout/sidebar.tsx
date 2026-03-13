@@ -105,7 +105,7 @@ const analyticsNav: NavItem[] = [
   { name: "Simulation", href: "/simulation", icon: Dice5 },
 ];
 
-function NavSection({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
+function NavSection({ label, items, pathname, checkAccess }: { label: string; items: NavItem[]; pathname: string; checkAccess?: (tier: string) => boolean }) {
   if (items.length === 0) return null;
   return (
     <div className="mb-1">
@@ -120,6 +120,8 @@ function NavSection({ label, items, pathname }: { label: string; items: NavItem[
         const bestMatch = items.reduce((best, it) =>
           (pathname === it.href || pathname.startsWith(it.href + "/")) && it.href.length > best.length ? it.href : best, "");
         const isActive = item.href === bestMatch;
+        const requiredTier = PAGE_TIERS[item.href];
+        const locked = checkAccess && requiredTier && requiredTier !== "free" && !checkAccess(requiredTier);
 
         return (
           <Link
@@ -129,11 +131,14 @@ function NavSection({ label, items, pathname }: { label: string; items: NavItem[
               "mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
               isActive
                 ? "bg-navy-800/80 text-navy-100"
-                : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
+                : locked
+                  ? "text-navy-600 hover:bg-navy-800/30 hover:text-navy-500"
+                  : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
             )}
           >
-            <item.icon className="h-4 w-4 shrink-0 opacity-70" />
-            {item.name}
+            <item.icon className={cn("h-4 w-4 shrink-0", locked ? "opacity-40" : "opacity-70")} />
+            <span className="flex-1">{item.name}</span>
+            {locked && <Lock className="h-3 w-3 text-navy-700 shrink-0" />}
           </Link>
         );
       })}
@@ -287,7 +292,7 @@ function UpgradeNudge({ currentTier }: { currentTier: string | null }) {
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { isAdmin, meetsMinTier, tier } = useSubscription();
+  const { isAdmin, meetsMinTier, tier, loading: subLoading } = useSubscription();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
