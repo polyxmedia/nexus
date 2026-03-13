@@ -20,7 +20,7 @@ async function isAdmin(username: string): Promise<boolean> {
 const DEFAULT_TIERS = [
   {
     name: "Observer",
-    price: 4900, // £49/mo in pence
+    price: 19900, // $199/mo in cents
     interval: "month",
     features: [
       "Signal detection engine",
@@ -44,7 +44,7 @@ const DEFAULT_TIERS = [
   },
   {
     name: "Operator",
-    price: 19900, // £199/mo in pence
+    price: 59900, // $599/mo in cents
     interval: "month",
     features: [
       "Everything in Observer",
@@ -70,8 +70,8 @@ const DEFAULT_TIERS = [
     position: 1,
   },
   {
-    name: "Station",
-    price: 49900, // £499/mo in pence
+    name: "Institution",
+    price: 99900, // $999/mo in cents
     interval: "month",
     features: [
       "Everything in Operator",

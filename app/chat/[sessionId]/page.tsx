@@ -289,7 +289,7 @@ export default function ChatSessionPage() {
           <div className="max-w-md text-center px-8 py-16">
             <Lock className="h-6 w-6 text-navy-600 mx-auto mb-4" />
             <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-accent-cyan/60 mb-3">
-              Analyst tier
+              Observer tier
             </div>
             <h3 className="font-sans text-xl font-semibold text-navy-100 mb-2.5">
               Unlock the AI Analyst

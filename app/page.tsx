@@ -223,8 +223,8 @@ const features = [
 const tiers = [
   {
     name: "Observer",
-    price: "£49",
-    priceAnnual: "£39",
+    price: "$199",
+    priceAnnual: "$169",
     period: "/mo",
     description: "Serious investor",
     features: [
@@ -241,8 +241,8 @@ const tiers = [
   },
   {
     name: "Operator",
-    price: "£199",
-    priceAnnual: "£169",
+    price: "$599",
+    priceAnnual: "$499",
     period: "/mo",
     description: "Macro trader",
     features: [
@@ -668,7 +668,7 @@ function HomeFAQ() {
     },
     {
       question: "What happens when I run out of credits?",
-      answer: "AI-powered features pause until you top up or your monthly allocation resets. Non-AI features like the War Room, signal browsing, and news feed remain fully accessible. Top-up packs start at $10.",
+      answer: "AI-powered features pause until you top up or your monthly allocation resets. Non-AI features like the War Room, signal browsing, and news feed remain fully accessible. Top-up packs are available.",
     },
     {
       question: "What kind of signals does NEXUS track?",
@@ -1016,11 +1016,11 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Station - institutional tier */}
+          {/* Institution tier */}
           <div className="max-w-3xl mx-auto mt-6">
             <div className="rounded-lg border border-navy-700/40 bg-navy-900/30 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div>
-                <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-navy-300 mb-1">Station</h3>
+                <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-navy-300 mb-1">Institution</h3>
                 <p className="text-[11px] text-navy-400 mb-3">Family office / RIA / institutional desk</p>
                 <div className="flex flex-wrap gap-x-6 gap-y-1">
                   {["Everything in Operator", "API access", "White-label briefings", "PDF exports", "Unlimited credits", "Custom integrations"].map((f) => (
@@ -1032,7 +1032,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <a
-                href="mailto:station@nexushq.xyz?subject=Station%20Enquiry"
+                href="mailto:institution@nexushq.xyz?subject=Institution%20Enquiry"
                 className="flex-shrink-0 text-xs font-medium rounded-lg px-6 py-2.5 bg-navy-800/60 hover:bg-navy-800 text-navy-300 hover:text-navy-100 border border-navy-700/40 hover:border-navy-600/60 transition-all duration-300"
               >
                 Contact Us

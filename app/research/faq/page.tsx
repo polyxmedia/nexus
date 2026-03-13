@@ -147,8 +147,8 @@ function CreditTable() {
 
   const tiers = [
     { name: "Free Trial", credits: "5,000", price: "$0", perCredit: "$0.001", highlight: false },
-    { name: "Analyst", credits: "50,000", price: "$150/mo", perCredit: "$0.001", highlight: false },
-    { name: "Operator", credits: "250,000", price: "$450/mo", perCredit: "$0.001", highlight: true },
+    { name: "Observer", credits: "50,000", price: "$199/mo", perCredit: "$0.004", highlight: false },
+    { name: "Operator", credits: "250,000", price: "$599/mo", perCredit: "$0.002", highlight: true },
     { name: "Institution", credits: "Unlimited", price: "Custom", perCredit: "N/A", highlight: false },
   ];
 
@@ -378,21 +378,21 @@ export default function FAQPage() {
                 <CreditTable />
               </div>
               <p className="mt-3">
-                Annual billing is available at a reduced rate: $125/month for Analyst and $375/month for Operator.
+                Annual billing is available at a reduced rate: $169/month for Observer and $499/month for Operator.
               </p>
             </FAQItem>
             <FAQItem question="What features does each tier include?" index={2} color="#f59e0b">
-              <p className="text-navy-300 font-mono text-[11px] mb-2">ANALYST ($150/month)</p>
+              <p className="text-navy-300 font-mono text-[11px] mb-2">OBSERVER ($199/month)</p>
               <p>
-                Signal detection, daily thesis generation, prediction tracking, War Room with OSINT, game theory scenarios, calendar intelligence, timeline and graph analysis, and multi-channel alerts (email, Telegram, SMS).
+                Signal detection engine, daily thesis generation, market sentiment analysis, prediction tracking with Brier scores, War Room with OSINT feeds, calendar intelligence, and email alerts.
               </p>
-              <p className="text-navy-300 font-mono text-[11px] mb-2 mt-4">OPERATOR ($450/month)</p>
+              <p className="text-navy-300 font-mono text-[11px] mb-2 mt-4">OPERATOR ($599/month)</p>
               <p>
-                Everything in Analyst, plus portfolio tracking, broker integration (coming soon), on-chain analytics, GEX data, GPR decomposition, BOCPD change-point detection, short interest, options flow, shipping and dark fleet intelligence, Monte Carlo simulation, congressional trading signals, prediction markets divergence, and API access.
+                Everything in Observer, plus game theory scenarios, vessel tracking and dark fleet intel, Monte Carlo simulation, prediction engine with full calibration, portfolio risk analytics, GEX, BOCPD and regime detection, short interest and options flow, on-chain analytics, and congressional trading signals.
               </p>
               <p className="text-navy-300 font-mono text-[11px] mb-2 mt-4">INSTITUTION (Custom)</p>
               <p>
-                Everything in Operator with unlimited credits, unlimited seats, custom data integrations, dedicated infrastructure, white-label option, SLA guarantee, direct engineering support, and on-premise deployment available.
+                Everything in Operator with unlimited credits, unlimited seats, API access, white-label briefings, PDF exports, custom integrations, dedicated infrastructure, and direct engineering support.
               </p>
             </FAQItem>
             <FAQItem question="Can I buy additional credits?" index={3} color="#f59e0b">

@@ -186,9 +186,9 @@ const features = [
 // ── Pricing tiers ──
 const tiers = [
   {
-    name: "Analyst",
-    price: "$150",
-    priceAnnual: "$125",
+    name: "Observer",
+    price: "$199",
+    priceAnnual: "$169",
     period: "/mo",
     description: "Individual intelligence capability",
     features: [
@@ -200,17 +200,17 @@ const tiers = [
       "War Room (view only)",
       "Email alerts",
     ],
-    cta: "Start Analysing",
+    cta: "Start Observing",
     highlighted: false,
   },
   {
     name: "Operator",
-    price: "$450",
-    priceAnnual: "$375",
+    price: "$599",
+    priceAnnual: "$499",
     period: "/mo",
     description: "Full operational capability",
     features: [
-      "Everything in Analyst",
+      "Everything in Observer",
       "250,000 AI credits/month",
       "Portfolio tracking + broker integration (coming soon)",
       "Real-time War Room + OSINT",

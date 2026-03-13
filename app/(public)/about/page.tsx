@@ -701,7 +701,7 @@ export default function AboutPage() {
             </div>
 
             <p className="font-mono text-[10px] text-navy-600 mt-8 tracking-wider">
-              ANALYST $150/mo // OPERATOR $450/mo // INSTITUTION Custom
+              OBSERVER $199/mo // OPERATOR $599/mo // INSTITUTION Custom
             </p>
           </div>
         </div>

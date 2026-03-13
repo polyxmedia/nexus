@@ -366,10 +366,10 @@ export const watchlistItems = pgTable("watchlist_items", {
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(), // Analyst, Operator, Institution
+  name: text("name").notNull(), // Observer, Operator, Institution
   stripePriceId: text("stripe_price_id"), // Stripe Price ID (null for custom/contact-us tiers)
   stripeProductId: text("stripe_product_id"), // Stripe Product ID
-  price: integer("price").notNull(), // price in cents (4900 = $49)
+  price: integer("price").notNull(), // price in cents (19900 = $199)
   interval: text("interval").notNull().default("month"), // month | year
   features: text("features").notNull(), // JSON array of feature strings
   limits: text("limits").notNull(), // JSON: { chatMessages: 100, warRoomAccess: "view", ... }

@@ -413,7 +413,7 @@ for article in data["data"]["articles"]:
 ];
 
 const RATE_LIMITS = [
-  { tier: "Analyst", perMin: "30", perHour: "500", perDay: "5,000" },
+  { tier: "Observer", perMin: "30", perHour: "500", perDay: "5,000" },
   { tier: "Operator", perMin: "120", perHour: "2,000", perDay: "20,000" },
   { tier: "Institution", perMin: "600", perHour: "10,000", perDay: "100,000" },
 ];

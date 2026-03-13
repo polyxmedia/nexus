@@ -5485,7 +5485,7 @@ export default function AdminPage() {
                 <CreditCard className="h-8 w-8 text-navy-600 mx-auto mb-3" />
                 <p className="text-sm text-navy-400 mb-1">No subscription tiers configured</p>
                 <p className="text-[10px] text-navy-500 mb-4">
-                  Click "Seed Default Tiers" to create the Analyst, Operator, and Institution tiers from the homepage.
+                  Click "Seed Default Tiers" to create the Observer, Operator, and Institution tiers from the homepage.
                 </p>
               </div>
             )}

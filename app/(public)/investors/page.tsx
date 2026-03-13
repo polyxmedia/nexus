@@ -238,7 +238,7 @@ export default function InvestorsPage() {
                   </tr>
                   <tr>
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-400">Cost</td>
-                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">$150–$450/mo (institutional: custom)</td>
+                    <td className="py-3 px-5 font-mono text-[11px] text-accent-cyan">$199–$599/mo (institutional: custom)</td>
                     <td className="py-3 px-5 font-mono text-[11px] text-navy-600">$2,000–$25,000+/mo per seat</td>
                   </tr>
                 </tbody>
@@ -265,7 +265,7 @@ export default function InvestorsPage() {
                 <Stat value="$40B+" label="Financial data & analytics market" sub="12% CAGR" />
                 <Stat value="$2.7B" label="Alternative data segment" sub="28% CAGR — fastest growing layer" />
                 <Stat value="500K+" label="Professional allocators globally" sub="Family offices, independent funds, prop desks" />
-                <Stat value="$2K–25K" label="Monthly per-seat cost, incumbents" sub="NEXUS: $150–$450. 4–55x cheaper." />
+                <Stat value="$2K–25K" label="Monthly per-seat cost, incumbents" sub="NEXUS: $199–$599. 3–42x cheaper." />
               </div>
             </div>
           </section>
@@ -279,14 +279,14 @@ export default function InvestorsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               {[
                 {
-                  tier: "Analyst",
-                  price: "$150/mo",
+                  tier: "Observer",
+                  price: "$199/mo",
                   target: "Individual professionals, researchers",
                   items: ["Signal engine", "AI analyst (50K credits/mo)", "Daily thesis", "Prediction tracking"],
                 },
                 {
                   tier: "Operator",
-                  price: "$450/mo",
+                  price: "$599/mo",
                   target: "Active allocators, prop desks",
                   items: ["250K AI credits/mo", "Trading integration (coming soon)", "War Room + OSINT", "On-chain, GEX, shipping intel", "Portfolio risk analytics"],
                   highlight: true,
