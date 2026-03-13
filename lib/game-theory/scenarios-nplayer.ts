@@ -6,7 +6,8 @@
  * domain-specific payoff logic. Coalitions capture alliance dynamics.
  */
 
-import type { NPlayerScenario, ActorType } from "./bayesian";
+import type { NPlayerScenario, ActorType, DynamicPayoffContext } from "./bayesian";
+import { applyContextToPayoff } from "./dynamic-payoffs";
 
 // ── Utility helper: type-conditioned payoffs ──
 
@@ -61,7 +62,7 @@ export const IRAN_SCENARIO: NPlayerScenario = {
       },
     ],
   },
-  utilityFn: (strategies, types) => {
+  utilityFn: (strategies, types, context?) => {
     const payoffs: Record<string, number> = {};
     const s = strategies;
 
@@ -71,7 +72,7 @@ export const IRAN_SCENARIO: NPlayerScenario = {
     else if (s.us === "Limited strikes") usBase = s.iran === "Proxy escalation" ? 1 : -3;
     else if (s.us === "Diplomatic engagement") usBase = s.iran === "Negotiate" ? 4 : 0;
     else usBase = 1; // strategic patience
-    payoffs.us = typeModifier(types.us, usBase);
+    payoffs.us = typeModifier(types.us, applyContextToPayoff(usBase, "us", s.us, context));
 
     // Iran payoffs
     let iranBase = 0;
@@ -79,7 +80,7 @@ export const IRAN_SCENARIO: NPlayerScenario = {
     else if (s.iran === "Proxy escalation") iranBase = s.israel === "Preemptive strike" ? -7 : 2;
     else if (s.iran === "Negotiate") iranBase = s.us === "Diplomatic engagement" ? 3 : -1;
     else iranBase = 2; // threshold maintenance
-    payoffs.iran = typeModifier(types.iran, iranBase);
+    payoffs.iran = typeModifier(types.iran, applyContextToPayoff(iranBase, "iran", s.iran, context));
 
     // Israel payoffs
     let israelBase = 0;
@@ -87,9 +88,8 @@ export const IRAN_SCENARIO: NPlayerScenario = {
     else if (s.israel === "Deterrence posture") israelBase = 2;
     else if (s.israel === "Diplomatic coordination") israelBase = s.us === "Diplomatic engagement" ? 3 : 1;
     else israelBase = 1;
-    // Iran proxy escalation is bad for Israel regardless
     if (s.iran === "Proxy escalation") israelBase -= 3;
-    payoffs.israel = typeModifier(types.israel, israelBase);
+    payoffs.israel = typeModifier(types.israel, applyContextToPayoff(israelBase, "israel", s.israel, context));
 
     // Saudi payoffs
     let saudiBase = 0;
@@ -97,9 +97,8 @@ export const IRAN_SCENARIO: NPlayerScenario = {
     else if (s.saudi === "Quiet alignment with US") saudiBase = s.us === "Maximum pressure" ? 2 : 0;
     else if (s.saudi === "Independent mediation") saudiBase = s.iran === "Negotiate" ? 4 : -1;
     else saudiBase = s.iran === "Proxy escalation" ? 3 : 1;
-    // Regional war is bad for Saudi
     if (s.iran === "Nuclear breakout" || s.israel === "Preemptive strike") saudiBase -= 2;
-    payoffs.saudi = typeModifier(types.saudi, saudiBase);
+    payoffs.saudi = typeModifier(types.saudi, applyContextToPayoff(saudiBase, "saudi", s.saudi, context));
 
     // China payoffs
     let chinaBase = 0;
@@ -107,9 +106,8 @@ export const IRAN_SCENARIO: NPlayerScenario = {
     else if (s.china === "Diplomatic shield") chinaBase = 1;
     else if (s.china === "Mediation bid") chinaBase = s.iran === "Negotiate" ? 4 : 0;
     else chinaBase = 0;
-    // US-Iran conflict distracts from Taiwan, net positive for China
     if (s.us === "Limited strikes" || s.us === "Maximum pressure") chinaBase += 1;
-    payoffs.china = typeModifier(types.china, chinaBase);
+    payoffs.china = typeModifier(types.china, applyContextToPayoff(chinaBase, "china", s.china, context));
 
     // Russia payoffs
     let russiaBase = 0;
@@ -117,9 +115,8 @@ export const IRAN_SCENARIO: NPlayerScenario = {
     else if (s.russia === "Arms sales") russiaBase = 2;
     else if (s.russia === "Diplomatic cover") russiaBase = 1;
     else russiaBase = 1;
-    // Conflict raises energy prices, good for Russia
     if (s.iran === "Proxy escalation" || s.us === "Limited strikes") russiaBase += 2;
-    payoffs.russia = typeModifier(types.russia, russiaBase);
+    payoffs.russia = typeModifier(types.russia, applyContextToPayoff(russiaBase, "russia", s.russia, context));
 
     return payoffs;
   },
@@ -182,7 +179,7 @@ export const TAIWAN_SCENARIO: NPlayerScenario = {
       },
     ],
   },
-  utilityFn: (strategies, types) => {
+  utilityFn: (strategies, types, context?) => {
     const payoffs: Record<string, number> = {};
     const s = strategies;
 
@@ -192,7 +189,7 @@ export const TAIWAN_SCENARIO: NPlayerScenario = {
     else if (s.china === "Gray zone escalation") chinaBase = 2;
     else if (s.china === "Economic coercion") chinaBase = s.taiwan === "Status quo maintenance" ? 3 : 1;
     else chinaBase = 1;
-    payoffs.china = typeModifier(types.china, chinaBase);
+    payoffs.china = typeModifier(types.china, applyContextToPayoff(chinaBase, "china", s.china, context));
 
     // US
     let usBase = 0;
@@ -200,7 +197,7 @@ export const TAIWAN_SCENARIO: NPlayerScenario = {
     else if (s.us === "Economic deterrence") usBase = 1;
     else if (s.us === "Diplomatic intervention") usBase = s.china === "Diplomatic pressure" ? 3 : 0;
     else usBase = s.china === "Military blockade" ? -4 : 1;
-    payoffs.us = typeModifier(types.us, usBase);
+    payoffs.us = typeModifier(types.us, applyContextToPayoff(usBase, "us", s.us, context));
 
     // Taiwan
     let twBase = 0;
@@ -209,7 +206,7 @@ export const TAIWAN_SCENARIO: NPlayerScenario = {
     else twBase = 1;
     if (s.us === "Naval deployment" || s.us === "Direct military intervention") twBase += 3;
     if (s.taiwan === "Asymmetric defense") twBase += 1;
-    payoffs.taiwan = typeModifier(types.taiwan || "defensive", twBase);
+    payoffs.taiwan = typeModifier(types.taiwan || "defensive", applyContextToPayoff(twBase, "taiwan", s.taiwan, context));
 
     // Japan
     let jpBase = 0;
@@ -217,7 +214,7 @@ export const TAIWAN_SCENARIO: NPlayerScenario = {
     if (s.japan === "Base access support" && s.us === "Naval deployment") jpBase += 2;
     else if (s.japan === "Non-involvement") jpBase = s.china === "Military blockade" ? -2 : 1;
     else jpBase = 0;
-    payoffs.japan = typeModifier(types.japan || "calculating", jpBase);
+    payoffs.japan = typeModifier(types.japan || "calculating", applyContextToPayoff(jpBase, "japan", s.japan, context));
 
     return payoffs;
   },
@@ -256,7 +253,7 @@ export const UKRAINE_SCENARIO: NPlayerScenario = {
       },
     ],
   },
-  utilityFn: (strategies, types) => {
+  utilityFn: (strategies, types, context?) => {
     const payoffs: Record<string, number> = {};
     const s = strategies;
 
@@ -266,14 +263,14 @@ export const UKRAINE_SCENARIO: NPlayerScenario = {
     else if (s.russia === "Negotiate from strength") ruBase = s.us === "Push settlement" ? 4 : 1;
     else ruBase = 0;
     if (s.china === "Economic support Russia") ruBase += 2;
-    payoffs.russia = typeModifier(types.russia, ruBase);
+    payoffs.russia = typeModifier(types.russia, applyContextToPayoff(ruBase, "russia", s.russia, context));
 
     let usBase = 0;
     if (s.us === "Increase military aid") usBase = s.russia === "Attrition warfare" ? 1 : 2;
     else if (s.us === "Push settlement") usBase = s.russia === "Negotiate from strength" ? 3 : -1;
     else if (s.us === "Direct NATO involvement") usBase = -2;
     else usBase = 0;
-    payoffs.us = typeModifier(types.us, usBase);
+    payoffs.us = typeModifier(types.us, applyContextToPayoff(usBase, "us", s.us, context));
 
     let cnBase = 0;
     if (s.china === "Diplomatic mediation") cnBase = 3;
@@ -281,7 +278,7 @@ export const UKRAINE_SCENARIO: NPlayerScenario = {
     else cnBase = 1;
     // Prolonged conflict benefits China by distracting US
     if (s.russia === "Attrition warfare") cnBase += 1;
-    payoffs.china = typeModifier(types.china, cnBase);
+    payoffs.china = typeModifier(types.china, applyContextToPayoff(cnBase, "china", s.china, context));
 
     return payoffs;
   },

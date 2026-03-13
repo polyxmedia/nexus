@@ -104,8 +104,8 @@ export function SourceReliabilityWidget({ data }: { data: any }) {
 
       {specialties.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
-          {specialties.map((s: string) => (
-            <span key={s} className="font-mono text-[8px] text-navy-500 border border-navy-800 rounded px-1 py-0.5">{s}</span>
+          {specialties.map((s: string, i: number) => (
+            <span key={`${s}-${i}`} className="font-mono text-[8px] text-navy-500 border border-navy-800 rounded px-1 py-0.5">{s}</span>
           ))}
         </div>
       )}

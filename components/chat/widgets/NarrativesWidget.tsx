@@ -67,8 +67,8 @@ export function NarrativesWidget({ data }: { data: any }) {
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="font-mono text-[8px] text-navy-600">{n.articleCount} articles</span>
-                {(n.relatedAssets || []).slice(0, 3).map((a: string) => (
-                  <span key={a} className="font-mono text-[8px] text-accent-cyan/50">{a}</span>
+                {(n.relatedAssets || []).slice(0, 3).map((a: string, i: number) => (
+                  <span key={`${a}-${i}`} className="font-mono text-[8px] text-accent-cyan/50">{a}</span>
                 ))}
               </div>
             </div>

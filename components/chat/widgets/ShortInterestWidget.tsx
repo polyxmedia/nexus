@@ -82,8 +82,8 @@ export function ShortInterestWidget({ data }: { data: any }) {
                 </div>
                 {(s.tickers || []).length > 0 && (
                   <div className="flex gap-1 mt-1 flex-wrap">
-                    {s.tickers.slice(0, 5).map((t: string) => (
-                      <span key={t} className="font-mono text-[8px] text-navy-600">{t}</span>
+                    {s.tickers.slice(0, 5).map((t: string, i: number) => (
+                      <span key={`${t}-${i}`} className="font-mono text-[8px] text-navy-600">{t}</span>
                     ))}
                   </div>
                 )}

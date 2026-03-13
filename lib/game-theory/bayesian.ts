@@ -26,6 +26,8 @@
  */
 
 import { ACTOR_PROFILES } from "@/lib/signals/actor-beliefs";
+import type { DynamicPayoffContext } from "./dynamic-payoffs";
+export type { DynamicPayoffContext };
 
 // ── Key Parameters & Sensitivity Notes ──
 // The following hardcoded constants are used throughout this engine.
@@ -138,7 +140,7 @@ export interface NPlayerScenario {
   moveOrder: string[]; // which actor moves when (can repeat for multi-round)
   strategies: Record<string, string[]>;
   conditionalStrategies?: Record<string, ConditionalStrategy[]>;
-  utilityFn: (strategies: Record<string, string>, types: Record<string, ActorType>) => Record<string, number>;
+  utilityFn: (strategies: Record<string, string>, types: Record<string, ActorType>, context?: DynamicPayoffContext) => Record<string, number>;
   coalitions: Coalition[];
   marketSectors: string[];
   timeHorizon: "immediate" | "short_term" | "medium_term" | "long_term";
@@ -301,7 +303,8 @@ export function computeQREProbabilities(
   beliefs: Record<string, ActorBelief>,
   availableStrategies: Record<string, string[]>,
   referencePayoffs?: Record<string, number>,
-  lambda: number = QRE_LAMBDA
+  lambda: number = QRE_LAMBDA,
+  dynamicContext?: DynamicPayoffContext
 ): Record<string, Record<string, number>> {
   const qreProbs: Record<string, Record<string, number>> = {};
 
@@ -325,7 +328,7 @@ export function computeQREProbabilities(
 
       for (const { profile, weight } of opponentProfiles) {
         const fullProfile = { ...profile, [actor]: strategy };
-        const rawPayoffs = computeExpectedUtility(scenario, fullProfile, beliefs);
+        const rawPayoffs = computeExpectedUtility(scenario, fullProfile, beliefs, dynamicContext);
         const ptPayoffs = prospectTransformPayoffs(rawPayoffs, referencePayoffs);
         totalUtility += ptPayoffs[actor] * weight;
         totalWeight += weight;
@@ -608,7 +611,8 @@ export function getAvailableStrategies(
 export function computeExpectedUtility(
   scenario: NPlayerScenario,
   strategyProfile: Record<string, string>,
-  beliefs: Record<string, ActorBelief>
+  beliefs: Record<string, ActorBelief>,
+  dynamicContext?: DynamicPayoffContext
 ): Record<string, number> {
   const types: ActorType[] = ["cooperative", "hawkish", "desperate", "calculating", "escalatory", "defensive"];
   const actors = scenario.actors;
@@ -660,7 +664,7 @@ export function computeExpectedUtility(
 
   // Compute expected payoff
   for (const realization of typeRealizations) {
-    const payoffs = scenario.utilityFn(strategyProfile, realization.types);
+    const payoffs = scenario.utilityFn(strategyProfile, realization.types, dynamicContext);
     for (const actor of actors) {
       expectedPayoffs[actor] += (payoffs[actor] || 0) * realization.prob;
     }
@@ -676,7 +680,8 @@ export function computeExpectedUtility(
  */
 export function findBayesianEquilibria(
   scenario: NPlayerScenario,
-  beliefs: Record<string, ActorBelief>
+  beliefs: Record<string, ActorBelief>,
+  dynamicContext?: DynamicPayoffContext
 ): BayesianEquilibrium[] {
   const actors = scenario.actors;
   const equilibria: BayesianEquilibrium[] = [];
@@ -692,32 +697,29 @@ export function findBayesianEquilibria(
 
   // Compute QRE probabilities for each actor's strategies
   // This gives us mixed strategy predictions under bounded rationality
-  const qreProbs = computeQREProbabilities(scenario, beliefs, availableStrategies);
+  const qreProbs = computeQREProbabilities(scenario, beliefs, availableStrategies, undefined, QRE_LAMBDA, dynamicContext);
 
   // Generate all strategy profiles
   const profiles = generateProfiles(actors, availableStrategies);
 
   for (const profile of profiles) {
-    const rawPayoffs = computeExpectedUtility(scenario, profile, beliefs);
+    const rawPayoffs = computeExpectedUtility(scenario, profile, beliefs, dynamicContext);
 
-    // Apply Prospect Theory transformation to payoffs
-    // Reference point = 0 (status quo / no action baseline)
-    const ptPayoffs = prospectTransformPayoffs(rawPayoffs);
-
-    // Use PT-transformed payoffs for Nash equilibrium check
-    // This means actors evaluate deviations through loss-averse lens
+    // Nash equilibrium check uses raw payoffs to preserve equilibrium structure.
+    // Prospect Theory effects flow through QRE probabilities instead, which is
+    // where bounded rationality belongs — QRE's logit function naturally captures
+    // loss-averse strategy selection via PT-transformed expected utilities.
     let isEquilibrium = true;
 
     for (const actor of actors) {
-      const currentPayoff = ptPayoffs[actor];
+      const currentPayoff = rawPayoffs[actor];
       let canImprove = false;
 
       for (const altStrategy of availableStrategies[actor]) {
         if (altStrategy === profile[actor]) continue;
         const deviated = { ...profile, [actor]: altStrategy };
-        const deviatedRaw = computeExpectedUtility(scenario, deviated, beliefs);
-        const deviatedPT = prospectTransformPayoffs(deviatedRaw);
-        if (deviatedPT[actor] > currentPayoff + 0.1) {
+        const deviatedPayoffs = computeExpectedUtility(scenario, deviated, beliefs, dynamicContext);
+        if (deviatedPayoffs[actor] > currentPayoff + 0.1) {
           canImprove = true;
           break;
         }
@@ -761,7 +763,7 @@ export function findBayesianEquilibria(
         let worstBest = Infinity;
         for (const altStrat of availableStrategies[actor]) {
           const deviated = { ...profile, [actor]: altStrat };
-          const devPayoffs = computeExpectedUtility(scenario, deviated, beliefs);
+          const devPayoffs = computeExpectedUtility(scenario, deviated, beliefs, dynamicContext);
           worstBest = Math.min(worstBest, devPayoffs[actor]);
         }
         minimaxPayoffs[actor] = isFinite(worstBest) ? worstBest : -5;
@@ -838,7 +840,8 @@ export function findBayesianEquilibria(
 export function computeSequentialPaths(
   scenario: NPlayerScenario,
   beliefs: Record<string, ActorBelief>,
-  maxPaths: number = 10
+  maxPaths: number = 10,
+  dynamicContext?: DynamicPayoffContext
 ): SequentialPath[] {
   const paths: SequentialPath[] = [];
   const moveOrder = scenario.moveOrder;
@@ -862,7 +865,7 @@ export function computeSequentialPaths(
         }
       }
 
-      const payoffs = scenario.utilityFn(priorMoves, types);
+      const payoffs = scenario.utilityFn(priorMoves, types, dynamicContext);
 
       paths.push({
         moves: [...moveHistory],
@@ -1026,7 +1029,8 @@ const DISCOUNT_FACTORS: Record<string, number> = {
 export function analyzeRepeatedGame(
   scenario: NPlayerScenario,
   beliefs: Record<string, ActorBelief>,
-  equilibria: BayesianEquilibrium[]
+  equilibria: BayesianEquilibrium[],
+  dynamicContext?: DynamicPayoffContext
 ): RepeatedGameAnalysis {
   const actors = scenario.actors;
 
@@ -1034,6 +1038,14 @@ export function analyzeRepeatedGame(
   const discountFactors: Record<string, number> = {};
   for (const actor of actors) {
     discountFactors[actor] = DISCOUNT_FACTORS[actor] ?? 0.65;
+  }
+
+  const availableStrategies: Record<string, string[]> = {};
+  for (const actor of actors) {
+    availableStrategies[actor] = getAvailableStrategies(
+      scenario.strategies[actor] || [],
+      beliefs[actor] || initializeBeliefs([actor])[actor]
+    );
   }
 
   if (equilibria.length === 0 || actors.length === 0) {
@@ -1048,12 +1060,26 @@ export function analyzeRepeatedGame(
     };
   }
 
-  // Find the best cooperative outcome (highest total welfare among equilibria)
-  const bestCoopEq = [...equilibria].sort((a, b) => {
-    const totalA = Object.values(a.expectedPayoffs).reduce((s, v) => s + v, 0);
-    const totalB = Object.values(b.expectedPayoffs).reduce((s, v) => s + v, 0);
-    return totalB - totalA;
-  })[0];
+  // Find the best cooperative outcome: highest total welfare across ALL profiles
+  // (not just equilibria). In a repeated game, actors can sustain outcomes
+  // that aren't one-shot Nash equilibria, via punishment threats.
+  const allProfiles = generateProfiles(actors, availableStrategies);
+  let bestCoopProfile: Record<string, string> = equilibria[0].strategyProfile;
+  let bestCoopPayoffs: Record<string, number> = equilibria[0].expectedPayoffs;
+  let bestCoopWelfare = Object.values(bestCoopPayoffs).reduce((s, v) => s + v, 0);
+
+  // Sample top profiles by welfare (limit for tractability)
+  const profileWelfares: { profile: Record<string, string>; payoffs: Record<string, number>; welfare: number }[] = [];
+  for (const profile of allProfiles.slice(0, 100)) {
+    const payoffs = computeExpectedUtility(scenario, profile, beliefs, dynamicContext);
+    const welfare = Object.values(payoffs).reduce((s, v) => s + v, 0);
+    profileWelfares.push({ profile, payoffs, welfare });
+    if (welfare > bestCoopWelfare) {
+      bestCoopWelfare = welfare;
+      bestCoopProfile = profile;
+      bestCoopPayoffs = payoffs;
+    }
+  }
 
   // Find the worst Nash equilibrium (punishment / grim trigger baseline)
   const worstNashEq = [...equilibria].sort((a, b) => {
@@ -1062,31 +1088,24 @@ export function analyzeRepeatedGame(
     return totalA - totalB;
   })[0];
 
-  // Compute defection gains: how much each actor gains by deviating from cooperation
+  // Compute defection gains: how much each actor gains by deviating from the
+  // cooperative profile while others maintain cooperation
   const defectionGain: Record<string, number> = {};
   const triggerStrategyPayoffs: Record<string, number> = {};
-  const availableStrategies: Record<string, string[]> = {};
-
-  for (const actor of actors) {
-    availableStrategies[actor] = getAvailableStrategies(
-      scenario.strategies[actor] || [],
-      beliefs[actor] || initializeBeliefs([actor])[actor]
-    );
-  }
 
   let maxThreshold = 0;
 
   for (const actor of actors) {
-    const coopPayoff = bestCoopEq.expectedPayoffs[actor] || 0;
+    const coopPayoff = bestCoopPayoffs[actor] || 0;
     const punishPayoff = worstNashEq.expectedPayoffs[actor] || 0;
     triggerStrategyPayoffs[actor] = punishPayoff;
 
     // Find best deviation payoff: what the actor gets by deviating while others cooperate
     let bestDeviation = coopPayoff;
     for (const altStrat of availableStrategies[actor]) {
-      if (altStrat === bestCoopEq.strategyProfile[actor]) continue;
-      const deviated = { ...bestCoopEq.strategyProfile, [actor]: altStrat };
-      const devPayoffs = computeExpectedUtility(scenario, deviated, beliefs);
+      if (altStrat === bestCoopProfile[actor]) continue;
+      const deviated = { ...bestCoopProfile, [actor]: altStrat };
+      const devPayoffs = computeExpectedUtility(scenario, deviated, beliefs, dynamicContext);
       if (devPayoffs[actor] > bestDeviation) {
         bestDeviation = devPayoffs[actor];
       }
@@ -1106,7 +1125,7 @@ export function analyzeRepeatedGame(
   // Cooperation is sustainable if all actors' discount factors exceed the threshold
   const cooperationSustainable = actors.every(a => discountFactors[a] >= maxThreshold);
 
-  const coopTotal = Object.values(bestCoopEq.expectedPayoffs).reduce((s, v) => s + v, 0);
+  const coopTotal = Object.values(bestCoopPayoffs).reduce((s, v) => s + v, 0);
   const nashTotal = Object.values(worstNashEq.expectedPayoffs).reduce((s, v) => s + v, 0);
   const cooperationPremium = coopTotal - nashTotal;
 
@@ -1158,7 +1177,8 @@ export function analyzeRepeatedGame(
 export function findCorrelatedEquilibrium(
   scenario: NPlayerScenario,
   beliefs: Record<string, ActorBelief>,
-  equilibria: BayesianEquilibrium[]
+  equilibria: BayesianEquilibrium[],
+  dynamicContext?: DynamicPayoffContext
 ): CorrelatedEquilibrium {
   const actors = scenario.actors;
 
@@ -1187,7 +1207,7 @@ export function findCorrelatedEquilibrium(
   const profilePayoffs: { profile: Record<string, string>; payoffs: Record<string, number>; totalWelfare: number }[] = [];
 
   for (const profile of profiles) {
-    const payoffs = computeExpectedUtility(scenario, profile, beliefs);
+    const payoffs = computeExpectedUtility(scenario, profile, beliefs, dynamicContext);
     const totalWelfare = Object.values(payoffs).reduce((s, v) => s + v, 0);
     profilePayoffs.push({ profile, payoffs, totalWelfare });
   }
@@ -1204,28 +1224,40 @@ export function findCorrelatedEquilibrium(
   for (let i = 0; i < Math.min(profilePayoffs.length, 20); i++) {
     const candidate = profilePayoffs[i];
 
-    // Check incentive compatibility: for each actor, deviating from the
-    // recommended strategy should not improve their expected payoff
-    let isIC = true;
+    // Check incentive compatibility: for each actor, measure how much they'd
+    // gain by deviating. A profile is "soft IC" if the max deviation gain is small.
+    // For N>3 actors, strict IC (zero gain for all) is rarely achievable,
+    // so we use a graded approach: profiles where fewer actors want to deviate
+    // and deviation gains are smaller get higher weight.
+    let maxDeviationGain = 0;
+    let icViolations = 0;
+
     for (const actor of actors) {
       const recommendedPayoff = candidate.payoffs[actor];
+      let actorMaxGain = 0;
+
       for (const altStrat of availableStrategies[actor]) {
         if (altStrat === candidate.profile[actor]) continue;
         const deviated = { ...candidate.profile, [actor]: altStrat };
-        const devPayoffs = computeExpectedUtility(scenario, deviated, beliefs);
-        if (devPayoffs[actor] > recommendedPayoff + 0.05) {
-          isIC = false;
-          break;
-        }
+        const devPayoffs = computeExpectedUtility(scenario, deviated, beliefs, dynamicContext);
+        const gain = devPayoffs[actor] - recommendedPayoff;
+        if (gain > actorMaxGain) actorMaxGain = gain;
       }
-      if (!isIC) break;
+
+      if (actorMaxGain > 0.1) icViolations++;
+      maxDeviationGain = Math.max(maxDeviationGain, actorMaxGain);
     }
 
-    if (isIC) {
-      // Weight higher-welfare profiles more heavily
-      const weight = Math.max(0.1, 1.0 - i * 0.15);
-      ceWeights[i] = weight;
-      totalWeight += weight;
+    // Graded IC: weight decreases with violations and deviation magnitude
+    // Fully IC (0 violations): weight 1.0
+    // Some violations: weight decreases proportionally
+    const icFraction = 1 - (icViolations / Math.max(1, actors.length));
+    const deviationPenalty = Math.exp(-maxDeviationGain * 0.5);
+    const profileWeight = icFraction * deviationPenalty * Math.max(0.1, 1.0 - i * 0.1);
+
+    if (profileWeight > 0.05) {
+      ceWeights[i] = profileWeight;
+      totalWeight += profileWeight;
     }
   }
 
@@ -1267,7 +1299,7 @@ export function findCorrelatedEquilibrium(
 
   // Assessment
   let assessment: string;
-  if (totalWeight === 0) {
+  if (totalWeight === 0 || socialWelfare === 0) {
     assessment = "No incentive-compatible correlated profiles found. All high-welfare outcomes require at least one actor to deviate. External enforcement (sanctions, treaties) needed to achieve cooperative outcomes.";
   } else if (mediatorRequired) {
     // Find the strategy recommendations for readability
@@ -1296,7 +1328,8 @@ export function findCorrelatedEquilibrium(
 export function runBayesianAnalysis(
   scenario: NPlayerScenario,
   beliefs: Record<string, ActorBelief>,
-  signals?: SignalUpdate[]
+  signals?: SignalUpdate[],
+  dynamicContext?: DynamicPayoffContext
 ): BayesianAnalysis {
   // Apply any pending signals
   const updatedBeliefs = { ...beliefs };
@@ -1316,20 +1349,20 @@ export function runBayesianAnalysis(
     }
   }
 
-  // Find Bayesian equilibria
-  const equilibria = findBayesianEquilibria(scenario, updatedBeliefs);
+  // Find Bayesian equilibria (with dynamic context flowing through to payoffs)
+  const equilibria = findBayesianEquilibria(scenario, updatedBeliefs, dynamicContext);
 
   // Compute sequential paths
-  const sequentialPaths = computeSequentialPaths(scenario, updatedBeliefs);
+  const sequentialPaths = computeSequentialPaths(scenario, updatedBeliefs, 10, dynamicContext);
 
   // Assess coalitions
   const coalitionAssessment = assessCoalitions(scenario.coalitions, updatedBeliefs);
 
   // Repeated game analysis (Folk Theorem)
-  const repeatedGame = analyzeRepeatedGame(scenario, updatedBeliefs, equilibria);
+  const repeatedGame = analyzeRepeatedGame(scenario, updatedBeliefs, equilibria, dynamicContext);
 
   // Correlated equilibrium (Aumann 1974)
-  const correlatedEquilibrium = findCorrelatedEquilibrium(scenario, updatedBeliefs, equilibria);
+  const correlatedEquilibrium = findCorrelatedEquilibrium(scenario, updatedBeliefs, equilibria, dynamicContext);
 
   // Compute audience cost constraints
   const audienceCostConstraints: Record<string, string[]> = {};

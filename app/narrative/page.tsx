@@ -172,9 +172,9 @@ function NarrativeCard({ narrative }: { narrative: Narrative }) {
             Related Assets
           </span>
           <div className="flex gap-1.5 flex-wrap">
-            {narrative.relatedAssets.map((asset) => (
+            {narrative.relatedAssets.map((asset, i) => (
               <span
-                key={asset}
+                key={`${asset}-${i}`}
                 className="text-[9px] font-mono text-navy-400 bg-navy-800/40 px-1.5 py-0.5 rounded"
               >
                 {asset}

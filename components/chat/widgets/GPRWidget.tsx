@@ -201,8 +201,8 @@ export function GPRWidget({ data }: { data: GPRData }) {
                 </div>
                 {r.assetExposure.length > 0 && (
                   <div className="flex gap-1 mt-1 flex-wrap">
-                    {r.assetExposure.map((a) => (
-                      <span key={a} className="font-mono text-[8px] text-navy-600 border border-navy-800 rounded px-1 py-0.5">
+                    {r.assetExposure.map((a, i) => (
+                      <span key={`${a}-${i}`} className="font-mono text-[8px] text-navy-600 border border-navy-800 rounded px-1 py-0.5">
                         {a}
                       </span>
                     ))}
