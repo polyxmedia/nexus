@@ -182,7 +182,21 @@ Identify the strongest structural parallels. Be specific about dates, outcomes, 
     };
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    return {
+      query,
+      parallels: [],
+      synthesis: "Could not parse parallel analysis.",
+      probabilityOfRepetition: 0,
+      regime: "peacetime",
+      confidenceInAnalysis: 0,
+      actionableInsights: [],
+      warning: "Analysis returned malformed JSON.",
+    };
+  }
 
   // 4. Post-generation validation: sanitise suspicious outputs
   if (Array.isArray(parsed.parallels)) {
