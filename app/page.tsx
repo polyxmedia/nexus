@@ -942,7 +942,7 @@ export default function LandingPage() {
               2-day free trial on everything. Cancel anytime before you're charged.
             </p>
             <p className="text-xs text-navy-500 max-w-md mx-auto mb-8">
-              Or start for free with War Room access, no card required.
+              Or start for free with Dashboard, Signals, News, Predictions, and 5 daily AI messages, no card required.
             </p>
             <div className="flex items-center justify-center gap-3">
               <span className={`text-xs font-medium transition-colors ${!billingAnnual ? "text-navy-100" : "text-navy-500"}`}>Monthly</span>

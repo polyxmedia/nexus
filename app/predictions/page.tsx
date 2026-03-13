@@ -785,7 +785,7 @@ export default function PredictionsPage() {
         </div>
       }
     >
-      <UpgradeGate minTier="analyst" feature="Prediction tracking and accuracy scoring">
+      <UpgradeGate minTier="free" feature="Prediction tracking and accuracy scoring">
       {statusMessage && (
         <div className={`mb-4 rounded-md border px-3 py-2 text-xs ${
           statusMessage.type === "error" ? "border-accent-rose/30 bg-accent-rose/5 text-accent-rose"

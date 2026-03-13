@@ -190,11 +190,15 @@ export async function POST(
 
   // Tier-based message rate limiting
   const tierInfo = await getUserTier();
+  const FREE_DAILY_MESSAGES = 5;
   if (!tierInfo.isAdmin && tierInfo.tierLevel === 0) {
-    return NextResponse.json(
-      { error: "Chat requires an active subscription", upgrade: true, requiredTier: "analyst" },
-      { status: 403 }
-    );
+    const rl = await rateLimit(`chat:free:${username}`, FREE_DAILY_MESSAGES, 24 * 60 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `You've used your ${FREE_DAILY_MESSAGES} free messages today. Upgrade for unlimited access.`, upgrade: true, requiredTier: "analyst", remaining: 0 },
+        { status: 429 }
+      );
+    }
   }
   // Check for admin-set throttle override first, then fall back to tier limits
   const userThrottle = await getUserThrottle(username);

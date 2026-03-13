@@ -1190,7 +1190,7 @@ export default function SettingsPage() {
                   ) : (
                     <div>
                       <span className="text-lg font-bold text-navy-100 font-mono">Free</span>
-                      <p className="text-xs text-navy-400 mt-1">War Room access included. Choose a plan below to unlock full platform.</p>
+                      <p className="text-xs text-navy-400 mt-1">Dashboard, Signals, News, Predictions, War Room, and 5 AI messages daily. Choose a plan below for full access.</p>
                     </div>
                   )}
                 </div>

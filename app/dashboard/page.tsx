@@ -359,7 +359,7 @@ export default function DashboardPage() {
         </div>
       }
     >
-      <UpgradeGate minTier="analyst" feature="Intelligence dashboard" blur>
+      <UpgradeGate minTier="free" feature="Intelligence dashboard" blur>
       {/* Loading skeletons */}
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">

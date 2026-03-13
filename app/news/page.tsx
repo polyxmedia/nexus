@@ -169,7 +169,7 @@ export default function NewsPage() {
 
   return (
     <PageContainer title="News" subtitle="Real-time intelligence feed from global sources">
-      <UpgradeGate minTier="analyst" feature="News feed and intelligence" blur>
+      <UpgradeGate minTier="free" feature="News feed and intelligence" blur>
       {/* Top bar */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex gap-1 flex-wrap">
