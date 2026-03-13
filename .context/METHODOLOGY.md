@@ -16,10 +16,6 @@ Signals scored for intensity (1-5 scale). Cross-layer amplification applies when
 
 **Implementation**: Convergence bonus calculated as `Math.max(0, primaryLayers.length - 1)` added to base score, then normalized to 1-5 scale. The Bayesian fusion engine (`lib/signals/bayesian-fusion.ts`) provides an additional scoring path using proper posterior updating via likelihood ratios, conditional dependency matrices between layer pairs, and exponential likelihood ratio model for layer significance.
 
-**Research pages reference**: Fixed multipliers of 1.4x/2.1x/3.2x are documented in the published methodology for conceptual clarity, but the actual implementation uses the additive bonus + Bayesian fusion approach described above.
-
-Full four-layer convergence is exceptionally rare. Historical back-testing shows Level 5 events precede major market dislocations within a 72-hour window.
-
 Full four-layer convergence is exceptionally rare. Historical back-testing shows Level 5 events precede major market dislocations within a 72-hour window.
 
 ### Phase 3: SYNTHESIZE (AI Analysis)
@@ -105,9 +101,50 @@ Predictions generated after event onset cannot be treated as prospective forecas
 
 ## Game Theory Framework
 
-### Nash Equilibrium Analysis
+The game theory engine models real-world strategic interactions as N-player sequential games with incomplete information. Scenarios include 4-6+ actors making interdependent moves, each with private type information and belief distributions over other actors' types. The academic foundations span six decades of formal game theory.
 
-Brute-force search over all strategy pairs. Best-response check for both actors. Stability classification: stable (positive payoff sum), unstable (negative), mixed.
+### Bayesian Nash Equilibria (Harsanyi 1967)
+
+Brute-force search over all strategy combinations across N actors. Best-response check for every actor simultaneously. A strategy profile is a Bayesian Nash Equilibrium when no actor can improve their expected payoff by unilaterally deviating, given their beliefs about other actors' types. Stability classification: stable (positive aggregate payoff), unstable (negative), mixed.
+
+Probability assignment uses geometric mean normalization across actor type probabilities to prevent the joint probability collapse that occurs with naive multiplication in N-player settings (e.g., 0.3^6 = 0.0007 for six actors).
+
+### Prospect Theory (Kahneman & Tversky 1979)
+
+Raw payoffs are transformed through the prospect theory value function before feeding into bounded rationality calculations. Loss aversion coefficient λ=2.25, diminishing sensitivity α=0.88. This captures the empirical finding that actors weight losses roughly 2.25x more heavily than equivalent gains, which significantly affects strategic behavior in crisis scenarios where downside risk dominates.
+
+Prospect Theory transforms flow through QRE probabilities (below), not through the Nash equilibrium definition itself. This is academically correct: bounded rationality belongs in the behavioral model, not in the equilibrium concept.
+
+### Quantal Response Equilibrium (McKelvey & Palfrey 1995)
+
+Replaces the Nash assumption of perfect rationality with a logistic choice model. Actors choose strategies with probability proportional to `exp(λ * expected_utility)` where λ=2.5 controls rationality. At λ=0, actors randomize uniformly. As λ→∞, behavior converges to Nash. The intermediate value captures the empirically observed reality that actors are approximately rational but make errors, especially under uncertainty and time pressure.
+
+QRE probabilities are computed per actor, integrating over possible opponent type profiles weighted by belief distributions.
+
+### Repeated Game Analysis (Folk Theorem, Aumann & Shapley 1994)
+
+Computes whether cooperation is sustainable in the repeated interaction between actors. Each actor type is assigned a discount factor reflecting how much they value future interactions: democratic actors δ=0.85, authoritarian δ=0.60-0.75, non-state actors δ=0.30-0.50. The cooperation threshold δ* is derived from the ratio of defection gains to cooperation premiums. When an actor's discount factor exceeds δ*, cooperation is individually rational for that actor. The analysis identifies which coalitions can sustain cooperation and which are structurally unstable.
+
+### Correlated Equilibrium (Aumann 1974)
+
+Identifies outcomes achievable with a mediator (e.g., a diplomatic intermediary, treaty framework, or institutional mechanism) that improve on Nash equilibria. Uses graded incentive compatibility: profiles are weighted by how closely they satisfy the IC constraint that no actor wants to deviate from the mediator's recommendation. This produces a social welfare measure and quantifies the improvement a mediator could achieve over unmediated Nash play.
+
+### Dynamic Payoff Context
+
+Utility functions are not static. They connect to live data streams so that payoffs shift in real time as conditions change. The dynamic context includes:
+
+- Commodity prices relative to baseline (WTI, gold, natural gas)
+- Volatility regime (VIX level classified as low/normal/elevated/crisis)
+- Signal intensity from Bayesian fusion (1-5 scale)
+- Wartime regime (peacetime/transitional/wartime)
+- Recent event counts (attacks, diplomatic events, sanctions packages)
+- Shipping disruption level (0-1 scale)
+
+Each actor-strategy combination receives a context-dependent payoff adjustment (multiplier + additive shift). Energy exporters benefit from high oil prices on escalation strategies. Energy importers see military operations become costlier. Wartime regimes reduce the cost of further escalation and increase the cost of de-escalation (commitment trap). This means the equilibria themselves move as conditions evolve. A scenario that converges on diplomacy in peacetime can shift to escalation when oil spikes and attacks accumulate.
+
+### Fearon Bargaining Model (1995)
+
+Computes the bargaining range between actors, the set of negotiated outcomes both sides prefer to conflict. When the range collapses below 20%, conflict becomes likely regardless of stated preferences. Audience costs (domestic political costs of backing down after public commitment) constrain actor strategy spaces and narrow the bargaining range.
 
 ### Escalation Ladder (5 Levels)
 
@@ -117,23 +154,19 @@ Brute-force search over all strategy pairs. Best-response check for both actors.
 4. **Military Posturing** (max danger): Force mobilization, naval deployments, airspace violations
 5. **Direct Confrontation**: Kinetic engagement, territory seizure, full mobilization
 
-### Signalling Theory (3 Channels)
+### Signaling Theory (3 Channels)
 
 1. **Public Statements**: Low cost, high reversibility. Credibility scored against observable actions.
 2. **Military Deployments**: High cost, hard to fake. Tracked via War Room aircraft/vessel monitoring.
 3. **Economic Moves**: Medium cost. Used to calibrate payoff matrices and assess commitment levels.
 
+### Game Theory Calibration Bridge
+
+Game theory predictions are extracted and tracked with the same Brier scoring methodology as market predictions. Five prediction categories are generated per analysis: equilibrium outcome, escalation probability, market direction, cooperation sustainability, and mediation value. Each is scored against real-world outcomes as they resolve, providing empirical calibration of the game theory engine over time.
+
 ### Scenario Branching
 
-Game theory outputs feed into scenario analysis. Each equilibrium assessment generates branching paths with probability assignments. Weights update in real-time as new signals arrive.
-
-### Bayesian N-Player Analysis
-
-- Incomplete information model (actors have private types)
-- Belief distributions updated via Bayes' rule from observed signals
-- Perfect Bayesian equilibria with audience cost constraints
-- Coalition fracture risk analysis
-- Fearon bargaining range: when negotiation space collapses below 20%, conflict becomes likely
+Game theory outputs feed into scenario analysis. Each equilibrium assessment generates branching paths with probability assignments computed via backward induction on the sequential game tree. Weights update in real-time as new signals arrive and the dynamic payoff context shifts.
 
 ---
 
@@ -222,7 +255,7 @@ Claude can produce confident-sounding analysis that is wrong. Carries training d
 
 ### Multiple Comparisons
 
-7 actors across 17 calendar modifiers spanning 4 systems = 119 possible pairings. At 5% significance, ~6 show spurious correlations by chance. Addressed via confidence-damping and feedback loop auto-pruning. Formal Bonferroni/FDR correction planned but not yet implemented.
+7 actors across 17 calendar modifiers spanning 4 systems = 119 possible pairings. At 5% significance, ~6 show spurious correlations by chance. Addressed via confidence-damping (effective multiplier scaled by sample-size-based confidence) and feedback loop auto-pruning where modifiers that don't survive out-of-sample validation are down-weighted toward neutral. Calendar/celestial layers carry zero convergence weight and are capped at 0.5 bonus, limiting their influence on any prediction regardless of apparent significance.
 
 ### Parameter Tuning and Look-Ahead Bias
 

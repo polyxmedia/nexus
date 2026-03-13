@@ -241,7 +241,7 @@ export function applyContextToPayoff(
   strategy: string,
   context: DynamicPayoffContext | undefined
 ): number {
-  if (!context) return basePayoff;
+  if (!context || !strategy) return basePayoff;
 
   const adj = computePayoffAdjustment(actorId, strategy, context);
   return basePayoff * adj.multiplier + adj.shift;

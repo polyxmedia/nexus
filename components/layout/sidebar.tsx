@@ -49,6 +49,7 @@ import { signOut, useSession } from "next-auth/react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useSubscription } from "@/lib/hooks/useSubscription";
+import { PAGE_TIERS } from "@/lib/auth/tier-config";
 
 type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }> };
 

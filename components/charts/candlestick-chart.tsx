@@ -204,8 +204,21 @@ export default function CandlestickChart({
 
   // ── Main chart ──────────────────────────────────────────────────────────
 
+  // Deduplicate and sort data by time (lightweight-charts requires strictly ascending unique timestamps)
+  const cleanData = (() => {
+    const seen = new Set<string>();
+    return data
+      .slice()
+      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0))
+      .filter(d => {
+        if (seen.has(d.time)) return false;
+        seen.add(d.time);
+        return true;
+      });
+  })();
+
   useEffect(() => {
-    if (!mainRef.current || !data.length) return;
+    if (!mainRef.current || !cleanData.length) return;
     const chart = createChart(mainRef.current, chartOptions(mainRef.current, height));
     mainChartRef.current = chart;
     overlaySeriesRef.current.clear();
@@ -216,16 +229,16 @@ export default function CandlestickChart({
       wickUpColor: "#22c55e", wickDownColor: "#ef4444",
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    candles.setData(data.map(d => ({ time: d.time as any, open: d.open, high: d.high, low: d.low, close: d.close })));
+    candles.setData(cleanData.map(d => ({ time: d.time as any, open: d.open, high: d.high, low: d.low, close: d.close })));
 
-    if (showVolume && data.some(d => d.volume)) {
+    if (showVolume && cleanData.some(d => d.volume)) {
       const vol = chart.addSeries(HistogramSeries, {
         priceFormat: { type: "volume" },
         priceScaleId: "volume",
       });
       chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vol.setData(data.map(d => ({ time: d.time as any, value: d.volume || 0, color: d.close >= d.open ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)" })));
+      vol.setData(cleanData.map(d => ({ time: d.time as any, value: d.volume || 0, color: d.close >= d.open ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)" })));
     }
 
     chart.timeScale().fitContent();
@@ -241,13 +254,13 @@ export default function CandlestickChart({
       chart.remove();
       mainChartRef.current = null;
     };
-  }, [data, height, showVolume]);
+  }, [cleanData, height, showVolume]);
 
   // ── Overlay indicators ──────────────────────────────────────────────────
 
   useEffect(() => {
     const chart = mainChartRef.current;
-    if (!chart || !data.length) return;
+    if (!chart || !cleanData.length) return;
     const map = overlaySeriesRef.current;
 
     // Remove series for deactivated indicators
@@ -274,14 +287,14 @@ export default function CandlestickChart({
     for (const id of active) {
       if (map.has(id) || id === "rsi" || id === "macd") continue;
 
-      if (id === "sma9")  { map.set(id, [addLine(smaSeries(data, 9),  "#06b6d4")]); }
-      else if (id === "sma20") { map.set(id, [addLine(smaSeries(data, 20), "#f59e0b")]); }
-      else if (id === "sma50") { map.set(id, [addLine(smaSeries(data, 50), "#8b5cf6")]); }
-      else if (id === "ema9")  { map.set(id, [addLine(emaSeries(data, 9),  "#10b981")]); }
-      else if (id === "ema21") { map.set(id, [addLine(emaSeries(data, 21), "#f43f5e")]); }
-      else if (id === "vwap")  { map.set(id, [addLine(vwapSeries(data), "#94a3b8", 2)]); }
+      if (id === "sma9")  { map.set(id, [addLine(smaSeries(cleanData, 9),  "#06b6d4")]); }
+      else if (id === "sma20") { map.set(id, [addLine(smaSeries(cleanData, 20), "#f59e0b")]); }
+      else if (id === "sma50") { map.set(id, [addLine(smaSeries(cleanData, 50), "#8b5cf6")]); }
+      else if (id === "ema9")  { map.set(id, [addLine(emaSeries(cleanData, 9),  "#10b981")]); }
+      else if (id === "ema21") { map.set(id, [addLine(emaSeries(cleanData, 21), "#f43f5e")]); }
+      else if (id === "vwap")  { map.set(id, [addLine(vwapSeries(cleanData), "#94a3b8", 2)]); }
       else if (id === "bb") {
-        const { upper, mid, lower } = bbSeries(data);
+        const { upper, mid, lower } = bbSeries(cleanData);
         map.set(id, [
           addLine(upper, "rgba(100,116,139,0.7)", 1, LineStyle.Dashed),
           addLine(mid,   "rgba(100,116,139,0.4)", 1, LineStyle.Solid),
@@ -290,12 +303,12 @@ export default function CandlestickChart({
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, data]);
+  }, [active, cleanData]);
 
   // ── RSI sub-chart ───────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!rsiRef.current || !data.length || !showRsi) {
+    if (!rsiRef.current || !cleanData.length || !showRsi) {
       rsiChartRef.current?.remove();
       rsiChartRef.current = null;
       return;
@@ -310,7 +323,7 @@ export default function CandlestickChart({
       crosshairMarkerVisible: false,
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rsiLine.setData(rsiSeries(data) as any);
+    rsiLine.setData(rsiSeries(cleanData) as any);
     rsiLine.createPriceLine({ price: 70, color: "rgba(239,68,68,0.35)", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "OB" });
     rsiLine.createPriceLine({ price: 50, color: "rgba(255,255,255,0.08)", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
     rsiLine.createPriceLine({ price: 30, color: "rgba(34,197,94,0.35)", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "OS" });

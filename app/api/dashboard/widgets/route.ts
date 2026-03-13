@@ -15,7 +15,7 @@ const DEFAULT_WIDGETS = [
 ];
 
 export async function GET() {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     let widgets = await db.select().from(schema.dashboardWidgets)
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const csrfError = validateOrigin(req);
   if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
 
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const body = await req.json();

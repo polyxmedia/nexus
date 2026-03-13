@@ -327,7 +327,7 @@ function RegisterForm() {
               Create your account
             </h1>
             <p className="text-[13px] text-navy-500 mt-3 font-sans">
-              Free access to Dashboard, Signals, News, Predictions, War Room, and 5 AI analyst messages daily. Upgrade anytime.
+              Free access to Dashboard, Signals, News, and War Room. Upgrade anytime for AI analyst, predictions, and full platform.
             </p>
           </div>
 
