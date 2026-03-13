@@ -37,7 +37,7 @@ export interface ParallelAnalysis {
 
 // ── Core Engine ──
 
-const PARALLELS_MODEL = "claude-sonnet-4-20250514";
+const PARALLELS_MODEL = "claude-haiku-4-5-20251001";
 
 const PARALLELS_PROMPT = `You are a historical pattern matching engine for the NEXUS intelligence platform.
 
@@ -79,9 +79,12 @@ export async function findHistoricalParallels(
   query: string,
   apiKey: string
 ): Promise<ParallelAnalysis> {
-  // 1. Run all data queries in parallel
+  // 1. Run all data queries in parallel with timeouts
+  const withTimeout = <T>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+    Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
+
   const [knowledgeResults, resolvedPredictions, relevantSignals] = await Promise.all([
-    searchKnowledge(query, { limit: 8, useVector: true }).catch(() => []),
+    withTimeout(searchKnowledge(query, { limit: 5, useVector: true }), 8_000, []).catch(() => []),
     db
       .select({
         category: schema.predictions.category,
@@ -93,7 +96,7 @@ export async function findHistoricalParallels(
       .from(schema.predictions)
       .where(not(isNull(schema.predictions.outcome)))
       .orderBy(desc(schema.predictions.resolvedAt))
-      .limit(15),
+      .limit(10),
     db
       .select({
         category: schema.signals.category,
@@ -104,12 +107,12 @@ export async function findHistoricalParallels(
       })
       .from(schema.signals)
       .orderBy(desc(schema.signals.date))
-      .limit(20),
+      .limit(15),
   ]);
 
   // 2. Build context for Claude (truncated to keep prompt fast)
   const knowledgeContext = knowledgeResults
-    .map((k) => `[${k.category}] ${k.title}: ${k.content.slice(0, 300)}`)
+    .map((k) => `[${k.category}] ${k.title}: ${k.content.slice(0, 200)}`)
     .join("\n\n");
 
   const predictionsContext = resolvedPredictions
@@ -141,12 +144,12 @@ ${signalsContext || "No signal data."}
 
 Identify the strongest structural parallels. Be specific about dates, outcomes, and probabilities.`;
 
-  // 3. Call Claude for synthesis (with 30s timeout)
-  const client = new Anthropic({ apiKey, timeout: 30_000 });
+  // 3. Call Claude for synthesis (with 25s timeout)
+  const client = new Anthropic({ apiKey, timeout: 25_000 });
 
   const response = await client.messages.create({
     model: PARALLELS_MODEL,
-    max_tokens: 1500,
+    max_tokens: 1200,
     system: PARALLELS_PROMPT,
     messages: [{ role: "user", content: prompt }],
   });
