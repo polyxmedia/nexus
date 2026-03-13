@@ -319,13 +319,13 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation - all items visible to all users, upgrade gates handle access */}
+      {/* Navigation - all items visible, locked items show lock icon */}
       <nav className="flex-1 overflow-y-auto py-1" onClick={() => setMobileOpen(false)}>
-        <NavSection label="" items={mainNav} pathname={pathname} />
-        <NavSection label="Intelligence" items={intelligenceNav} pathname={pathname} />
-        <NavSection label="Tools" items={toolsNav} pathname={pathname} />
-        <NavSection label="Markets" items={marketsNav} pathname={pathname} />
-        <NavSection label="Analytics" items={analyticsNav} pathname={pathname} />
+        <NavSection label="" items={mainNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
+        <NavSection label="Intelligence" items={intelligenceNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
+        <NavSection label="Tools" items={toolsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
+        <NavSection label="Markets" items={marketsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
+        <NavSection label="Analytics" items={analyticsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
       </nav>
 
       {/* Upgrade glideslope */}
