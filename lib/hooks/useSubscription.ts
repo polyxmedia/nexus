@@ -28,8 +28,10 @@ interface SubscriptionState {
 const TIER_LEVELS: Record<string, number> = {
   free: 0,
   analyst: 1,
+  observer: 1,
   operator: 2,
   institution: 3,
+  station: 3,
 };
 
 const SubscriptionContext = createContext<SubscriptionState>({

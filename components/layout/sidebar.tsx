@@ -198,19 +198,11 @@ function CreditMeter() {
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { meetsMinTier, isAdmin } = useSubscription();
+  const { isAdmin } = useSubscription();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
   if (publicPages.includes(pathname) || pathname.startsWith("/research")) return null;
-
-  const isAnalyst = meetsMinTier("analyst");
-  const isOperator = meetsMinTier("operator");
-
-  // Free tier: War Room only
-  const freeNav: NavItem[] = [
-    { name: "War Room", href: "/warroom", icon: Shield },
-  ];
 
   const sidebarContent = (
     <div className="flex h-full flex-col">
@@ -233,23 +225,13 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation - all items visible to all users, upgrade gates handle access */}
       <nav className="flex-1 overflow-y-auto py-1" onClick={() => setMobileOpen(false)}>
-        {isAnalyst ? (
-          <>
-            <NavSection label="" items={mainNav} pathname={pathname} />
-            <NavSection label="Intelligence" items={intelligenceNav} pathname={pathname} />
-            <NavSection label="Tools" items={toolsNav} pathname={pathname} />
-          </>
-        ) : (
-          <NavSection label="" items={freeNav} pathname={pathname} />
-        )}
-        {isOperator && (
-          <>
-            <NavSection label="Markets" items={marketsNav} pathname={pathname} />
-            <NavSection label="Analytics" items={analyticsNav} pathname={pathname} />
-          </>
-        )}
+        <NavSection label="" items={mainNav} pathname={pathname} />
+        <NavSection label="Intelligence" items={intelligenceNav} pathname={pathname} />
+        <NavSection label="Tools" items={toolsNav} pathname={pathname} />
+        <NavSection label="Markets" items={marketsNav} pathname={pathname} />
+        <NavSection label="Analytics" items={analyticsNav} pathname={pathname} />
       </nav>
 
       {/* Footer */}

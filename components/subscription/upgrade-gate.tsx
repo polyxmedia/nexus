@@ -6,33 +6,33 @@ import { Lock, ArrowRight, Zap, Activity, TrendingUp, Shield, Loader2, X } from 
 import { PaymentForm } from "@/components/stripe/payment-form";
 
 const TIER_LABELS: Record<string, string> = {
-  analyst: "Analyst",
+  analyst: "Observer",
   operator: "Operator",
-  institution: "Institution",
+  institution: "Station",
 };
 
 const TIER_PERKS: Record<string, string[]> = {
   analyst: [
-    "Signal detection across 6 intelligence layers",
-    "AI analyst with memory and artifacts",
-    "Prediction tracking with Brier scores",
+    "Signal detection engine",
     "Daily thesis generation",
-    "Economic and calendar convergence",
+    "Market sentiment analysis",
+    "Prediction tracking with Brier scores",
+    "War Room with OSINT feeds",
   ],
   operator: [
-    "Everything in Analyst, plus",
-    "Unlimited AI analyst access",
-    "Live trading broker integration",
-    "Real-time War Room with OSINT feeds",
-    "GEX, BOCPD, GPR decomposition",
-    "Portfolio risk analytics and Monte Carlo",
+    "Everything in Observer, plus",
+    "Game theory scenarios",
+    "Vessel tracking & dark fleet intel",
+    "Monte Carlo simulation & portfolio risk",
+    "GEX, BOCPD & regime detection",
+    "On-chain, options flow & congressional trading",
   ],
   institution: [
     "Everything in Operator, plus",
-    "Unlimited seats across your team",
+    "API access & white-label briefings",
+    "PDF intelligence exports",
+    "Unlimited AI credits",
     "Custom data integrations",
-    "Dedicated infrastructure",
-    "SLA guarantee and direct support",
   ],
 };
 
@@ -82,8 +82,15 @@ export function UpgradeGate({ minTier, feature, children, blur }: UpgradeGatePro
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (!data?.tiers) return;
+        // Map internal tier keys to DB tier names (supports both old and new names)
+        const tierNameMap: Record<string, string[]> = {
+          analyst: ["observer", "analyst"],
+          operator: ["operator"],
+          institution: ["station", "institution"],
+        };
+        const validNames = tierNameMap[minTier] || [minTier];
         const match = data.tiers.find((t: { name: string }) =>
-          t.name.toLowerCase() === minTier
+          validNames.includes(t.name.toLowerCase())
         );
         if (match) {
           if (match.price) setTierPrice(match.price);

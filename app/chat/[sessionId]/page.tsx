@@ -140,7 +140,10 @@ export default function ChatSessionPage() {
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (!data?.tiers) return;
-        const match = data.tiers.find((t: { name: string }) => t.name.toLowerCase() === "analyst");
+        const match = data.tiers.find((t: { name: string }) => {
+          const n = t.name.toLowerCase();
+          return n === "observer" || n === "analyst";
+        });
         if (match) setTierId(match.id);
       })
       .catch((err) => console.error("[Chat] tier data fetch failed:", err));

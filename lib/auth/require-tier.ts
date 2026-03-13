@@ -32,12 +32,14 @@ export function invalidateTierCache(username: string) {
   tierCache.delete(username);
 }
 
-// Tier hierarchy: free < analyst < operator < institution
+// Tier hierarchy: free < analyst/observer < operator < institution/station
 const TIER_LEVELS: Record<string, number> = {
   free: 0,
   analyst: 1,
+  observer: 1, // new name for analyst tier
   operator: 2,
   institution: 3,
+  station: 3, // new name for institution tier
 };
 
 export interface TierLimits {
