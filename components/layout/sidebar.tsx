@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -195,10 +195,94 @@ function CreditMeter() {
   );
 }
 
+// ── Upgrade glideslope: show users what they unlock at the next tier ──
+
+const UPGRADE_STEPS: Record<string, { next: string; price: string; hooks: string[] }> = {
+  free: {
+    next: "Observer",
+    price: "£49/mo",
+    hooks: [
+      "Signal detection firing daily",
+      "AI thesis on every regime shift",
+      "Predictions with Brier scoring",
+    ],
+  },
+  analyst: {
+    next: "Operator",
+    price: "£199/mo",
+    hooks: [
+      "Game theory on live conflicts",
+      "Monte Carlo on your positions",
+      "Vessel tracking catches dark fleet moves",
+    ],
+  },
+  observer: {
+    next: "Operator",
+    price: "£199/mo",
+    hooks: [
+      "Game theory on live conflicts",
+      "Monte Carlo on your positions",
+      "Vessel tracking catches dark fleet moves",
+    ],
+  },
+  operator: {
+    next: "Station",
+    price: "£499/mo",
+    hooks: [
+      "API access for your own tools",
+      "White-label briefings for clients",
+      "Unlimited credits, zero throttling",
+    ],
+  },
+};
+
+function UpgradeNudge({ currentTier }: { currentTier: string | null }) {
+  const tier = currentTier?.toLowerCase() || "free";
+  const step = UPGRADE_STEPS[tier];
+  if (!step) return null; // already at Station/institution
+
+  const [hookIdx, setHookIdx] = useState(0);
+
+  const rotate = useCallback(() => {
+    setHookIdx((i) => (i + 1) % step.hooks.length);
+  }, [step.hooks.length]);
+
+  useEffect(() => {
+    const interval = setInterval(rotate, 5000);
+    return () => clearInterval(interval);
+  }, [rotate]);
+
+  return (
+    <Link href="/settings" className="block mx-2 mb-2">
+      <div className="rounded-md border border-navy-700/30 bg-navy-800/30 px-3 py-2.5 hover:border-navy-600/40 hover:bg-navy-800/50 transition-all group">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[9px] font-mono font-bold uppercase tracking-[0.12em] text-accent-cyan">
+            {step.next}
+          </span>
+          <span className="text-[9px] font-mono text-navy-500">{step.price}</span>
+        </div>
+        <p className="text-[10px] text-navy-400 leading-relaxed transition-all duration-500">
+          {step.hooks[hookIdx]}
+        </p>
+        <div className="flex gap-1 mt-2">
+          {step.hooks.map((_, i) => (
+            <div
+              key={i}
+              className={`h-0.5 flex-1 rounded-full transition-colors duration-300 ${
+                i === hookIdx ? "bg-accent-cyan/50" : "bg-navy-700/40"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { isAdmin } = useSubscription();
+  const { isAdmin, meetsMinTier, tier } = useSubscription();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
@@ -233,6 +317,9 @@ export function Sidebar() {
         <NavSection label="Markets" items={marketsNav} pathname={pathname} />
         <NavSection label="Analytics" items={analyticsNav} pathname={pathname} />
       </nav>
+
+      {/* Upgrade glideslope */}
+      {!isAdmin && <UpgradeNudge currentTier={tier} />}
 
       {/* Footer */}
       <div className="border-t border-navy-700/50 p-2" onClick={() => setMobileOpen(false)}>
