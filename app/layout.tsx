@@ -84,6 +84,11 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('nexus-theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dim';}document.documentElement.classList.remove('light','dim','soft');if(t==='light'||t==='dim'||t==='soft')document.documentElement.classList.add(t);}catch(e){}})();`,
           }}
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')});}`,
+          }}
+        />
         <OrganizationJsonLd />
         <WebSiteJsonLd />
         <SoftwareApplicationJsonLd />
