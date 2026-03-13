@@ -133,7 +133,6 @@ const TABS = [
   { id: "credits", label: "Credits", icon: Wallet },
   { id: "connections", label: "Connections", icon: Link2 },
   { id: "ai-models", label: "AI Models", icon: Brain },
-  { id: "api-keys", label: "API Keys", icon: Key },
   { id: "platform-api", label: "Platform API", icon: Shield },
   { id: "trading", label: "Trading", icon: TrendingUp },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -448,11 +447,8 @@ export default function SettingsPage() {
   const aiModelsDirty = aiModel !== aiModelSaved || aiChatModel !== aiChatModelSaved || jiangMode !== jiangModeSaved || voiceId !== voiceIdSaved;
 
   // API Keys
-  const [voyageKey, setVoyageKey] = useState("");
   const [t212Key, setT212Key] = useState("");
   const [t212Secret, setT212Secret] = useState("");
-  const [anthropicKey, setAnthropicKey] = useState("");
-  const [alphaVantageKey, setAlphaVantageKey] = useState("");
   const [coinbaseKey, setCoinbaseKey] = useState("");
   const [coinbaseSecret, setCoinbaseSecret] = useState("");
   const [coinbaseOAuth, setCoinbaseOAuth] = useState<{ oauthAvailable: boolean; connected: boolean } | null>(null);
@@ -460,11 +456,9 @@ export default function SettingsPage() {
   const [alpacaOAuth, setAlpacaOAuth] = useState<{ oauthAvailable: boolean; connected: boolean } | null>(null);
   const [alpacaConnecting, setAlpacaConnecting] = useState(false);
   const [brokerRequest, setBrokerRequest] = useState("");
-  const [fredKey, setFredKey] = useState("");
   const [ibkrGatewayUrl, setIbkrGatewayUrl] = useState("");
   const [ibkrAccountId, setIbkrAccountId] = useState("");
   const [igConnected, setIgConnected] = useState(false);
-  const [acledKey, setAcledKey] = useState("");
 
   // Connection flow state
   const [connectingBroker, setConnectingBroker] = useState<string | null>(null);
@@ -475,7 +469,6 @@ export default function SettingsPage() {
   const [coinbaseForm, setCoinbaseForm] = useState({ apiKey: "", apiSecret: "" });
   const [kalshiKeyId, setKalshiKeyId] = useState("");
   const [kalshiForm, setKalshiForm] = useState({ keyId: "", privateKey: "" });
-  const [acledEmail, setAcledEmail] = useState("");
 
   // Trading
   const [maxOrderSize, setMaxOrderSize] = useState("1000");
@@ -2248,81 +2241,6 @@ export default function SettingsPage() {
             </Dialog.Portal>
           </Dialog.Root>
 
-        </Tabs.Content>
-
-        {/* API Keys Tab */}
-        <Tabs.Content value="api-keys">
-          <div className="space-y-4 max-w-2xl">
-            {/* AI */}
-            <div className="border border-navy-700 rounded p-4">
-              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                AI Provider
-              </h3>
-              <div className="space-y-3">
-                <ApiKeyField
-                  label="Anthropic API Key (Claude)"
-                  settingKey="anthropic_api_key"
-                  value={anthropicKey}
-                  onChange={setAnthropicKey}
-                  placeholder="sk-ant-..."
-                />
-                <ApiKeyField
-                  label="Voyage AI API Key (Embeddings)"
-                  settingKey="voyage_api_key"
-                  value={voyageKey}
-                  onChange={setVoyageKey}
-                  placeholder="pa-... (optional, falls back to Anthropic key)"
-                />
-              </div>
-            </div>
-
-            {/* Market Data */}
-            <div className="border border-navy-700 rounded p-4">
-              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                Market Data
-              </h3>
-              <div className="space-y-3">
-                <ApiKeyField
-                  label="Alpha Vantage API Key"
-                  settingKey="alpha_vantage_api_key"
-                  value={alphaVantageKey}
-                  onChange={setAlphaVantageKey}
-                  placeholder="Enter Alpha Vantage key..."
-                />
-                <ApiKeyField
-                  label="FRED API Key"
-                  settingKey="fred_api_key"
-                  value={fredKey}
-                  onChange={setFredKey}
-                  placeholder="Enter FRED API key..."
-                />
-              </div>
-            </div>
-
-            {/* OSINT / Conflict Data */}
-            <div className="border border-navy-700 rounded p-4">
-              <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-3">
-                ACLED (Conflict Data)
-              </h3>
-              <div className="space-y-3">
-                <ApiKeyField
-                  label="API Key"
-                  settingKey="acled_api_key"
-                  value={acledKey}
-                  onChange={setAcledKey}
-                  placeholder="Enter ACLED API key..."
-                />
-                <ApiKeyField
-                  label="Email"
-                  settingKey="acled_email"
-                  value={acledEmail}
-                  onChange={setAcledEmail}
-                  placeholder="Enter ACLED email..."
-                  type="email"
-                />
-              </div>
-            </div>
-          </div>
         </Tabs.Content>
 
         {/* Platform API Tab */}
