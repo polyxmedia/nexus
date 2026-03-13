@@ -105,7 +105,7 @@ const analyticsNav: NavItem[] = [
   { name: "Simulation", href: "/simulation", icon: Dice5 },
 ];
 
-function NavSection({ label, items, pathname, checkAccess }: { label: string; items: NavItem[]; pathname: string; checkAccess?: (tier: string) => boolean }) {
+function NavSection({ label, items, pathname, checkAccess }: { label: string; items: NavItem[]; pathname: string; checkAccess?: (tier: "free" | "analyst" | "operator" | "institution") => boolean }) {
   if (items.length === 0) return null;
   return (
     <div className="mb-1">

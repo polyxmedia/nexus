@@ -9,7 +9,7 @@ function safeParse<T>(json: string | null | undefined, fallback: T): T {
 }
 
 export async function GET() {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     // Parallel data fetches via allSettled so one failure doesn't kill the rest

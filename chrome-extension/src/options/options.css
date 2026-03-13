@@ -1,0 +1,171 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'IBM Plex Mono', monospace;
+  background: #000;
+  color: #e0e0e0;
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+#app {
+  width: 100%;
+  max-width: 480px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 32px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.logo {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #06b6d4;
+}
+
+.subtitle {
+  font-size: 10px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.field-label {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="url"],
+select {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  background: #0a0a0a;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus, select:focus {
+  border-color: #06b6d4;
+}
+
+.input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.input-row input { flex: 1; }
+
+.icon-btn {
+  padding: 8px 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  background: #0a0a0a;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  color: #6b7280;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.icon-btn:hover { border-color: #06b6d4; color: #06b6d4; }
+
+.hint {
+  font-size: 9px;
+  color: #3a3a3a;
+  margin-top: 4px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.toggle-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #06b6d4;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+button {
+  flex: 1;
+  padding: 10px 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  border: 1px solid #06b6d4;
+  border-radius: 4px;
+  background: #06b6d4;
+  color: #000;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+button:hover { background: #0891b2; border-color: #0891b2; }
+
+button.secondary {
+  background: transparent;
+  color: #6b7280;
+  border-color: #2a2a2a;
+}
+
+button.secondary:hover {
+  border-color: #06b6d4;
+  color: #06b6d4;
+}
+
+.status {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.status.success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.status.error {
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #f43f5e;
+}

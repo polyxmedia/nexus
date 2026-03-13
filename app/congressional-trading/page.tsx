@@ -558,7 +558,7 @@ export default function CongressionalTradingPage() {
       title="Congressional Trading"
       subtitle="STOCK Act disclosures and SEC Form 4 insider filings"
     >
-      <UpgradeGate minTier="analyst" feature="Congressional trading signals" blur>
+      <UpgradeGate minTier="operator" feature="Congressional trading signals" blur>
       {/* AI Analysis */}
       <AnalysisPanel />
 

@@ -126,7 +126,7 @@ function MetricWidget({ config }: { config: { metric: string } }) {
           let prevVal = vixSeries?.previous?.value ?? null;
           // Fallback: use Yahoo Finance VIX if FRED VIXCLS is unavailable
           if (vixVal == null && vixFallbackData) {
-            const fb = vixFallbackData as Record<string, { close?: number; change?: number }>;
+            const fb = (vixFallbackData as { markets?: Record<string, { close?: number; change?: number }> })?.markets;
             if (fb?.VIX?.close) { vixVal = fb.VIX.close; prevVal = fb.VIX.change != null ? fb.VIX.close - fb.VIX.change : null; }
           }
           const regime = vixVal != null ? (vixVal >= 30 ? "extreme fear" : vixVal >= 20 ? "elevated" : vixVal >= 15 ? "normal" : "complacent") : "unavailable";

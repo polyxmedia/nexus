@@ -1,0 +1,7 @@
+/* Content script styles are injected via Shadow DOM in content.ts */
+/* This file is intentionally minimal - tooltip styles live in the shadow root */
+
+.nexus-ticker {
+  border-bottom: 1px dotted #06b6d4;
+  cursor: pointer;
+}

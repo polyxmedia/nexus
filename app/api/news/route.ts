@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCachedNews } from "@/lib/news/sync";
+import { requireTier } from "@/lib/auth/require-tier";
 
 export const maxDuration = 30;
 
 export async function GET(request: NextRequest) {
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category") || undefined;

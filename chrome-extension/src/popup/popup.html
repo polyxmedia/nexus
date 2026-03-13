@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <span class="logo">NEXUS</span>
+      <span class="version">v0.1</span>
+    </header>
+    <div id="content">
+      <div id="loading" class="loading">Loading...</div>
+      <div id="not-configured" class="notice" style="display:none">
+        <p>API key not configured</p>
+        <button id="open-options">Configure</button>
+      </div>
+      <div id="cards" style="display:none">
+        <div class="card" id="signals-card">
+          <div class="card-label">Signals</div>
+          <div class="card-value" id="signal-count">--</div>
+          <div class="card-sub" id="signal-sub"></div>
+        </div>
+        <div class="card" id="predictions-card">
+          <div class="card-label">Predictions</div>
+          <div class="card-value" id="prediction-count">--</div>
+          <div class="card-sub" id="prediction-sub"></div>
+        </div>
+        <div class="card" id="accuracy-card">
+          <div class="card-label">Accuracy</div>
+          <div class="card-value" id="accuracy-value">--</div>
+          <div class="card-sub" id="accuracy-sub"></div>
+        </div>
+      </div>
+      <div id="actions" style="display:none">
+        <button id="open-platform">Open NEXUS</button>
+        <button id="open-sidepanel" class="secondary">Side Panel</button>
+      </div>
+    </div>
+  </div>
+  <script src="../dist/popup/popup.js"></script>
+</body>
+</html>

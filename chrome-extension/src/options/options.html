@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>NEXUS Extension Settings</title>
+  <link rel="stylesheet" href="options.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <span class="logo">NEXUS</span>
+      <span class="subtitle">Extension Settings</span>
+    </header>
+
+    <div class="section">
+      <label class="field-label">API Key</label>
+      <div class="input-row">
+        <input type="password" id="api-key" placeholder="sk-nxs-..." autocomplete="off">
+        <button id="toggle-key" class="icon-btn" title="Show/hide">eye</button>
+      </div>
+      <p class="hint">Generate a key at Settings > Platform API in NEXUS</p>
+    </div>
+
+    <div class="section">
+      <label class="field-label">Base URL</label>
+      <input type="url" id="base-url" placeholder="https://nexushq.xyz">
+    </div>
+
+    <div class="section">
+      <label class="field-label">Polling Interval</label>
+      <select id="poll-interval">
+        <option value="1">1 minute</option>
+        <option value="5">5 minutes</option>
+        <option value="15">15 minutes</option>
+        <option value="30">30 minutes</option>
+      </select>
+    </div>
+
+    <div class="section">
+      <label class="toggle-row">
+        <input type="checkbox" id="notifications">
+        <span>Enable notifications</span>
+      </label>
+    </div>
+
+    <div class="section">
+      <label class="toggle-row">
+        <input type="checkbox" id="ticker-detection">
+        <span>Detect tickers on pages</span>
+      </label>
+      <p class="hint">Highlight stock symbols and show NEXUS data on hover</p>
+    </div>
+
+    <div class="actions">
+      <button id="test-btn" class="secondary">Test Connection</button>
+      <button id="save-btn">Save</button>
+    </div>
+
+    <div id="status" class="status" style="display:none"></div>
+  </div>
+  <script src="../dist/options/options.js"></script>
+</body>
+</html>

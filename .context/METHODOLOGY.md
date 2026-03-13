@@ -233,6 +233,18 @@ Hebrew + Islamic + Economic within 5 days shows mean VIX elevation of 18% above 
 
 ## Documented Limitations
 
+### The Seven of Nine Problem
+
+There's an episode of Star Trek: Voyager called "The Voyager Conspiracy" (S6E9) that illustrates the core risk of any signal fusion system better than most academic papers do. The setup: a crew member with superhuman data processing ability (Seven of Nine, a former cyborg) decides to ingest the ship's entire five-year database, every sensor log, crew report, communication, and operational record, and cross-reference everything to find hidden patterns.
+
+She finds them. She constructs three separate conspiracy theories about why the ship was stranded far from home, each one internally coherent, each one supported by real data points from real events. The tractor beam she references was real. The sensor anomalies were real. The personnel movements were real. The correlations between them were real. And all three theories were completely wrong.
+
+The lesson is uncomfortable for anyone building a convergence detection system: more data made her analysis worse, not better. It gave her more raw material for spurious pattern matching. Every new data point got interpreted through the lens of whatever hypothesis she'd already formed, and the narrative became more convincing with each addition. She had no external mechanism to test whether her conclusions held up against reality, no scoring system, no track record, no accountability. Just a confident, intelligent analyst connecting dots that didn't actually connect.
+
+This is the exact failure mode NEXUS is designed to resist. When you monitor four independent data domains and look for convergence, you will find it, because with enough data points, coincidental alignment is statistically inevitable. The question is always whether the convergence is meaningful or noise.
+
+NEXUS addresses this through the VALIDATE phase: Brier-scored predictions tracked against real-world outcomes, with the full record published uncurated, misses alongside hits. Seven had DETECT and SYNTHESIZE but no VALIDATE. That missing feedback loop is what allowed her analysis to drift into fabrication while maintaining total confidence. The limitations below document the specific areas where this risk is highest and the mitigations in place.
+
 ### Calendar/Celestial
 
 Most academically contentious components. Evidence base thin and mixed. Kamstra et al. (2003) found no robust effect after controlling for seasonal affective disorder. These layers add contextual color to situations identified by stronger layers. Never the primary basis for any call. Performance contribution segmented and reported separately from GEO/MKT/OSI.

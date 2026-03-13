@@ -3,6 +3,7 @@
 
 const BASE_URL = "https://api.stlouisfed.org/fred";
 
+// In-memory cache (works in long-lived processes, not serverless cold starts)
 const cache = new Map<string, { data: unknown; expiry: number }>();
 const CACHE_TTL = 3600_000; // 1 hour
 
@@ -62,6 +63,31 @@ function getApiKey(): string | null {
   return process.env.FRED_API_KEY || null;
 }
 
+/**
+ * Run async tasks in batches with a delay between batches to respect rate limits.
+ * FRED allows 120 requests/minute, so batches of 5 with 300ms delay stays well under.
+ */
+async function batchedFetch<T>(
+  tasks: (() => Promise<T>)[],
+  batchSize: number = 5,
+  delayMs: number = 300,
+): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const batch = tasks.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(batch.map(fn => fn()));
+    results.push(...batchResults);
+
+    // Delay between batches (skip after last batch)
+    if (i + batchSize < tasks.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return results;
+}
+
 export async function getFredSeries(
   seriesId: string,
   limit: number = 30
@@ -74,9 +100,33 @@ export async function getFredSeries(
   if (cached && cached.expiry > Date.now()) return cached.data as FredDataPoint[];
 
   const url = `${BASE_URL}/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=${limit}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
 
-  if (!res.ok) throw new Error(`FRED API error: ${res.status}`);
+  // Use Next.js fetch cache (survives serverless cold starts on Vercel)
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(10000),
+    next: { revalidate: 3600 },
+  });
+
+  if (!res.ok) {
+    // On rate limit (429), wait and retry once
+    if (res.status === 429) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const retry = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        next: { revalidate: 3600 },
+      });
+      if (!retry.ok) throw new Error(`FRED API error: ${retry.status} (retry)`);
+      const json = await retry.json();
+      const observations = (json.observations || []) as Array<{ date: string; value: string }>;
+      const points: FredDataPoint[] = observations
+        .filter(o => o.value !== ".")
+        .map(o => ({ date: o.date, value: parseFloat(o.value) }))
+        .reverse();
+      cache.set(cacheKey, { data: points, expiry: Date.now() + CACHE_TTL });
+      return points;
+    }
+    throw new Error(`FRED API error: ${res.status}`);
+  }
 
   const json = await res.json();
   const observations = (json.observations || []) as Array<{ date: string; value: string }>;
@@ -108,21 +158,21 @@ export async function getMacroSnapshot(): Promise<Record<string, FredSeriesData>
 
   const results: Record<string, FredSeriesData> = {};
 
-  // Fetch all series in parallel (each has its own 10s timeout + 1h cache)
-  const allResults = await Promise.allSettled(
-    keys.map(async (key) => {
-      const series = FRED_SERIES[key];
-      const points = await getFredSeries(series.id, 10);
-      const latest = points.length > 0 ? points[points.length - 1] : null;
-      const previous = points.length > 1 ? points[points.length - 2] : null;
-      const change = latest && previous ? latest.value - previous.value : null;
-      const changePercent = latest && previous && previous.value !== 0
-        ? ((latest.value - previous.value) / Math.abs(previous.value)) * 100
-        : null;
+  // Fetch in batches of 5 with 300ms delay to avoid FRED rate limits (120 req/min)
+  const tasks = keys.map((key) => async () => {
+    const series = FRED_SERIES[key];
+    const points = await getFredSeries(series.id, 10);
+    const latest = points.length > 0 ? points[points.length - 1] : null;
+    const previous = points.length > 1 ? points[points.length - 2] : null;
+    const change = latest && previous ? latest.value - previous.value : null;
+    const changePercent = latest && previous && previous.value !== 0
+      ? ((latest.value - previous.value) / Math.abs(previous.value)) * 100
+      : null;
 
-      return { key, data: { id: series.id, name: series.name, unit: series.unit, latest, previous, change, changePercent, history: points } as FredSeriesData };
-    })
-  );
+    return { key, data: { id: series.id, name: series.name, unit: series.unit, latest, previous, change, changePercent, history: points } as FredSeriesData };
+  });
+
+  const allResults = await batchedFetch(tasks);
 
   for (const result of allResults) {
     if (result.status === "fulfilled") results[result.value.key] = result.value.data;
@@ -145,14 +195,14 @@ export async function getYieldCurve(): Promise<{
     { key: "DGS10", label: "10Y" }, { key: "DGS30", label: "30Y" },
   ];
 
-  const results = await Promise.allSettled(
-    maturities.map(async (m) => {
-      const points = await getFredSeries(m.key, 2);
-      return { maturity: m.label, yield: points.length > 0 ? points[points.length - 1].value : 0 };
-    })
-  );
+  // Batch yield curve requests too
+  const tasks = maturities.map((m) => async () => {
+    const points = await getFredSeries(m.key, 2);
+    return { maturity: m.label, yield: points.length > 0 ? points[points.length - 1].value : 0 };
+  });
 
-  const curve = results
+  const batchResults = await batchedFetch(tasks);
+  const curve = batchResults
     .filter((r): r is PromiseFulfilledResult<{ maturity: string; yield: number }> => r.status === "fulfilled")
     .map(r => r.value);
 

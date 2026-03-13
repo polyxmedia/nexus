@@ -894,7 +894,7 @@ export default function TradeLabPage() {
 
   return (
     <div className="ml-0 md:ml-48 min-h-screen bg-navy-950 pt-12 md:pt-0">
-      <UpgradeGate minTier="analyst" feature="Trade Lab">
+      <UpgradeGate minTier="operator" feature="Trade Lab">
         {/* Header */}
         <div className="border-b border-navy-700 px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">

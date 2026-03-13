@@ -26,13 +26,15 @@ export const ROUTE_TIERS: Record<string, MinTier> = {
   "news": "analyst",
   "narrative": "analyst",
   "knowledge": "analyst",
-  "thesis": "analyst",
+  "thesis": "operator",
   "graph": "analyst",
   "parallels": "analyst",
   "actors": "analyst",
   "iw": "analyst",
+  "longevity": "analyst",
 
   // ── Operator tier (£199/mo) - advanced analytics + trading ──
+  "trade-lab": "operator",
   "trading212": "operator",
   "coinbase": "operator",
   "ibkr": "operator",
@@ -143,6 +145,7 @@ export const PAGE_TIERS: Record<string, MinTier> = {
   "/knowledge": "analyst",
   "/parallels": "analyst",
   "/actors": "analyst",
+  "/longevity": "analyst",
   // Operator
   "/trading": "operator",
   "/markets": "operator",
@@ -157,5 +160,7 @@ export const PAGE_TIERS: Record<string, MinTier> = {
   "/gpr": "operator",
   "/bocpd": "operator",
   "/shipping": "operator",
+  "/trade-lab": "operator",
   "/thesis": "operator",
+  "/dashboard/operator": "operator",
 };

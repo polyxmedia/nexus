@@ -9,7 +9,7 @@ import { getLatestCorrelations, computeCorrelationMatrix } from "@/lib/regime/co
 import { getGPRSnapshot } from "@/lib/gpr";
 
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
 
   const ticker = request.nextUrl.searchParams.get("ticker")?.trim().toUpperCase();

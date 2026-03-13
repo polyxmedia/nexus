@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="sidepanel.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <span class="logo">NEXUS</span>
+      <div class="tabs">
+        <button class="tab active" data-tab="signals">Signals</button>
+        <button class="tab" data-tab="predictions">Predictions</button>
+      </div>
+    </header>
+    <div id="tab-signals" class="tab-content active">
+      <div id="signal-list" class="list"></div>
+    </div>
+    <div id="tab-predictions" class="tab-content">
+      <div id="prediction-list" class="list"></div>
+    </div>
+    <div id="empty" class="empty" style="display:none">
+      <p>No data available</p>
+      <p class="hint">Configure your API key in extension settings</p>
+    </div>
+  </div>
+  <script src="../dist/sidepanel/sidepanel.js"></script>
+</body>
+</html>

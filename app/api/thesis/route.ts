@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   const csrfError = validateOrigin(request);
   if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
 
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const body = await request.json();
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("operator");
   if ("response" in tierCheck) return tierCheck.response;
   try {
     const { searchParams } = new URL(request.url);

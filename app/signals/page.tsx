@@ -243,7 +243,7 @@ export default function SignalsPage() {
   if (loading) {
     return (
       <PageContainer title="Signal Intelligence" subtitle="Multi-layer convergence detection">
-        <UpgradeGate minTier="free" feature="Signal detection and monitoring" blur>
+        <UpgradeGate minTier="analyst" feature="Signal detection and monitoring" blur>
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -258,7 +258,7 @@ export default function SignalsPage() {
 
   return (
     <PageContainer title="Signal Intelligence" subtitle="Multi-layer convergence detection">
-      <UpgradeGate minTier="free" feature="Signal detection and monitoring" blur>
+      <UpgradeGate minTier="analyst" feature="Signal detection and monitoring" blur>
       {/* Overview Metrics */}
       {analytics && (
         <>
