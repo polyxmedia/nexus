@@ -418,16 +418,16 @@ export default function TimelinePage() {
                           {(Number(event.metadata.confidence) * 100).toFixed(0)}%
                         </span>
                       </div>
-                      {event.metadata?.direction && (
+                      {event.metadata?.direction != null && (
                         <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded ${
-                          event.metadata.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald" :
-                          event.metadata.direction === "down" ? "bg-accent-rose/10 text-accent-rose" :
+                          String(event.metadata.direction) === "up" ? "bg-accent-emerald/10 text-accent-emerald" :
+                          String(event.metadata.direction) === "down" ? "bg-accent-rose/10 text-accent-rose" :
                           "bg-navy-700/40 text-navy-500"
                         }`}>
                           {String(event.metadata.direction)}
                         </span>
                       )}
-                      {event.metadata?.deadline && (
+                      {event.metadata?.deadline != null && (
                         <span className="text-[9px] font-mono text-navy-600">
                           due {String(event.metadata.deadline)}
                         </span>
