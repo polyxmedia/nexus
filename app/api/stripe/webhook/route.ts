@@ -181,6 +181,19 @@ async function handleReferralChurn(customerId: string) {
   }
 }
 
+/**
+ * Extract period start/end from a Stripe subscription, handling API versions
+ * where the fields moved from top-level to items.data[].
+ */
+function extractPeriodDate(sub: unknown, which: "start" | "end"): string | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const s = sub as any;
+  const field = which === "start" ? "current_period_start" : "current_period_end";
+  const ts = s[field] || s.items?.data?.[0]?.[field];
+  if (ts && ts > 0) return new Date(ts * 1000).toISOString();
+  return null;
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const sig = request.headers.get("stripe-signature");
@@ -432,8 +445,6 @@ export async function POST(request: Request) {
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
 
         if (existing.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const subAny = sub as any;
           const previousStatus = existing[0].status;
 
           // Don't transition from "incomplete" to "trialing" in our DB.
@@ -441,12 +452,15 @@ export async function POST(request: Request) {
           // user enters payment details. We keep "incomplete" until setup_intent.succeeded.
           const skipStatusSync = previousStatus === "incomplete" && sub.status === "trialing";
 
+          const pStart = extractPeriodDate(sub, "start");
+          const pEnd = extractPeriodDate(sub, "end");
+
           await db
             .update(schema.subscriptions)
             .set({
               status: skipStatusSync ? "incomplete" : sub.status,
-              currentPeriodStart: new Date((subAny.current_period_start || 0) * 1000).toISOString(),
-              currentPeriodEnd: new Date((subAny.current_period_end || 0) * 1000).toISOString(),
+              ...(pStart && { currentPeriodStart: pStart }),
+              ...(pEnd && { currentPeriodEnd: pEnd }),
               cancelAtPeriodEnd: sub.cancel_at_period_end ? 1 : 0,
               updatedAt: new Date().toISOString(),
             })
@@ -708,15 +722,14 @@ export async function POST(request: Request) {
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
 
         if (updateSubs.length > 0) {
-          // Sync the latest status
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const subAny = sub as any;
+          const puStart = extractPeriodDate(sub, "start");
+          const puEnd = extractPeriodDate(sub, "end");
           await db
             .update(schema.subscriptions)
             .set({
               status: sub.status,
-              currentPeriodStart: new Date((subAny.current_period_start || 0) * 1000).toISOString(),
-              currentPeriodEnd: new Date((subAny.current_period_end || 0) * 1000).toISOString(),
+              ...(puStart && { currentPeriodStart: puStart }),
+              ...(puEnd && { currentPeriodEnd: puEnd }),
               updatedAt: new Date().toISOString(),
             })
             .where(eq(schema.subscriptions.stripeCustomerId, customerId));

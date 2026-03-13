@@ -8,6 +8,19 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { validateOrigin } from "@/lib/security/csrf";
 
+/**
+ * Extract period start/end from a Stripe subscription, handling API versions
+ * where the fields moved from top-level to items.data[].
+ */
+function extractPeriodDate(sub: unknown, which: "start" | "end"): string | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const s = sub as any;
+  const field = which === "start" ? "current_period_start" : "current_period_end";
+  const ts = s[field] || s.items?.data?.[0]?.[field];
+  if (ts && ts > 0) return new Date(ts * 1000).toISOString();
+  return null;
+}
+
 export async function POST(request: Request) {
   const csrfError = validateOrigin(request);
   if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
@@ -153,12 +166,17 @@ export async function POST(request: Request) {
     // IMPORTANT: Always save as "incomplete" here. The user has NOT confirmed payment yet.
     // The webhook (customer.subscription.updated / setup_intent.succeeded) will update
     // the status to "trialing" or "active" once the payment method is collected.
+    const periodStart = extractPeriodDate(subscription, "start");
+    const periodEnd = extractPeriodDate(subscription, "end");
+
     if (existingSubs.length > 0) {
       await db.update(schema.subscriptions)
         .set({
           stripeCustomerId: customerId,
           stripeSubscriptionId: subscription.id,
           status: "incomplete",
+          ...(periodStart && { currentPeriodStart: periodStart }),
+          ...(periodEnd && { currentPeriodEnd: periodEnd }),
           updatedAt: new Date(),
         })
         .where(eq(schema.subscriptions.userId, userId));
@@ -169,6 +187,8 @@ export async function POST(request: Request) {
         stripeCustomerId: customerId,
         stripeSubscriptionId: subscription.id,
         status: "incomplete",
+        ...(periodStart && { currentPeriodStart: periodStart }),
+        ...(periodEnd && { currentPeriodEnd: periodEnd }),
         createdAt: new Date(),
         updatedAt: new Date(),
       });

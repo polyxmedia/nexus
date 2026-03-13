@@ -27,6 +27,19 @@ if (process.env.VERCEL_URL) {
   ALLOWED_ORIGINS.add(`https://${process.env.VERCEL_URL}`);
 }
 
+if (process.env.NEXT_PUBLIC_BASE_URL) {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_BASE_URL);
+    ALLOWED_ORIGINS.add(url.origin);
+  } catch {
+    // Invalid URL
+  }
+}
+
+if (process.env.VERCEL_BRANCH_URL) {
+  ALLOWED_ORIGINS.add(`https://${process.env.VERCEL_BRANCH_URL}`);
+}
+
 /**
  * Validate that a request originates from an allowed origin.
  * Returns null if valid, or an error message if invalid.
@@ -39,6 +52,9 @@ export function validateOrigin(request: Request): string | null {
   if (!origin && !referer) return null;
 
   if (origin && ALLOWED_ORIGINS.has(origin)) return null;
+
+  // Allow any Vercel preview deployment for this project
+  if (origin && origin.endsWith(".vercel.app") && origin.includes("andre-figueiras-projects")) return null;
 
   if (referer) {
     try {
