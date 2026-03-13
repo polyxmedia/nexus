@@ -141,10 +141,13 @@ export async function POST(request: Request) {
     await Promise.all(existingStripeSubs.data.map((s) => stripe.subscriptions.cancel(s.id)));
 
     // Check if user has ever had a completed subscription (no trial for returning users)
+    // Incomplete/canceled subs don't count, the user never actually activated
     const hadRealSub = existingSubs.length > 0
       && existingSubs[0].stripeSubscriptionId
       && existingSubs[0].stripeSubscriptionId.length > 0
-      && !existingSubs[0].stripeSubscriptionId.startsWith("comped_");
+      && !existingSubs[0].stripeSubscriptionId.startsWith("comped_")
+      && existingSubs[0].status !== "incomplete"
+      && existingSubs[0].status !== "canceled";
 
     // Create subscription with incomplete payment so Elements can confirm it
     const subscription = await stripe.subscriptions.create({
