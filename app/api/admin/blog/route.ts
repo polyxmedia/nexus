@@ -4,12 +4,13 @@
  * POST - generate article, update post, publish/unpublish, delete
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { generateArticle, listAllPosts } from "@/lib/blog/writer";
+import { generateArticle, refineArticle, analyzeArticle, fixFromAnalysis, craftArticleThread, listAllPosts } from "@/lib/blog/writer";
+import { postThread, logTweet, isTwitterConfigured } from "@/lib/twitter/client";
 
 async function isAdmin(): Promise<boolean> {
   const session = await getServerSession(authOptions);
@@ -40,7 +41,7 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
@@ -63,6 +64,36 @@ export async function POST(req: Request) {
           publishedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }).where(eq(schema.blogPosts.id, id));
+
+        // Auto-post Twitter thread in background (don't block the publish response)
+        (async () => {
+          try {
+            if (!(await isTwitterConfigured())) return;
+            const rows = await db.select().from(schema.blogPosts).where(eq(schema.blogPosts.id, id));
+            if (rows.length === 0) return;
+            const post = rows[0];
+            const tweets = await craftArticleThread({
+              title: post.title,
+              excerpt: post.excerpt,
+              body: post.body,
+              slug: post.slug,
+              category: post.category,
+            });
+            if (tweets.length === 0) return;
+            const results = await postThread(tweets);
+            if (results.length > 0) {
+              await logTweet({
+                tweetId: results[0].id,
+                tweetType: "analyst",
+                content: tweets.join("\n---\n"),
+              });
+              console.log(`[admin/blog] Posted Twitter thread (${results.length} tweets) for article ${id}`);
+            }
+          } catch (err) {
+            console.error("[admin/blog] Twitter thread failed:", err);
+          }
+        })();
+
         return NextResponse.json({ ok: true });
       }
 
@@ -95,6 +126,27 @@ export async function POST(req: Request) {
         if (author != null) updates.author = author;
         await db.update(schema.blogPosts).set(updates).where(eq(schema.blogPosts.id, id));
         return NextResponse.json({ ok: true });
+      }
+
+      case "refine": {
+        const { title, excerpt, body: articleBody } = body;
+        const refined = await refineArticle({ title, excerpt, body: articleBody });
+        return NextResponse.json({ ok: true, refined });
+      }
+
+      case "analyze": {
+        const { title, excerpt, body: articleBody } = body;
+        const analysis = await analyzeArticle({ title, excerpt, body: articleBody });
+        return NextResponse.json({ ok: true, analysis });
+      }
+
+      case "fix-from-analysis": {
+        const { title, excerpt, body: articleBody, issues, suggestions } = body;
+        if (!Array.isArray(issues) || !Array.isArray(suggestions)) {
+          return NextResponse.json({ error: "issues and suggestions must be arrays" }, { status: 400 });
+        }
+        const fixed = await fixFromAnalysis({ title, excerpt, body: articleBody, issues, suggestions });
+        return NextResponse.json({ ok: true, fixed });
       }
 
       case "delete": {

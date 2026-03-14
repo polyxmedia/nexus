@@ -47,6 +47,7 @@ import { ArtifactWidget } from "./widgets/ArtifactWidget";
 import { MemoryWidget } from "./widgets/MemoryWidget";
 import { DocumentWidget } from "./widgets/DocumentWidget";
 import { DocumentDownloadWidget } from "./widgets/DocumentDownloadWidget";
+import { ScenarioBranchesWidget } from "./widgets/ScenarioBranchesWidget";
 import { CustomGameTheoryWidget } from "./widgets/CustomGameTheoryWidget";
 import { VesselTrackingWidget } from "./widgets/VesselTrackingWidget";
 import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
@@ -128,6 +129,7 @@ const TOOL_LABELS: Record<string, string> = {
   create_custom_game_theory: "Custom Game Theory",
   get_vip_movements: "VIP Movements",
   get_vessel_tracking: "Vessel Tracking",
+  get_scenario_branches: "Scenario Branches",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -288,6 +290,9 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "get_vessel_tracking":
       widget = <VesselTrackingWidget data={data} />;
+      break;
+    case "get_scenario_branches":
+      widget = <ScenarioBranchesWidget data={data} />;
       break;
     case "get_operator_context":
       return (

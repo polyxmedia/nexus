@@ -63,8 +63,8 @@ const phases = [
       { icon: Globe, tag: "GEO", label: "Geopolitical", desc: "Conflict escalation, sanctions regimes, diplomatic shifts, military posture changes, and regime instability indicators.", primary: true },
       { icon: BarChart3, tag: "MKT", label: "Market", desc: "Options flow anomalies, volatility regime shifts, cross-asset divergences, credit spreads, and macro indicator surprises.", primary: true },
       { icon: Eye, tag: "OSI", label: "OSINT", desc: "Open-source intelligence from flight tracking, shipping data, satellite imagery, social media, and event wire services.", primary: true },
-      { icon: Calendar, tag: "CAL", label: "Calendar (Narrative Overlay)", desc: "Hebrew and Islamic calendar events, FOMC cycles, options expiry dates. Actor-belief context only, max 0.5 bonus, no convergence weight.", primary: false },
-      { icon: Moon, tag: "CEL", label: "Celestial (Narrative Overlay)", desc: "Eclipses, planetary transits, lunar cycles, and solar activity. Actor-belief context only, max 0.5 bonus, no convergence weight.", primary: false },
+      { icon: Calendar, tag: "CAL", label: "Calendar (Narrative Overlay)", desc: "Religious calendars, central bank schedules, options expiry dates, fiscal year boundaries. Tracked because institutional and sovereign actors demonstrably time decisions around these dates, creating measurable market clustering effects. Actor-belief context only, max 0.5 bonus, no convergence weight.", primary: false },
+      { icon: Moon, tag: "CEL", label: "Celestial (Narrative Overlay)", desc: "Tracks astronomical events (eclipses, lunar phases, solar activity) that measurably influence actor behaviour. Certain market participants and political decision-makers demonstrably time actions around these events, creating real microstructure effects. We monitor the belief, not the celestial body. Actor-belief context only, max 0.5 bonus, no convergence weight.", primary: false },
     ],
   },
   {
@@ -76,7 +76,7 @@ const phases = [
     summary:
       "The convergence engine identifies temporal and thematic overlaps between signals from independent layers. When multiple domains align within a narrow window, the system flags a convergence event.",
     details: [
-      "Convergence scoring is non-linear. Two simultaneous signals from different layers do not simply double the score. The system applies an amplification function that weighs the independence of the source layers. Highly independent layers (celestial + market) receive a stronger multiplier than correlated layers (geopolitical + OSINT).",
+      "Convergence scoring is non-linear and applies only to primary signal layers (GEO, MKT, OSI, SYS). Two simultaneous signals from different primary layers do not simply double the score. The system applies an amplification function that weighs the independence of the source layers. Narrative overlays (CAL/CEL) do not participate in convergence scoring at all.",
       "Temporal proximity matters. Signals are scored based on how tightly they cluster in time. A three-layer convergence within 48 hours scores significantly higher than the same signals spread over two weeks.",
       "Thematic overlap is the second axis. Signals affecting the same geographic region, sector, or asset class receive additional weighting. A Middle East conflict signal converging with an energy market anomaly and a calendar event tied to the region creates a thematically coherent cluster that warrants attention.",
       "The system distinguishes between coincidental overlap and meaningful convergence through historical pattern matching. Every convergence event is compared against a library of past convergences and their outcomes to assess whether the current pattern has predictive precedent.",
@@ -125,8 +125,8 @@ const dataCategories = [
   { category: "Geopolitical Intelligence", sources: "Government publications, defence intelligence feeds, verified reporting networks, treaty databases, sanctions registries", refresh: "Continuous", type: "primary" },
   { category: "Market Data", sources: "Real-time price feeds, options flow aggregators, economic indicator APIs, central bank data repositories", refresh: "Real-time", type: "primary" },
   { category: "Open-Source Intelligence", sources: "Flight tracking networks, maritime AIS data, event wire services, satellite imagery providers, social media analysis", refresh: "Continuous", type: "primary" },
-  { category: "Calendar Systems (Narrative Overlay)", sources: "Hebrew and Islamic calendar databases, central bank schedules, derivatives expiry calendars, fiscal year boundaries. Actor-belief context only.", refresh: "Daily", type: "narrative" },
-  { category: "Celestial Ephemeris (Narrative Overlay)", sources: "Astronomical ephemeris data, eclipse databases, planetary transit calculations, solar activity indices. Actor-belief context only.", refresh: "Daily", type: "narrative" },
+  { category: "Calendar Systems (Narrative Overlay)", sources: "Religious calendar databases, central bank schedules, derivatives expiry calendars, fiscal year boundaries. Tracked because institutional and sovereign actors cluster decisions around these dates. Behavioural finance input, not a causal signal.", refresh: "Daily", type: "narrative" },
+  { category: "Celestial Ephemeris (Narrative Overlay)", sources: "Astronomical ephemeris data, eclipse databases, solar activity indices. Tracked because measurable subsets of market participants time actions around these events. We monitor the actor belief, not the celestial body. Behavioural finance input, not a causal signal.", refresh: "Daily", type: "narrative" },
 ];
 
 // ── Expandable phase ──
@@ -201,7 +201,7 @@ function ExpandablePhase({ phase }: { phase: (typeof phases)[0] }) {
                         Narrative / Actor-Belief Overlay
                       </div>
                       <p className="font-sans text-[10px] text-navy-600 mb-3 italic">
-                        Calendar and celestial overlays are narrative/actor-belief context only, not independent predictive signals. Max 0.5 bonus, no convergence weight.
+                        Calendar and celestial overlays are behavioural finance inputs: they track what actors believe and act on, not independent causal signals. They carry no convergence weight, contribute a maximum 0.5 bonus, and the system performs comparably with them removed entirely. They exist because real capital allocation decisions cluster around these dates.
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {phase.layers.filter((l: { primary?: boolean }) => l.primary === false).map((layer) => {
@@ -270,11 +270,15 @@ export default function MethodologyPage() {
             </h1>
 
             <p className="mt-1 font-sans text-[11px] text-accent-amber/80 leading-relaxed max-w-2xl border border-accent-amber/20 rounded px-3 py-2 bg-accent-amber/[0.03]">
-              Calendar and celestial overlays are narrative/actor-belief context only, not independent predictive signals.
+              Calendar and celestial overlays are behavioural finance inputs that track actor beliefs, not independent causal signals. They carry no convergence weight and the system performs comparably without them.
             </p>
 
             <p className="mt-5 font-sans text-base text-navy-400 leading-relaxed max-w-2xl">
-              A multi-layer intelligence system that monitors four primary signal layers plus a narrative overlay, scores their convergence, and synthesises high-conviction intelligence briefs. Every assessment traces back to observable data. Every prediction is tracked and scored.
+              A multi-layer intelligence system that monitors four primary signal layers plus a narrative overlay, scores their convergence, and synthesises high-conviction intelligence briefs. Every assessment traces back to observable data. Every prediction is tracked, timestamped, and scored against outcomes.
+            </p>
+
+            <p className="mt-3 font-sans text-sm text-navy-500 leading-relaxed max-w-2xl">
+              Don&apos;t take our word for it. <Link href="/research/prediction-accuracy" className="text-accent-cyan hover:text-accent-cyan/80 transition-colors underline underline-offset-2">View the live prediction record</Link> with timestamped forecasts, stated probabilities, resolution outcomes, and Brier scores computed in real time.
             </p>
           </div>
 
@@ -411,7 +415,7 @@ export default function MethodologyPage() {
               <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Formal Mathematical Specification</h2>
             </div>
             <p className="font-sans text-sm text-navy-400 leading-relaxed mb-10 ml-11 max-w-3xl">
-              The complete system reduces to three equations. Signal detection and Bayesian fusion produce a calibrated posterior. The posterior informs forecast generation. Forecasts are scored against outcomes with a proper scoring rule. Everything below is implemented in production code and runs against live data.
+              The complete system reduces to three equations. Signal detection and Bayesian fusion produce a calibrated posterior. The posterior informs forecast generation. Forecasts are scored against outcomes with a proper scoring rule. Everything below is implemented in production code. The <Link href="/research/prediction-accuracy" className="text-accent-cyan hover:text-accent-cyan/80 transition-colors underline underline-offset-2">live prediction record</Link> shows every forecast, its stated probability, outcome, and Brier score contribution.
             </p>
           </div>
 
@@ -494,7 +498,7 @@ export default function MethodologyPage() {
                   &beta;<sub>N</sub> = min(0.40, &Sigma;<sub>&ell; &isin; L<sub>N</sub></sub> &rho;<sub>&ell;</sub> &middot; s<sub>&ell;</sub>)
                 </div>
                 <p className="font-sans text-[11px] text-navy-500 mt-2 leading-relaxed">
-                  Maximum probability shift: ~10% at the midpoint, ~6% at extremes. Deliberately small.
+                  Maximum probability shift: ~10% at the midpoint, ~6% at extremes. Deliberately small. Removing the narrative overlay entirely does not materially change system accuracy. It exists to capture a real behavioural signal, not to drive outcomes.
                 </p>
               </div>
             </div>
@@ -524,8 +528,11 @@ export default function MethodologyPage() {
               </div>
             </div>
 
-            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-5 max-w-3xl">
+            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-3 max-w-3xl">
               This is the step most systems hide. The posterior probability from Equation 1 is the quantitative anchor, but the final forecast confidence incorporates regime context, game-theoretic structure, and historical precedent. This function is not closed-form because it includes structured analytic tradecraft that resists reduction to algebra. We state this explicitly rather than hiding it behind an arrow.
+            </p>
+            <p className="font-sans text-sm text-navy-500 leading-relaxed mb-5 max-w-3xl">
+              Crucially, this step is constrained: the forecast confidence cannot deviate more than 15 percentage points from the Equation 1 posterior. The AI does not override the quantitative signal; it provides contextual adjustment within bounded limits. Every forecast is then scored by Equation 3 against actual outcomes, so any systematic bias introduced here is caught and penalised in the Brier decomposition.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -655,7 +662,7 @@ export default function MethodologyPage() {
             <div className="mt-6 flex items-start gap-3">
               <AlertTriangle className="w-3.5 h-3.5 text-navy-600 flex-shrink-0 mt-0.5" />
               <p className="font-sans text-xs text-navy-500 leading-relaxed">
-                All constants are implemented in production code and validated against live outcomes. The sensitivity parameter k and layer reliabilities are living values subject to recalibration as the prediction record grows. Signal decay models disconfirmation as reversion to prior rather than negative evidence, a deliberate design choice that bounds the likelihood ratio to [1, &infin;) for the current signal space.
+                All constants are implemented in production code. Initial values were set from domain knowledge and calibrated against the first cohort of resolved predictions. They are living values: as the prediction record grows, k and layer reliabilities are recalibrated against out-of-sample outcomes. Current performance against these constants is visible on the <Link href="/research/prediction-accuracy" className="text-accent-cyan hover:text-accent-cyan/80 transition-colors underline underline-offset-2">live prediction record</Link>. Signal decay models disconfirmation as reversion to prior rather than negative evidence, a deliberate design choice that bounds the likelihood ratio to [1, &infin;) for the current signal space.
               </p>
             </div>
           </div>
@@ -727,6 +734,7 @@ export default function MethodologyPage() {
                   "An intelligence synthesis tool that surfaces elevated-probability windows",
                   "A self-calibrating system that learns from its own prediction outcomes",
                   "A framework for structured thinking about geopolitical-market dynamics",
+                  "Publicly auditable: every prediction is timestamped, its confidence is stated before the outcome, and the full record is published live",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2 font-sans text-sm text-navy-400 leading-relaxed">
                     <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-navy-600" />
@@ -759,11 +767,12 @@ export default function MethodologyPage() {
 
           <div className={`mt-10 transition-all duration-700 delay-200 ${riskReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-300 mb-5">Known Limitations</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {[
                 { title: "Black Swan Blindness", body: "Truly unprecedented events have no historical pattern to match against. The system can detect unusual conditions but cannot anticipate events with no precedent." },
                 { title: "Data Latency", body: "Some signal layers operate on delayed data. Geopolitical and OSINT signals may lag minutes to hours behind real-time events. Market data varies by feed tier." },
                 { title: "Calibration Drift", body: "Market regimes change. Correlations that held during one period may break down in the next. The feedback loop mitigates this but cannot eliminate it entirely." },
+                { title: "Small Sample Size", body: "The prediction record is still young. Brier scores and calibration curves become more reliable with hundreds of resolved predictions. We publish confidence intervals on all metrics and flag when sample sizes are insufficient for reliable conclusions." },
               ].map((lim) => (
                 <div key={lim.title}>
                   <h4 className="font-mono text-[11px] font-semibold text-navy-300 mb-1.5">{lim.title}</h4>

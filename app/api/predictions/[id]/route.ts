@@ -9,10 +9,11 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const rows = await db
-      .select()
-      .from(schema.predictions)
-      .where(eq(schema.predictions.uuid, id));
+    // Support both numeric IDs and UUIDs
+    const numericId = parseInt(id, 10);
+    const rows = !isNaN(numericId) && String(numericId) === id
+      ? await db.select().from(schema.predictions).where(eq(schema.predictions.id, numericId))
+      : await db.select().from(schema.predictions).where(eq(schema.predictions.uuid, id));
 
     if (!rows[0]) {
       return NextResponse.json({ error: "Prediction not found" }, { status: 404 });

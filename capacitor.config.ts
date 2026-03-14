@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
     url: 'http://localhost:3000',
     cleartext: true, // allows HTTP for local dev
   },
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+  },
   ios: {
     scheme: 'NEXUS',
     contentInset: 'automatic',

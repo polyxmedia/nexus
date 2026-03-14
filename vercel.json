@@ -92,6 +92,9 @@
     },
     "app/api/scheduler/cron/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/predictions/generate-stream/route.ts": {
+      "maxDuration": 120
     }
   }
 }

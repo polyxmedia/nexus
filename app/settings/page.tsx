@@ -504,6 +504,7 @@ export default function SettingsPage() {
   const [creatingKey, setCreatingKey] = useState(false);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(["signals", "predictions", "regime", "game_theory", "theses", "market", "news"]);
 
   // Credits / Wallet
   const [creditBalance, setCreditBalance] = useState<{
@@ -831,7 +832,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/settings/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newKeyName.trim() || "Default" }),
+        body: JSON.stringify({ name: newKeyName.trim() || "Default", scopes: selectedScopes }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -839,7 +840,7 @@ export default function SettingsPage() {
         return;
       }
       setNewlyCreatedKey(data.key.raw);
-      setPlatformKeys((prev) => [{ ...data.key, revokedAt: null, lastUsedAt: null, scopes: null }, ...prev]);
+      setPlatformKeys((prev) => [{ ...data.key, revokedAt: null, lastUsedAt: null, scopes: JSON.stringify(selectedScopes) }, ...prev]);
       setNewKeyName("");
     } finally {
       setCreatingKey(false);
@@ -2283,22 +2284,46 @@ export default function SettingsPage() {
               </p>
 
               {/* Create new key */}
-              <div className="flex gap-2">
-                <Input
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  placeholder="Key name (e.g. Production, Dev)"
-                  className="flex-1"
-                  onKeyDown={(e) => e.key === "Enter" && createPlatformKey()}
-                />
-                <Button
-                  onClick={createPlatformKey}
-                  disabled={creatingKey || platformKeys.filter((k) => !k.revokedAt).length >= 5}
-                  className="flex items-center gap-1.5"
-                >
-                  {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  Generate
-                </Button>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <Input
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder="Key name (e.g. Production, Dev)"
+                    className="flex-1"
+                    onKeyDown={(e) => e.key === "Enter" && createPlatformKey()}
+                  />
+                  <Button
+                    onClick={createPlatformKey}
+                    disabled={creatingKey || platformKeys.filter((k) => !k.revokedAt).length >= 5}
+                    className="flex items-center gap-1.5"
+                  >
+                    {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                    Generate
+                  </Button>
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block mb-1.5">Scopes</span>
+                  <div className="flex flex-wrap gap-2">
+                    {["signals", "predictions", "regime", "game_theory", "theses", "market", "news"].map((scope) => (
+                      <button
+                        key={scope}
+                        onClick={() =>
+                          setSelectedScopes((prev) =>
+                            prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
+                          )
+                        }
+                        className={`text-[10px] font-mono px-2 py-1 rounded border transition-colors ${
+                          selectedScopes.includes(scope)
+                            ? "border-accent-cyan/40 bg-accent-cyan/10 text-accent-cyan"
+                            : "border-navy-700 text-navy-500 hover:border-navy-600"
+                        }`}
+                      >
+                        {scope}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Newly created key warning */}

@@ -28,6 +28,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@capacitor/core": "^8.2.0",
     "@capacitor/ios": "^8.2.0",
+    "@capacitor/push-notifications": "^8.0.2",
     "@codemirror/commands": "^6.10.2",
     "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/language": "^6.12.2",

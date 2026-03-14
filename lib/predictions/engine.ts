@@ -958,7 +958,10 @@ export async function invalidateOnRegimeChange(): Promise<number> {
 
 // ── Main Generation ──
 
-export async function generatePredictions(options?: { topic?: string }): Promise<NewPrediction[]> {
+export type ProgressCallback = (step: string, status: "running" | "done") => void;
+
+export async function generatePredictions(options?: { topic?: string; onProgress?: ProgressCallback }): Promise<NewPrediction[]> {
+  const emit = options?.onProgress || (() => {});
   const anthropicKey = await getAnthropicKey();
   const alphaVantageKey = await getAlphaVantageKey();
   const today = new Date().toISOString().split("T")[0];
@@ -972,33 +975,45 @@ export async function generatePredictions(options?: { topic?: string }): Promise
   }
 
   // Capture current regime + reference prices
+  emit("Classifying market regime (VIX, yields, DXY)", "running");
   const currentRegime = await classifyCurrentRegime();
+  emit("Classifying market regime (VIX, yields, DXY)", "done");
+
+  emit("Fetching reference prices (SPY, QQQ, GLD, USO, BTC)", "running");
   const referencePrices = await fetchReferencePrices(alphaVantageKey);
+  emit("Fetching reference prices (SPY, QQQ, GLD, USO, BTC)", "done");
 
   // ── Gather full intelligence picture ──
 
   // Active thesis with all fields
+  emit("Loading active thesis", "running");
   const latestThesis = await db
     .select()
     .from(schema.theses)
     .where(eq(schema.theses.status, "active"))
     .orderBy(desc(schema.theses.id))
     .limit(1);
+  emit(`Thesis loaded: ${latestThesis.length > 0 ? latestThesis[0].marketRegime : "none active"}`, "done");
 
   // Active signals
+  emit("Scanning signal layers (GEO, MKT, OSI, systemic)", "running");
   const allSignals = await db
     .select()
     .from(schema.signals);
   const activeSignals = allSignals.filter((s) => s.status === "active" || s.status === "upcoming");
+  emit(`${activeSignals.length} active signals loaded`, "done");
 
   // Game theory scenarios
+  emit("Loading game theory scenarios", "running");
   const gameTheoryRecords = await db
     .select()
     .from(schema.gameTheoryScenarios)
     .orderBy(desc(schema.gameTheoryScenarios.id))
     .limit(3);
+  emit(`${gameTheoryRecords.length} game theory scenarios loaded`, "done");
 
   // Pending predictions (for dedup + prompt context)
+  emit("Loading existing predictions for deduplication", "running");
   const pendingPredictions = await db
     .select()
     .from(schema.predictions)
@@ -1013,6 +1028,7 @@ export async function generatePredictions(options?: { topic?: string }): Promise
     .where(not(isNull(schema.predictions.outcome)))
     .orderBy(desc(schema.predictions.id))
     .limit(50);
+  emit(`${pendingPredictions.length} pending + ${recentResolved.length} resolved loaded`, "done");
 
   // Combined for dedup checks (pending + recent resolved)
   const allPredictions = [...pendingPredictions, ...recentResolved];
@@ -1070,6 +1086,7 @@ ${actionsSummary}`;
     : "No active signals";
 
   // Build wartime-aware game theory context
+  emit("Running Nash equilibrium + wartime threshold analysis", "running");
   let gameTheoryContext = "No game theory analyses";
   try {
     const wartimeResults = await Promise.all(
@@ -1111,10 +1128,12 @@ ${actionsSummary}`;
       }).join("\n");
     }
   }
+  emit("Nash equilibrium analysis complete", "done");
 
   // ── Bayesian N-Player Game Theory Analysis ──
   // Run full Bayesian analysis with actor type distributions, Fearon bargaining
   // range, audience costs, and escalation probability computation
+  emit("Computing Bayesian N-player game theory", "running");
   let bayesianContext = "Bayesian game theory analysis unavailable";
   try {
     const signalInputs = activeSignals.map(s => ({
@@ -1129,10 +1148,12 @@ ${actionsSummary}`;
   } catch {
     // Bayesian analysis is best-effort
   }
+  emit("Bayesian game theory complete", "done");
 
   // ── Custom Context-Driven Game Theory Scenarios ──
   // Generate and analyze game theory scenarios for strategic interactions in the
   // current intelligence picture that aren't covered by pre-defined scenarios
+  emit("Generating context-derived strategic scenarios", "running");
   try {
     const customBayesian = await generateCustomBayesianScenarios(
       thesisContext,
@@ -1148,8 +1169,10 @@ ${actionsSummary}`;
   } catch {
     // Custom scenario generation is best-effort
   }
+  emit("Strategic scenarios complete", "done");
 
   // Build a structured coverage map: what tickers/assets/events are already predicted
+  emit("Building coverage map for deduplication", "running");
   const coverageMap = buildCoverageMap(pendingPredictions.map((p) => p.claim));
 
   // Summarise pending predictions compactly: coverage map + recent 20 for detail
@@ -1174,12 +1197,15 @@ ${actionsSummary}`;
     : "None";
 
   // Performance feedback from resolved predictions
+  emit("Computing calibration from track record", "running");
   const performanceReport = await computePerformanceReport();
   const feedbackContext = performanceReport
     ? performanceReport.promptSection
     : "Not enough resolved predictions yet to compute performance feedback.";
+  emit("Calibration feedback computed", "done");
 
   // Knowledge bank context — limit to 30 most recent to avoid prompt overflow
+  emit("Querying knowledge bank", "running");
   let knowledgeContext = "No knowledge entries stored.";
   try {
     const activeKnowledge = await getActiveKnowledge();
@@ -1196,6 +1222,7 @@ ${actionsSummary}`;
   } catch {
     knowledgeContext = "Knowledge bank unavailable.";
   }
+  emit("Knowledge bank loaded", "done");
 
   // Reference prices context
   const refPriceLines = Object.entries(referencePrices).map(([sym, price]) =>
@@ -1203,9 +1230,12 @@ ${actionsSummary}`;
   ).join(", ");
 
   // ── Base Rate Anchoring (Tetlock "Fermi-ize" principle) ──
+  emit("Loading base rate anchors (Tetlock calibration)", "running");
   const baseRateContext = await getBaseRateContext();
+  emit("Base rates loaded", "done");
 
   // ── Actor-Belief Bayesian Typing (calendar-conditioned behavior) ──
+  emit("Evaluating actor-belief calendar conditioning", "running");
   let actorBeliefContext = "";
   try {
     // Extract current calendar events from active signals
@@ -1229,6 +1259,8 @@ ${actionsSummary}`;
   } catch {
     // Best-effort
   }
+  emit("Actor-belief analysis complete", "done");
+  emit("Coverage map built", "done");
 
   // ── Prompt ──
 
@@ -1320,6 +1352,7 @@ Your task:
 
 Output a brief devil's advocate summary (max 300 words).`;
 
+  emit("RED TEAM: Adversarial challenge via Haiku", "running");
   let redTeamChallenge = "";
   try {
     const redTeamResponse = await client.messages.create({
@@ -1336,6 +1369,7 @@ Output a brief devil's advocate summary (max 300 words).`;
   } catch {
     // Red team is best-effort; proceed without if it fails
   }
+  emit("Red team challenge complete", "done");
 
   // Inject red team challenge into the main prompt
   const redTeamSection = redTeamChallenge
@@ -1344,6 +1378,7 @@ Output a brief devil's advocate summary (max 300 words).`;
 
   const fullPrompt = prompt + redTeamSection;
 
+  emit("Generating predictions via Sonnet (main inference)", "running");
   const response = await client.messages.create({
     model: SONNET_MODEL,
     max_tokens: 2048,
@@ -1352,6 +1387,8 @@ Output a brief devil's advocate summary (max 300 words).`;
   });
 
   const text = response.content[0].type === "text" ? response.content[0].text : "";
+  emit("Sonnet inference complete", "done");
+
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
     throw new Error("Failed to parse predictions from Claude response");
@@ -1389,6 +1426,7 @@ Output a brief devil's advocate summary (max 300 words).`;
   }
 
   // ── Post-generation deduplication (defence-in-depth after prompt-level filtering) ──
+  emit(`Deduplication + validation on ${parsed.length} raw predictions`, "running");
   const existingClaims = allPredictions.map((p) => normalizeClaim(p.claim));
   const existingTickers = coverageMap.tickers;
 
@@ -1574,12 +1612,13 @@ Output a brief devil's advocate summary (max 300 words).`;
       .returning();
 
     created.push(rows[0]);
+    emit(`Persisted: ${p.claim.slice(0, 80)}...`, "done");
     // Track intra-batch to prevent duplicates within the same generation run
     existingClaims.push(normalized);
     newTickers.forEach((t) => existingTickers.add(t));
   }
 
-  // Log final count (no culling - all predictions kept for historical record)
+  emit(`${created.length} predictions generated and persisted`, "done");
 
   return created;
 }

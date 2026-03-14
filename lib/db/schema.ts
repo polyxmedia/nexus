@@ -834,3 +834,318 @@ export const partnerOutreach = pgTable("partner_outreach", {
   sentAt: text("sent_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
+
+// ══════════════════════════════════════════════════════════════
+// PLATFORM EXPANSION TABLES (migration 001)
+// ══════════════════════════════════════════════════════════════
+
+// ── Execution Rules (Automated Trading) ──
+
+export const executionRules = pgTable("execution_rules", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  enabled: integer("enabled").notNull().default(1),
+  conditions: text("conditions").notNull(),
+  sizingStrategy: text("sizing_strategy").notNull().default("tier"),
+  sizingParams: text("sizing_params"),
+  bracketConfig: text("bracket_config"),
+  broker: text("broker").notNull().default("t212"),
+  maxDailyOrders: integer("max_daily_orders").notNull().default(5),
+  maxPositionPct: doublePrecision("max_position_pct").notNull().default(5.0),
+  ordersToday: integer("orders_today").notNull().default(0),
+  lastResetDate: text("last_reset_date"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+export const executionLog = pgTable("execution_log", {
+  id: serial("id").primaryKey(),
+  ruleId: integer("rule_id").references(() => executionRules.id),
+  userId: text("user_id").notNull(),
+  signalId: integer("signal_id"),
+  predictionId: integer("prediction_id"),
+  tradeId: integer("trade_id"),
+  action: text("action").notNull(),
+  details: text("details"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const killSwitch = pgTable("kill_switch", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  active: integer("active").notNull().default(0),
+  reason: text("reason"),
+  activatedAt: text("activated_at"),
+  activatedBy: text("activated_by"),
+});
+
+// ── Sentiment Analyses (NLP) ──
+
+export const sentimentAnalyses = pgTable("sentiment_analyses", {
+  id: serial("id").primaryKey(),
+  sourceType: text("source_type").notNull(),
+  sourceUrl: text("source_url"),
+  sourceTitle: text("source_title"),
+  rawText: text("raw_text"),
+  sentimentScore: doublePrecision("sentiment_score"),
+  confidence: doublePrecision("confidence"),
+  toneBreakdown: text("tone_breakdown"),
+  entitiesMentioned: text("entities_mentioned"),
+  keyClaims: text("key_claims"),
+  marketImplications: text("market_implications"),
+  modelUsed: text("model_used"),
+  tokensUsed: integer("tokens_used"),
+  creditsUsed: integer("credits_used"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Order Book Snapshots ──
+
+export const orderbookSnapshots = pgTable("orderbook_snapshots", {
+  id: serial("id").primaryKey(),
+  symbol: text("symbol").notNull(),
+  exchange: text("exchange").notNull().default("coinbase"),
+  bids: text("bids"),
+  asks: text("asks"),
+  spreadBps: doublePrecision("spread_bps"),
+  imbalanceRatio: doublePrecision("imbalance_ratio"),
+  depth5Bid: doublePrecision("depth_5_bid"),
+  depth5Ask: doublePrecision("depth_5_ask"),
+  midPrice: doublePrecision("mid_price"),
+  snapshotAt: text("snapshot_at").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const flowImbalanceAlerts = pgTable("flow_imbalance_alerts", {
+  id: serial("id").primaryKey(),
+  symbol: text("symbol").notNull(),
+  imbalanceRatio: doublePrecision("imbalance_ratio").notNull(),
+  direction: text("direction").notNull(),
+  magnitude: doublePrecision("magnitude").notNull(),
+  snapshotId: integer("snapshot_id").references(() => orderbookSnapshots.id),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Supply Chain Network ──
+
+export const supplyChainEdges = pgTable("supply_chain_edges", {
+  id: serial("id").primaryKey(),
+  fromEntity: text("from_entity").notNull(),
+  toEntity: text("to_entity").notNull(),
+  relationshipType: text("relationship_type").notNull(),
+  strength: doublePrecision("strength").notNull().default(0.5),
+  lagDays: integer("lag_days").notNull().default(0),
+  source: text("source").notNull().default("manual"),
+  confidence: doublePrecision("confidence").notNull().default(0.8),
+  evidence: text("evidence"),
+  validFrom: text("valid_from"),
+  validUntil: text("valid_until"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+export const supplyChainSnapshots = pgTable("supply_chain_snapshots", {
+  id: serial("id").primaryKey(),
+  rootEntity: text("root_entity").notNull(),
+  depth: integer("depth").notNull().default(3),
+  snapshot: text("snapshot").notNull(),
+  exposureSummary: text("exposure_summary"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Satellite Imagery ──
+
+export const satelliteImagery = pgTable("satellite_imagery", {
+  id: serial("id").primaryKey(),
+  regionName: text("region_name").notNull(),
+  bbox: text("bbox").notNull(),
+  imageryType: text("imagery_type").notNull(),
+  source: text("source").notNull().default("sentinel2"),
+  tileUrl: text("tile_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  acquisitionDate: text("acquisition_date"),
+  cloudCoverPct: doublePrecision("cloud_cover_pct"),
+  metadata: text("metadata"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const imageryAnalyses = pgTable("imagery_analyses", {
+  id: serial("id").primaryKey(),
+  imageryId: integer("imagery_id").references(() => satelliteImagery.id),
+  analysisType: text("analysis_type").notNull(),
+  result: text("result").notNull(),
+  confidence: doublePrecision("confidence"),
+  aiSummary: text("ai_summary"),
+  comparedToId: integer("compared_to_id").references(() => satelliteImagery.id),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── ML Models (Learned Signals) ──
+
+export const mlModels = pgTable("ml_models", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  modelType: text("model_type").notNull(),
+  target: text("target").notNull(),
+  featuresUsed: text("features_used").notNull(),
+  hyperparams: text("hyperparams"),
+  artifact: text("artifact"),
+  trainingDate: text("training_date"),
+  trainingWindow: text("training_window"),
+  sampleCount: integer("sample_count"),
+  metrics: text("metrics"),
+  status: text("status").notNull().default("training"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const mlPredictions = pgTable("ml_predictions", {
+  id: serial("id").primaryKey(),
+  modelId: integer("model_id").notNull().references(() => mlModels.id),
+  predictionDate: text("prediction_date").notNull(),
+  targetSymbol: text("target_symbol"),
+  predictedValue: doublePrecision("predicted_value"),
+  predictedClass: text("predicted_class"),
+  confidence: doublePrecision("confidence"),
+  featuresSnapshot: text("features_snapshot"),
+  actualValue: doublePrecision("actual_value"),
+  actualClass: text("actual_class"),
+  correct: integer("correct"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const featureStore = pgTable("feature_store", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull(),
+  symbol: text("symbol"),
+  featureName: text("feature_name").notNull(),
+  featureValue: doublePrecision("feature_value").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Broker Connections & Unified Portfolio ──
+
+export const brokerConnections = pgTable("broker_connections", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  broker: text("broker").notNull(),
+  status: text("status").notNull().default("connected"),
+  lastSyncAt: text("last_sync_at"),
+  metadata: text("metadata"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const unifiedPositions = pgTable("unified_positions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  broker: text("broker").notNull(),
+  symbol: text("symbol").notNull(),
+  normalizedSymbol: text("normalized_symbol").notNull(),
+  quantity: doublePrecision("quantity").notNull().default(0),
+  avgCost: doublePrecision("avg_cost"),
+  currentPrice: doublePrecision("current_price"),
+  marketValue: doublePrecision("market_value"),
+  unrealizedPnl: doublePrecision("unrealized_pnl"),
+  unrealizedPnlPct: doublePrecision("unrealized_pnl_pct"),
+  currency: text("currency").notNull().default("USD"),
+  assetClass: text("asset_class").notNull().default("equity"),
+  lastSyncedAt: text("last_synced_at"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+export const unifiedPortfolio = pgTable("unified_portfolio", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  totalValue: doublePrecision("total_value").notNull().default(0),
+  totalCash: doublePrecision("total_cash").notNull().default(0),
+  totalInvested: doublePrecision("total_invested").notNull().default(0),
+  totalPnl: doublePrecision("total_pnl").notNull().default(0),
+  totalPnlPct: doublePrecision("total_pnl_pct").notNull().default(0),
+  byBroker: text("by_broker"),
+  byAssetClass: text("by_asset_class"),
+  bySector: text("by_sector"),
+  snapshotAt: text("snapshot_at").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Rate Limit Config ──
+
+export const rateLimitConfig = pgTable("rate_limit_config", {
+  id: serial("id").primaryKey(),
+  tier: text("tier").notNull(),
+  routePattern: text("route_pattern").notNull(),
+  requestsPerWindow: integer("requests_per_window").notNull().default(60),
+  windowMs: integer("window_ms").notNull().default(60000),
+  burstLimit: integer("burst_limit"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at"),
+});
+
+// ── Backtest Workers & Chunks ──
+
+export const backtestWorkers = pgTable("backtest_workers", {
+  id: serial("id").primaryKey(),
+  workerId: text("worker_id").notNull(),
+  status: text("status").notNull().default("idle"),
+  currentRunId: text("current_run_id"),
+  currentChunk: integer("current_chunk"),
+  lastHeartbeat: text("last_heartbeat"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const backtestChunks = pgTable("backtest_chunks", {
+  id: serial("id").primaryKey(),
+  runId: text("run_id").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  dateStart: text("date_start"),
+  dateEnd: text("date_end"),
+  instruments: text("instruments"),
+  status: text("status").notNull().default("pending"),
+  workerId: text("worker_id"),
+  predictions: text("predictions"),
+  metrics: text("metrics"),
+  error: text("error"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  completedAt: text("completed_at"),
+});
+
+// ── Type Exports for expansion tables ──
+
+export type ExecutionRule = typeof executionRules.$inferSelect;
+export type NewExecutionRule = typeof executionRules.$inferInsert;
+export type ExecutionLogEntry = typeof executionLog.$inferSelect;
+export type KillSwitchRecord = typeof killSwitch.$inferSelect;
+export type SentimentAnalysis = typeof sentimentAnalyses.$inferSelect;
+export type NewSentimentAnalysis = typeof sentimentAnalyses.$inferInsert;
+export type OrderbookSnapshot = typeof orderbookSnapshots.$inferSelect;
+export type FlowImbalanceAlert = typeof flowImbalanceAlerts.$inferSelect;
+export type SupplyChainEdge = typeof supplyChainEdges.$inferSelect;
+export type NewSupplyChainEdge = typeof supplyChainEdges.$inferInsert;
+export type SupplyChainSnapshotRecord = typeof supplyChainSnapshots.$inferSelect;
+export type SatelliteImageryRecord = typeof satelliteImagery.$inferSelect;
+export type ImageryAnalysisRecord = typeof imageryAnalyses.$inferSelect;
+export type MlModel = typeof mlModels.$inferSelect;
+export type NewMlModel = typeof mlModels.$inferInsert;
+export type MlPredictionRecord = typeof mlPredictions.$inferSelect;
+export type FeatureStoreEntry = typeof featureStore.$inferSelect;
+export type BrokerConnection = typeof brokerConnections.$inferSelect;
+export type UnifiedPosition = typeof unifiedPositions.$inferSelect;
+export type UnifiedPortfolioRecord = typeof unifiedPortfolio.$inferSelect;
+export type RateLimitConfigRecord = typeof rateLimitConfig.$inferSelect;
+export type BacktestWorker = typeof backtestWorkers.$inferSelect;
+export type BacktestChunk = typeof backtestChunks.$inferSelect;
+
+// ── Push notification devices ──
+export const pushDevices = pgTable("push_devices", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  deviceToken: text("device_token").notNull(),
+  platform: text("platform").notNull().default("ios"),
+  deviceName: text("device_name"),
+  active: integer("active").notNull().default(1),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export type PushDevice = typeof pushDevices.$inferSelect;

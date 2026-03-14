@@ -7,6 +7,7 @@ import { and, eq, gt, sql as drizzleSql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS, executeTool, type ToolContext } from "@/lib/chat/tools";
 import { TOOL_TIERS } from "@/lib/auth/tier-config";
+import { selectTools, FORECASTING_PATTERN } from "@/lib/chat/tool-router";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { getChatModel } from "@/lib/ai/model";
 import { getUserTier } from "@/lib/auth/require-tier";
@@ -23,6 +24,7 @@ import { getSettingValue } from "@/lib/settings/get-setting";
 // summary are sent to the API, keeping context windows manageable.
 const COMPRESS_THRESHOLD = 12; // total messages before compression kicks in
 const KEEP_RECENT = 6;          // messages to retain verbatim after compression
+const TIER_LEVELS: Record<string, number> = { free: 0, analyst: 1, operator: 2, institution: 3 };
 
 type DbMessage = { id: number; role: string; content: string; toolUses: string | null; toolResults: string | null };
 
@@ -219,10 +221,9 @@ export async function POST(
     }
   }
 
-  // Filter chat tools by user's tier level
-  const TIER_LEVELS: Record<string, number> = { free: 0, analyst: 1, operator: 2, institution: 3 };
+  // Filter chat tools by user's tier level, then by message relevance
   const userTierLevel = tierInfo.isAdmin ? 3 : tierInfo.tierLevel;
-  const filteredTools = TOOL_DEFINITIONS.filter((tool) => {
+  const tierFilteredTools = TOOL_DEFINITIONS.filter((tool) => {
     const requiredTier = TOOL_TIERS[tool.name] || "analyst";
     const requiredLevel = TIER_LEVELS[requiredTier] ?? 1;
     return userTierLevel >= requiredLevel;
@@ -234,6 +235,9 @@ export async function POST(
   const attachedFiles = body.files as Array<{ name: string; type: string; data: string }> | undefined;
   const requestedModel = body.model as string | undefined;
   if (!userMessage?.trim() && !attachedFiles?.length) return NextResponse.json({ error: "Message required" }, { status: 400 });
+
+  // Route tools by message intent (reduces ~37K tool tokens to ~8-15K)
+  const filteredTools = selectTools(tierFilteredTools, userMessage);
 
   // Input validation: max message length (16K chars)
   if (userMessage.length > 16_000) {
@@ -330,25 +334,24 @@ export async function POST(
   // ── Pre-flight: auto-gather intelligence for forecasting questions ──
   // Detects probability/prediction questions and pre-runs core tools so the
   // analyst has data injected into context before responding.
-  const forecastingPattern = /\b(probability|probabilit|forecast|predict|will .+ (happen|occur|pass|succeed|fail|win|lose)|chances? of|likelihood|what are the odds|brier|yes or no.*prob|how likely|percent chance|base rate)\b/i;
-  const isForecastingQuestion = forecastingPattern.test(userMessage);
+  const isForecastingQuestion = FORECASTING_PATTERN.test(userMessage);
 
   let preflightContext = "";
   if (isForecastingQuestion) {
     try {
       const withTimeout = <T>(p: Promise<T>, ms = 10_000) =>
         Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("preflight timeout")), ms))]);
+
+      // Smart preflight: only run the 3 most universally useful tools.
+      // The model will call additional tools itself (game_theory, bayesian, macro)
+      // via the tool loop, which is cheaper than injecting all 7 into the system prompt.
       const preflightResults = await Promise.allSettled([
+        withTimeout(executeTool("search_knowledge", { query: userMessage.slice(0, 200) })),
         withTimeout(executeTool("get_signals", {})),
         withTimeout(executeTool("get_change_points", {})),
-        withTimeout(executeTool("search_knowledge", { query: userMessage.slice(0, 200) })),
-        withTimeout(executeTool("search_historical_parallels", { query: userMessage.slice(0, 200) })),
-        withTimeout(executeTool("get_game_theory", {})),
-        withTimeout(executeTool("run_bayesian_analysis", {})),
-        withTimeout(executeTool("get_macro_data", {})),
       ]);
 
-      const labels = ["SIGNALS", "CHANGE_POINTS", "KNOWLEDGE_BANK", "HISTORICAL_PARALLELS", "GAME_THEORY", "BAYESIAN_ANALYSIS", "MACRO_DATA"];
+      const labels = ["KNOWLEDGE_BANK", "SIGNALS", "CHANGE_POINTS"];
       const sections: string[] = [];
       for (let i = 0; i < preflightResults.length; i++) {
         const r = preflightResults[i];
@@ -361,8 +364,8 @@ export async function POST(
       }
 
       if (sections.length > 0) {
-        const joined = sections.join("\n\n").slice(0, 8000); // hard cap preflight at ~2K tokens
-        preflightContext = `\n\n## PRE-FLIGHT INTELLIGENCE (auto-gathered for forecasting question)\nThe following data was automatically retrieved. You MUST reference this data in your analysis. Do NOT re-call these tools — the data is already here. Focus on calling any ADDITIONAL tools needed (web_search, get_actor_profile, get_live_quote, get_options_flow) and then structure your Tetlock-method answer.\n\n${joined}`;
+        const joined = sections.join("\n\n").slice(0, 5000);
+        preflightContext = `\n\n## PRE-FLIGHT INTELLIGENCE (auto-gathered for forecasting question)\nThe following data was automatically retrieved. You MUST reference this data in your analysis. Do NOT re-call these tools — the data is already here. Call additional tools as needed (search_historical_parallels, run_bayesian_analysis, get_game_theory, get_macro_data, web_search, get_actor_profile, get_live_quote, get_options_flow) and then structure your Tetlock-method answer.\n\n${joined}`;
       }
     } catch (err) {
       console.error("[Chat] preflight intelligence gathering failed:", err);
@@ -387,6 +390,28 @@ export async function POST(
       try {
         const client = new Anthropic({ apiKey });
         const chatModel = await getChatModel(requestedModel);
+        // Build system prompt and tool cache once before the loop (stable across iterations)
+        const cachedSystemPrompt = await getSystemPromptWithMode(username, session.projectId);
+        const systemBlocks: Anthropic.TextBlockParam[] = [
+          {
+            type: "text" as const,
+            text: cachedSystemPrompt,
+            cache_control: { type: "ephemeral" },
+          },
+        ];
+        if (preflightContext) {
+          systemBlocks.push({ type: "text" as const, text: preflightContext });
+        }
+
+        // Add cache_control to the last tool so the full tool array gets cached
+        const toolsWithCache = filteredTools.length > 0
+          ? filteredTools.map((t, i) =>
+              i === filteredTools.length - 1
+                ? { ...t, cache_control: { type: "ephemeral" as const } }
+                : t
+            )
+          : filteredTools;
+
         let messages = [...anthropicMessages];
         let fullText = "";
         const allToolUses: Array<{ toolName: string; toolUseId: string; input: unknown }> = [];
@@ -394,9 +419,11 @@ export async function POST(
         let continueLoop = true;
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
+        let totalCacheReadTokens = 0;
+        let totalCacheCreationTokens = 0;
         const requestStartTime = Date.now();
         let toolLoopCount = 0;
-        const MAX_TOOL_LOOPS = 5; // prevent runaway tool calling
+        const MAX_TOOL_LOOPS = 3; // prevent runaway tool calling (reduced from 5 to cut costs)
         while (continueLoop) {
           if (toolLoopCount >= MAX_TOOL_LOOPS) {
             sendEvent({ type: "text_delta", delta: "\n\n[Reached tool call limit for this response]" });
@@ -406,8 +433,8 @@ export async function POST(
           const response = await client.messages.create({
             model: chatModel,
             max_tokens: 4096,
-            system: (await getSystemPromptWithMode(username, session.projectId)) + preflightContext,
-            tools: filteredTools,
+            system: systemBlocks,
+            tools: toolsWithCache as Anthropic.Tool[],
             messages,
             stream: true,
           });
@@ -420,6 +447,10 @@ export async function POST(
           for await (const event of response) {
             if (event.type === "message_start") {
               iterInputTokens = event.message.usage?.input_tokens || 0;
+              // Track prompt cache hits
+              const usage = event.message.usage as unknown as Record<string, number>;
+              totalCacheReadTokens += usage?.cache_read_input_tokens || 0;
+              totalCacheCreationTokens += usage?.cache_creation_input_tokens || 0;
             } else if (event.type === "content_block_start") {
               if (event.content_block.type === "tool_use") {
                 pendingTools.push({ id: event.content_block.id, name: event.content_block.name, inputJson: "" });
@@ -450,6 +481,9 @@ export async function POST(
             type: "token_usage",
             inputTokens: totalInputTokens,
             outputTokens: totalOutputTokens,
+            cacheReadTokens: totalCacheReadTokens,
+            cacheCreationTokens: totalCacheCreationTokens,
+            toolCount: filteredTools.length,
             model: chatModel,
             elapsedMs: Date.now() - requestStartTime,
             creditsUsed: calculateCredits(chatModel, totalInputTokens, totalOutputTokens),
@@ -647,6 +681,10 @@ Be ruthlessly honest. The whole point is to catch errors the analyst missed.`,
           type: "usage_summary",
           totalInputTokens,
           totalOutputTokens,
+          totalCacheReadTokens,
+          totalCacheCreationTokens,
+          toolsSent: filteredTools.length,
+          toolsAvailable: tierFilteredTools.length,
           totalCreditsUsed: totalCredits,
           creditsRemaining: debitResult?.balance.unlimited ? -1 : (debitResult?.balance.creditsRemaining ?? -1),
           unlimited: debitResult?.balance.unlimited ?? false,

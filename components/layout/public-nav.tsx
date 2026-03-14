@@ -16,9 +16,6 @@ export function PublicNav() {
         </Link>
 
         <div className="flex items-center gap-3 md:gap-6">
-          <Link href="/research/methodology" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
-            METHODOLOGY
-          </Link>
           <Link href="/research/signal-theory" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             RESEARCH
           </Link>
@@ -27,12 +24,6 @@ export function PublicNav() {
           </Link>
           <Link href="/about" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             ABOUT
-          </Link>
-          <Link href="/investors" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
-            INVESTORS
-          </Link>
-          <Link href="/media" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
-            MEDIA
           </Link>
           <Link href="/research/faq" className="text-[11px] text-navy-400 hover:text-navy-200 transition-colors tracking-wide hidden md:block">
             FAQ

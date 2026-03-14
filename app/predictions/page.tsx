@@ -35,6 +35,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
+import { GenerationTerminal, type TerminalStep } from "@/components/predictions/generation-terminal";
 import {
   PieChart,
   Pie,
@@ -229,6 +230,10 @@ export default function PredictionsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+  const [terminalSteps, setTerminalSteps] = useState<TerminalStep[]>([]);
+  const [terminalError, setTerminalError] = useState<string | null>(null);
+  const [terminalComplete, setTerminalComplete] = useState(false);
+  const [terminalResultCount, setTerminalResultCount] = useState<number | undefined>(undefined);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoResolved = useRef(false);
 
@@ -345,20 +350,71 @@ export default function PredictionsPage() {
 
   const aiGenerate = async () => {
     setGenerating(true);
-    setStatusMessage({ text: "Generating predictions from intelligence picture... this may take up to 60s", type: "info" });
+    setStatusMessage(null);
+    setTerminalSteps([]);
+    setTerminalError(null);
+    setTerminalComplete(false);
+    setTerminalResultCount(undefined);
+
     try {
-      const res = await fetch("/api/predictions/generate", { method: "POST" });
+      const res = await fetch("/api/predictions/generate-stream", { method: "POST" });
       if (!res.ok) {
         const text = await res.text();
-        try { const data = JSON.parse(text); setStatusMessage({ text: data.error || `Generation failed (${res.status})`, type: "error" }); }
-        catch { setStatusMessage({ text: `Generation failed (${res.status})`, type: "error" }); }
+        try { const data = JSON.parse(text); setTerminalError(data.error || `Generation failed (${res.status})`); }
+        catch { setTerminalError(`Generation failed (${res.status})`); }
+        setGenerating(false);
         return;
       }
-      const data = await res.json();
-      if (data.error) setStatusMessage({ text: data.error, type: "error" });
-      else { setStatusMessage({ text: `Generated ${data.count} new prediction${data.count !== 1 ? "s" : ""}`, type: "success" }); fetchPredictions(); fetchFeedback(); }
-    } catch { setStatusMessage({ text: "Failed to generate predictions - request may have timed out", type: "error" }); }
-    finally { setGenerating(false); }
+
+      const reader = res.body?.getReader();
+      if (!reader) { setTerminalError("No response stream"); setGenerating(false); return; }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let eventType = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith("data: ") && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (eventType === "step") {
+                setTerminalSteps(prev => {
+                  const existing = prev.findIndex(s => s.id === data.id && s.status === "running");
+                  if (existing >= 0 && data.status !== "running") {
+                    const updated = [...prev];
+                    updated[existing] = { ...data, timestamp: updated[existing].timestamp };
+                    return updated;
+                  }
+                  return [...prev, { ...data, timestamp: Date.now() }];
+                });
+              } else if (eventType === "complete") {
+                setTerminalComplete(true);
+                setTerminalResultCount(data.count);
+                fetchPredictions();
+                fetchFeedback();
+              } else if (eventType === "error") {
+                setTerminalError(data.message);
+              }
+            } catch { /* skip malformed JSON */ }
+            eventType = "";
+          }
+        }
+      }
+    } catch {
+      setTerminalError("Connection lost during generation");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const aiResolve = async () => {
@@ -786,7 +842,15 @@ export default function PredictionsPage() {
       }
     >
       <UpgradeGate minTier="analyst" feature="Prediction tracking and accuracy scoring">
-      {statusMessage && (
+      {(terminalSteps.length > 0 || terminalError) && (
+        <GenerationTerminal
+          steps={terminalSteps}
+          error={terminalError}
+          complete={terminalComplete}
+          resultCount={terminalResultCount}
+        />
+      )}
+      {statusMessage && terminalSteps.length === 0 && (
         <div className={`mb-4 rounded-md border px-3 py-2 text-xs ${
           statusMessage.type === "error" ? "border-accent-rose/30 bg-accent-rose/5 text-accent-rose"
           : statusMessage.type === "success" ? "border-accent-emerald/30 bg-accent-emerald/5 text-accent-emerald"

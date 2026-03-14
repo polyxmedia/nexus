@@ -115,26 +115,96 @@ function PredictionWidget({ id }: { id: number }) {
 
 // ── Widget: Chart ──
 
+interface ChartBar {
+  d: string;
+  c: number;
+  h: number;
+  l: number;
+  v: number;
+}
+
 function ChartWidget({ symbol, period }: { symbol: string; period: string }) {
+  const [bars, setBars] = useState<ChartBar[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/blog/chart?symbol=${encodeURIComponent(symbol)}&period=${encodeURIComponent(period)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.bars?.length) setBars(d.bars);
+        else setError(true);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [symbol, period]);
+
+  if (loading) {
+    return (
+      <div className="my-4 h-52 rounded bg-navy-900/30 animate-pulse flex items-center justify-center">
+        <span className="text-[10px] font-mono text-navy-600">Loading {symbol}...</span>
+      </div>
+    );
+  }
+
+  if (error || bars.length < 2) {
+    return (
+      <div className="my-4 h-24 rounded bg-navy-900/20 flex items-center justify-center">
+        <span className="text-[10px] font-mono text-navy-600">Chart unavailable for {symbol}</span>
+      </div>
+    );
+  }
+
+  const closes = bars.map((b) => b.c);
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const range = max - min || 1;
+  const first = closes[0];
+  const last = closes[closes.length - 1];
+  const positive = last >= first;
+  const change = ((last - first) / first * 100).toFixed(2);
+
+  const W = 600;
+  const H = 160;
+  const padT = 8;
+  const padB = 8;
+  const chartH = H - padT - padB;
+
+  const points = closes.map((c, i) => {
+    const x = (i / (closes.length - 1)) * W;
+    const y = padT + chartH - ((c - min) / range) * chartH;
+    return `${x},${y}`;
+  });
+
+  const linePath = `M${points.join(" L")}`;
+  const areaPath = `${linePath} L${W},${H} L0,${H} Z`;
+  const strokeColor = positive ? "#10b981" : "#f43f5e";
+  const fillId = `grad-${symbol}-${period}`;
+
   return (
-    <div className="border border-navy-700/40 rounded-lg bg-navy-900/20 p-4 my-4">
-      <div className="flex items-center justify-between mb-3">
+    <div className="my-6">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-3.5 h-3.5 text-navy-400" />
-          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-400">
-            {symbol} Price Chart
+          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">{symbol}</span>
+          <span className="text-[10px] font-mono text-navy-600">{period}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-mono text-navy-200">${last.toFixed(2)}</span>
+          <span className={`text-[10px] font-mono ${positive ? "text-accent-emerald" : "text-accent-rose"}`}>
+            {positive ? "+" : ""}{change}%
           </span>
         </div>
-        <span className="text-[10px] font-mono text-navy-500">{period}</span>
       </div>
-      <div className="h-48 flex items-center justify-center text-[10px] font-mono text-navy-500 border border-navy-800/30 rounded bg-navy-950/50">
-        <a
-          href={`/trading?symbol=${symbol}`}
-          className="text-accent-cyan hover:text-accent-cyan/80 transition-colors"
-        >
-          View interactive chart for {symbol}
-        </a>
-      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.15" />
+            <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#${fillId})`} />
+        <path d={linePath} fill="none" stroke={strokeColor} strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
     </div>
   );
 }
@@ -159,48 +229,27 @@ function MetricWidget({ label, value, change }: { label: string; value: string; 
 // ── Widget: Callout ──
 
 function CalloutWidget({ type, children }: { type: string; children: React.ReactNode }) {
-  const styles: Record<string, { icon: React.ReactNode; border: string; bg: string; label: string }> = {
-    warning: {
-      icon: <AlertTriangle className="w-3.5 h-3.5 text-accent-amber" />,
-      border: "border-accent-amber/30",
-      bg: "bg-accent-amber/5",
-      label: "Warning",
-    },
-    insight: {
-      icon: <Lightbulb className="w-3.5 h-3.5 text-accent-cyan" />,
-      border: "border-accent-cyan/30",
-      bg: "bg-accent-cyan/5",
-      label: "Insight",
-    },
-    risk: {
-      icon: <ShieldAlert className="w-3.5 h-3.5 text-accent-rose" />,
-      border: "border-accent-rose/30",
-      bg: "bg-accent-rose/5",
-      label: "Risk Factor",
-    },
-    bullish: {
-      icon: <TrendingUp className="w-3.5 h-3.5 text-accent-emerald" />,
-      border: "border-accent-emerald/30",
-      bg: "bg-accent-emerald/5",
-      label: "Bullish",
-    },
-    bearish: {
-      icon: <TrendingDown className="w-3.5 h-3.5 text-accent-rose" />,
-      border: "border-accent-rose/30",
-      bg: "bg-accent-rose/5",
-      label: "Bearish",
-    },
+  // Insight gets an inverted card treatment
+  if (type === "insight") {
+    return (
+      <div className="my-8 bg-navy-100 rounded-sm px-6 py-5">
+        <div className="text-sm text-navy-900 leading-relaxed [&_p]:text-navy-900 [&_p]:mb-0 [&_strong]:text-navy-950">{children}</div>
+      </div>
+    );
+  }
+
+  // Everything else: left-rule with subtle label
+  const accents: Record<string, string> = {
+    warning: "bg-accent-amber",
+    risk: "bg-accent-rose",
+    bullish: "bg-accent-emerald",
+    bearish: "bg-accent-rose",
   };
 
-  const s = styles[type] || styles.insight;
-
   return (
-    <div className={`border ${s.border} ${s.bg} rounded-lg p-4 my-4`}>
-      <div className="flex items-center gap-2 mb-2">
-        {s.icon}
-        <span className="text-[10px] font-mono uppercase tracking-wider text-navy-400">{s.label}</span>
-      </div>
-      <div className="text-sm text-navy-200 leading-relaxed">{children}</div>
+    <div className="my-6 pl-4 relative">
+      <div className={`absolute left-0 top-0 bottom-0 w-[2px] ${accents[type] || "bg-navy-500"} rounded-full`} />
+      <div className="text-sm text-navy-300 leading-relaxed">{children}</div>
     </div>
   );
 }
@@ -244,6 +293,82 @@ function SignalWidget({ category }: { category: string }) {
   );
 }
 
+// ── Widget: Scenario Matrix ──
+
+interface ScenarioEntry {
+  name: string;
+  probability: string;
+  description: string;
+  indicators: string[];
+  positioning: string;
+  color: string;
+}
+
+const SCENARIO_COLORS: Record<string, { border: string; bg: string; text: string; badge: string; indicator: string }> = {
+  amber:   { border: "border-accent-amber/30", bg: "bg-accent-amber/5",   text: "text-accent-amber",   badge: "bg-accent-amber/15 text-accent-amber",   indicator: "bg-accent-amber/20" },
+  emerald: { border: "border-accent-emerald/30", bg: "bg-accent-emerald/5", text: "text-accent-emerald", badge: "bg-accent-emerald/15 text-accent-emerald", indicator: "bg-accent-emerald/20" },
+  rose:    { border: "border-accent-rose/30", bg: "bg-accent-rose/5",    text: "text-accent-rose",    badge: "bg-accent-rose/15 text-accent-rose",    indicator: "bg-accent-rose/20" },
+  cyan:    { border: "border-accent-cyan/30", bg: "bg-accent-cyan/5",    text: "text-accent-cyan",    badge: "bg-accent-cyan/15 text-accent-cyan",    indicator: "bg-accent-cyan/20" },
+};
+
+function ScenarioMatrixWidget({ scenarios }: { scenarios: ScenarioEntry[] }) {
+  if (!scenarios.length) return null;
+
+  return (
+    <div className="my-8">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-1.5 h-1.5 rounded-full bg-navy-400" />
+        <span className="text-[10px] font-mono uppercase tracking-wider text-navy-400">Scenario Matrix</span>
+      </div>
+      <div className="grid gap-3">
+        {scenarios.map((s, i) => {
+          const c = SCENARIO_COLORS[s.color] || SCENARIO_COLORS.cyan;
+          const prob = parseInt(s.probability) || 0;
+          return (
+            <div key={i} className={`border ${c.border} rounded-lg ${c.bg} overflow-hidden`}>
+              {/* Header row */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-navy-700/20">
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm font-semibold ${c.text}`}>{s.name}</span>
+                </div>
+                <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full ${c.badge}`}>{s.probability}</span>
+              </div>
+              {/* Probability bar */}
+              <div className="px-5 pt-3">
+                <div className="h-1 rounded-full bg-navy-800/40 overflow-hidden">
+                  <div className={`h-full rounded-full ${c.text.replace("text-", "bg-")} transition-all`} style={{ width: `${prob}%` }} />
+                </div>
+              </div>
+              {/* Body */}
+              <div className="px-5 py-3 space-y-3">
+                <p className="text-sm text-navy-200 leading-relaxed">{s.description}</p>
+                {/* Indicators */}
+                {s.indicators.length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block mb-1.5">Key Indicators</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {s.indicators.map((ind, j) => (
+                        <span key={j} className={`text-[10px] font-mono px-2 py-0.5 rounded ${c.indicator} text-navy-200`}>{ind}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Positioning */}
+                {s.positioning && (
+                  <div className="border-t border-navy-700/20 pt-2.5">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500 block mb-1">Positioning</span>
+                    <p className="text-xs text-navy-300 leading-relaxed">{s.positioning}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Renderer ──
 
 /**
@@ -257,7 +382,13 @@ export function BlogBody({ body }: { body: string }) {
   let remaining = body;
   let key = 0;
 
-  // Process callouts first (multi-line)
+  // Process scenario-matrix blocks (multi-line)
+  remaining = remaining.replace(
+    /\{\{scenario-matrix\}\}\s*([\s\S]*?)\s*\{\{\/scenario-matrix\}\}/g,
+    (_, json) => `__SCENARIO_MATRIX_${btoa(encodeURIComponent(json.trim()))}__`
+  );
+
+  // Process callouts (multi-line)
   remaining = remaining.replace(
     /\{\{callout\|type=(\w+)\}\}([\s\S]*?)\{\{\/callout\}\}/g,
     (_, type, content) => `__CALLOUT_${type}_${btoa(encodeURIComponent(content))}__`
@@ -277,6 +408,21 @@ export function BlogBody({ body }: { body: string }) {
 
   for (const line of lines) {
     const trimmed = line.trim();
+
+    // Scenario matrix placeholder
+    const scenarioMatch = trimmed.match(/^__SCENARIO_MATRIX_(.+)__$/);
+    if (scenarioMatch) {
+      flushText();
+      try {
+        const json = decodeURIComponent(atob(scenarioMatch[1]));
+        const scenarios: ScenarioEntry[] = JSON.parse(json);
+        segments.push(<ScenarioMatrixWidget key={key++} scenarios={scenarios} />);
+      } catch {
+        // Malformed JSON, render as text
+        textBuffer.push(line);
+      }
+      continue;
+    }
 
     // Callout placeholder
     const calloutMatch = trimmed.match(/^__CALLOUT_(\w+)_(.+)__$/);

@@ -703,7 +703,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   { name: "get_gamma_exposure", description: "Gamma Exposure (GEX) for SPY, QQQ, IWM. Net dealer gamma, zero-gamma level, put/call walls, regime (dampening vs amplifying). Determines if options market amplifies or dampens moves.", input_schema: { type: "object" as const, properties: { ticker: { type: "string", enum: ["SPY", "QQQ", "IWM"], description: "Filter to specific ticker" } }, required: [] } },
   {
     name: "search_historical_parallels",
-    description: "Search for historical parallels to a current event. Searches knowledge bank, resolved predictions, and signal history for structurally similar past situations. Returns probability of repetition, parallels with similarity scores, and actionable insights.",
+    description: "Search for historical parallels to a current event. Searches Wikipedia, knowledge bank, resolved predictions, and signal history for structurally similar past situations. Returns probability of repetition, parallels with similarity scores, and actionable insights.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1002,6 +1002,165 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: ["format", "title", "sections"],
     },
   },
+
+  // ── Platform Expansion Tools ──
+
+  {
+    name: "manage_execution_rules",
+    description: "Create, list, update, or delete automated execution rules. Rules trigger trades when signal conditions are met.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        action: { type: "string", enum: ["list", "create", "update", "delete", "toggle"], description: "Action to perform" },
+        ruleId: { type: "number", description: "Rule ID (for update/delete/toggle)" },
+        name: { type: "string", description: "Rule name (for create)" },
+        conditions: { type: "object", description: "Conditions JSON: {minConvergence, regime, signalLayers, tickers}" },
+        sizingStrategy: { type: "string", enum: ["kelly", "fixed", "tier"], description: "Position sizing method" },
+        broker: { type: "string", enum: ["t212", "coinbase"], description: "Target broker" },
+        enabled: { type: "boolean", description: "Enable/disable (for toggle)" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "get_execution_log",
+    description: "View the automated execution audit trail. Shows every rule evaluation, trade execution, block, and kill switch activation.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", description: "Max entries to return. Default 20." },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "toggle_kill_switch",
+    description: "Emergency stop for all automated execution. When active, no rules will fire and all existing rules are disabled.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        active: { type: "boolean", description: "true to activate (stop all), false to deactivate" },
+        reason: { type: "string", description: "Reason for activation" },
+      },
+      required: ["active"],
+    },
+  },
+  {
+    name: "analyze_sentiment",
+    description: "Deep NLP sentiment analysis of text using Claude. Returns sentiment score (-1 to 1), tone breakdown (hawkish/dovish/uncertainty/urgency/optimism/fear), entities, key claims, and market implications.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "Text to analyze" },
+        sourceType: { type: "string", enum: ["news", "central_bank", "earnings", "speech"], description: "Type of source" },
+        institution: { type: "string", description: "Institution name (for central bank analysis)" },
+        company: { type: "string", description: "Company name (for earnings analysis)" },
+      },
+      required: ["text", "sourceType"],
+    },
+  },
+  {
+    name: "get_sentiment_trends",
+    description: "Get sentiment trends for an entity or category over time. Detects tone shifts and tracks sentiment trajectory.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity: { type: "string", description: "Entity to track (company, country, person)" },
+        days: { type: "number", description: "Lookback period in days. Default 7." },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_order_book",
+    description: "Get live order book depth and microstructure metrics for a crypto trading pair. Shows bid/ask levels, spread, imbalance ratio, liquidity score, and flow direction.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        symbol: { type: "string", description: "Trading pair e.g. BTC-USD, ETH-USD" },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "get_supply_chain",
+    description: "Map the supply chain network for a company or commodity. Shows upstream suppliers, downstream customers, and exposure paths up to 3 levels deep.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity: { type: "string", description: "Company ticker or entity name (e.g. TSMC, AAPL, CL)" },
+        depth: { type: "number", description: "Max depth to traverse. Default 3." },
+      },
+      required: ["entity"],
+    },
+  },
+  {
+    name: "analyze_supply_chain_exposure",
+    description: "Calculate exposure to a supply chain disruption. Shows direct and indirect exposure, critical paths, bottlenecks, and trading implications.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity: { type: "string", description: "Entity to analyze exposure for" },
+      },
+      required: ["entity"],
+    },
+  },
+  {
+    name: "get_satellite_imagery",
+    description: "Search for satellite imagery (Sentinel-2 optical, Sentinel-1 SAR) and thermal data (VIIRS) for a geographic region. Returns imagery tiles for war room overlay.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        regionName: { type: "string", description: "Human-readable region name" },
+        north: { type: "number", description: "North latitude of bounding box" },
+        south: { type: "number", description: "South latitude of bounding box" },
+        east: { type: "number", description: "East longitude of bounding box" },
+        west: { type: "number", description: "West longitude of bounding box" },
+        days: { type: "number", description: "Lookback period in days. Default 30." },
+      },
+      required: ["regionName", "north", "south", "east", "west"],
+    },
+  },
+  {
+    name: "get_ml_models",
+    description: "List trained ML models with their accuracy metrics and feature importance. Shows which NEXUS signals are most predictive.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "get_feature_importance",
+    description: "Get ranked feature importance from a trained ML model. Shows which features (signal intensity, prediction accuracy, convergence count, etc.) drive predictions.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        modelId: { type: "number", description: "Model ID. If omitted, uses the active model." },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_unified_portfolio",
+    description: "Get aggregated portfolio view across all connected brokers (Trading 212, Coinbase). Shows total value, P&L, positions by broker and asset class, concentration risk.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "get_flow_imbalance",
+    description: "Check order flow imbalance for a crypto pair. Detects buy/sell pressure from order book depth analysis.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        symbol: { type: "string", description: "Trading pair e.g. BTC-USD" },
+      },
+      required: ["symbol"],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -1196,6 +1355,47 @@ export async function executeTool(
 
     case "generate_document":
       return executeGenerateDocument(input);
+
+    // ── Platform Expansion Tools ──
+
+    case "manage_execution_rules":
+      return executeManageExecutionRules(input, context);
+
+    case "get_execution_log":
+      return executeGetExecutionLog(input, context);
+
+    case "toggle_kill_switch":
+      return executeToggleKillSwitch(input, context);
+
+    case "analyze_sentiment":
+      return executeAnalyzeSentiment(input);
+
+    case "get_sentiment_trends":
+      return executeGetSentimentTrends(input);
+
+    case "get_order_book":
+      return executeGetOrderBook(input);
+
+    case "get_supply_chain":
+      return executeGetSupplyChainTool(input);
+
+    case "analyze_supply_chain_exposure":
+      return executeAnalyzeSupplyChainExposure(input);
+
+    case "get_satellite_imagery":
+      return executeGetSatelliteImagery(input);
+
+    case "get_ml_models":
+      return executeGetMlModels();
+
+    case "get_feature_importance":
+      return executeGetFeatureImportance(input);
+
+    case "get_unified_portfolio":
+      return executeGetUnifiedPortfolio(context);
+
+    case "get_flow_imbalance":
+      return executeGetFlowImbalance(input);
 
     default:
       return { error: `Unknown tool: ${toolName}` };
@@ -3322,4 +3522,249 @@ async function executeGenerateDocument(input: Record<string, unknown>) {
     slideCount: sections.length,
     generatedAt: new Date().toISOString(),
   };
+}
+
+// ── Platform Expansion Tool Executors ──
+
+async function executeManageExecutionRules(input: Record<string, unknown>, context?: ToolContext) {
+  try {
+    const { getRules, createRule, updateRule, deleteRule, toggleRule } = await import("@/lib/execution/rules");
+    const username = context?.username || "legacy";
+    const action = input.action as string;
+
+    switch (action) {
+      case "list":
+        return { rules: await getRules(username) };
+      case "create":
+        if (!input.name || !input.conditions) return { error: "name and conditions required" };
+        return await createRule(username, {
+          name: input.name as string,
+          conditions: input.conditions as any,
+          sizingStrategy: input.sizingStrategy as string,
+          broker: input.broker as string,
+        });
+      case "update":
+        if (!input.ruleId) return { error: "ruleId required" };
+        return await updateRule(input.ruleId as number, username, input as any);
+      case "delete":
+        if (!input.ruleId) return { error: "ruleId required" };
+        return { deleted: await deleteRule(input.ruleId as number, username) };
+      case "toggle":
+        if (!input.ruleId) return { error: "ruleId required" };
+        return await toggleRule(input.ruleId as number, username, input.enabled as boolean);
+      default:
+        return { error: "Invalid action. Use: list, create, update, delete, toggle" };
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Execution rules operation failed" };
+  }
+}
+
+async function executeGetExecutionLog(input: Record<string, unknown>, context?: ToolContext) {
+  try {
+    const { getExecutionLog } = await import("@/lib/execution/engine");
+    const limit = (input.limit as number) || 20;
+    const log = await getExecutionLog(context?.username || "legacy", limit);
+    return { entries: log, count: log.length };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to fetch execution log" };
+  }
+}
+
+async function executeToggleKillSwitch(input: Record<string, unknown>, context?: ToolContext) {
+  try {
+    const { getKillSwitchStatus, activateKillSwitch, deactivateKillSwitch } = await import("@/lib/execution/kill-switch");
+    const username = context?.username || "legacy";
+    const active = input.active as boolean;
+
+    if (active) {
+      await activateKillSwitch(username, (input.reason as string) || "Activated via chat", username);
+    } else {
+      await deactivateKillSwitch(username);
+    }
+
+    return await getKillSwitchStatus(username);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Kill switch operation failed" };
+  }
+}
+
+async function executeAnalyzeSentiment(input: Record<string, unknown>) {
+  try {
+    const { analyzeSentiment, analyzeCentralBankDeep, analyzeEarningsDeep } = await import("@/lib/nlp/sentiment-engine");
+    const text = input.text as string;
+    const sourceType = input.sourceType as string;
+
+    if (sourceType === "central_bank" && input.institution) {
+      return await analyzeCentralBankDeep(text, input.institution as string);
+    }
+    if (sourceType === "earnings" && input.company) {
+      return await analyzeEarningsDeep(text, input.company as string);
+    }
+    return await analyzeSentiment(text, sourceType);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Sentiment analysis failed" };
+  }
+}
+
+async function executeGetSentimentTrends(input: Record<string, unknown>) {
+  try {
+    const entity = input.entity as string;
+    const days = (input.days as number) || 7;
+
+    if (entity) {
+      const { trackToneShift, getSentimentTimeline } = await import("@/lib/nlp/tone-tracker");
+      const [toneShift, timeline] = await Promise.all([
+        trackToneShift(entity, days),
+        getSentimentTimeline(entity, days),
+      ]);
+      return { entity, toneShift, timeline, dataPoints: timeline.length };
+    }
+
+    const { getAggregatedSentiment } = await import("@/lib/nlp/batch-analyzer");
+    return await getAggregatedSentiment(undefined, days * 24);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Sentiment trends failed" };
+  }
+}
+
+async function executeGetOrderBook(input: Record<string, unknown>) {
+  try {
+    const { getOrderBook, computeMicrostructure } = await import("@/lib/market-data/orderbook");
+    const symbol = input.symbol as string;
+    const book = await getOrderBook(symbol);
+    const metrics = computeMicrostructure(book);
+    return {
+      ...metrics,
+      topBids: book.bids.slice(0, 5).map(l => ({ price: l.price, size: l.size })),
+      topAsks: book.asks.slice(0, 5).map(l => ({ price: l.price, size: l.size })),
+      totalLevels: { bids: book.bids.length, asks: book.asks.length },
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Order book fetch failed" };
+  }
+}
+
+async function executeGetSupplyChainTool(input: Record<string, unknown>) {
+  try {
+    const { getSupplyChain } = await import("@/lib/supply-chain/graph");
+    const entity = input.entity as string;
+    const depth = (input.depth as number) || 3;
+    const nodes = await getSupplyChain(entity, depth);
+    return { entity, nodes, totalNodes: nodes.length, maxDepth: depth };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Supply chain query failed" };
+  }
+}
+
+async function executeAnalyzeSupplyChainExposure(input: Record<string, unknown>) {
+  try {
+    const { getExposure } = await import("@/lib/supply-chain/graph");
+    return await getExposure(input.entity as string);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Exposure analysis failed" };
+  }
+}
+
+async function executeGetSatelliteImagery(input: Record<string, unknown>) {
+  try {
+    const { getRecentImagery } = await import("@/lib/satellite/copernicus-client");
+    const { getNightlightActivity } = await import("@/lib/satellite/viirs");
+
+    const bbox = {
+      north: input.north as number,
+      south: input.south as number,
+      east: input.east as number,
+      west: input.west as number,
+    };
+    const regionName = input.regionName as string;
+    const days = (input.days as number) || 30;
+
+    const [imagery, activity] = await Promise.all([
+      getRecentImagery(regionName, bbox, days),
+      getNightlightActivity(bbox),
+    ]);
+
+    return {
+      regionName,
+      imageryCount: imagery.length,
+      imagery: imagery.slice(0, 5),
+      thermalActivity: activity,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Satellite imagery failed" };
+  }
+}
+
+async function executeGetMlModels() {
+  try {
+    const models = await db.select({
+      id: schema.mlModels.id,
+      name: schema.mlModels.name,
+      modelType: schema.mlModels.modelType,
+      target: schema.mlModels.target,
+      status: schema.mlModels.status,
+      sampleCount: schema.mlModels.sampleCount,
+      metrics: schema.mlModels.metrics,
+      trainingDate: schema.mlModels.trainingDate,
+    }).from(schema.mlModels).orderBy(desc(schema.mlModels.createdAt));
+
+    return {
+      models: models.map(m => ({
+        ...m,
+        metrics: m.metrics ? JSON.parse(m.metrics) : null,
+      })),
+      count: models.length,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "ML models query failed" };
+  }
+}
+
+async function executeGetFeatureImportance(input: Record<string, unknown>) {
+  try {
+    const { getTopFeatures } = await import("@/lib/ml/feature-importance");
+    const { getActiveModel } = await import("@/lib/ml/inference");
+
+    let modelId = input.modelId as number;
+    if (!modelId) {
+      const active = await getActiveModel("direction");
+      if (!active) return { error: "No active ML model found" };
+      modelId = active.id;
+    }
+
+    const features = await getTopFeatures(modelId);
+    return { modelId, features, count: features.length };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Feature importance query failed" };
+  }
+}
+
+async function executeGetUnifiedPortfolio(context?: ToolContext) {
+  try {
+    const { getUnifiedPortfolio } = await import("@/lib/portfolio/aggregator");
+    return await getUnifiedPortfolio(context?.username || "legacy");
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Portfolio aggregation failed" };
+  }
+}
+
+async function executeGetFlowImbalance(input: Record<string, unknown>) {
+  try {
+    const { snapshotAndStore } = await import("@/lib/market-data/orderbook");
+    const metrics = await snapshotAndStore(input.symbol as string);
+    return {
+      symbol: metrics.symbol,
+      imbalanceRatio: metrics.imbalanceRatio,
+      flowDirection: metrics.flowDirection,
+      spreadBps: metrics.spreadBps,
+      liquidityScore: metrics.liquidityScore,
+      depth: { bid: metrics.depth5Bid, ask: metrics.depth5Ask },
+      alert: metrics.imbalanceRatio > 0.7 || metrics.imbalanceRatio < 0.3
+        ? `${metrics.flowDirection.toUpperCase()} detected (ratio: ${metrics.imbalanceRatio})`
+        : null,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Flow imbalance check failed" };
+  }
 }

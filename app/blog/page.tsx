@@ -6,11 +6,7 @@ import { PublicNav } from "@/components/layout/public-nav";
 import { PublicFooter } from "@/components/layout/public-footer";
 import {
   Clock,
-  Globe,
   BarChart3,
-  Zap,
-  Flame,
-  Droplets,
   ArrowRight,
 } from "lucide-react";
 
@@ -26,12 +22,12 @@ interface BlogPost {
   publishedAt: string | null;
 }
 
-const categoryConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  market: { icon: <BarChart3 className="w-3 h-3" />, label: "MARKETS", color: "text-accent-cyan border-accent-cyan/20 bg-accent-cyan/5" },
-  geopolitical: { icon: <Globe className="w-3 h-3" />, label: "GEOPOLITICS", color: "text-accent-amber border-accent-amber/20 bg-accent-amber/5" },
-  macro: { icon: <Zap className="w-3 h-3" />, label: "MACRO", color: "text-accent-emerald border-accent-emerald/20 bg-accent-emerald/5" },
-  energy: { icon: <Flame className="w-3 h-3" />, label: "ENERGY", color: "text-accent-rose border-accent-rose/20 bg-accent-rose/5" },
-  commodities: { icon: <Droplets className="w-3 h-3" />, label: "COMMODITIES", color: "text-accent-amber border-accent-amber/20 bg-accent-amber/5" },
+const categoryLabels: Record<string, string> = {
+  market: "Markets",
+  geopolitical: "Geopolitics",
+  macro: "Macro",
+  energy: "Energy",
+  commodities: "Commodities",
 };
 
 function formatDate(dateStr: string): string {
@@ -96,7 +92,6 @@ export default function BlogPage() {
         ) : (
           <div className="space-y-0">
             {posts.map((post, index) => {
-              const cat = categoryConfig[post.category] || categoryConfig.market;
               const tags = parseTags(post.tags);
 
               return (
@@ -107,9 +102,8 @@ export default function BlogPage() {
                 >
                   {/* Meta row */}
                   <div className="flex items-center gap-3 mb-3">
-                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-mono uppercase tracking-widest ${cat.color}`}>
-                      {cat.icon}
-                      {cat.label}
+                    <span className="text-[10px] font-mono uppercase tracking-wider bg-navy-100 text-navy-900 px-2 py-0.5 rounded-sm">
+                      {categoryLabels[post.category] || post.category}
                     </span>
                     {post.publishedAt && (
                       <span className="text-[10px] font-mono text-navy-500">
