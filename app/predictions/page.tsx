@@ -738,17 +738,27 @@ export default function PredictionsPage() {
     return filtered;
   };
 
-  const sortPredictions = (list: Prediction[]) => {
+  const sortPredictions = (list: Prediction[], tab: "pending" | "resolved") => {
     return [...list].sort((a, b) => {
       if (sortBy === "confidence") return b.confidence - a.confidence;
       if (sortBy === "created") return b.createdAt.localeCompare(a.createdAt);
-      return a.deadline.localeCompare(b.deadline);
+      if (tab === "pending") {
+        // Overdue predictions surface first, then by soonest deadline
+        const now = new Date().toISOString().split("T")[0];
+        const aOverdue = a.deadline <= now ? 1 : 0;
+        const bOverdue = b.deadline <= now ? 1 : 0;
+        if (aOverdue !== bOverdue) return bOverdue - aOverdue;
+        return a.deadline.localeCompare(b.deadline);
+      }
+      // Resolved: most recently resolved first
+      return (b.resolvedAt || b.deadline).localeCompare(a.resolvedAt || a.deadline);
     });
   };
 
-  const displayPending = sortPredictions(filterPredictions(pending));
+  const displayPending = sortPredictions(filterPredictions(pending), "pending");
   const displayResolved = sortPredictions(
-    filterPredictions(resolved).filter((p) => activeOutcome ? p.outcome === activeOutcome : true)
+    filterPredictions(resolved).filter((p) => activeOutcome ? p.outcome === activeOutcome : true),
+    "resolved"
   );
 
   const activeList = activeTab === "pending" ? displayPending : displayResolved;

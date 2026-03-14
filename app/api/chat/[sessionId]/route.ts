@@ -423,11 +423,35 @@ export async function POST(
         let totalCacheCreationTokens = 0;
         const requestStartTime = Date.now();
         let toolLoopCount = 0;
-        const MAX_TOOL_LOOPS = 3; // prevent runaway tool calling (reduced from 5 to cut costs)
+        const MAX_TOOL_LOOPS = 8; // generous limit for complex multi-tool analyses
+        const MAX_ELAPSED_MS = 90_000; // 90s hard time limit for tool loops
         while (continueLoop) {
-          if (toolLoopCount >= MAX_TOOL_LOOPS) {
-            sendEvent({ type: "text_delta", delta: "\n\n[Reached tool call limit for this response]" });
-            fullText += "\n\n[Reached tool call limit for this response]";
+          const elapsed = Date.now() - requestStartTime;
+          if (toolLoopCount >= MAX_TOOL_LOOPS || elapsed > MAX_ELAPSED_MS) {
+            // Final synthesis call: let the model respond with NO tools so it can
+            // summarise all gathered data instead of silently stopping.
+            try {
+              const finalResponse = await client.messages.create({
+                model: chatModel,
+                max_tokens: 4096,
+                system: systemBlocks,
+                tools: [], // no tools — force a text response
+                messages,
+              });
+              const finalUsage = finalResponse.usage;
+              totalInputTokens += finalUsage?.input_tokens || 0;
+              totalOutputTokens += finalUsage?.output_tokens || 0;
+              for (const block of finalResponse.content) {
+                if (block.type === "text" && block.text) {
+                  fullText += block.text;
+                  sendEvent({ type: "text_delta", delta: block.text });
+                }
+              }
+            } catch (synthErr) {
+              console.error("[Chat] final synthesis after tool limit failed:", synthErr);
+              sendEvent({ type: "text_delta", delta: "\n\n[Could not synthesize final response]" });
+              fullText += "\n\n[Could not synthesize final response]";
+            }
             break;
           }
           const response = await client.messages.create({

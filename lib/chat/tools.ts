@@ -242,6 +242,96 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "create_prediction",
+    description:
+      "Create a new prediction in the tracker. Use this when the user asks you to log, record, create, or track a prediction. Requires a claim, timeframe, deadline, confidence (0-1), and category. Optionally include direction (up/down/flat), price target, reference symbol, and outcome if the prediction is already resolved.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        claim: {
+          type: "string",
+          description: "The prediction claim. Be specific and falsifiable.",
+        },
+        timeframe: {
+          type: "string",
+          description: "Timeframe for the prediction, e.g. '7 days', '30 days', '48 hours'.",
+        },
+        deadline: {
+          type: "string",
+          description: "ISO date string for when the prediction should be resolved, e.g. '2026-03-16'.",
+        },
+        confidence: {
+          type: "number",
+          description: "Confidence level 0-1, e.g. 0.675 for 67.5%.",
+        },
+        category: {
+          type: "string",
+          enum: ["market", "geopolitical", "celestial"],
+          description: "Prediction category.",
+        },
+        direction: {
+          type: "string",
+          enum: ["up", "down", "flat"],
+          description: "Expected price direction if market-related.",
+        },
+        priceTarget: {
+          type: "number",
+          description: "Specific price target if applicable.",
+        },
+        referenceSymbol: {
+          type: "string",
+          description: "Reference ticker symbol, e.g. 'WTI', 'SPY'.",
+        },
+        outcome: {
+          type: "string",
+          enum: ["confirmed", "denied", "partial", "expired"],
+          description: "Outcome if the prediction is already resolved at time of logging.",
+        },
+        outcomeNotes: {
+          type: "string",
+          description: "Notes on the outcome, e.g. what happened.",
+        },
+        score: {
+          type: "number",
+          description: "Accuracy score 0-1 if already resolved.",
+        },
+      },
+      required: ["claim", "timeframe", "deadline", "confidence", "category"],
+    },
+  },
+  {
+    name: "resolve_prediction",
+    description:
+      "Resolve an existing prediction by marking its outcome. Use this when the user says a prediction was correct, wrong, partially correct, or expired. Search for the prediction first with get_predictions to find its ID or UUID.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "number",
+          description: "Prediction ID (from get_predictions results).",
+        },
+        uuid: {
+          type: "string",
+          description: "Prediction UUID (alternative to ID).",
+        },
+        outcome: {
+          type: "string",
+          enum: ["confirmed", "denied", "partial", "expired"],
+          description: "The outcome of the prediction.",
+        },
+        outcomeNotes: {
+          type: "string",
+          description: "Notes explaining the outcome.",
+        },
+        score: {
+          type: "number",
+          description: "Accuracy score 0-1. Use 1.0 for confirmed, 0.0 for denied, 0.5 for partial.",
+        },
+      },
+      required: ["outcome"],
+    },
+  },
+  {
     name: "get_prediction_feedback",
     description:
       "Get the prediction system's self-learning performance report. Returns Brier score, log-loss, calibration analysis by confidence band, category-level accuracy, timeframe performance, failure patterns, resolution bias detection, and trend direction. Use this to answer questions about prediction accuracy, calibration quality, or which categories/timeframes perform best.",
@@ -1193,6 +1283,10 @@ export async function executeTool(
       return executeGenerateThesis(input);
     case "get_predictions":
       return executeGetPredictions(input);
+    case "create_prediction":
+      return executeCreatePrediction(input, context);
+    case "resolve_prediction":
+      return executeResolvePrediction(input);
     case "get_prediction_feedback":
       return executeGetPredictionFeedback();
     case "get_vip_movements":
@@ -1740,6 +1834,94 @@ async function executeGetPredictions(input: Record<string, unknown>) {
       direction: p.direction,
       referenceSymbol: p.referenceSymbol,
     })),
+  };
+}
+
+async function executeCreatePrediction(input: Record<string, unknown>, context?: ToolContext) {
+  const claim = input.claim as string;
+  const timeframe = input.timeframe as string;
+  const deadline = input.deadline as string;
+  const confidence = input.confidence as number;
+  const category = input.category as string;
+
+  if (!claim || !timeframe || !deadline || confidence === undefined || !category) {
+    return { error: "claim, timeframe, deadline, confidence, and category are all required" };
+  }
+
+  const values: Record<string, unknown> = {
+    claim,
+    timeframe,
+    deadline,
+    confidence,
+    category,
+    direction: (input.direction as string) || null,
+    priceTarget: (input.priceTarget as number) || null,
+    referenceSymbol: (input.referenceSymbol as string) || null,
+    createdBy: context?.username || null,
+  };
+
+  // If already resolved at time of creation
+  if (input.outcome) {
+    values.outcome = input.outcome as string;
+    values.outcomeNotes = (input.outcomeNotes as string) || null;
+    values.score = input.score !== undefined ? (input.score as number) : null;
+    values.resolvedAt = new Date().toISOString();
+  }
+
+  const rows = await db.insert(schema.predictions).values(values as typeof schema.predictions.$inferInsert).returning();
+  const prediction = rows[0];
+
+  return {
+    created: true,
+    prediction: {
+      id: prediction.id,
+      uuid: prediction.uuid,
+      claim: prediction.claim,
+      timeframe: prediction.timeframe,
+      deadline: prediction.deadline,
+      confidence: prediction.confidence,
+      category: prediction.category,
+      outcome: prediction.outcome || "pending",
+      direction: prediction.direction,
+      referenceSymbol: prediction.referenceSymbol,
+    },
+  };
+}
+
+async function executeResolvePrediction(input: Record<string, unknown>) {
+  const id = input.id as number | undefined;
+  const uuid = input.uuid as string | undefined;
+  const outcome = input.outcome as string;
+
+  if (!outcome) return { error: "outcome is required" };
+  if (!id && !uuid) return { error: "id or uuid is required to identify the prediction" };
+
+  const existingRows = uuid
+    ? await db.select().from(schema.predictions).where(eq(schema.predictions.uuid, uuid))
+    : await db.select().from(schema.predictions).where(eq(schema.predictions.id, id!));
+
+  if (!existingRows[0]) return { error: "Prediction not found" };
+
+  const updated = await db
+    .update(schema.predictions)
+    .set({
+      outcome,
+      outcomeNotes: (input.outcomeNotes as string) || null,
+      score: input.score !== undefined ? (input.score as number) : null,
+      resolvedAt: new Date().toISOString(),
+    })
+    .where(eq(schema.predictions.id, existingRows[0].id))
+    .returning();
+
+  return {
+    resolved: true,
+    prediction: {
+      id: updated[0].id,
+      claim: updated[0].claim,
+      outcome: updated[0].outcome,
+      score: updated[0].score,
+      resolvedAt: updated[0].resolvedAt,
+    },
   };
 }
 

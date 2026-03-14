@@ -200,9 +200,7 @@ export default function PredictionDetailPage() {
       {isResolved && outcomeConfig && (
         <div className={`rounded-lg border ${outcomeConfig.border} ${outcomeConfig.bg} p-5 mb-6`}>
           <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-lg ${outcomeConfig.bg} border ${outcomeConfig.border}`}>
-              <OutcomeIcon className={`h-8 w-8 ${outcomeConfig.color}`} />
-            </div>
+            <OutcomeIcon className={`h-8 w-8 ${outcomeConfig.color}`} />
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-1">
                 <span className={`text-lg font-bold font-mono uppercase tracking-wider ${outcomeConfig.color}`}>

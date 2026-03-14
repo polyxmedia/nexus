@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Zap,
   X,
+  CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { PaymentForm } from "@/components/stripe/payment-form";
@@ -116,7 +117,7 @@ function ChatCheckoutForm({ tierId, onClose }: { tierId: number; onClose: () => 
 export default function ChatSessionPage() {
   const params = useParams();
   const sessionId = params.sessionId as string;
-  const { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, setModel } = useChat(sessionId);
+  const { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, creditsExhausted, setModel } = useChat(sessionId);
   const voice = useVoiceMode();
   const { isAdmin } = useSubscription();
   const [selectedModel, setSelectedModel] = useState("claude-sonnet-4-6");
@@ -410,8 +411,34 @@ export default function ChatSessionPage() {
         )}
       </div>}
 
+      {/* Credits exhausted banner — replaces input when out of credits */}
+      {!upgradeRequired && creditsExhausted && (
+        <div className="border-t border-navy-800/60 bg-navy-950">
+          <div className="max-w-4xl mx-auto w-full px-6 py-5">
+            <div className="flex items-center gap-4 rounded-lg border border-accent-amber/20 bg-accent-amber/5 px-5 py-4">
+              <CreditCard className="h-5 w-5 text-accent-amber shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-mono text-[11px] uppercase tracking-wider text-navy-200 mb-0.5">
+                  Credits exhausted
+                </p>
+                <p className="text-[12px] text-navy-500">
+                  Your monthly credits have been used. Purchase more credits or wait for your next billing cycle to continue.
+                </p>
+              </div>
+              <Link
+                href="/settings?tab=subscription"
+                className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 font-mono text-[10px] uppercase tracking-widest text-navy-950 bg-accent-amber hover:bg-accent-amber/90 rounded-lg transition-all"
+              >
+                Buy credits
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Input area — pinned to bottom, max-width matched to message column */}
-      {!upgradeRequired && <div className="relative border-t border-navy-800/60 bg-navy-950">
+      {!upgradeRequired && !creditsExhausted && <div className="relative border-t border-navy-800/60 bg-navy-950">
         {/* Scroll-to-bottom FAB */}
         {showScrollBtn && (
           <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10">

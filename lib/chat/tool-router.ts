@@ -96,6 +96,8 @@ const TOOL_GROUPS: Record<string, string[]> = {
   ],
   predictions: [
     "get_predictions",
+    "create_prediction",
+    "resolve_prediction",
     "get_prediction_feedback",
     "get_prediction_markets",
     "place_polymarket_order",
@@ -159,7 +161,7 @@ const GROUP_TRIGGERS: Array<{ pattern: RegExp; groups: string[] }> = [
   // OSINT & intelligence
   { pattern: /\b(osint|vessel|ship|maritime|aircraft|vip|flight|intelligence|source reliab|chokepoint|hormuz|suez|malacca|red sea|shipping|narrative|dark fleet)\b/i, groups: ["osint"] },
   // Predictions
-  { pattern: /\b(prediction|polymarket|prediction market|bet|wager|accuracy|calibrat|brier)\b/i, groups: ["predictions"] },
+  { pattern: /\b(prediction|polymarket|prediction market|bet|wager|accuracy|calibrat|brier|log.*predict|track.*predict|create.*predict|resolve.*predict|record.*predict)\b/i, groups: ["predictions"] },
   // Thesis & reports
   { pattern: /\b(thesis|briefing|report|narrative report|document|brief me|daily brief|intelligence brief)\b/i, groups: ["thesis"] },
   // Crypto

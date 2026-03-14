@@ -60,6 +60,7 @@ export function useChat(sessionId: string) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [upgradeRequired, setUpgradeRequired] = useState(false);
+  const [creditsExhausted, setCreditsExhausted] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const loadHistory = useCallback(async () => {
@@ -123,7 +124,9 @@ export function useChat(sessionId: string) {
           try {
             const errData = await res.json();
             errorMsg = errData.error || errorMsg;
-            if (errData.upgrade) {
+            if (errData.topup) {
+              setCreditsExhausted(true);
+            } else if (errData.upgrade) {
               setUpgradeRequired(true);
             }
           } catch {
@@ -299,7 +302,7 @@ export function useChat(sessionId: string) {
     abortRef.current?.abort();
   }, []);
 
-  return { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, setModel };
+  return { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, creditsExhausted, setModel };
 }
 
 function dbMessagesToTurns(messages: ChatMessage[]): ChatTurn[] {

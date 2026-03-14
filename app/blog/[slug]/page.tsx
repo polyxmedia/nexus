@@ -76,7 +76,7 @@ export default function BlogPostPage() {
   return (
     <div className="min-h-screen bg-navy-950 text-navy-200">
       <PublicNav />
-      <main className="pt-24 pb-20 max-w-3xl mx-auto px-6">
+      <main className="pt-24 pb-20 max-w-5xl mx-auto px-6">
         {/* Back link */}
         <Link
           href="/blog"

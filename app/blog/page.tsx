@@ -55,7 +55,7 @@ export default function BlogPage() {
   return (
     <div className="min-h-screen bg-navy-950 text-navy-200">
       <PublicNav />
-      <main className="pt-24 pb-20 max-w-4xl mx-auto px-6">
+      <main className="pt-24 pb-20 max-w-5xl mx-auto px-6">
         {/* Header */}
         <div className="mb-12">
           <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-navy-500 mb-3">
