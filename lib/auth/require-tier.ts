@@ -39,7 +39,7 @@ const TIER_LEVELS: Record<string, number> = {
   observer: 1, // new name for analyst tier
   operator: 2,
   institution: 3,
-  station: 3, // new name for institution tier
+  station: 3, // legacy alias for institution tier
 };
 
 export interface TierLimits {

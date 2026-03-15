@@ -8,7 +8,7 @@ import { PaymentForm } from "@/components/stripe/payment-form";
 const TIER_LABELS: Record<string, string> = {
   analyst: "Observer",
   operator: "Operator",
-  institution: "Station",
+  institution: "Institution",
 };
 
 const TIER_PERKS: Record<string, string[]> = {

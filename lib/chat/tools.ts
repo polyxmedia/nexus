@@ -1271,6 +1271,54 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: ["symbol"],
     },
   },
+  {
+    name: "analyze_opportunity",
+    description:
+      "Run a structured opportunity analysis on a market, geopolitical, or hybrid thesis. Evaluates asymmetry (risk/reward ratio), crowdedness, timing, convergence support, and maps monetization paths. Use this when you identify a potential trade, trend, or strategic opening and want a rigorous assessment before recommending action.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        description: {
+          type: "string",
+          description:
+            "Clear description of the opportunity (e.g. 'Long energy if Hormuz closure probability rises above 30%')",
+        },
+        type: {
+          type: "string",
+          enum: ["market", "geopolitical", "hybrid"],
+          description: "Type of opportunity",
+        },
+        timeframe: {
+          type: "string",
+          description:
+            "Expected horizon (e.g. '1 week', '3 months', '6 months')",
+        },
+        symbols: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Relevant tickers to analyze for market data (e.g. ['USO', 'XLE', 'CVX'])",
+        },
+        conviction: {
+          type: "number",
+          description:
+            "Your current conviction level 0-1 before running the analysis",
+        },
+        actors: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Key actors/stakeholders involved (e.g. ['iran', 'israel', 'us'])",
+        },
+        scenario_id: {
+          type: "string",
+          description:
+            "Game theory scenario to evaluate (e.g. 'iran-nuclear', 'taiwan-strait'). Optional.",
+        },
+      },
+      required: ["description", "type"],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -1512,6 +1560,9 @@ export async function executeTool(
 
     case "get_flow_imbalance":
       return executeGetFlowImbalance(input);
+
+    case "analyze_opportunity":
+      return executeAnalyzeOpportunity(input);
 
     default:
       return { error: `Unknown tool: ${toolName}` };
@@ -4060,4 +4111,336 @@ async function executeGetFlowImbalance(input: Record<string, unknown>) {
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Flow imbalance check failed" };
   }
+}
+
+// ── Opportunity Analysis ──
+
+async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
+  const description = input.description as string;
+  const type = input.type as string;
+  const timeframe = (input.timeframe as string) || "3 months";
+  const symbols = (input.symbols as string[]) || [];
+  const conviction = input.conviction as number | undefined;
+  const actors = (input.actors as string[]) || [];
+  const scenarioId = input.scenario_id as string | undefined;
+
+  if (!description) return { error: "description is required" };
+  if (!["market", "geopolitical", "hybrid"].includes(type)) {
+    return { error: "type must be market, geopolitical, or hybrid" };
+  }
+
+  try {
+    // 1. Knowledge context - what do we already know about this?
+    let knowledgeContext: { count: number; entries: Array<{ title: string; summary: string }> } = { count: 0, entries: [] };
+    try {
+      const knowledge = await searchKnowledge(description, 5);
+      knowledgeContext = {
+        count: knowledge.length,
+        entries: knowledge.slice(0, 3).map((k: Record<string, unknown>) => ({
+          title: (k.title as string) || "Untitled",
+          summary: ((k.content as string) || "").slice(0, 200),
+        })),
+      };
+    } catch { /* knowledge search is best-effort */ }
+
+    // 2. Signal convergence support
+    let signalSupport: { count: number; maxIntensity: number; sectors: string[] } = { count: 0, maxIntensity: 0, sectors: [] };
+    try {
+      const allSignals: Signal[] = await db
+        .select()
+        .from(schema.signals)
+        .where(eq(schema.signals.status, "upcoming"))
+        .orderBy(desc(schema.signals.intensity));
+
+      const STOP_WORDS = new Set(["the","a","an","if","of","in","on","to","for","and","or","is","are","long","short","buy","sell","will","may","could","should","would","that","this","with","from","into","when","then"]);
+      const keywords = description.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !STOP_WORDS.has(w));
+      const relevant = allSignals.filter(
+        (s) => s.intensity >= 3 || (s.description && keywords.some(kw => s.description!.toLowerCase().includes(kw)))
+      );
+      const sectorSet = new Set<string>();
+      relevant.forEach((s) => {
+        const sectors = s.marketSectors as string[] | null;
+        if (sectors) sectors.forEach((sec) => sectorSet.add(sec));
+      });
+      signalSupport = {
+        count: relevant.length,
+        maxIntensity: relevant.length > 0 ? relevant[0].intensity : 0,
+        sectors: Array.from(sectorSet).slice(0, 8),
+      };
+    } catch { /* signals query is best-effort */ }
+
+    // 3. Market data for specified symbols
+    let marketData: Array<{
+      symbol: string;
+      price: number | null;
+      change: number | null;
+      rsi: number | null;
+      trend: string | null;
+      volatilityRegime: string | null;
+    }> = [];
+    if (symbols.length > 0 && (type === "market" || type === "hybrid")) {
+      const results = await Promise.allSettled(
+        symbols.slice(0, 5).map(async (sym) => {
+          const [quote, snapshot] = await Promise.allSettled([
+            getQuoteData(sym.toUpperCase()),
+            computeTechnicalSnapshot(sym.toUpperCase()),
+          ]);
+          const q = quote.status === "fulfilled" ? quote.value : null;
+          const s = snapshot.status === "fulfilled" ? snapshot.value : null;
+          return {
+            symbol: sym.toUpperCase(),
+            price: q?.price ?? null,
+            change: q?.changePercent ?? null,
+            rsi: s?.rsi ?? null,
+            trend: s?.trend ?? null,
+            volatilityRegime: s?.volatilityRegime ?? null,
+          };
+        })
+      );
+      marketData = results
+        .filter((r): r is PromiseFulfilledResult<typeof marketData[number]> => r.status === "fulfilled")
+        .map((r) => r.value);
+    }
+
+    // 4. Game theory context
+    let gameTheoryContext: {
+      scenario: string | null;
+      nashEquilibria: number;
+      dominantOutcome: string | null;
+      marketDirection: string | null;
+      escalationRisk: string | null;
+    } = { scenario: null, nashEquilibria: 0, dominantOutcome: null, marketDirection: null, escalationRisk: null };
+    if ((type === "geopolitical" || type === "hybrid") && scenarioId) {
+      try {
+        const analysis = await analyzeScenario(scenarioId);
+        if (analysis && !("error" in analysis)) {
+          gameTheoryContext = {
+            scenario: scenarioId,
+            nashEquilibria: analysis.nashEquilibria?.length || 0,
+            dominantOutcome: analysis.nashEquilibria?.[0]?.label || null,
+            marketDirection: analysis.marketAssessment?.direction || null,
+            escalationRisk: analysis.escalationLadder?.[0]?.level
+              ? `Level ${analysis.escalationLadder[analysis.escalationLadder.length - 1]?.level || "?"}`
+              : null,
+          };
+        }
+      } catch { /* game theory is best-effort */ }
+    }
+
+    // 5. Actor profiles
+    let actorProfiles: Array<{ id: string; name: string; type: string }> = [];
+    if (actors.length > 0) {
+      try {
+        const profiles = await Promise.allSettled(
+          actors.slice(0, 4).map((a) => getExtendedActorProfile(a))
+        );
+        actorProfiles = profiles
+          .filter((r): r is PromiseFulfilledResult<Record<string, unknown>> => r.status === "fulfilled" && !!r.value)
+          .map((r) => ({
+            id: (r.value.id as string) || "",
+            name: (r.value.name as string) || "",
+            type: (r.value.type as string) || "",
+          }));
+      } catch { /* actor lookup is best-effort */ }
+    }
+
+    // 6. Regime context
+    let regimeContext: { label: string | null; score: number | null } = { label: null, score: null };
+    try {
+      const regime = await loadRegimeState();
+      if (regime) {
+        regimeContext = {
+          label: (regime as Record<string, unknown>).label as string || null,
+          score: (regime as Record<string, unknown>).compositeScore as number || null,
+        };
+      }
+    } catch { /* regime is best-effort */ }
+
+    // 7. Compute asymmetry assessment
+    const asymmetry = computeAsymmetryScore({
+      conviction,
+      signalCount: signalSupport.count,
+      maxIntensity: signalSupport.maxIntensity,
+      hasGameTheory: gameTheoryContext.scenario !== null,
+      nashCount: gameTheoryContext.nashEquilibria,
+      marketDirection: gameTheoryContext.marketDirection,
+      regimeScore: regimeContext.score,
+      knowledgeCount: knowledgeContext.count,
+    });
+
+    return {
+      opportunity: { description, type, timeframe, conviction: conviction ?? null },
+      asymmetry,
+      signalSupport,
+      marketData: marketData.length > 0 ? marketData : null,
+      gameTheory: gameTheoryContext.scenario ? gameTheoryContext : null,
+      actors: actorProfiles.length > 0 ? actorProfiles : null,
+      regime: regimeContext,
+      knowledgeContext,
+      monetizationPaths: deriveMonetizationPaths(type, symbols, marketData, gameTheoryContext),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Opportunity analysis failed: ${message}` };
+  }
+}
+
+function computeAsymmetryScore(params: {
+  conviction?: number | null;
+  signalCount: number;
+  maxIntensity: number;
+  hasGameTheory: boolean;
+  nashCount: number;
+  marketDirection: string | null;
+  regimeScore: number | null;
+  knowledgeCount: number;
+}): {
+  score: number;
+  grade: string;
+  upsideMultiple: number;
+  downsideExposure: string;
+  crowdedness: string;
+  timingSignal: string;
+  factors: string[];
+} {
+  let score = 0.5; // neutral baseline
+  const factors: string[] = [];
+
+  // Signal convergence support
+  if (params.maxIntensity >= 4) {
+    score += 0.15;
+    factors.push(`High-intensity signal convergence (${params.maxIntensity}/5)`);
+  } else if (params.maxIntensity >= 3) {
+    score += 0.08;
+    factors.push(`Moderate signal convergence (${params.maxIntensity}/5)`);
+  }
+
+  // Multiple signals compound
+  if (params.signalCount >= 3) {
+    score += 0.05;
+    factors.push(`${params.signalCount} supporting signals detected`);
+  }
+
+  // Game theory alignment
+  if (params.hasGameTheory) {
+    if (params.nashCount === 1) {
+      score += 0.1;
+      factors.push("Single Nash equilibrium (clear strategic outcome)");
+    } else if (params.nashCount > 1) {
+      score += 0.03;
+      factors.push(`${params.nashCount} Nash equilibria (outcome uncertain)`);
+    }
+  }
+
+  // Conviction adjustment
+  if (params.conviction != null) {
+    if (params.conviction > 0.7) {
+      score += 0.05;
+      factors.push("High prior conviction");
+    } else if (params.conviction < 0.3) {
+      score -= 0.05;
+      factors.push("Low prior conviction (contrarian or speculative)");
+    }
+  }
+
+  // Knowledge base context
+  if (params.knowledgeCount >= 3) {
+    score += 0.05;
+    factors.push("Strong knowledge base context available");
+  }
+
+  // Regime alignment
+  if (params.regimeScore != null) {
+    if (params.regimeScore < -0.3 && params.marketDirection === "bearish") {
+      score += 0.08;
+      factors.push("Regime confirms bearish thesis (risk-off environment)");
+    } else if (params.regimeScore > 0.3 && params.marketDirection === "bullish") {
+      score += 0.08;
+      factors.push("Regime confirms bullish thesis (risk-on environment)");
+    } else if (params.regimeScore != null && params.marketDirection) {
+      score -= 0.05;
+      factors.push("Regime and thesis direction misaligned");
+    }
+  }
+
+  // Clamp
+  score = Math.max(0.1, Math.min(0.95, score));
+
+  // Derive properties from score
+  const upsideMultiple = score > 0.7 ? 3.0 : score > 0.5 ? 2.0 : score > 0.3 ? 1.5 : 1.0;
+
+  const grade =
+    score >= 0.8 ? "A" :
+    score >= 0.65 ? "B" :
+    score >= 0.5 ? "C" :
+    score >= 0.35 ? "D" : "F";
+
+  const downsideExposure =
+    score >= 0.7 ? "contained" :
+    score >= 0.5 ? "moderate" :
+    score >= 0.3 ? "elevated" : "high";
+
+  // Crowdedness heuristic: fewer signals + fewer knowledge hits = less crowded
+  const crowdedness =
+    params.signalCount <= 1 && params.knowledgeCount <= 1 ? "low (early/undiscovered)" :
+    params.signalCount <= 3 ? "moderate" : "high (well-known)";
+
+  // Timing signal based on intensity trend
+  const timingSignal =
+    params.maxIntensity >= 4 ? "act soon (high convergence)" :
+    params.maxIntensity >= 3 ? "prepare (building)" :
+    "monitor (early stage)";
+
+  return { score, grade, upsideMultiple, downsideExposure, crowdedness, timingSignal, factors };
+}
+
+function deriveMonetizationPaths(
+  type: string,
+  symbols: string[],
+  marketData: Array<{ symbol: string; price: number | null; trend: string | null }>,
+  gameTheory: { marketDirection: string | null }
+): Array<{ path: string; instruments: string[]; rationale: string }> {
+  const paths: Array<{ path: string; instruments: string[]; rationale: string }> = [];
+
+  if (type === "market" || type === "hybrid") {
+    if (symbols.length > 0) {
+      paths.push({
+        path: "Direct position",
+        instruments: symbols,
+        rationale: `${gameTheory.marketDirection || "Directional"} exposure via identified instruments`,
+      });
+
+      // Check for options opportunity based on trend
+      const trendsAvailable = marketData.some((m) => m.trend);
+      if (trendsAvailable) {
+        paths.push({
+          path: "Options strategy",
+          instruments: symbols.map((s) => `${s} options`),
+          rationale: "Defined-risk exposure with leverage; suitable for asymmetric thesis",
+        });
+      }
+    }
+
+    paths.push({
+      path: "Sector ETF",
+      instruments: type === "hybrid" ? ["XLE", "XLF", "ITA", "XLK"] : symbols,
+      rationale: "Broader sector exposure if single-name conviction insufficient",
+    });
+  }
+
+  if (type === "geopolitical" || type === "hybrid") {
+    paths.push({
+      path: "Volatility",
+      instruments: ["VIX calls", "UVXY", "VIXY"],
+      rationale: "Long volatility ahead of geopolitical catalyst",
+    });
+
+    paths.push({
+      path: "Safe haven rotation",
+      instruments: ["GLD", "TLT", "CHF", "JPY"],
+      rationale: "Defensive positioning if escalation materializes",
+    });
+  }
+
+  return paths;
 }

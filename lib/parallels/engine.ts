@@ -256,7 +256,7 @@ ${signalsContext || "No signal data."}
 Identify the strongest structural parallels. Ground each parallel in the provided reference material. Be specific about dates, outcomes, and probabilities.`;
 
   // 3. Call Claude for synthesis
-  const client = new Anthropic({ apiKey, timeout: 40_000 });
+  const client = new Anthropic({ apiKey, timeout: 30_000 });
 
   const response = await client.messages.create({
     model: PARALLELS_MODEL,
@@ -269,8 +269,17 @@ Identify the strongest structural parallels. Ground each parallel in the provide
   const text =
     response.content[0].type === "text" ? response.content[0].text : "";
 
-  // 4. Parse with retry
-  const parsed = await parseOrRetry(text, client, query);
+  // 4. Parse JSON (skip retry to stay within tool timeout)
+  let parsed: Record<string, unknown> | null = null;
+  const trimmed = text.trim();
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    const jsonMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/) || trimmed.match(/(\{[\s\S]*\})/);
+    if (jsonMatch) {
+      try { parsed = JSON.parse(jsonMatch[1]); } catch { /* noop */ }
+    }
+  }
 
   if (!parsed) {
     return {

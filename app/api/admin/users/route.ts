@@ -6,6 +6,7 @@ import { eq, like } from "drizzle-orm";
 import { validateOrigin } from "@/lib/security/csrf";
 import { rateLimit } from "@/lib/rate-limit";
 import { invalidateThrottleCache } from "@/lib/auth/user-throttle";
+import { invalidateTierCache } from "@/lib/auth/require-tier";
 
 async function isAdmin(username: string): Promise<boolean> {
   const users = await db
@@ -206,6 +207,9 @@ export async function POST(request: Request) {
         });
       }
 
+      // Invalidate server-side tier cache so access is immediate
+      invalidateTierCache(username);
+
       return NextResponse.json({ success: true, granted: tierName, expiresAt: periodEnd });
     }
 
@@ -238,6 +242,8 @@ export async function POST(request: Request) {
             .where(eq(schema.subscriptions.userId, username));
         }
       }
+
+      invalidateTierCache(username);
 
       return NextResponse.json({ success: true, revoked: true });
     }

@@ -13,7 +13,7 @@ export type MinTier = "free" | "analyst" | "operator" | "institution";
 // Every protected route must call requireTier() with the mapped tier.
 // Routes not listed here are either public or require only authentication.
 export const ROUTE_TIERS: Record<string, MinTier> = {
-  // ── Observer tier (£49/mo) - core intelligence ──
+  // ── Observer tier ($199/mo) - core intelligence ──
   "chat": "analyst",
   "signals": "analyst",
   "predictions": "analyst",
@@ -33,7 +33,7 @@ export const ROUTE_TIERS: Record<string, MinTier> = {
   "iw": "analyst",
   "longevity": "analyst",
 
-  // ── Operator tier (£199/mo) - advanced analytics + trading ──
+  // ── Operator tier ($599/mo) - advanced analytics + trading ──
   "trade-lab": "operator",
   "trading212": "operator",
   "coinbase": "operator",

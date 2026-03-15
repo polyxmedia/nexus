@@ -58,3 +58,4 @@ data/*.db-shm
 # Chrome Extension
 chrome-extension/dist/
 chrome-extension/node_modules/
+.gitnexus

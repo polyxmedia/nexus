@@ -6597,7 +6597,7 @@ export default function AdminPage() {
                   <div>
                     <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Tier</label>
                     <div className="grid grid-cols-3 gap-2">
-                      {["observer", "operator", "station"].map((t) => (
+                      {["observer", "operator", "institution"].map((t) => (
                         <button
                           key={t}
                           onClick={() => setGrantForm({ ...grantForm, tier: t })}
@@ -6849,7 +6849,7 @@ export default function AdminPage() {
                   <div>
                     <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Tier</label>
                     <div className="grid grid-cols-4 gap-2">
-                      {["free", "observer", "operator", "station"].map((t) => (
+                      {["free", "observer", "operator", "institution"].map((t) => (
                         <button
                           key={t}
                           onClick={() => setEditForm({ ...editForm, tier: t })}
@@ -7501,7 +7501,7 @@ export default function AdminPage() {
                   <div>
                     <label className="text-[10px] font-mono text-navy-500 uppercase tracking-wider block mb-2">Tier</label>
                     <div className="grid grid-cols-4 gap-2">
-                      {["free", "observer", "operator", "station"].map((t) => (
+                      {["free", "observer", "operator", "institution"].map((t) => (
                         <button
                           key={t}
                           onClick={() => setCreateForm({ ...createForm, tier: t })}

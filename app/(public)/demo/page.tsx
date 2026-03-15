@@ -555,7 +555,7 @@ export default function DemoPage() {
             What clients of the Emergent Approach now have that McKinsey cannot deliver.
           </h2>
           <p className="text-sm text-navy-400 font-sans leading-relaxed mb-8 max-w-2xl">
-            McKinsey engagements cost £500K to £5M and produce static documents. The strategic environment they describe is outdated before the deck is reviewed. Emergent Approach + NEXUS is live, adaptive, and priced at a fraction of a single consulting engagement.
+            McKinsey engagements cost $500K to $5M and produce static documents. The strategic environment they describe is outdated before the deck is reviewed. Emergent Approach + NEXUS is live, adaptive, and priced at a fraction of a single consulting engagement.
           </p>
 
           <div className="border border-navy-700/40 rounded-lg overflow-hidden">
@@ -570,7 +570,7 @@ export default function DemoPage() {
               <ComparisonRow dimension="Strategy evaluation" mckinsey="Qualitative. Slide-based." nexusEa="Quantitative. SAM matrix + live NEXUS scoring." />
               <ComparisonRow dimension="Kill condition monitoring" mckinsey="None. Engagement ends." nexusEa="Automated. Continuous alerts." />
               <ComparisonRow dimension="Geopolitical signal layer" mckinsey="Country reports. Months stale." nexusEa="GPR index, OSINT, shipping, regime data — live." />
-              <ComparisonRow dimension="Cost" mckinsey="£500K–£5M per engagement" nexusEa="Platform subscription. Fraction of one report." />
+              <ComparisonRow dimension="Cost" mckinsey="$500K–$5M per engagement" nexusEa="Platform subscription. Fraction of one report." />
               <ComparisonRow dimension="Time to insight" mckinsey="Weeks to months" nexusEa="Minutes" />
             </div>
           </div>

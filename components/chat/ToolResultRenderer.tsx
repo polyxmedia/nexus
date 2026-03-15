@@ -50,6 +50,7 @@ import { DocumentDownloadWidget } from "./widgets/DocumentDownloadWidget";
 import { ScenarioBranchesWidget } from "./widgets/ScenarioBranchesWidget";
 import { CustomGameTheoryWidget } from "./widgets/CustomGameTheoryWidget";
 import { VesselTrackingWidget } from "./widgets/VesselTrackingWidget";
+import { OpportunityWidget } from "./widgets/OpportunityWidget";
 import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
 
 interface ToolResultRendererProps {
@@ -130,6 +131,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_vip_movements: "VIP Movements",
   get_vessel_tracking: "Vessel Tracking",
   get_scenario_branches: "Scenario Branches",
+  analyze_opportunity: "Opportunity Analysis",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -293,6 +295,9 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "get_scenario_branches":
       widget = <ScenarioBranchesWidget data={data} />;
+      break;
+    case "analyze_opportunity":
+      widget = <OpportunityWidget data={data} />;
       break;
     case "get_operator_context":
       return (

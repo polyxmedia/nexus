@@ -409,39 +409,67 @@ export async function POST(
         // vs selective evidence). Target corrections at the specific pattern detected
         // rather than issuing a generic warning. Few-shot counter-examples in the
         // system prompt handle the baseline; this loop handles session-level drift.
+        // Session-cumulative: if the session is trending sycophantic, escalate pressure.
         try {
-          const lastSycRow = await db.execute(drizzleSql`
+          const sycRows = await db.execute(drizzleSql`
             SELECT metadata FROM chat_messages
             WHERE session_id = ${id} AND role = 'assistant' AND metadata IS NOT NULL
-            ORDER BY id DESC LIMIT 1
+            ORDER BY id DESC LIMIT 5
           `);
-          const raw = lastSycRow.rows[0]?.metadata;
-          const lastMeta = typeof raw === "string" ? raw : undefined;
-          if (lastMeta) {
-            const parsed = JSON.parse(lastMeta);
-            const sycScore = parsed?.sycophancyIndex?.score;
-            const sycFlags = parsed?.sycophancyIndex?.flags;
-            if (typeof sycScore === "number" && sycScore > 0.3 && Array.isArray(sycFlags) && sycFlags.length > 0) {
-              const SYCOPHANCY_CORRECTIONS: Record<string, string> = {
-                FILLER_VALIDATION: "PRAISE BIAS: Previous response contained validating language. Strip all filler. Open with data, not affirmation.",
-                TONE_ALIGNMENT: "PRAISE BIAS: Previous response contained validating language. Strip all filler. Open with data, not affirmation.",
-                AGREEMENT_WITHOUT_EVIDENCE: "AGREEMENT BIAS: Previous response agreed without citing tool results. This response MUST cite specific data points for every claim. If no data supports the claim, say so.",
-                SELECTIVE_EVIDENCE: "EVIDENCE BIAS: Previous response omitted counter-evidence. This response MUST lead with the strongest argument AGAINST the operator's position before presenting supporting evidence.",
-                BURIED_CONTRADICTION: "EVIDENCE BIAS: Previous response omitted counter-evidence. This response MUST lead with the strongest argument AGAINST the operator's position before presenting supporting evidence.",
-                MIRRORED_FRAMING: "FRAMING BIAS: Previous response adopted the operator's framing. Reframe from raw data. Call positions 'positions' not 'convictions'. Call theses 'hypotheses' not 'confirmed theses'.",
-                INFLATED_CONFIDENCE: "CONFIDENCE BIAS: Previous response inflated probabilities. Use exact tool-derived numbers. Do not round toward the operator's preferred direction.",
-              };
-              const corrections = new Set<string>();
-              for (const flag of sycFlags as string[]) {
-                const key = Object.keys(SYCOPHANCY_CORRECTIONS).find((k) => flag.toUpperCase().includes(k));
-                if (key) corrections.add(SYCOPHANCY_CORRECTIONS[key]);
+          const SYCOPHANCY_CORRECTIONS: Record<string, string> = {
+            FILLER_VALIDATION: "PRAISE BIAS: Previous response contained validating language. Strip all filler. Open with data, not affirmation.",
+            TONE_ALIGNMENT: "PRAISE BIAS: Previous response contained validating language. Strip all filler. Open with data, not affirmation.",
+            AGREEMENT_WITHOUT_EVIDENCE: "AGREEMENT BIAS: Previous response agreed without citing tool results. This response MUST cite specific data points for every claim. If no data supports the claim, say so.",
+            SELECTIVE_EVIDENCE: "EVIDENCE BIAS: Previous response omitted counter-evidence. This response MUST lead with the strongest argument AGAINST the operator's position before presenting supporting evidence.",
+            BURIED_CONTRADICTION: "EVIDENCE BIAS: Previous response omitted counter-evidence. This response MUST lead with the strongest argument AGAINST the operator's position before presenting supporting evidence.",
+            MIRRORED_FRAMING: "FRAMING BIAS: Previous response adopted the operator's framing. Reframe from raw data. Call positions 'positions' not 'convictions'. Call theses 'hypotheses' not 'confirmed theses'.",
+            INFLATED_CONFIDENCE: "CONFIDENCE BIAS: Previous response inflated probabilities. Use exact tool-derived numbers. Do not round toward the operator's preferred direction.",
+            HEDGING_TO_PLEASE: "HEDGING BIAS: Previous response softened disagreement with comfort hedges. State the data conclusion directly. Do not append 'but there could be scenarios...' unless genuinely probable (>20%).",
+          };
+
+          // Collect scores from recent messages for session-cumulative tracking
+          const sessionScores: number[] = [];
+          const allFlags = new Set<string>();
+          for (const row of sycRows.rows) {
+            const raw = typeof row.metadata === "string" ? row.metadata : undefined;
+            if (!raw) continue;
+            try {
+              const parsed = JSON.parse(raw);
+              const score = parsed?.sycophancyIndex?.score;
+              const flags = parsed?.sycophancyIndex?.flags;
+              if (typeof score === "number") sessionScores.push(score);
+              if (Array.isArray(flags)) {
+                for (const flag of flags as string[]) {
+                  const key = Object.keys(SYCOPHANCY_CORRECTIONS).find((k) => flag.toUpperCase().includes(k));
+                  if (key) allFlags.add(key);
+                }
               }
-              if (corrections.size > 0) {
-                systemBlocks.push({
-                  type: "text" as const,
-                  text: `\n\n## SYCOPHANCY CALIBRATION (score: ${(sycScore * 100).toFixed(0)}%)\nThe previous response in this session was flagged for sycophantic patterns. Apply these targeted corrections:\n${[...corrections].map((c) => `- ${c}`).join("\n")}\n\nThe sycophancy index is visible to the operator. They can see when the analyst is being agreeable rather than independent. Correct now.`,
-                });
-              }
+            } catch { /* skip malformed */ }
+          }
+
+          const lastScore = sessionScores[0] ?? 0;
+          const avgScore = sessionScores.length > 0 ? sessionScores.reduce((a, b) => a + b, 0) / sessionScores.length : 0;
+          const highSycCount = sessionScores.filter((s) => s > 0.4).length;
+
+          // Trigger corrections if: last message was sycophantic OR session is trending sycophantic
+          if (lastScore > 0.3 || (avgScore > 0.25 && sessionScores.length >= 2) || highSycCount >= 2) {
+            const corrections = new Set<string>();
+            for (const key of allFlags) {
+              corrections.add(SYCOPHANCY_CORRECTIONS[key]);
+            }
+
+            // Escalation: if session keeps drifting, add harder constraints
+            const escalation = highSycCount >= 3
+              ? "\n\nESCALATION: This session has produced 3+ sycophantic responses. You are in MAXIMUM INDEPENDENCE mode. Every claim must cite a tool result. Every probability must show its derivation. Open with the strongest counter-argument to whatever the operator just said. Do NOT reference 'your positions', 'your thesis', or 'your conviction' unless the operator explicitly stated them in this conversation."
+              : highSycCount >= 2
+              ? "\n\nWARNING: This session has produced multiple sycophantic responses. Increase independence. Lead every response with tool-derived data, not interpretation of the operator's framing."
+              : "";
+
+            if (corrections.size > 0 || escalation) {
+              systemBlocks.push({
+                type: "text" as const,
+                text: `\n\n## SYCOPHANCY CALIBRATION (last: ${(lastScore * 100).toFixed(0)}%, session avg: ${(avgScore * 100).toFixed(0)}%)\nThis session has been flagged for sycophantic patterns. Apply these targeted corrections:\n${[...corrections].map((c) => `- ${c}`).join("\n")}${escalation}\n\nThe sycophancy index is visible to the operator. They can see when the analyst is being agreeable rather than independent. Correct now.`,
+              });
             }
           }
         } catch {

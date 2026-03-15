@@ -410,6 +410,12 @@ registerJob("data-retention", 24 * 60 * 60_000, async () => {
   await runRetentionCleanup();
 });
 
+registerJob("knowledge-hygiene", 24 * 60 * 60_000, async () => {
+  // Daily knowledge hygiene: score staleness, apply grace periods to unaccessed entries
+  const { runKnowledgeHygiene } = await import("@/lib/knowledge/hygiene");
+  await runKnowledgeHygiene();
+});
+
 function getBaseUrl() {
   return process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 }

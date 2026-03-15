@@ -19,6 +19,7 @@ import { db, schema } from "@/lib/db";
 import { eq, like, and, or, desc, sql } from "drizzle-orm";
 import type { KnowledgeEntry, NewKnowledgeEntry } from "@/lib/db/schema";
 import { embedKnowledgeEntry, semanticSearch, embedAllKnowledge } from "./embeddings";
+import { trackAccess, rescueFromGrace } from "./hygiene";
 
 // ── Core Operations ──
 
@@ -148,6 +149,12 @@ export async function searchKnowledge(query: string, options?: SearchOptions): P
           });
         }
 
+        // Track access for hygiene scoring (non-blocking)
+        const ids = filtered.map((r) => r.id);
+        trackAccess(ids).catch(() => {});
+        // Rescue any graced entries that are still being accessed
+        rescueFromGrace(ids).catch(() => {});
+
         return filtered.map((r) => ({
           id: r.id,
           title: r.title,
@@ -222,7 +229,15 @@ async function textSearch(query: string, options?: SearchOptions): Promise<Knowl
   });
 
   const limit = options?.limit ?? 20;
-  return allRows.slice(0, limit);
+  const sliced = allRows.slice(0, limit);
+
+  // Track access for hygiene scoring (non-blocking)
+  const ids = sliced.map((r) => r.id);
+  trackAccess(ids).catch(() => {});
+  // Rescue any graced entries that are still being accessed
+  rescueFromGrace(ids).catch(() => {});
+
+  return sliced;
 }
 
 export async function getRelevantKnowledge(topics: string[], limit = 10): Promise<KnowledgeEntry[]> {

@@ -191,7 +191,7 @@ About NEXUS (what Andre built):
 - Live oil/gold/defense signals with position-level recommendations
 - Andre is a senior software engineer who built the entire platform himself
 - It called the Hormuz closure before it happened
-- 3x leveraged oil position entered at £54 from a NEXUS thesis, currently well in profit
+- 3x leveraged oil position entered at $54 from a NEXUS thesis, currently well in profit
 - Referral commission: 20% recurring on all sign-ups
 
 The deal: Sponsorship with a recurring segment or mention that fits their content naturally. 20% recurring commission on all sign-ups through their audience. Offer to send a 5-minute walkthrough video first.

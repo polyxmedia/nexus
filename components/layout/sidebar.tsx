@@ -210,7 +210,7 @@ function CreditMeter() {
 const UPGRADE_STEPS: Record<string, { next: string; price: string; hooks: string[] }> = {
   free: {
     next: "Observer",
-    price: "£49/mo",
+    price: "$199/mo",
     hooks: [
       "Signal detection firing daily",
       "AI thesis on every regime shift",
@@ -219,7 +219,7 @@ const UPGRADE_STEPS: Record<string, { next: string; price: string; hooks: string
   },
   analyst: {
     next: "Operator",
-    price: "£199/mo",
+    price: "$599/mo",
     hooks: [
       "Game theory on live conflicts",
       "Monte Carlo on your positions",
@@ -228,7 +228,7 @@ const UPGRADE_STEPS: Record<string, { next: string; price: string; hooks: string
   },
   observer: {
     next: "Operator",
-    price: "£199/mo",
+    price: "$599/mo",
     hooks: [
       "Game theory on live conflicts",
       "Monte Carlo on your positions",
@@ -236,8 +236,8 @@ const UPGRADE_STEPS: Record<string, { next: string; price: string; hooks: string
     ],
   },
   operator: {
-    next: "Station",
-    price: "£499/mo",
+    next: "Institution",
+    price: "$999/mo",
     hooks: [
       "API access for your own tools",
       "White-label briefings for clients",
@@ -249,7 +249,7 @@ const UPGRADE_STEPS: Record<string, { next: string; price: string; hooks: string
 function UpgradeNudge({ currentTier }: { currentTier: string | null }) {
   const tier = currentTier?.toLowerCase() || "free";
   const step = UPGRADE_STEPS[tier];
-  if (!step) return null; // already at Station/institution
+  if (!step) return null; // already at institution
 
   const [hookIdx, setHookIdx] = useState(0);
 

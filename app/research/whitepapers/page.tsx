@@ -196,10 +196,19 @@ function LiveResultsSection({
       {/* Intro text */}
       <div className={`mt-8 max-w-3xl space-y-6 ${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
         <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-          Methodology papers typically end with theory. NEXUS ends with data. Every prediction the system generates is timestamped, tracked, and resolved against real-world outcomes. The results are published, not curated, meaning the failures are visible alongside the successes.
+          Every prediction the system generates is timestamped, tracked, and resolved against real-world outcomes. The results below are published, not curated, meaning the failures are visible alongside the successes.
         </p>
+
+        {/* Sample size warning */}
+        <div className="border border-accent-amber/20 rounded-lg p-5 bg-accent-amber/[0.03]">
+          <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-2">Statistical Health Warning</div>
+          <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+            The resolved prediction dataset is early-stage. At small sample sizes (n &lt; 50), aggregate metrics like Brier score and calibration gap carry wide confidence intervals and are dominated by noise. A Brier score above 0.25 at this stage does not necessarily indicate the system is worse than chance; it may reflect a small number of confidently-wrong predictions distorting a thin dataset. These numbers will become meaningful as the forward-looking dataset grows. Until then, treat them as directional indicators, not validated performance claims.
+          </p>
+        </div>
+
         <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-          One distinction matters and should be applied when evaluating any aggregate metric: predictions generated after a triggering event has already begun are post-onset analysis, not prospective forecasts. They demonstrate that the system reasons coherently about developing situations, not that it predicted them. The forward-looking record, predictions generated before the events they describe, is the only valid measure of forecasting skill and should be evaluated separately. As the prospective dataset grows, the aggregate Brier score and calibration curves will become more meaningful.
+          One distinction matters when evaluating any aggregate metric: predictions generated after a triggering event has already begun are post-onset analysis, not prospective forecasts. The forward-looking record, predictions generated before the events they describe, is the only valid measure of forecasting skill. As the prospective dataset grows, the aggregate Brier score and calibration curves will become more meaningful.
         </p>
 
         {/* Link card */}
@@ -255,6 +264,9 @@ function LiveResultsSection({
                   <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Brier Score</div>
                   <div className={`font-mono text-[18px] font-medium tabular-nums ${brierColor(report.brierScore)}`}>{fmt3(report.brierScore)}</div>
                   <div className="font-mono text-[9px] text-navy-700 mt-1">0 = perfect, 0.25 = coin flip</div>
+                  {report.totalResolved < 50 && (
+                    <div className="font-mono text-[8px] text-accent-amber/70 mt-1">n &lt; 50: not statistically robust</div>
+                  )}
                 </div>
                 <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
                   <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Binary Accuracy</div>
@@ -485,7 +497,7 @@ function LiveResultsSection({
               <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
                 <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Feedback Integration</div>
                 <div className="font-sans text-[12px] text-navy-400 leading-[1.7]">
-                  Resolved predictions feed back into the engine with 0.3 damping to prevent overcorrection, continuously tuning the system&apos;s calibration.
+                  Resolved predictions feed back into the engine with 0.5x damping to prevent overcorrection, continuously tuning the system&apos;s calibration.
                 </div>
               </div>
               <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
@@ -501,7 +513,7 @@ function LiveResultsSection({
 
       <div className={`mt-6 ${anim} ${liveResultsReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
         <p className="font-sans text-[13px] text-navy-500 leading-[1.8]">
-          A system that claims to predict markets but hides its track record is asking for faith. NEXUS asks for scrutiny. The prediction tracker exists precisely so that the methodologies described in this paper can be evaluated against real outcomes, not theoretical ones.
+          The prediction tracker exists so that the methodologies described in this paper can be evaluated against real outcomes, not theoretical ones. The dataset is young and the numbers will move. That is the point of publishing them.
         </p>
       </div>
     </div>
@@ -511,7 +523,7 @@ function LiveResultsSection({
 // ── Table of Contents ──
 
 const tocSections = [
-  { id: "abstract", num: "00", label: "Abstract" },
+  { id: "abstract", num: "00", label: "Executive Summary" },
   { id: "signal-detection", num: "01", label: "Multi-Layer Signal Detection" },
   { id: "convergence", num: "02", label: "Convergence Analysis" },
   { id: "synthesis", num: "03", label: "AI-Driven Intelligence Synthesis" },
@@ -537,7 +549,7 @@ const tocSections = [
   { id: "parallels", num: "23", label: "Historical Pattern Matching" },
   { id: "actor-profiles", num: "24", label: "Actor-Belief Profile System" },
   { id: "narrative-reports", num: "25", label: "Narrative Report Generation" },
-  { id: "appendix-a", num: "A", label: "Appendix A: Calendar / Celestial Literature" },
+  { id: "appendix-a", num: "A", label: "Appendix A: Calendar / Celestial Context Layers" },
 ];
 
 // ════════════════════════════════════════════════
@@ -689,16 +701,16 @@ export default function WhitepaperPage() {
       ══════════════════════════════════════════ */}
       <section id="abstract" className="px-6 py-20">
         <div ref={abstractReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="00" label="Abstract" visible={abstractReveal.visible} />
+          <SectionHead number="00" label="Executive Summary" visible={abstractReveal.visible} />
           <div className={`max-w-3xl ${anim} ${abstractReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
-              NEXUS is a geopolitical-market convergence intelligence platform that synthesises signals from four independent primary data layers plus narrative context overlays into actionable intelligence. The platform combines techniques from quantitative finance, intelligence analysis, computational statistics, and natural language processing to detect conditions under which geopolitical events are likely to produce market dislocations.
+              NEXUS detects conditions under which geopolitical events are likely to produce market dislocations. It fuses four independent signal layers (geopolitical event feeds, market microstructure, OSINT, and systemic risk metrics) through Bayesian posterior updating with dependency-adjusted likelihood ratios, then uses AI synthesis to generate timestamped, confidence-scored predictions that are tracked against real outcomes.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
-              This paper documents every analytical methodology currently implemented in production. Each section covers the theoretical basis, the specific algorithms used, the data sources consumed, and how outputs integrate with the broader system. Where formal academic literature underpins a method, citations are provided. Where we have extended or adapted existing techniques, the modifications are documented with rationale.
+              The prediction record is early-stage. At the time of writing, the resolved dataset is small enough that aggregate metrics carry wide confidence intervals and should not be treated as statistically robust validation. The system publishes every prediction it makes, confirmed or denied, and the full record is available to subscribers. As the forward-looking dataset grows, the Brier-scored feedback loop will provide meaningful calibration data. Until then, the methodology described in this paper should be evaluated on its analytical reasoning, not its headline accuracy figures.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              The platform processes data from 39 external APIs and data feeds, runs 42 analytical tools, and maintains a self-correcting feedback loop through Brier-scored prediction tracking. Every component described here runs in production, processing real data, generating real predictions, and measuring real outcomes.
+              This paper documents every analytical method currently running in production across 25+ external data sources and 105 analytical tools. Section 21 (Limitations) documents what the system cannot do, where the evidence is thin, and where parameters carry look-ahead bias. That section is as important as any other.
             </p>
           </div>
         </div>
@@ -1504,9 +1516,9 @@ export default function WhitepaperPage() {
 
           <div className={`space-y-3 ${anim} ${nowcastReveal.visible ? shown : hidden}`} style={{ transitionDelay: "200ms" }}>
             {[
-              { label: "GDP Nowcast", desc: "Anchored to official GDP with adjustments from initial claims (+0.3 at 220k, -0.5 at 300k), consumer sentiment, yield curve inversion penalty. Output: point estimate with 0.8pp confidence band and direction classification." },
+              { label: "GDP Nowcast", desc: "Anchored to official GDP with adjustments from initial claims (scaled by 0.8: +0.24pp effective at 220k, -0.40pp at 300k), consumer sentiment, yield curve inversion penalty. Adjustments are averaged across active inputs. Output: point estimate with 0.8pp confidence band and direction classification." },
               { label: "Inflation Nowcast", desc: "Anchored to 5-year breakeven inflation. Adjusted for oil price pressure (+0.3 above $90, -0.3 below $55) and dollar strength deflation signal (-0.1 for rising DXY)." },
-              { label: "Employment", desc: "Initial claims classified: strong (<220k), moderate (220-280k), softening (280-350k), deteriorating (>350k). Direction inferred from week-over-week change." },
+              { label: "Employment", desc: "Initial claims classified: strong (<220k), moderate (220-280k), weak (280-350k), deteriorating (>350k). Direction inferred from week-over-week change." },
               { label: "Financial Conditions", desc: "VIX + HY credit spread + Fed Funds + dollar strength composited into a -2 to +2 index. Labels: very-tight / tight / neutral / loose / very-loose." },
               { label: "Consumer Strength", desc: "Consumer sentiment score classification with trend direction from recent readings." },
               { label: "Global Trade", desc: "Oil price and dollar direction as proxies for trade momentum: expanding / stable / contracting." },
@@ -1518,10 +1530,16 @@ export default function WhitepaperPage() {
             ))}
           </div>
 
-          <div className={`mt-6 max-w-3xl ${anim} ${nowcastReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
+          <div className={`mt-6 max-w-3xl space-y-5 ${anim} ${nowcastReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              A composite risk score (0-100) aggregates all dimensions. Recession probability is estimated heuristically: base 5%, escalating to 70% if GDP is negative (35% if below 1%, 15% if below 2%), with additive adjustments of +15% for tight financial conditions and +20% for deteriorating employment. The model is deliberately simple and transparent. Complex econometric models can outperform on backtests but tend to fail in novel regimes. This model makes its assumptions explicit and lets the analyst judge.
+              A composite risk score (0-100) aggregates all dimensions. Recession probability is estimated via a rule-based heuristic: base 5%, escalating to 70% if GDP is negative (35% if below 1%, 15% if below 2%), with additive adjustments of +15% for very-tight financial conditions and +20% for deteriorating employment.
             </p>
+            <div className="border border-navy-800/30 rounded-lg p-4 bg-navy-900/20">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Methodology Note</div>
+              <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
+                This is a hand-tuned decision tree, not an econometric model. It does not compete with formal nowcasting frameworks (Giannone, Reichlin, Small 2008) on point accuracy. Its role in NEXUS is narrower: providing a fast, interpretable macro context layer that feeds into convergence analysis. The thresholds are transparent so the analyst can see exactly where each adjustment comes from and override accordingly. If the convergence engine detects a macro regime shift, the analyst should know which specific indicators drove that classification rather than treating it as a black-box probability.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -1537,16 +1555,10 @@ export default function WhitepaperPage() {
 
           <div className={`max-w-3xl ${anim} ${monteReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
-              The Monte Carlo engine generates stochastic price paths for scenario analysis, supporting risk assessment and probability-weighted outcome modelling. The implementation goes beyond standard geometric Brownian motion by incorporating fat-tail distributions, jump processes, and mean reversion.
-            </p>
-            <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
-              Random sampling uses the Box-Muller transform for normal distribution generation, extended with the Azzalini method for skewed normals that model the asymmetric tail risk observed in real markets. Jump processes add discrete large moves with configurable daily probability and magnitude, allowing simulation of event-driven gaps.
-            </p>
-            <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
-              Per-scenario outputs include 100 sample paths for visualisation, percentile distributions (P5, P25, P50, P75, P95), expected return, maximum drawdown, and probability of profit. Multiple scenarios can be blended with probability weights to produce a composite outlook that reflects the analyst&apos;s assessment of which scenario is most likely.
+              The Monte Carlo engine generates stochastic price paths using skewed-normal sampling (Azzalini method), jump processes for event-driven gaps, and optional mean reversion. The implementation is standard quantitative finance. The engine accepts multiple named scenarios, each with a probability weight and independent volatility/drift/jump parameters.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              Optional mean reversion allows modelling of assets that tend toward a long-run value (commodities, interest rates), with configurable target and speed parameters. Leverage multipliers support simulation of leveraged positions and their impact on path distributions.
+              Per-scenario outputs include 100 sample paths, percentile distributions (P5 through P95), expected return, maximum drawdown, and probability of profit. Multiple scenarios are blended by their probability weights into a composite outlook. Currently, scenario weights are set via analyst-defined presets or manual input. The architecture accepts dynamic weights from any source, and connecting the convergence engine&apos;s posterior probabilities to Monte Carlo scenario weights is a planned integration that would allow geopolitical signal analysis to parameterise quantitative risk distributions directly.
             </p>
           </div>
         </div>
@@ -1764,7 +1776,7 @@ export default function WhitepaperPage() {
 
           <div className={`mt-10 max-w-3xl ${anim} ${integrationReveal.visible ? shown : hidden}`} style={{ transitionDelay: "300ms" }}>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85]">
-              The platform currently processes data from 39 external APIs and data feeds, runs 42 analytical tools accessible via the AI chat interface, and maintains a self-correcting feedback loop through Brier-scored prediction tracking. Every component described in this paper runs in production, processing real data, generating real predictions, and measuring real outcomes. The system is measured by what it produces, and the accuracy record is public.
+              The platform currently processes data from 25+ external APIs and data feeds, runs 105 analytical tools accessible via the AI chat interface, and maintains a self-correcting feedback loop through Brier-scored prediction tracking. Every component described in this paper runs in production, processing real data, generating real predictions, and measuring real outcomes. The system is measured by what it produces, and the accuracy record is public.
             </p>
           </div>
         </div>
@@ -2007,13 +2019,7 @@ export default function WhitepaperPage() {
               <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
                 <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Celestial and Calendar — Narrative Context Layers</div>
                 <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
-                  The celestial and calendar layers are the most academically contentious components of NEXUS and should be understood as narrative context, not primary signal. Their role is interpretive framing, not independent alert generation.
-                </p>
-                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
-                  The evidence base is thin and mixed. Dichev and Janes (2003) and Yuan et al. (2006) documented statistically significant lunar cycle effects across multiple markets, but replication has been inconsistent and the academic community remains divided. Kamstra et al. (2003) found no robust effect after controlling for seasonal affective disorder. The calendar correlations (Shemitah cycle, Ramadan, High Holy Days) have somewhat stronger anecdotal support but limited rigorous quantitative validation at the kind of effect sizes that would justify trading decisions.
-                </p>
-                <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
-                  The correct framing: these layers add contextual colour to situations already identified by stronger signal layers. They should never be the primary basis for any call. Any track record analysis should segment and report the performance contribution of celestial and calendar signals separately from geopolitical, market, and OSINT layers, where the evidence base is substantially more robust. If the data eventually shows these layers are not adding predictive value, the feedback loop will downweight them. Until then, they sit at the bottom of the convergence hierarchy, functioning as narrative context.
+                  The celestial and calendar layers are the most academically contentious components of NEXUS. They receive zero convergence weight and function as actor-belief context only. The evidence base is thin (see Appendix A for literature review and safeguards). If the feedback loop shows these layers are not adding predictive value, it will downweight them further. They sit at the bottom of the hierarchy and should never be the primary basis for any call.
                 </p>
               </div>
 
@@ -2040,7 +2046,7 @@ export default function WhitepaperPage() {
               <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
                 <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-3">Data Source Dependencies</div>
                 <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
-                  NEXUS aggregates data from 39 external APIs and data feeds including Alpha Vantage, FRED, GDELT, ACLED, OpenSky Network, 15 RSS news feeds, Reddit, Polymarket, Kalshi, and others. Each dependency introduces a potential point of failure, whether from API rate limits, data quality issues, or service outages. The system uses graceful degradation, returning empty results rather than failing on any single source outage, and the convergence engine naturally adapts when fewer layers are reporting. Still, the quality of the output is bounded by the quality of the inputs. NEXUS cannot detect signals in data it does not receive.
+                  NEXUS aggregates data from 25+ external APIs and data feeds including Alpha Vantage, FRED, GDELT, ACLED, OpenSky Network, RSS news feeds, Reddit, Polymarket, Kalshi, and others. Each dependency introduces a potential point of failure, whether from API rate limits, data quality issues, or service outages. The system uses graceful degradation, returning empty results rather than failing on any single source outage, and the convergence engine naturally adapts when fewer layers are reporting. Still, the quality of the output is bounded by the quality of the inputs. NEXUS cannot detect signals in data it does not receive.
                 </p>
               </div>
 
@@ -2179,75 +2185,27 @@ export default function WhitepaperPage() {
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
             <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-navy-600 mb-2">Appendix A</div>
-            <h2 className="font-sans text-xl font-light text-navy-200">Calendar and Celestial Literature Review</h2>
-            <p className="font-sans text-[13px] text-navy-500 leading-[1.8] mt-4 max-w-3xl">
-              This appendix reviews the academic literature on lunar, celestial, and religious calendar correlations with market behaviour. These are documented in the literature with varying degrees of rigour. They are presented here for completeness and honest assessment — not as justification for primary signal weighting.
-            </p>
+            <h2 className="font-sans text-xl font-light text-navy-200">Calendar and Celestial Context Layers</h2>
             <div className="mt-4 border border-accent-amber/20 rounded p-4 bg-accent-amber/[0.03] max-w-3xl">
               <div className="font-mono text-[9px] uppercase tracking-wider text-accent-amber mb-2">Classification</div>
               <p className="font-sans text-[12px] text-navy-500 leading-[1.8]">
-                Nothing in this appendix is used as a primary convergence input. These layers receive zero convergence weight. They are tracked as narrative context only and do not affect the 1-5 convergence score.
+                These layers receive zero convergence weight and do not affect the 1-5 convergence score. They exist as narrative context only.
               </p>
             </div>
           </div>
 
           <div className="space-y-5 max-w-3xl">
-            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/10">
-              <div className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-3">Lunar Cycle Effects</div>
-              <div className="space-y-4">
-                <div className="border-l-2 border-navy-700/40 pl-4">
-                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Dichev, I.D. and Janes, T.D. (2003). &quot;Lunar Cycle Effects in Stock Returns.&quot; Journal of Private Equity, 6(4), 8-29.</p>
-                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Documented that returns in the 15 days around new moon are about double the returns in the 15 days around full moon across 25 stock market indices over 100 years. The mechanism is proposed as mood-driven risk aversion correlated with the lunar cycle. Replication has been inconsistent across later studies.</p>
-                </div>
-                <div className="border-l-2 border-navy-700/40 pl-4">
-                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Yuan, K., Zheng, L. and Zhu, Q. (2006). &quot;Are Investors Moonstruck? Lunar Phases and Stock Returns.&quot; Journal of Empirical Finance, 13(1), 1-23.</p>
-                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Replicated Dichev and Janes findings across 48 countries. Found that the lunar effect is not explained by calendar effects, announcements, or trading volume. Effect size is economically small. The evidence is suggestive but the academic community remains divided on robustness.</p>
-                </div>
-                <div className="border-l-2 border-navy-700/40 pl-4">
-                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Kamstra, M.J., Kramer, L.A. and Levi, M.D. (2003). &quot;Winter Blues: A SAD Stock Market Cycle.&quot; American Economic Review, 93(1), 324-343.</p>
-                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Found no robust lunar effect after controlling for seasonal affective disorder. This is the primary rebuttal study. The honest read: lunar effects may be a proxy for seasonal variables rather than a direct mechanism.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/10">
-              <div className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-3">Geomagnetic and Solar Activity</div>
-              <div className="space-y-4">
-                <div className="border-l-2 border-navy-700/40 pl-4">
-                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Krivelyova, A. and Robotti, C. (2003). &quot;Playing the Field: Geomagnetic Storms and International Stock Markets.&quot; Federal Reserve Bank of Atlanta Working Paper 2003-5.</p>
-                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Found a statistically significant negative correlation between geomagnetic storm activity and next-day stock returns across global markets. Published as a Federal Reserve working paper (not peer-reviewed journal). The mechanism proposed is mood disruption from electromagnetic exposure. Replication evidence is limited and the effect size is small.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/10">
-              <div className="font-mono text-[10px] uppercase tracking-wider text-navy-500 mb-3">Religious Calendar Effects</div>
-              <div className="space-y-4">
-                <div className="border-l-2 border-navy-700/40 pl-4">
-                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Bialkowski, J., Etebari, A. and Wisniewski, T.P. (2012). &quot;Fast profits: Investor sentiment and stock returns during Ramadan.&quot; Journal of Banking and Finance, 36(3), 835-845.</p>
-                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Found elevated returns and reduced volatility in Muslim-majority countries during Ramadan, attributed to optimism and social bonding effects. Effect is concentrated in specific markets. Generalisation to global markets is weak.</p>
-                </div>
-                <div className="border-l-2 border-navy-700/40 pl-4">
-                  <p className="font-sans text-[12px] text-navy-300 font-medium leading-[1.8]">Frieder, L. and Subrahmanyam, A. (2004). &quot;Nonsecular Regularities in Returns and Volume.&quot; Financial Analysts Journal, 60(4), 29-34.</p>
-                  <p className="font-sans text-[11px] text-navy-500 leading-[1.7] mt-1">Documented below-average returns around Rosh Hashanah and above-average returns around Yom Kippur in US markets. Sample is limited and the effect has not been robustly replicated over more recent periods.</p>
-                </div>
-              </div>
-            </div>
-
             <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
-              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Honest Assessment</div>
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Rationale</div>
               <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
-                The literature here is real but the evidence base is thin. Effect sizes are small, replication is inconsistent, and no consensus mechanism explains why astronomical or religious calendars would reliably move global markets. The reason these layers exist in NEXUS is not because the academic case is strong, it isn&apos;t, but because specific actors in positions of power assign meaning to these calendars and may time decisions around them. That is actor-belief modelling, not market prediction. The distinction matters: we are not claiming the Shemitah cycle moves markets, we are noting that decision-makers who believe it does may act accordingly, and that behavioural pattern is worth tracking as context.
+                A small body of peer-reviewed literature documents statistically significant calendar-market correlations: lunar cycle effects on returns (Dichev &amp; Janes 2003, replicated across 48 countries by Yuan et al. 2006, contested by Kamstra et al. 2003), geomagnetic storm correlations (Krivelyova &amp; Robotti 2003, Fed working paper), and religious calendar effects (Bialkowski et al. 2012 on Ramadan, Frieder &amp; Subrahmanyam 2004 on Jewish holidays). Effect sizes are small, replication is inconsistent, and no consensus mechanism exists. These layers exist in NEXUS not because the academic case is strong, but because specific actors in positions of power assign meaning to these calendars and may time decisions around them. That is actor-belief modelling, not market prediction.
               </p>
             </div>
 
             <div className="border border-navy-800/30 rounded-lg p-5 bg-navy-900/20">
-              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Statistical Safeguards</div>
+              <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-3">Safeguards</div>
               <p className="font-sans text-[12px] text-navy-400 leading-[1.8]">
-                A known risk in tracking multiple calendar-market correlations across different traditions is the multiple comparisons problem: test enough combinations and some will appear significant by chance. With 7 actor profiles and 17 calendar modifiers spanning 4 calendar systems, the combinatorial space is large enough that false positives are expected without correction.
-              </p>
-              <p className="font-sans text-[12px] text-navy-400 leading-[1.8] mt-3">
-                NEXUS currently relies on confidence-damped Bayesian updates to limit the operational impact of any single modifier: low-confidence modifiers produce near-trivial probability shifts. The feedback loop additionally tracks per-modifier accuracy over time, allowing persistently non-predictive modifiers to decay toward irrelevance. Formal false discovery rate control (Benjamini-Hochberg) across the modifier set is planned as the sample size grows. Users should treat modifier-level performance claims with appropriate scepticism until the dataset supports rigorous statistical testing.
+                With 7 actor profiles and 17 calendar modifiers across 4 calendar systems, the multiple comparisons problem is real. NEXUS mitigates this through confidence-damped Bayesian updates (low-confidence modifiers produce near-trivial probability shifts) and per-modifier accuracy tracking that decays non-predictive modifiers toward irrelevance. Formal Benjamini-Hochberg FDR control is planned as sample size grows. No single calendar modifier can shift a prediction by more than a few percentage points regardless of its apparent track record.
               </p>
             </div>
           </div>
