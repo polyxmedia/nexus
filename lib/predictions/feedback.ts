@@ -76,6 +76,12 @@ export interface ConfidenceInterval {
   method: "wilson" | "bootstrap";
 }
 
+interface DifficultyTierStats {
+  count: number;
+  brier: number;
+  bss: number | null;
+}
+
 export interface PerformanceReport {
   totalResolved: number;
   sampleSufficient: boolean;
@@ -96,6 +102,18 @@ export interface PerformanceReport {
   regimeInvalidatedCount: number;
   postEventCount: number;
   bin: BINReport | null;
+  brierSkillScore: number | null;
+  brierBaseline: number | null;
+  difficultyTiers: {
+    easy: DifficultyTierStats;
+    medium: DifficultyTierStats;
+    hard: DifficultyTierStats;
+  } | null;
+  rollingBrier: {
+    days30: number | null;
+    days60: number | null;
+    days90: number | null;
+  } | null;
   promptSection: string;
 }
 
@@ -738,9 +756,94 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
   }));
   const bin = binInput.length >= 3 ? computeBINDecomposition(binInput) : null;
 
+  // ── Brier Skill Score (BSS) ──
+  // BSS = 1 - (BS_system / BS_baseline)
+  // BS_baseline uses per-prediction base rates as the "no skill" reference forecast
+
+  const DEFAULT_BASE_RATE = 0.30;
+
+  let brierSkillScore: number | null = null;
+  let brierBaseline: number | null = null;
+
+  if (scoreable.length >= 3) {
+    const baselineSum = scoreable.reduce((sum, p) => {
+      const br = p.baseRateAtCreation ?? DEFAULT_BASE_RATE;
+      const actual = outcomeToNumeric(p.outcome!);
+      return sum + Math.pow(br - actual, 2);
+    }, 0);
+    brierBaseline = baselineSum / scoreable.length;
+
+    if (brierBaseline > 0) {
+      brierSkillScore = 1 - (brier / brierBaseline);
+    }
+  }
+
+  // ── Difficulty Tiers ──
+  // Easy: base rate > 0.8 or < 0.2
+  // Medium: base rate 0.2-0.4 or 0.6-0.8
+  // Hard: base rate 0.4-0.6
+
+  type TierKey = "easy" | "medium" | "hard";
+
+  function classifyDifficulty(baseRate: number): TierKey {
+    if (baseRate > 0.8 || baseRate < 0.2) return "easy";
+    if (baseRate >= 0.4 && baseRate <= 0.6) return "hard";
+    return "medium";
+  }
+
+  let difficultyTiers: PerformanceReport["difficultyTiers"] = null;
+
+  if (scoreable.length >= 3) {
+    const tierBuckets: Record<TierKey, Array<{ confidence: number; outcome: string; baseRate: number }>> = {
+      easy: [], medium: [], hard: [],
+    };
+
+    for (const p of scoreable) {
+      const br = p.baseRateAtCreation ?? DEFAULT_BASE_RATE;
+      const tier = classifyDifficulty(br);
+      tierBuckets[tier].push({ confidence: p.confidence, outcome: p.outcome!, baseRate: br });
+    }
+
+    function computeTierStats(preds: Array<{ confidence: number; outcome: string; baseRate: number }>): DifficultyTierStats {
+      if (preds.length === 0) return { count: 0, brier: 0, bss: null };
+      const tierBrier = brierScore(preds);
+      const baselineSum = preds.reduce((sum, p) => {
+        const actual = outcomeToNumeric(p.outcome);
+        return sum + Math.pow(p.baseRate - actual, 2);
+      }, 0);
+      const tierBaseline = baselineSum / preds.length;
+      const tierBss = tierBaseline > 0 ? 1 - (tierBrier / tierBaseline) : null;
+      return { count: preds.length, brier: tierBrier, bss: tierBss };
+    }
+
+    difficultyTiers = {
+      easy: computeTierStats(tierBuckets.easy),
+      medium: computeTierStats(tierBuckets.medium),
+      hard: computeTierStats(tierBuckets.hard),
+    };
+  }
+
+  // ── Rolling Brier (30/60/90 day windows) ──
+
+  let rollingBrier: PerformanceReport["rollingBrier"] = null;
+
+  if (scoreable.length >= 3) {
+    function brierForWindow(days: number): number | null {
+      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+      const inWindow = scoreable.filter((p) => p.resolvedAt && p.resolvedAt >= cutoff);
+      if (inWindow.length < 2) return null;
+      return brierScore(inWindow.map((p) => ({ confidence: p.confidence, outcome: p.outcome! })));
+    }
+    rollingBrier = {
+      days30: brierForWindow(30),
+      days60: brierForWindow(60),
+      days90: brierForWindow(90),
+    };
+  }
+
   // ── Build prompt section ──
 
-  const promptSection = buildPromptSection({
+  const reportData = {
     totalResolved: resolved.length,
     sampleSufficient,
     brierScore: weightedBrier,
@@ -760,28 +863,16 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     regimeInvalidatedCount,
     postEventCount,
     bin,
-  });
+    brierSkillScore,
+    brierBaseline,
+    difficultyTiers,
+    rollingBrier,
+  };
+
+  const promptSection = buildPromptSection(reportData);
 
   return {
-    totalResolved: resolved.length,
-    sampleSufficient,
-    brierScore: weightedBrier,
-    brierCI,
-    logLoss: ll,
-    binaryAccuracy,
-    accuracyCI,
-    avgConfidence,
-    calibrationGap,
-    calibration,
-    byCategory,
-    failurePatterns,
-    timeframeAccuracy,
-    recentTrend,
-    resolutionBias,
-    directionLevel,
-    regimeInvalidatedCount,
-    postEventCount,
-    bin,
+    ...reportData,
     promptSection,
   };
 }
@@ -800,6 +891,13 @@ function buildPromptSection(report: Omit<PerformanceReport, "promptSection">): s
     ? ` [95% CI: ${report.brierCI.lower.toFixed(4)}–${report.brierCI.upper.toFixed(4)}, n=${report.totalResolved}]`
     : ` [n=${report.totalResolved}, CI unavailable (need >= 5)]`;
   lines.push(`  Brier score: ${report.brierScore.toFixed(4)} ${brierInterpretation(report.brierScore)}${brierCIStr}`);
+  if (report.brierBaseline != null) {
+    lines.push(`  Brier baseline (base rate reference): ${report.brierBaseline.toFixed(4)}`);
+  }
+  if (report.brierSkillScore != null) {
+    const bssLabel = report.brierSkillScore > 0 ? "has skill" : "no skill vs base rates";
+    lines.push(`  Brier Skill Score: ${report.brierSkillScore.toFixed(4)} (${bssLabel})`);
+  }
   lines.push(`  Log loss: ${report.logLoss.toFixed(4)}`);
   const accCIStr = report.accuracyCI
     ? ` [95% Wilson CI: ${(report.accuracyCI.lower * 100).toFixed(1)}%–${(report.accuracyCI.upper * 100).toFixed(1)}%]`

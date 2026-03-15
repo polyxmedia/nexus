@@ -66,6 +66,7 @@ export const predictions = pgTable("predictions", {
   referenceSymbol: text("reference_symbol"),
   directionCorrect: integer("direction_correct"), // 0 | 1 at resolution
   levelCorrect: integer("level_correct"), // 0 | 1 at resolution
+  baseRateAtCreation: doublePrecision("base_rate_at_creation"), // base rate used for BSS
   createdBy: text("created_by"), // username of creator (null = system-generated)
   tweetId: text("tweet_id"), // X/Twitter tweet ID when prediction was posted
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),

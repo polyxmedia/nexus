@@ -265,13 +265,16 @@ export default function MethodologyPage() {
               <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-navy-400">Research / Methodology</span>
             </div>
 
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-navy-100 max-w-2xl">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-navy-100 whitespace-nowrap">
               How NEXUS Detects What Others Miss
             </h1>
 
-            <p className="mt-1 font-sans text-[11px] text-accent-amber/80 leading-relaxed max-w-2xl border border-accent-amber/20 rounded px-3 py-2 bg-accent-amber/[0.03]">
-              Calendar and celestial overlays are behavioural finance inputs that track actor beliefs, not independent causal signals. They carry no convergence weight and the system performs comparably without them.
-            </p>
+            <div className="mt-4 max-w-2xl rounded-lg px-5 py-3.5 bg-navy-100 text-navy-950">
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold mb-1.5">Disclosure</p>
+              <p className="font-sans text-[12px] leading-relaxed">
+                Calendar and celestial overlays are behavioural finance inputs that track actor beliefs, not independent causal signals. They carry no convergence weight and the system performs comparably without them.
+              </p>
+            </div>
 
             <p className="mt-5 font-sans text-base text-navy-400 leading-relaxed max-w-2xl">
               A multi-layer intelligence system that monitors four primary signal layers plus a narrative overlay, scores their convergence, and synthesises high-conviction intelligence briefs. Every assessment traces back to observable data. Every prediction is tracked, timestamped, and scored against outcomes.

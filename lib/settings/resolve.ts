@@ -132,6 +132,7 @@ export async function resolveAll(username?: string): Promise<SettingsMap> {
     try {
       result[row.key] = decrypt(row.value).trim();
     } catch {
+      console.warn("[resolve] decrypt failed for key:", row.key);
       result[row.key] = row.value.trim();
     }
   }
@@ -149,6 +150,7 @@ export async function resolveAll(username?: string): Promise<SettingsMap> {
       try {
         result[bareKey] = decrypt(row.value).trim();
       } catch {
+        console.warn("[resolve] decrypt failed for user key:", row.key);
         result[bareKey] = row.value.trim();
       }
     }

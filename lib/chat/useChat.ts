@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { FileAttachment } from "@/components/chat/ChatInput";
 
 export type { FileAttachment };
@@ -105,7 +105,7 @@ export function useChat(sessionId: string) {
           content: message,
           toolCalls: [],
           pending: true,
-          files: files?.map((f) => ({ name: f.name, type: f.type, size: f.size, previewUrl: f.previewUrl })),
+          files: mapFilesForDisplay(files),
         };
         pendingQueue.current.push({ message, files });
         setTurns((prev) => [...prev, pendingTurn]);
@@ -118,7 +118,7 @@ export function useChat(sessionId: string) {
         role: "user",
         content: message,
         toolCalls: [],
-        files: files?.map((f) => ({ name: f.name, type: f.type, size: f.size, previewUrl: f.previewUrl })),
+        files: mapFilesForDisplay(files),
       };
 
       const assistantTurn: ChatTurn = {
@@ -312,23 +312,8 @@ export function useChat(sessionId: string) {
         // Notify sidebar to refresh credits after chat response
         window.dispatchEvent(new CustomEvent("nexus:credits-changed"));
 
-        // Drain pending train-of-thought queue
-        if (pendingQueue.current.length > 0) {
-          const queued = [...pendingQueue.current];
-          pendingQueue.current = [];
-
-          // Combine all pending messages into one
-          const combinedMessage = queued.map((q) => q.message).join("\n\n");
-          const combinedFiles = queued.flatMap((q) => q.files ?? []);
-
-          // Remove pending turns from the UI (they'll be replaced by the real send)
-          setTurns((prev) => prev.filter((t) => !t.pending));
-
-          // Use setTimeout to allow state to settle before re-sending
-          setTimeout(() => {
-            sendMessageRef.current(combinedMessage, combinedFiles.length > 0 ? combinedFiles : undefined);
-          }, 50);
-        }
+        // Mark that drain should happen (actual drain is in useEffect watching isStreaming)
+        // We don't drain here because React state (isStreaming=false) hasn't flushed yet.
       }
     },
     [sessionId, isStreaming]
@@ -338,11 +323,37 @@ export function useChat(sessionId: string) {
   const sendMessageRef = useRef(sendMessage);
   sendMessageRef.current = sendMessage;
 
+  // Drain pending queue when streaming stops (reactive, no timing heuristic)
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    // Only drain on transition from streaming -> not streaming
+    if (prevStreamingRef.current && !isStreaming && pendingQueue.current.length > 0) {
+      const queued = [...pendingQueue.current];
+      pendingQueue.current = [];
+
+      const combinedMessage = queued.map((q) => q.message).join("\n\n");
+      const combinedFiles = queued.flatMap((q) => q.files ?? []);
+
+      // Remove pending turns from UI (they'll be replaced by the real send)
+      setTurns((prev) => prev.filter((t) => !t.pending));
+
+      // Send on next frame to ensure state has flushed
+      requestAnimationFrame(() => {
+        sendMessageRef.current(combinedMessage, combinedFiles.length > 0 ? combinedFiles : undefined);
+      });
+    }
+    prevStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
   return { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, creditsExhausted, setModel };
+}
+
+function mapFilesForDisplay(files?: FileAttachment[]) {
+  return files?.map((f) => ({ name: f.name, type: f.type, size: f.size, previewUrl: f.previewUrl }));
 }
 
 /** Find the last non-pending assistant turn index (skips pending user messages appended after it) */

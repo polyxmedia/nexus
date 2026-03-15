@@ -67,11 +67,22 @@ export async function GET() {
       insights.push(report.resolutionBias.biasWarning);
     }
 
+    // BSS insight
+    if (report.brierSkillScore != null) {
+      if (report.brierSkillScore > 0) {
+        insights.push(`Brier Skill Score is ${report.brierSkillScore.toFixed(3)}, indicating genuine predictive skill above base rate guessing.`);
+      } else {
+        insights.push(`Brier Skill Score is ${report.brierSkillScore.toFixed(3)} (at or below zero), meaning predictions are not yet outperforming base rate guessing.`);
+      }
+    }
+
     return NextResponse.json({
       ready: true,
       totalResolved: report.totalResolved,
       sampleSufficient: report.sampleSufficient,
       brierScore: report.brierScore,
+      brierSkillScore: report.brierSkillScore,
+      brierBaseline: report.brierBaseline,
       logLoss: report.logLoss,
       binaryAccuracy: report.binaryAccuracy,
       avgConfidence: report.avgConfidence,
@@ -81,6 +92,8 @@ export async function GET() {
       timeframeAccuracy: report.timeframeAccuracy,
       recentTrend: report.recentTrend,
       failurePatterns: report.failurePatterns,
+      difficultyTiers: report.difficultyTiers,
+      rollingBrier: report.rollingBrier,
       insights,
     });
   } catch (err: unknown) {

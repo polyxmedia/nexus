@@ -54,7 +54,7 @@ export const GET = withApiAuth(async (request: NextRequest, ctx) => {
   const sinceDate = since || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   conditions.push(gte(schema.predictions.createdAt, sinceDate));
 
-  const filtered = await db
+  const filtered: (typeof schema.predictions.$inferSelect)[] = await db
     .select()
     .from(schema.predictions)
     .where(and(...conditions));
@@ -137,10 +137,84 @@ export const GET = withApiAuth(async (request: NextRequest, ctx) => {
       actualRate: total > 0 ? correct / total : 0,
     }));
 
+  // BSS computation
+  const DEFAULT_BASE_RATE = 0.30;
+  const scoreableForBss = nonExpired.filter((p) => p.preEvent === 1);
+  let brierSkillScore: number | null = null;
+  let brierBaseline: number | null = null;
+
+  if (scoreableForBss.length >= 3) {
+    const systemBrier = scoreableForBss.reduce((sum, p) => {
+      const actual = p.outcome === "confirmed" ? 1 : p.outcome === "partial" ? 0.5 : 0;
+      return sum + Math.pow(p.confidence - actual, 2);
+    }, 0) / scoreableForBss.length;
+
+    const baselineBrier = scoreableForBss.reduce((sum, p) => {
+      const br = p.baseRateAtCreation ?? DEFAULT_BASE_RATE;
+      const actual = p.outcome === "confirmed" ? 1 : p.outcome === "partial" ? 0.5 : 0;
+      return sum + Math.pow(br - actual, 2);
+    }, 0) / scoreableForBss.length;
+
+    brierBaseline = baselineBrier;
+    if (baselineBrier > 0) {
+      brierSkillScore = 1 - (systemBrier / baselineBrier);
+    }
+  }
+
+  // Difficulty tiers
+  type TierKey = "easy" | "medium" | "hard";
+  function classifyDifficulty(baseRate: number): TierKey {
+    if (baseRate > 0.8 || baseRate < 0.2) return "easy";
+    if (baseRate >= 0.4 && baseRate <= 0.6) return "hard";
+    return "medium";
+  }
+
+  let difficultyTiers: Record<TierKey, { count: number; brier: number; bss: number | null }> | null = null;
+  if (scoreableForBss.length >= 3) {
+    const tierBuckets: Record<TierKey, Array<{ confidence: number; outcome: string; baseRate: number }>> = { easy: [], medium: [], hard: [] };
+    for (const p of scoreableForBss) {
+      const br = p.baseRateAtCreation ?? DEFAULT_BASE_RATE;
+      const tier = classifyDifficulty(br);
+      tierBuckets[tier].push({ confidence: p.confidence, outcome: p.outcome!, baseRate: br });
+    }
+    function tierStats(preds: Array<{ confidence: number; outcome: string; baseRate: number }>) {
+      if (preds.length === 0) return { count: 0, brier: 0, bss: null as number | null };
+      const b = preds.reduce((s, p) => {
+        const actual = p.outcome === "confirmed" ? 1 : p.outcome === "partial" ? 0.5 : 0;
+        return s + Math.pow(p.confidence - actual, 2);
+      }, 0) / preds.length;
+      const bl = preds.reduce((s, p) => {
+        const actual = p.outcome === "confirmed" ? 1 : p.outcome === "partial" ? 0.5 : 0;
+        return s + Math.pow(p.baseRate - actual, 2);
+      }, 0) / preds.length;
+      return { count: preds.length, brier: b, bss: bl > 0 ? 1 - (b / bl) : null };
+    }
+    difficultyTiers = { easy: tierStats(tierBuckets.easy), medium: tierStats(tierBuckets.medium), hard: tierStats(tierBuckets.hard) };
+  }
+
+  // Rolling Brier (30/60/90 days)
+  const now = new Date();
+  function rollingBrierForWindow(days: number): number | null {
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+    const inWindow = scoreableForBss.filter((p) => p.resolvedAt && p.resolvedAt >= cutoff);
+    if (inWindow.length < 2) return null;
+    return inWindow.reduce((s, p) => {
+      const actual = p.outcome === "confirmed" ? 1 : p.outcome === "partial" ? 0.5 : 0;
+      return s + Math.pow(p.confidence - actual, 2);
+    }, 0) / inWindow.length;
+  }
+  const rollingBrier = scoreableForBss.length >= 3 ? {
+    days30: rollingBrierForWindow(30),
+    days60: rollingBrierForWindow(60),
+    days90: rollingBrierForWindow(90),
+  } : null;
+
   return apiSuccess(
     {
       totalResolved: filtered.length,
       brierScore,
+      brierSkillScore,
+      brierBaseline,
       accuracyRate,
       directionAccuracy,
       levelAccuracy,
@@ -148,6 +222,8 @@ export const GET = withApiAuth(async (request: NextRequest, ctx) => {
       byCategory,
       byRegime,
       calibration,
+      difficultyTiers,
+      rollingBrier,
       preEventCount: filtered.filter((p) => p.preEvent === 1).length,
       postEventCount: filtered.filter((p) => p.preEvent === 0 || p.preEvent === null).length,
     },

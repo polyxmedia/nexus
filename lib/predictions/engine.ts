@@ -746,7 +746,7 @@ async function validateAndCorrectSymbol(
 
 // ── Base Rate Confidence Adjustment ──
 
-async function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): Promise<number> {
+async function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): Promise<{ confidence: number; baseRate: number }> {
   const clamped = Math.max(0.05, Math.min(0.90, rawConfidence));
 
   // ── Calibration shrinkage ──
@@ -788,13 +788,13 @@ async function adjustConfidenceForBaseRate(rawConfidence: number, category: stri
   try {
     const catAdj = await getCategoryCalibrationAdjustment(category);
     if (catAdj.reliable) {
-      return Math.max(0.05, Math.min(0.85, specificityAdjusted * catAdj.multiplier));
+      return { confidence: Math.max(0.05, Math.min(0.85, specificityAdjusted * catAdj.multiplier)), baseRate };
     }
   } catch {
     // Backtest data unavailable, proceed with base rate adjustment only
   }
 
-  return Math.max(0.05, Math.min(0.85, specificityAdjusted));
+  return { confidence: Math.max(0.05, Math.min(0.85, specificityAdjusted)), baseRate };
 }
 
 // ── Compound Probability Detection ──
@@ -1516,11 +1516,14 @@ Output a brief devil's advocate summary (max 300 words).`;
   const created: NewPrediction[] = [];
   for (const p of parsed) {
     // 0. Meta-system content filter — reject junk that isn't a real prediction
-    if (isMetaSystemJunk(p.claim)) continue;
+    if (isMetaSystemJunk(p.claim)) {
+      console.log(`[predictions] REJECTED (meta-junk): ${p.claim.slice(0, 80)}...`);
+      continue;
+    }
 
     const normalized = normalizeClaim(p.claim);
 
-    // 1. Exact / near-exact text match (>40% word overlap — tightened from 50%)
+    // 1. Exact / near-exact text match (>55% word overlap)
     const textDuplicate = existingClaims.some((existing) => {
       if (existing === normalized) return true;
       const newWords = new Set(normalized.split(" ").filter((w) => w.length > 3));
@@ -1528,10 +1531,13 @@ Output a brief devil's advocate summary (max 300 words).`;
       if (newWords.size === 0 || existingWords.length === 0) return false;
       const overlap = existingWords.filter((w) => newWords.has(w)).length;
       const overlapRatio = overlap / Math.max(newWords.size, existingWords.length);
-      return overlapRatio > 0.40;
+      return overlapRatio > 0.55;
     });
 
-    if (textDuplicate) continue;
+    if (textDuplicate) {
+      console.log(`[predictions] REJECTED (text overlap): ${p.claim.slice(0, 80)}...`);
+      continue;
+    }
 
     // 1b. Semantic dedup: same ticker + same direction + overlapping deadline window
     // Catches cases like "QQQ RSI below 40 in 7 days" and "QQQ RSI below 38 in 14 days"
@@ -1561,17 +1567,28 @@ Output a brief devil's advocate summary (max 300 words).`;
       }
     }
 
-    // 2. Ticker-level deduplication — only block if same ticker AND same direction
-    //    Allows new predictions on covered tickers if the angle is different (e.g. different direction or no direction)
+    // 2. Ticker-level deduplication — only block if same ticker AND same direction AND overlapping deadline window
+    //    Allows new predictions on covered tickers if the angle is different or timeframe is sufficiently different
     //    Skip ticker dedup entirely for user-requested topics
     const newTickers = extractTickers(p.claim);
     if (!options?.topic && newDirection) {
       const tickerAndDirectionDuplicate = newTickers.some((t) =>
-        existingPredictionIndex.some((ex) =>
-          ex.tickers.includes(t) && ex.direction === newDirection && !ex.outcome
-        )
+        existingPredictionIndex.some((ex) => {
+          if (!ex.tickers.includes(t) || ex.direction !== newDirection || ex.outcome) return false;
+          // Only block if deadlines are within 14 days of each other
+          if (ex.deadline && p.deadline) {
+            const deadlineDiff = Math.abs(
+              new Date(p.deadline).getTime() - new Date(ex.deadline).getTime()
+            );
+            if (deadlineDiff > 14 * 24 * 60 * 60 * 1000) return false;
+          }
+          return true;
+        })
       );
-      if (tickerAndDirectionDuplicate) continue;
+      if (tickerAndDirectionDuplicate) {
+        console.log(`[predictions] REJECTED (ticker+direction dedup): ${newTickers.join(",")} ${newDirection}. Claim: ${p.claim.slice(0, 80)}...`);
+        continue;
+      }
     }
 
     // Validate category
@@ -1663,7 +1680,7 @@ Output a brief devil's advocate summary (max 300 words).`;
     }
 
     // Compute confidence with all adjustments, then enforce magnitude cap
-    const baseConfidence = await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim);
+    const { confidence: baseConfidence, baseRate: predictionBaseRate } = await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim);
     const finalConfidence = Math.min(baseConfidence, magnitudeConfidenceCap);
 
     const rows = await db
@@ -1681,6 +1698,7 @@ Output a brief devil's advocate summary (max 300 words).`;
         direction: direction || null,
         priceTarget: priceTarget || null,
         referenceSymbol: referenceSymbol || null,
+        baseRateAtCreation: predictionBaseRate,
         createdBy: options?.topic ? "requested" : "system",
       })
       .returning();

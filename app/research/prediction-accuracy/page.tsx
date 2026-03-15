@@ -60,6 +60,18 @@ interface FeedbackReport {
   directionLevel: { totalWithDirection: number; directionCorrectRate: number; totalWithLevel: number; levelCorrectRate: number; partialRate?: number } | null;
   regimeInvalidatedCount: number;
   postEventCount: number;
+  brierSkillScore: number | null;
+  brierBaseline: number | null;
+  difficultyTiers: {
+    easy: { count: number; brier: number; bss: number | null };
+    medium: { count: number; brier: number; bss: number | null };
+    hard: { count: number; brier: number; bss: number | null };
+  } | null;
+  rollingBrier: {
+    days30: number | null;
+    days60: number | null;
+    days90: number | null;
+  } | null;
 }
 
 interface ResolvedPrediction {
@@ -106,6 +118,21 @@ function brierLabel(score: number): string {
   if (score < 0.2) return "Good";
   if (score < 0.3) return "Fair";
   return "Poor";
+}
+
+function bssColor(score: number | null): string {
+  if (score === null) return "text-navy-500";
+  if (score > 0.2) return "text-accent-emerald";
+  if (score > 0) return "text-accent-cyan";
+  return "text-accent-rose";
+}
+
+function bssLabel(score: number | null): string {
+  if (score === null) return "N/A";
+  if (score > 0.3) return "Strong skill";
+  if (score > 0.1) return "Moderate skill";
+  if (score > 0) return "Marginal skill";
+  return "No skill";
 }
 
 function outcomeIcon(outcome: string) {
@@ -286,17 +313,31 @@ export default function PredictionAccuracyPage() {
       {/* ── Live data sections ── */}
       {report && report.sampleSufficient && (
         <>
+          {/* ── Sample warning ── */}
+          {report.totalResolved < 50 && (
+            <section className="px-6 pb-6">
+              <div className="max-w-5xl mx-auto">
+                <div className="flex items-center gap-3 px-4 py-3 border border-accent-amber/20 rounded-lg bg-accent-amber/[0.04]">
+                  <AlertTriangle className="w-4 h-4 text-accent-amber flex-shrink-0" />
+                  <p className="font-mono text-[10px] text-accent-amber/80">
+                    Metrics are not yet statistically meaningful (n={report.totalResolved}, need 50+). Treat all figures as preliminary estimates.
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* ── Stats ── */}
           <section className="px-6 pb-16">
             <div ref={statsReveal.ref} className="max-w-5xl mx-auto">
               <div className={`grid grid-cols-2 lg:grid-cols-5 gap-x-8 gap-y-6 transition-all duration-700 ${statsReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-                {[
+                {([
+                  { label: "Brier Skill Score", value: report.brierSkillScore != null ? report.brierSkillScore.toFixed(3) : "N/A", color: bssColor(report.brierSkillScore), sub: report.brierSkillScore != null ? bssLabel(report.brierSkillScore) : undefined },
+                  { label: "Brier Score", value: report.brierScore.toFixed(3), color: brierColor(report.brierScore), sub: brierLabel(report.brierScore) },
+                  { label: "Brier Baseline", value: report.brierBaseline != null ? report.brierBaseline.toFixed(3) : "N/A", color: "text-navy-300", sub: "Base rate reference" },
                   { label: "Predictions Resolved", value: report.totalResolved.toLocaleString(), color: "text-navy-100" },
-                  { label: "Binary Accuracy", value: (report.binaryAccuracy * 100).toFixed(1) + "%", color: "text-navy-100" },
-                  { label: "Brier Score", value: report.brierScore.toFixed(3), color: brierColor(report.brierScore) },
-                  { label: "Avg Confidence", value: (report.avgConfidence * 100).toFixed(1) + "%", color: "text-navy-100" },
                   { label: "Calibration Gap", value: (report.calibrationGap * 100).toFixed(1) + "%", color: report.calibrationGap < 0.05 ? "text-accent-emerald" : report.calibrationGap < 0.1 ? "text-accent-cyan" : "text-accent-amber" },
-                ].map((stat, i) => (
+                ] as Array<{ label: string; value: string; color: string; sub?: string }>).map((stat, i) => (
                   <div key={stat.label} className="transition-all duration-700" style={{ transitionDelay: `${i * 80}ms` }}>
                     <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-navy-500 mb-2">
                       {stat.label}
@@ -304,6 +345,9 @@ export default function PredictionAccuracyPage() {
                     <p className={`font-mono text-3xl font-bold ${stat.color}`}>
                       {stat.value}
                     </p>
+                    {stat.sub && (
+                      <p className="font-mono text-[9px] text-navy-500 mt-1">{stat.sub}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -391,12 +435,115 @@ export default function PredictionAccuracyPage() {
                       {brierLabel(report.brierScore)} / {report.totalResolved} resolved predictions
                     </div>
                   </div>
+
+                  {report.brierSkillScore != null && (
+                    <div className="mt-4 pt-4 border-t border-navy-800/60">
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-1">Brier Skill Score (Live)</div>
+                      <div className={`font-mono text-2xl font-bold ${bssColor(report.brierSkillScore)}`}>
+                        {report.brierSkillScore.toFixed(3)}
+                      </div>
+                      <div className={`font-mono text-[10px] mt-1 ${bssColor(report.brierSkillScore)}`}>
+                        {bssLabel(report.brierSkillScore)}
+                      </div>
+                      <p className="font-sans text-[10px] text-navy-500 mt-2 leading-relaxed">
+                        BSS measures improvement over base rate guessing. Positive = genuine skill. Zero or negative = no better than always predicting the base rate.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </section>
 
           <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
+
+          {/* ── Difficulty Tiers ── */}
+          {report.difficultyTiers && (
+            <>
+              <section className="px-6 py-16">
+                <div className="max-w-5xl mx-auto">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="h-px w-8 bg-navy-700" />
+                    <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Skill by Difficulty</h2>
+                    <LivePulse />
+                  </div>
+                  <p className="mt-4 font-sans text-sm text-navy-400 leading-relaxed max-w-3xl mb-8">
+                    Predictions classified by base rate proximity to 50%. Easy predictions (base rate near 0 or 1) should have low Brier scores regardless. Genuine skill shows in hard predictions where outcomes are inherently uncertain.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {(["easy", "medium", "hard"] as const).map((tier) => {
+                      const data = report.difficultyTiers![tier];
+                      const tierLabel = tier === "easy" ? "Easy (BR < 0.2 or > 0.8)" : tier === "medium" ? "Medium (BR 0.2-0.4, 0.6-0.8)" : "Hard (BR 0.4-0.6)";
+                      return (
+                        <div key={tier} className="border border-navy-800/60 rounded-lg p-5">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">{tierLabel}</div>
+                          <div className="space-y-3">
+                            <div>
+                              <div className="font-mono text-[9px] text-navy-600">Count</div>
+                              <div className="font-mono text-lg font-bold text-navy-200">{data.count}</div>
+                            </div>
+                            <div>
+                              <div className="font-mono text-[9px] text-navy-600">Brier</div>
+                              <div className={`font-mono text-lg font-bold ${data.count > 0 ? brierColor(data.brier) : "text-navy-600"}`}>
+                                {data.count > 0 ? data.brier.toFixed(3) : "-"}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-mono text-[9px] text-navy-600">BSS</div>
+                              <div className={`font-mono text-lg font-bold ${bssColor(data.bss)}`}>
+                                {data.bss != null ? data.bss.toFixed(3) : "-"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+
+              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
+            </>
+          )}
+
+          {/* ── Rolling Brier Trend ── */}
+          {report.rollingBrier && (
+            <>
+              <section className="px-6 py-16">
+                <div className="max-w-5xl mx-auto">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="h-px w-8 bg-navy-700" />
+                    <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Rolling Brier Trend</h2>
+                    <LivePulse />
+                  </div>
+                  <p className="mt-4 font-sans text-sm text-navy-400 leading-relaxed max-w-3xl mb-8">
+                    Brier score computed over 30, 60, and 90 day rolling windows of resolved predictions.
+                  </p>
+                  <div className="grid grid-cols-3 gap-8">
+                    {([
+                      { label: "30 Days", value: report.rollingBrier.days30 },
+                      { label: "60 Days", value: report.rollingBrier.days60 },
+                      { label: "90 Days", value: report.rollingBrier.days90 },
+                    ] as const).map((window) => (
+                      <div key={window.label}>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">{window.label}</div>
+                        <div className={`font-mono text-2xl font-bold ${window.value != null ? brierColor(window.value) : "text-navy-600"}`}>
+                          {window.value != null ? window.value.toFixed(3) : "N/A"}
+                        </div>
+                        {window.value != null && (
+                          <div className={`font-mono text-[9px] mt-1 ${brierColor(window.value)}`}>
+                            {brierLabel(window.value)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
+            </>
+          )}
 
           {/* ── Calibration ── */}
           <section className="px-6 py-16">

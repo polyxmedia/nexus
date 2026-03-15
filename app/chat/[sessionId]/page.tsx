@@ -388,26 +388,34 @@ export default function ChatSessionPage() {
           </div>
         ) : (
           <div className="max-w-4xl mx-auto px-6 py-6">
-            {turns.map((turn, i) => {
-              // Running credit total up to and including this turn
-              const cumulativeCredits = isAdmin
-                ? turns.slice(0, i + 1).reduce((sum, t) => sum + (t.tokenUsage?.creditsUsed ?? 0), 0)
-                : undefined;
-              return (
-                <MessageBlock
-                  key={turn.id}
-                  turn={turn}
-                  isStreaming={
-                    isStreaming &&
-                    turn.role === "assistant" &&
-                    // Last assistant turn before any pending messages
-                    !turns.slice(i + 1).some((t) => t.role === "assistant" && !t.pending)
-                  }
-                  onSuggestionClick={sendMessage}
-                  cumulativeCredits={cumulativeCredits}
-                />
-              );
-            })}
+            {(() => {
+              // Precompute last assistant index to avoid O(n^2) .slice().some() per turn
+              let lastAssistantIdx = -1;
+              for (let j = turns.length - 1; j >= 0; j--) {
+                if (turns[j].role === "assistant" && !turns[j].pending) {
+                  lastAssistantIdx = j;
+                  break;
+                }
+              }
+              return turns.map((turn, i) => {
+                const cumulativeCredits = isAdmin
+                  ? turns.slice(0, i + 1).reduce((sum, t) => sum + (t.tokenUsage?.creditsUsed ?? 0), 0)
+                  : undefined;
+                return (
+                  <MessageBlock
+                    key={turn.id}
+                    turn={turn}
+                    isStreaming={
+                      isStreaming &&
+                      turn.role === "assistant" &&
+                      i === lastAssistantIdx
+                    }
+                    onSuggestionClick={sendMessage}
+                    cumulativeCredits={cumulativeCredits}
+                  />
+                );
+              });
+            })()}
           </div>
         )}
       </div>}

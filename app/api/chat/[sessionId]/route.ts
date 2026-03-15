@@ -74,6 +74,7 @@ async function getSystemPromptWithMode(username?: string, projectId?: number | n
     }
   }
 
+
   // Inject project instructions if session belongs to a project
   if (projectId) {
     try {
@@ -401,6 +402,50 @@ export async function POST(
         ];
         if (preflightContext) {
           systemBlocks.push({ type: "text" as const, text: preflightContext });
+        }
+
+        // ── Sycophancy feedback loop (Sharma et al. 2024, Chen et al. 2025) ──
+        // Research shows sycophancy types are causally separable (agreement vs praise
+        // vs selective evidence). Target corrections at the specific pattern detected
+        // rather than issuing a generic warning. Few-shot counter-examples in the
+        // system prompt handle the baseline; this loop handles session-level drift.
+        try {
+          const lastSycRow = await db.execute(drizzleSql`
+            SELECT metadata FROM chat_messages
+            WHERE session_id = ${id} AND role = 'assistant' AND metadata IS NOT NULL
+            ORDER BY id DESC LIMIT 1
+          `);
+          const raw = lastSycRow.rows[0]?.metadata;
+          const lastMeta = typeof raw === "string" ? raw : undefined;
+          if (lastMeta) {
+            const parsed = JSON.parse(lastMeta);
+            const sycScore = parsed?.sycophancyIndex?.score;
+            const sycFlags = parsed?.sycophancyIndex?.flags;
+            if (typeof sycScore === "number" && sycScore > 0.3 && Array.isArray(sycFlags) && sycFlags.length > 0) {
+              const SYCOPHANCY_CORRECTIONS: Record<string, string> = {
+                FILLER_VALIDATION: "PRAISE BIAS: Previous response contained validating language. Strip all filler. Open with data, not affirmation.",
+                TONE_ALIGNMENT: "PRAISE BIAS: Previous response contained validating language. Strip all filler. Open with data, not affirmation.",
+                AGREEMENT_WITHOUT_EVIDENCE: "AGREEMENT BIAS: Previous response agreed without citing tool results. This response MUST cite specific data points for every claim. If no data supports the claim, say so.",
+                SELECTIVE_EVIDENCE: "EVIDENCE BIAS: Previous response omitted counter-evidence. This response MUST lead with the strongest argument AGAINST the operator's position before presenting supporting evidence.",
+                BURIED_CONTRADICTION: "EVIDENCE BIAS: Previous response omitted counter-evidence. This response MUST lead with the strongest argument AGAINST the operator's position before presenting supporting evidence.",
+                MIRRORED_FRAMING: "FRAMING BIAS: Previous response adopted the operator's framing. Reframe from raw data. Call positions 'positions' not 'convictions'. Call theses 'hypotheses' not 'confirmed theses'.",
+                INFLATED_CONFIDENCE: "CONFIDENCE BIAS: Previous response inflated probabilities. Use exact tool-derived numbers. Do not round toward the operator's preferred direction.",
+              };
+              const corrections = new Set<string>();
+              for (const flag of sycFlags as string[]) {
+                const key = Object.keys(SYCOPHANCY_CORRECTIONS).find((k) => flag.toUpperCase().includes(k));
+                if (key) corrections.add(SYCOPHANCY_CORRECTIONS[key]);
+              }
+              if (corrections.size > 0) {
+                systemBlocks.push({
+                  type: "text" as const,
+                  text: `\n\n## SYCOPHANCY CALIBRATION (score: ${(sycScore * 100).toFixed(0)}%)\nThe previous response in this session was flagged for sycophantic patterns. Apply these targeted corrections:\n${[...corrections].map((c) => `- ${c}`).join("\n")}\n\nThe sycophancy index is visible to the operator. They can see when the analyst is being agreeable rather than independent. Correct now.`,
+                });
+              }
+            }
+          }
+        } catch {
+          // Non-critical - sycophancy feedback is best-effort
         }
 
         // Add cache_control to the last tool so the full tool array gets cached
