@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Copy, Check, FileText } from "lucide-react";
-import type { ChatTurn } from "@/lib/chat/useChat";
+import type { ChatTurn, SycophancyIndex } from "@/lib/chat/useChat";
 import { ToolCallIndicator } from "./ToolCallIndicator";
 import { ToolResultRenderer } from "./ToolResultRenderer";
 import ReactMarkdown from "react-markdown";
@@ -32,6 +32,71 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function getSycophancyLabel(score: number): { label: string; color: string } {
+  if (score <= 0.1) return { label: "INDEPENDENT", color: "text-accent-emerald" };
+  if (score <= 0.3) return { label: "LOW BIAS", color: "text-accent-cyan" };
+  if (score <= 0.5) return { label: "MODERATE BIAS", color: "text-accent-amber" };
+  if (score <= 0.7) return { label: "HIGH BIAS", color: "text-accent-amber" };
+  return { label: "SYCOPHANTIC", color: "text-accent-rose" };
+}
+
+function SycophancyCoefficient({ index }: { index: SycophancyIndex }) {
+  const [expanded, setExpanded] = useState(false);
+  const { label, color } = getSycophancyLabel(index.score);
+  const pct = (index.score * 100).toFixed(0);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => index.flags.length > 0 && setExpanded(!expanded)}
+        className="flex items-center gap-2 text-[10px] font-mono group/syc"
+      >
+        <span className="uppercase tracking-wider text-navy-600">Sycophancy Index</span>
+        <span className="text-navy-700">|</span>
+        {/* Score bar */}
+        <div className="flex items-center gap-1.5">
+          <div className="w-16 h-1 rounded-full bg-navy-800 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                index.score <= 0.1 ? "bg-accent-emerald" :
+                index.score <= 0.3 ? "bg-accent-cyan" :
+                index.score <= 0.5 ? "bg-accent-amber" :
+                index.score <= 0.7 ? "bg-accent-amber" :
+                "bg-accent-rose"
+              }`}
+              style={{ width: `${Math.max(3, index.score * 100)}%` }}
+            />
+          </div>
+          <span className={`font-semibold ${color}`}>{pct}%</span>
+          <span className={`uppercase tracking-wider ${color}`}>{label}</span>
+        </div>
+        {index.flags.length > 0 && (
+          <>
+            <span className="text-navy-700">|</span>
+            <span className="text-navy-600 group-hover/syc:text-navy-400 transition-colors">
+              {index.flags.length} flag{index.flags.length !== 1 ? "s" : ""} {expanded ? "-" : "+"}
+            </span>
+          </>
+        )}
+      </button>
+
+      {/* Disclaimer */}
+      <p className="text-[9px] font-mono text-navy-700 mt-0.5">
+        AI outputs are pattern-matched, not reasoned. Always validate independently.
+      </p>
+
+      {/* Expanded flags */}
+      {expanded && index.flags.length > 0 && (
+        <div className="mt-1.5 pl-2 border-l border-navy-800 space-y-1">
+          {index.flags.map((flag, i) => (
+            <p key={i} className="text-[10px] font-mono text-navy-500">{flag}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface MessageBlockProps {
   turn: ChatTurn;
   isStreaming?: boolean;
@@ -44,7 +109,7 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeC
   if (turn.role === "user") {
     return (
       <div className="group flex justify-end items-start gap-1.5 mb-4">
-        <CopyButton text={turn.content} />
+        {!turn.pending && <CopyButton text={turn.content} />}
         <div className="max-w-[70%] flex flex-col gap-2">
           {/* File attachments */}
           {turn.files && turn.files.length > 0 && (
@@ -52,13 +117,17 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeC
               {turn.files.map((f, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-1.5 rounded-lg border border-navy-600/40 bg-navy-800/60 pl-2 pr-2.5 py-1.5 text-[11px] font-mono text-navy-400 max-w-[180px]"
+                  className={`flex items-center gap-1.5 rounded-lg border pl-2 pr-2.5 py-1.5 text-[11px] font-mono max-w-[180px] ${
+                    turn.pending
+                      ? "border-accent-amber/20 bg-accent-amber/5 text-navy-500"
+                      : "border-navy-600/40 bg-navy-800/60 text-navy-400"
+                  }`}
                 >
                   {f.previewUrl ? (
                     <img
                       src={f.previewUrl}
                       alt={f.name}
-                      className="h-5 w-5 rounded object-cover flex-shrink-0"
+                      className={`h-5 w-5 rounded object-cover flex-shrink-0 ${turn.pending ? "opacity-50" : ""}`}
                     />
                   ) : (
                     <FileText className="h-3 w-3 text-accent-amber flex-shrink-0" />
@@ -68,10 +137,25 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeC
               ))}
             </div>
           )}
+          {/* Pending label */}
+          {turn.pending && (
+            <div className="flex items-center justify-end gap-1.5">
+              <span className="inline-block w-1 h-1 rounded-full bg-accent-amber animate-pulse" />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-accent-amber/60">
+                Queued
+              </span>
+            </div>
+          )}
           {/* Message text */}
           {turn.content && (
-            <div className="border border-navy-600 rounded bg-navy-800/60 px-4 py-3">
-              <div className="text-xs font-mono text-navy-200 whitespace-pre-wrap">
+            <div className={`border rounded px-4 py-3 ${
+              turn.pending
+                ? "border-accent-amber/20 bg-accent-amber/[0.03]"
+                : "border-navy-600 bg-navy-800/60"
+            }`}>
+              <div className={`text-xs font-mono whitespace-pre-wrap ${
+                turn.pending ? "text-navy-400" : "text-navy-200"
+              }`}>
                 {turn.content}
               </div>
             </div>
@@ -217,6 +301,11 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeC
             </>
           )}
         </div>
+      )}
+
+      {/* Sycophancy Index */}
+      {!isStreaming && turn.sycophancyIndex && (
+        <SycophancyCoefficient index={turn.sycophancyIndex} />
       )}
 
       {/* Meta-Analysis calibration audit */}

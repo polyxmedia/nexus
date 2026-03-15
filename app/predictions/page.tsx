@@ -739,12 +739,12 @@ export default function PredictionsPage() {
   };
 
   const sortPredictions = (list: Prediction[], tab: "pending" | "resolved") => {
+    const now = new Date().toISOString().split("T")[0];
     return [...list].sort((a, b) => {
       if (sortBy === "confidence") return b.confidence - a.confidence;
       if (sortBy === "created") return b.createdAt.localeCompare(a.createdAt);
       if (tab === "pending") {
         // Overdue predictions surface first, then by soonest deadline
-        const now = new Date().toISOString().split("T")[0];
         const aOverdue = a.deadline <= now ? 1 : 0;
         const bOverdue = b.deadline <= now ? 1 : 0;
         if (aOverdue !== bOverdue) return bOverdue - aOverdue;

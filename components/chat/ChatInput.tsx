@@ -114,14 +114,14 @@ export function ChatInput({
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
-    if ((!trimmed && files.length === 0) || isStreaming || disabled) return;
+    if ((!trimmed && files.length === 0) || disabled) return;
     onSend(trimmed, files.length > 0 ? files : undefined);
     setValue("");
     setFiles([]);
     resetHeight();
     // re-focus textarea after send
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [value, files, isStreaming, disabled, onSend, resetHeight]);
+  }, [value, files, disabled, onSend, resetHeight]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -303,7 +303,7 @@ export function ChatInput({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isStreaming}
+            disabled={disabled}
             title="Attach file (images, text, code)"
             className={cn(
               "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
@@ -438,7 +438,7 @@ export function ChatInput({
           </span>
 
           {/* Send / Stop */}
-          {isStreaming ? (
+          {isStreaming && (
             <button
               type="button"
               onClick={onStop}
@@ -447,22 +447,23 @@ export function ChatInput({
             >
               <Square className="h-3.5 w-3.5" fill="currentColor" />
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!canSend}
-              title="Send message"
-              className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-lg transition-all",
-                canSend
-                  ? "bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/20 hover:border-accent-cyan/40"
-                  : "bg-navy-800/40 border border-navy-700/30 text-navy-700 cursor-not-allowed"
-              )}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
           )}
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!canSend}
+            title={isStreaming ? "Queue message (will send after current response)" : "Send message"}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-all",
+              canSend
+                ? isStreaming
+                  ? "bg-accent-amber/10 border border-accent-amber/30 text-accent-amber hover:bg-accent-amber/20 hover:border-accent-amber/40"
+                  : "bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/20 hover:border-accent-cyan/40"
+                : "bg-navy-800/40 border border-navy-700/30 text-navy-700 cursor-not-allowed"
+            )}
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
         </div>
       </div>
 

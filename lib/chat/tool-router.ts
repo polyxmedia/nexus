@@ -62,6 +62,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
     "get_macro_data",
     "get_actor_profile",
     "get_prediction_markets",
+    "get_eschatological_convergence",
   ],
   macro: [
     "get_macro_data",
@@ -117,6 +118,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
     "get_congressional_trading",
     "get_ai_progression",
     "analyze_ach",
+    "get_eschatological_convergence",
   ],
   crypto: [
     "get_on_chain",
@@ -152,6 +154,8 @@ const GROUP_TRIGGERS: Array<{ pattern: RegExp; groups: string[] }> = [
   { pattern: /\b(price|stock|ticker|rsi|macd|bollinger|technical|chart|quote|entry|exit|target|spy|qqq|aapl|nvda|tsla|goog|amzn|msft|amd|buy|sell|trade|position|long|short|options?|gamma|gex|put.?call|order book|flow|imbalance)\b/i, groups: ["market", "trading"] },
   // Geopolitical
   { pattern: /\b(geopolit|war|conflict|iran|china|taiwan|russia|ukraine|nato|military|strike|escala|nuclear|houthi|hezbollah|hamas|sanctions?|territory|actor|nash|game theory|schelling|equilibri)\b/i, groups: ["geopolitical"] },
+  // Eschatological convergence
+  { pattern: /\b(eschatolog|temple mount|third temple|mahdi|caliphate|end.?times|apocalyp|prophecy|theological|divine mandate|no.?off.?ramp|al.?aqsa|holy site|sacred|messianic|katechon|third rome|ottoman|fulfilment theolog)\b/i, groups: ["forecasting", "geopolitical", "intelligence"] },
   // Forecasting / probability
   { pattern: /\b(probabilit|forecast|predict|will .+ (happen|occur|pass|succeed|fail|win|lose)|chances? of|likelihood|what are the odds|brier|yes or no.*prob|how likely|percent chance|base rate)\b/i, groups: ["forecasting"] },
   // Macro / economic

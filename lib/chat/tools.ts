@@ -820,6 +820,26 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_eschatological_convergence",
+    description:
+      "Detect active eschatological convergences: where multiple state actors simultaneously pursue incompatible end-times theologies over the same geography, creating non-linear risk amplification because divine mandates cannot be negotiated away. Returns active programmes, incompatibility scores, amplification factors, and no-off-ramp pair detection. Use when analysing Middle East escalation, Temple Mount tensions, Iran-Israel dynamics, or any scenario where actors' theological commitments constrain diplomatic options. Can also query a specific actor's eschatological profile.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        actor_id: {
+          type: "string",
+          description: "Optional: get eschatological profile for a specific actor (e.g. 'israel_far_right', 'iran_irgc', 'us_executive', 'russia_kremlin', 'isis', 'turkey_erdogan'). Omit to get the full landscape.",
+        },
+        active_calendar_events: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional: active calendar event keys (e.g. ['purim', 'ramadan', 'quds_day']) to check for trigger elevation. If omitted, runs without calendar context.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "generate_narrative_report",
     description: "Generate a long-form intelligence briefing / lecture script pulling all signals, parallels, game theory, predictions, and thesis into a single coherent narrative. 10-15 minute reading time. Includes risk matrix and key takeaways.",
     input_schema: {
@@ -1371,6 +1391,8 @@ export async function executeTool(
       return executeGetGEX(input);
     case "search_historical_parallels":
       return executeSearchParallels(input);
+    case "get_eschatological_convergence":
+      return executeGetEschatologicalConvergence(input);
     case "get_actor_profile":
       return executeGetActorProfile(input);
     case "generate_narrative_report":
@@ -1714,6 +1736,71 @@ async function executeCreateCustomGameTheory(input: Record<string, unknown>) {
     },
     analysis,
     custom: true,
+  };
+}
+
+async function executeGetEschatologicalConvergence(input: Record<string, unknown>) {
+  const { getActorEschatologicalProfile, getEschatologicalLandscape } = await import("@/lib/signals/eschatological");
+
+  const actorId = input.actor_id as string | undefined;
+  const calendarEvents = (input.active_calendar_events as string[]) || [];
+
+  // Single actor profile request
+  if (actorId) {
+    const profile = getActorEschatologicalProfile(actorId);
+    if (!profile.programme) {
+      return { error: `No eschatological programme found for actor '${actorId}'` };
+    }
+    return {
+      actor: actorId,
+      programme: {
+        name: profile.programme.name,
+        theology: profile.programme.theology,
+        mandate: profile.programme.mandate,
+        targetGeography: profile.programme.targetGeography,
+        doctrinalBasis: profile.programme.doctrinalBasis,
+        operationalIndicators: profile.programme.operationalIndicators,
+        policyInfluence: profile.programme.policyInfluence,
+        rigidity: profile.programme.rigidity,
+      },
+      calendarTriggers: profile.calendarTriggers.map((t) => ({
+        event: t.calendarEvent,
+        system: t.calendarSystem,
+        activationMultiplier: t.activationMultiplier,
+        historicalBasis: t.historicalBasis,
+        confidence: t.confidence,
+      })),
+      incompatibilities: profile.incompatibilities,
+    };
+  }
+
+  // Full landscape
+  const landscape = getEschatologicalLandscape(calendarEvents);
+
+  return {
+    activeProgrammes: landscape.programmes.map((p) => ({
+      actor: p.actorId,
+      name: p.name,
+      theology: p.theology,
+      mandate: p.mandate,
+      targetGeography: p.targetGeography,
+      policyInfluence: p.policyInfluence,
+      rigidity: p.rigidity,
+      calendarElevation: p.calendarElevation,
+    })),
+    convergences: landscape.convergences.map((c) => ({
+      actors: c.actors,
+      programmes: c.programmes,
+      sharedGeography: c.sharedGeography,
+      incompatibility: c.incompatibilityReason,
+      amplificationFactor: c.amplificationFactor,
+      compositeRigidity: c.compositeRigidity,
+      significance: c.significance,
+      marketSectors: c.marketSectors,
+    })),
+    highestAmplification: landscape.highestAmplification,
+    noOffRampPairs: landscape.noOffRampPairs,
+    calendarEventsChecked: calendarEvents,
   };
 }
 

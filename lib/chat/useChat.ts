@@ -29,6 +29,11 @@ export interface MetaAnalysisResult {
   missing_data: string[];
 }
 
+export interface SycophancyIndex {
+  score: number; // 0.0 (independent) to 1.0 (maximally sycophantic)
+  flags: string[]; // specific sycophancy patterns detected
+}
+
 export interface ChatTurn {
   id: string;
   role: "user" | "assistant";
@@ -36,9 +41,12 @@ export interface ChatTurn {
   toolCalls: ToolCall[];
   suggestions?: string[];
   metaAnalysis?: MetaAnalysisResult;
+  sycophancyIndex?: SycophancyIndex;
   tokenUsage?: TokenUsage;
   /** File attachments (user turns only, client-side display) */
   files?: Array<{ name: string; type: string; size: number; previewUrl?: string }>;
+  /** Message is queued and waiting to be processed */
+  pending?: boolean;
 }
 
 export interface ChatMessage {
@@ -53,6 +61,7 @@ export interface ChatMessage {
   outputTokens: number | null;
   creditsUsed: number | null;
   elapsedMs: number | null;
+  metadata: string | null;
   createdAt: string;
 }
 
@@ -62,6 +71,7 @@ export function useChat(sessionId: string) {
   const [upgradeRequired, setUpgradeRequired] = useState(false);
   const [creditsExhausted, setCreditsExhausted] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const pendingQueue = useRef<Array<{ message: string; files?: FileAttachment[] }>>([]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -85,7 +95,22 @@ export function useChat(sessionId: string) {
 
   const sendMessage = useCallback(
     async (message: string, files?: FileAttachment[]) => {
-      if (isStreaming || (!message.trim() && !files?.length)) return;
+      if (!message.trim() && !files?.length) return;
+
+      // If already streaming, queue as pending train-of-thought
+      if (isStreaming) {
+        const pendingTurn: ChatTurn = {
+          id: `pending-${Date.now()}-${pendingQueue.current.length}`,
+          role: "user",
+          content: message,
+          toolCalls: [],
+          pending: true,
+          files: files?.map((f) => ({ name: f.name, type: f.type, size: f.size, previewUrl: f.previewUrl })),
+        };
+        pendingQueue.current.push({ message, files });
+        setTurns((prev) => [...prev, pendingTurn]);
+        return;
+      }
 
       // Add user turn
       const userTurn: ChatTurn = {
@@ -163,29 +188,22 @@ export function useChat(sessionId: string) {
               if (event.type === "text_delta") {
                 setTurns((prev) => {
                   const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      content: last.content + event.delta,
-                    };
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = { ...updated[idx], content: updated[idx].content + event.delta };
                   }
                   return updated;
                 });
               } else if (event.type === "tool_start") {
                 setTurns((prev) => {
                   const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = {
+                      ...updated[idx],
                       toolCalls: [
-                        ...last.toolCalls,
-                        {
-                          toolName: event.toolName,
-                          toolUseId: event.toolUseId,
-                          status: "loading",
-                        },
+                        ...updated[idx].toolCalls,
+                        { toolName: event.toolName, toolUseId: event.toolUseId, status: "loading" },
                       ],
                     };
                   }
@@ -194,11 +212,11 @@ export function useChat(sessionId: string) {
               } else if (event.type === "tool_result") {
                 setTurns((prev) => {
                   const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      toolCalls: last.toolCalls.map((tc) =>
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = {
+                      ...updated[idx],
+                      toolCalls: updated[idx].toolCalls.map((tc) =>
                         tc.toolUseId === event.toolUseId
                           ? { ...tc, status: "done" as const, result: event.result }
                           : tc
@@ -210,10 +228,10 @@ export function useChat(sessionId: string) {
               } else if (event.type === "token_usage" || event.type === "usage_summary") {
                 setTurns((prev) => {
                   const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = {
+                      ...updated[idx],
                       tokenUsage: {
                         inputTokens: event.inputTokens ?? event.totalInputTokens ?? 0,
                         outputTokens: event.outputTokens ?? event.totalOutputTokens ?? 0,
@@ -227,38 +245,41 @@ export function useChat(sessionId: string) {
                   }
                   return updated;
                 });
+              } else if (event.type === "sycophancy_index") {
+                setTurns((prev) => {
+                  const updated = [...prev];
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = { ...updated[idx], sycophancyIndex: event.result as SycophancyIndex };
+                  }
+                  return updated;
+                });
               } else if (event.type === "meta_analysis") {
                 setTurns((prev) => {
                   const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      metaAnalysis: event.result as MetaAnalysisResult,
-                    };
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = { ...updated[idx], metaAnalysis: event.result as MetaAnalysisResult };
                   }
                   return updated;
                 });
               } else if (event.type === "suggestions") {
                 setTurns((prev) => {
                   const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      suggestions: event.suggestions as string[],
-                    };
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = { ...updated[idx], suggestions: event.suggestions as string[] };
                   }
                   return updated;
                 });
               } else if (event.type === "error") {
                 setTurns((prev) => {
                   const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      content: last.content || `Error: ${event.message}`,
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = {
+                      ...updated[idx],
+                      content: updated[idx].content || `Error: ${event.message}`,
                     };
                   }
                   return updated;
@@ -278,12 +299,9 @@ export function useChat(sessionId: string) {
             err instanceof Error ? err.message : "Connection failed";
           setTurns((prev) => {
             const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last && last.role === "assistant" && !last.content) {
-              updated[updated.length - 1] = {
-                ...last,
-                content: `Error: ${message}`,
-              };
+            const idx = findLastAssistantIndex(updated);
+            if (idx >= 0 && !updated[idx].content) {
+              updated[idx] = { ...updated[idx], content: `Error: ${message}` };
             }
             return updated;
           });
@@ -293,16 +311,46 @@ export function useChat(sessionId: string) {
         abortRef.current = null;
         // Notify sidebar to refresh credits after chat response
         window.dispatchEvent(new CustomEvent("nexus:credits-changed"));
+
+        // Drain pending train-of-thought queue
+        if (pendingQueue.current.length > 0) {
+          const queued = [...pendingQueue.current];
+          pendingQueue.current = [];
+
+          // Combine all pending messages into one
+          const combinedMessage = queued.map((q) => q.message).join("\n\n");
+          const combinedFiles = queued.flatMap((q) => q.files ?? []);
+
+          // Remove pending turns from the UI (they'll be replaced by the real send)
+          setTurns((prev) => prev.filter((t) => !t.pending));
+
+          // Use setTimeout to allow state to settle before re-sending
+          setTimeout(() => {
+            sendMessageRef.current(combinedMessage, combinedFiles.length > 0 ? combinedFiles : undefined);
+          }, 50);
+        }
       }
     },
     [sessionId, isStreaming]
   );
+
+  // Stable ref for sendMessage so the drain callback can call it
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
   return { turns, isStreaming, sendMessage, stop, loadHistory, upgradeRequired, creditsExhausted, setModel };
+}
+
+/** Find the last non-pending assistant turn index (skips pending user messages appended after it) */
+function findLastAssistantIndex(turns: ChatTurn[]): number {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i].role === "assistant") return i;
+  }
+  return -1;
 }
 
 function dbMessagesToTurns(messages: ChatMessage[]): ChatTurn[] {
@@ -358,6 +406,18 @@ function dbMessagesToTurns(messages: ChatMessage[]): ChatTurn[] {
           model: msg.model,
           elapsedMs: msg.elapsedMs ?? 0,
         };
+      }
+
+      // Restore sycophancy index from persisted metadata
+      if (msg.metadata) {
+        try {
+          const meta = JSON.parse(msg.metadata);
+          if (meta.sycophancyIndex) {
+            turn.sycophancyIndex = meta.sycophancyIndex;
+          }
+        } catch {
+          // corrupted metadata, skip
+        }
       }
 
       turns.push(turn);

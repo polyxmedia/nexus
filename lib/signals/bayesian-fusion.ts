@@ -21,6 +21,7 @@ import type { HebrewCalendarSignal } from "./hebrew-calendar";
 import type { GeopoliticalEvent } from "./geopolitical";
 import type { ConvergenceResult } from "./intensity";
 import { getCyclicalReading, type CyclicalReading } from "./structural-cycles";
+import { detectEschatologicalConvergences, type EschatologicalConvergence } from "./eschatological";
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -73,6 +74,7 @@ export const SCENARIO_PRIORS: Record<string, number> = {
   market_disruption: 0.12,
   regime_change: 0.03,
   energy_shock: 0.06,
+  eschatological_collision: 0.04,
   default: 0.10,
 };
 
@@ -96,6 +98,7 @@ const LAYER_RELIABILITY: Record<string, number> = {
   geopolitical: 0.85,
   osint: 0.80,
   market: 0.75,
+  eschatological: 0.65,
   hebrew: 0.45,
   celestial: 0.35,
 };
@@ -119,11 +122,12 @@ const LAYER_RELIABILITY: Record<string, number> = {
  * Matrix is symmetric: DEPENDENCY_MATRIX[A][B] === DEPENDENCY_MATRIX[B][A].
  */
 export const DEPENDENCY_MATRIX: Record<string, Record<string, number>> = {
-  geopolitical: { celestial: 0.95, hebrew: 0.80, market: 0.60, osint: 0.50 },
-  celestial: { geopolitical: 0.95, hebrew: 0.70, market: 0.90, osint: 0.95 },
-  hebrew: { geopolitical: 0.80, celestial: 0.70, market: 0.85, osint: 0.90 },
-  market: { geopolitical: 0.60, celestial: 0.90, hebrew: 0.85, osint: 0.65 },
-  osint: { geopolitical: 0.50, celestial: 0.95, hebrew: 0.90, market: 0.65 },
+  geopolitical: { celestial: 0.95, hebrew: 0.80, market: 0.60, osint: 0.50, eschatological: 0.70 },
+  celestial: { geopolitical: 0.95, hebrew: 0.70, market: 0.90, osint: 0.95, eschatological: 0.85 },
+  hebrew: { geopolitical: 0.80, celestial: 0.70, market: 0.85, osint: 0.90, eschatological: 0.55 },
+  market: { geopolitical: 0.60, celestial: 0.90, hebrew: 0.85, osint: 0.65, eschatological: 0.80 },
+  osint: { geopolitical: 0.50, celestial: 0.95, hebrew: 0.90, market: 0.65, eschatological: 0.75 },
+  eschatological: { geopolitical: 0.70, celestial: 0.85, hebrew: 0.55, market: 0.80, osint: 0.75 },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -372,8 +376,14 @@ export function bayesianFusion(
 function inferScenarioType(
   geopolitical: GeopoliticalEvent[],
   hebrew: HebrewCalendarSignal[],
-  celestial: CelestialEvent[]
+  celestial: CelestialEvent[],
+  eschatologicalConvergences: EschatologicalConvergence[] = []
 ): string {
+  // If eschatological convergences are active with high significance, that takes priority
+  if (eschatologicalConvergences.length > 0 && eschatologicalConvergences[0].significance >= 3) {
+    return "eschatological_collision";
+  }
+
   // Check geopolitical event types for scenario cues
   for (const e of geopolitical) {
     const t = e.type.toLowerCase();
@@ -467,6 +477,14 @@ export function scoreBayesianConvergences(
   }
   if (currentCluster.length > 0) clusters.push(currentCluster);
 
+  // Detect eschatological convergences once (shared across all clusters)
+  // Extract active calendar event keys from hebrew events for trigger matching
+  const activeCalendarKeys = hebrew.map((h) => {
+    const key = h.holiday.toLowerCase().replace(/[^a-z_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    return key;
+  });
+  const eschaConvergences = detectEschatologicalConvergences(activeCalendarKeys);
+
   for (const cluster of clusters) {
     const clusterStart = cluster[0];
 
@@ -492,8 +510,12 @@ export function scoreBayesianConvergences(
     // Cyclical reading for cultural context (does not feed into Bayesian scoring)
     const esoteric = getCyclicalReading(new Date(clusterStart + "T12:00:00Z"));
 
+    // Check if eschatological convergences are relevant to this cluster
+    // (they're relevant when hebrew/islamic calendar events are in the cluster)
+    const clusterEscha = he.length > 0 ? eschaConvergences : [];
+
     // Infer scenario type and select prior
-    const scenarioType = inferScenarioType(ge, he, ce);
+    const scenarioType = inferScenarioType(ge, he, ce, clusterEscha);
     const prior = SCENARIO_PRIORS[scenarioType] ?? SCENARIO_PRIORS.default;
 
     // Build layer evidence array for Bayesian fusion
@@ -523,6 +545,21 @@ export function scoreBayesianConvergences(
       });
     }
 
+    // Eschatological layer: inject if convergences detected and calendar events present
+    if (clusterEscha.length > 0) {
+      const eschaSignificance = clusterEscha.reduce((s, e) => s + e.significance, 0);
+      layerEvidence.push({
+        type: "eschatological",
+        significance: Math.min(eschaSignificance, 9),
+        events: clusterEscha.map((e) => ({
+          significance: e.significance,
+          title: `${e.programmes.join(" vs ")} [${e.sharedGeography.join(", ")}]`,
+          amplification: e.amplificationFactor,
+        })),
+      });
+      if (!layers.includes("eschatological")) layers.push("eschatological");
+    }
+
     // Run Bayesian fusion
     const { intensity, posterior, layerContributions } = bayesianFusion(
       prior,
@@ -534,6 +571,7 @@ export function scoreBayesianConvergences(
       ...ce.map((e) => e.title),
       ...he.map((e) => e.holiday),
       ...ge.map((e) => e.title),
+      ...clusterEscha.map((e) => `Eschatological: ${e.programmes.join(" vs ")}`),
     ];
 
     const title =

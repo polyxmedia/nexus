@@ -212,6 +212,7 @@ export const chatMessages = pgTable("chat_messages", {
   outputTokens: integer("output_tokens"),
   creditsUsed: integer("credits_used"),
   elapsedMs: integer("elapsed_ms"),
+  metadata: text("metadata"), // JSON: { sycophancyIndex, ... }
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 

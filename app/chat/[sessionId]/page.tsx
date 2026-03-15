@@ -400,7 +400,8 @@ export default function ChatSessionPage() {
                   isStreaming={
                     isStreaming &&
                     turn.role === "assistant" &&
-                    i === turns.length - 1
+                    // Last assistant turn before any pending messages
+                    !turns.slice(i + 1).some((t) => t.role === "assistant" && !t.pending)
                   }
                   onSuggestionClick={sendMessage}
                   cumulativeCredits={cumulativeCredits}
