@@ -1,11 +1,23 @@
 /**
  * Bayesian Fusion Engine for Signal Convergence Scoring
+ * ═══════════════════════════════════════════════════════
+ * The Seldon Equations
  *
- * Replaces additive convergence scoring with proper Bayesian posterior updating.
+ * Asimov's psychohistory was modelled on statistical mechanics: the behaviour
+ * of gas molecules is unpredictable individually but statistically determined
+ * in aggregate. This engine applies the same principle to geopolitical-market
+ * convergence. Each signal layer is an evidence source. Each Bayesian update
+ * is a step in the psychohistorical equation. The posterior probability is
+ * the system's best estimate of what the aggregate will do next.
+ *
+ * The math is Bayes' theorem (1763). The insight is Boltzmann's (1877):
+ * sufficiently large systems have statistically predictable behaviour
+ * regardless of individual particle trajectories.
  *
  * References:
  * - Martin 2026 (arXiv:2601.13362): Bayesian networks for geopolitical forecasting
  * - Hoegh et al. 2015 (Technometrics): Bayesian model fusion with "selective superiorities"
+ * - Asimov 1951 (Foundation): psychohistory as statistical mechanics of civilisation
  *
  * The core idea: instead of summing significance scores and adding flat convergence
  * bonuses, we treat each signal layer as an independent (or conditionally dependent)

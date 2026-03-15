@@ -1,3 +1,18 @@
+/**
+ * Signal Generation Engine
+ * ═══════════════════════════
+ * The Prime Radiant
+ *
+ * Seldon's Prime Radiant displayed the psychohistorical equations as a
+ * living map of civilisational trajectories. This engine serves the same
+ * function: it gathers evidence from every signal layer, runs Bayesian
+ * fusion to produce convergence scores, and outputs a map of where the
+ * forces are concentrating.
+ *
+ * The output is not a prediction of what will happen. It is a map of
+ * where the structural forces are strongest, so the analyst can focus
+ * attention where it matters most.
+ */
 import { getAllCelestialEvents } from "./celestial";
 import { getHebrewCalendarEvents, getShmitaInfo } from "./hebrew-calendar";
 import { getIslamicCalendarEvents } from "./islamic-calendar";

@@ -538,6 +538,8 @@ export function getEschatologicalLandscape(activeCalendarEvents: string[] = []):
   convergences: EschatologicalConvergence[];
   highestAmplification: number;
   noOffRampPairs: string[];
+  seldonCrisisCount: number;
+  seldonApproachingCount: number;
 } {
   const convergences = detectEschatologicalConvergences(activeCalendarEvents);
 

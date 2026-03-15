@@ -1,3 +1,20 @@
+/**
+ * Knowledge Bank
+ * ═══════════════
+ * The Encyclopedia Galactica
+ *
+ * In Foundation, the Encyclopedia was the overt purpose of the First
+ * Foundation: preserve all human knowledge so civilisation could rebuild
+ * faster after the fall. The real purpose was to create a community
+ * capable of adapting to Seldon Crises.
+ *
+ * The NEXUS knowledge bank serves both functions. Overtly, it stores
+ * theses, actor profiles, event analyses, and market intelligence as
+ * vector-embedded entries searchable by semantic similarity. Structurally,
+ * it provides the institutional memory that lets the system recognise
+ * patterns across time: the same actor, the same calendar, the same
+ * geography, different year, same outcome.
+ */
 import { db, schema } from "@/lib/db";
 import { eq, like, and, or, desc, sql } from "drizzle-orm";
 import type { KnowledgeEntry, NewKnowledgeEntry } from "@/lib/db/schema";

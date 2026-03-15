@@ -1,3 +1,21 @@
+/**
+ * Thesis Generation Engine
+ * ═════════════════════════
+ * The Seldon Plan
+ *
+ * Seldon's Plan was not a fixed script. It was a probabilistic trajectory
+ * with branching paths, updated by crises that the mathematics predicted
+ * would occur at specific intervals. The Plan worked because the structural
+ * forces were large enough that the trajectory self-corrected even when
+ * individual events deviated.
+ *
+ * The NEXUS thesis engine generates the same kind of artifact: a
+ * directional assessment synthesising all signal layers, game theory
+ * scenarios, market data, and regime detection into a coherent
+ * intelligence briefing with specific trading actions. Like the Plan,
+ * it is regenerated as new evidence arrives, and like the Plan, it
+ * is only as good as the structural forces are strong relative to noise.
+ */
 import Anthropic from "@anthropic-ai/sdk";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { computeTechnicalSnapshot } from "../market-data/indicators";

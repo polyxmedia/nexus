@@ -1,16 +1,29 @@
 /**
  * Actor-Belief Bayesian Typing for Calendar Layer
+ * ═══════════════════════════════════════════════════
+ * Psychohistorical Population Modelling
+ *
+ * This is the closest NEXUS module to Seldon's psychohistory. Psychohistory
+ * worked because individual behaviour is unpredictable but population
+ * behaviour follows statistical distributions. This module models the same
+ * principle: individual leaders may surprise us, but actor-groups (state
+ * apparatus, military doctrine, religious institutions) follow documented
+ * behavioural patterns that shift predictably around calendar events.
+ *
+ * The calendar isn't the signal. The actor's documented pattern of behaviour
+ * around the calendar is the signal.
  *
  * Research basis: Tahir 2025 - computational geopolitics with dynamic graph nodes.
- * Calendar events modeled as signals that update actor-type probabilities,
- * not as direct convergence bonuses.
- *
- * Key insight: "The calendar isn't the signal - the actor's documented pattern
- * of behavior around the calendar is the signal."
  *
  * Instead of "Purim = +1 convergence bonus", the proper model is:
  * "Ben Gvir's prior(provocative action) = 0.3. On Tisha B'Av, historical
  * data shows it rises to 0.7."
+ *
+ * Asimov's key constraint applies here too: the population being modelled
+ * must not be aware of the predictions, or their behaviour changes. NEXUS
+ * respects this by modelling state-level actor-groups, not individuals,
+ * and by never publishing probability estimates that could influence the
+ * actors being modelled.
  */
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,26 @@
+/**
+ * Prediction Engine
+ * ═════════════════
+ * Psychohistorical Forecasting with Mule Detection
+ *
+ * Psychohistory's greatest vulnerability was the Mule: an individual so
+ * anomalous that statistical population models could not account for them.
+ * The Second Foundation existed specifically to detect and correct for
+ * Mule-class deviations.
+ *
+ * This engine generates falsifiable predictions from the thesis and signal
+ * layers, then tracks their accuracy via Brier scores and calibration
+ * curves. When predictions systematically fail in a specific category or
+ * timeframe, the feedback loop (computePerformanceReport) identifies the
+ * failure pattern. Systematic failure in a domain that was previously
+ * well-calibrated is the signature of a Mule: something has changed in
+ * the structural dynamics that the model has not yet incorporated.
+ *
+ * The regime detection system (peacetime/wartime/Seldon Crisis) is the
+ * primary defence against Mule-class events. When a regime change is
+ * detected, all peacetime predictions are invalidated and the model
+ * rebuilds from the new structural reality.
+ */
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "../db";
 import { eq, desc, isNull, not, and, gte } from "drizzle-orm";
