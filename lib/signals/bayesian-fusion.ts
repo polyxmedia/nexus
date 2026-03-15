@@ -421,6 +421,31 @@ function inferScenarioType(
 
 const PROXIMITY_DAYS = 3;
 
+/** Maps holiday display names to canonical trigger keys used by the eschatological layer. */
+const HOLIDAY_TO_TRIGGER: Record<string, string> = {
+  "tish'a b'av": "tisha_bav", "tisha b'av": "tisha_bav", "tisha bav": "tisha_bav",
+  "pesach": "pesach", "passover": "pesach",
+  "sukkot": "sukkot", "sukkos": "sukkot",
+  "purim": "purim",
+  "ramadan": "ramadan",
+  "quds day": "quds_day", "al-quds day": "quds_day",
+  "ashura": "ashura",
+  "laylat al-qadr": "laylat_al_qadr", "night of power": "laylat_al_qadr",
+  "easter": "easter", "orthodox easter": "orthodox_easter",
+  "victory day": "victory_day",
+};
+
+/** Resolve a holiday display name to a canonical trigger key. */
+function resolveCalendarKey(holiday: string): string | null {
+  const normalized = holiday.toLowerCase().trim();
+  const exact = HOLIDAY_TO_TRIGGER[normalized];
+  if (exact) return exact;
+  for (const [name, key] of Object.entries(HOLIDAY_TO_TRIGGER)) {
+    if (normalized.includes(name) || name.includes(normalized)) return key;
+  }
+  return null;
+}
+
 function daysBetween(a: string, b: string): number {
   const da = new Date(a);
   const db = new Date(b);
@@ -477,13 +502,11 @@ export function scoreBayesianConvergences(
   }
   if (currentCluster.length > 0) clusters.push(currentCluster);
 
-  // Detect eschatological convergences once (shared across all clusters)
-  // Extract active calendar event keys from hebrew events for trigger matching
-  const activeCalendarKeys = hebrew.map((h) => {
-    const key = h.holiday.toLowerCase().replace(/[^a-z_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
-    return key;
-  });
-  const eschaConvergences = detectEschatologicalConvergences(activeCalendarKeys);
+  // Detect eschatological convergences once for preflight (used to infer scenario type)
+  const allCalendarKeys = hebrew
+    .map((h) => resolveCalendarKey(h.holiday))
+    .filter((k): k is string => k !== null);
+  const eschaConvergences = detectEschatologicalConvergences(allCalendarKeys);
 
   for (const cluster of clusters) {
     const clusterStart = cluster[0];
@@ -511,8 +534,14 @@ export function scoreBayesianConvergences(
     const esoteric = getCyclicalReading(new Date(clusterStart + "T12:00:00Z"));
 
     // Check if eschatological convergences are relevant to this cluster
-    // (they're relevant when hebrew/islamic calendar events are in the cluster)
-    const clusterEscha = he.length > 0 ? eschaConvergences : [];
+    // Only include convergences where this cluster's calendar events match triggers
+    const clusterCalendarKeys = he
+      .map((h) => resolveCalendarKey(h.holiday))
+      .filter((k): k is string => k !== null);
+    // Re-detect with only this cluster's calendar keys so significance reflects local context
+    const clusterEscha = clusterCalendarKeys.length > 0
+      ? detectEschatologicalConvergences(clusterCalendarKeys)
+      : [];
 
     // Infer scenario type and select prior
     const scenarioType = inferScenarioType(ge, he, ce, clusterEscha);

@@ -227,6 +227,14 @@ describe("SCENARIO_PRIORS", () => {
   });
 });
 
+describe("SCENARIO_PRIORS - eschatological", () => {
+  it("has eschatological_collision prior", () => {
+    expect(SCENARIO_PRIORS.eschatological_collision).toBeDefined();
+    expect(SCENARIO_PRIORS.eschatological_collision).toBeGreaterThan(0);
+    expect(SCENARIO_PRIORS.eschatological_collision).toBeLessThan(0.10);
+  });
+});
+
 describe("DEPENDENCY_MATRIX", () => {
   it("geopolitical-osint are highly correlated (low independence)", () => {
     expect(DEPENDENCY_MATRIX.geopolitical.osint).toBeLessThan(0.6);
@@ -234,6 +242,24 @@ describe("DEPENDENCY_MATRIX", () => {
 
   it("celestial-geopolitical are nearly independent", () => {
     expect(DEPENDENCY_MATRIX.celestial.geopolitical).toBeGreaterThan(0.9);
+  });
+
+  it("eschatological layer has entries for all other layers", () => {
+    const eschaRow = DEPENDENCY_MATRIX.eschatological;
+    expect(eschaRow).toBeDefined();
+    expect(eschaRow.geopolitical).toBeDefined();
+    expect(eschaRow.celestial).toBeDefined();
+    expect(eschaRow.hebrew).toBeDefined();
+    expect(eschaRow.market).toBeDefined();
+    expect(eschaRow.osint).toBeDefined();
+  });
+
+  it("eschatological-hebrew have moderate correlation (shared calendar basis)", () => {
+    expect(DEPENDENCY_MATRIX.eschatological.hebrew).toBeLessThan(0.70);
+  });
+
+  it("eschatological-market are mostly independent", () => {
+    expect(DEPENDENCY_MATRIX.eschatological.market).toBeGreaterThan(0.70);
   });
 
   it("matrix is approximately symmetric", () => {
@@ -245,6 +271,46 @@ describe("DEPENDENCY_MATRIX", () => {
         }
       }
     }
+  });
+});
+
+describe("bayesianFusion - eschatological layer", () => {
+  it("eschatological evidence moves posterior", () => {
+    const result = bayesianFusion(0.04, [
+      { type: "eschatological", significance: 5, events: [{ significance: 5 }] },
+    ]);
+    expect(result.posterior).toBeGreaterThan(0.04);
+    expect(result.layerContributions["eschatological"]).toBeGreaterThan(0);
+  });
+
+  it("eschatological + geopolitical produces higher posterior than either alone", () => {
+    const eschaOnly = bayesianFusion(0.04, [
+      { type: "eschatological", significance: 4, events: [{ significance: 4 }] },
+    ]);
+    const geoOnly = bayesianFusion(0.04, [
+      { type: "geopolitical", significance: 4, events: [{ significance: 4 }] },
+    ]);
+    const combined = bayesianFusion(0.04, [
+      { type: "eschatological", significance: 4, events: [{ significance: 4 }] },
+      { type: "geopolitical", significance: 4, events: [{ significance: 4 }] },
+    ]);
+    expect(combined.posterior).toBeGreaterThan(eschaOnly.posterior);
+    expect(combined.posterior).toBeGreaterThan(geoOnly.posterior);
+  });
+
+  it("all three layers contribute when combined", () => {
+    // Reliability order: geopolitical (0.85) > eschatological (0.65) > hebrew (0.45)
+    const result = bayesianFusion(0.04, [
+      { type: "hebrew", significance: 3, events: [{ significance: 3 }] },
+      { type: "eschatological", significance: 3, events: [{ significance: 3 }] },
+      { type: "geopolitical", significance: 3, events: [{ significance: 3 }] },
+    ]);
+    // All three should contribute to moving the posterior
+    expect(result.layerContributions["geopolitical"]).toBeGreaterThan(0);
+    expect(result.layerContributions["eschatological"]).toBeGreaterThan(0);
+    expect(result.layerContributions["hebrew"]).toBeGreaterThan(0);
+    // Combined posterior should be well above the prior
+    expect(result.posterior).toBeGreaterThan(0.20);
   });
 });
 
@@ -324,5 +390,44 @@ describe("scoreBayesianConvergences", () => {
     expect(r).toHaveProperty("description");
     expect(r).toHaveProperty("category");
     expect(r).toHaveProperty("marketSectors");
+  });
+
+  it("injects eschatological layer when calendar events with triggers are present", () => {
+    // Purim triggers the eschatological layer for israel_far_right
+    const result = scoreBayesianConvergences(
+      [],
+      [makeHebrew({ holiday: "Purim", significance: 3 })],
+      [makeGeopolitical({ significance: 3 })]
+    );
+    expect(result.length).toBeGreaterThan(0);
+    // The eschatological layer should be injected
+    expect(result[0].layers).toContain("eschatological");
+  });
+
+  it("does not inject eschatological layer for non-trigger holidays", () => {
+    // "Fast Day" is not a known trigger key
+    const result = scoreBayesianConvergences(
+      [],
+      [makeHebrew({ holiday: "Fast Day", significance: 2 })],
+      []
+    );
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].layers).not.toContain("eschatological");
+  });
+
+  it("eschatological injection increases intensity vs without", () => {
+    // With Purim (triggers eschatological)
+    const withTrigger = scoreBayesianConvergences(
+      [],
+      [makeHebrew({ holiday: "Purim", significance: 3 })],
+      [makeGeopolitical({ significance: 3 })]
+    );
+    // With generic holiday (no trigger)
+    const withoutTrigger = scoreBayesianConvergences(
+      [],
+      [makeHebrew({ holiday: "Minor Shabbat", significance: 3 })],
+      [makeGeopolitical({ significance: 3 })]
+    );
+    expect(withTrigger[0].intensity).toBeGreaterThanOrEqual(withoutTrigger[0].intensity);
   });
 });

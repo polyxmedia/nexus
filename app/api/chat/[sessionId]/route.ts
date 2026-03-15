@@ -428,23 +428,25 @@ export async function POST(
         while (continueLoop) {
           const elapsed = Date.now() - requestStartTime;
           if (toolLoopCount >= MAX_TOOL_LOOPS || elapsed > MAX_ELAPSED_MS) {
-            // Final synthesis call: let the model respond with NO tools so it can
+            // Final synthesis call (STREAMED): let the model respond with NO tools so it can
             // summarise all gathered data instead of silently stopping.
             try {
-              const finalResponse = await client.messages.create({
+              const synthStream = await client.messages.create({
                 model: chatModel,
-                max_tokens: 4096,
+                max_tokens: 8192,
                 system: systemBlocks,
                 tools: [], // no tools — force a text response
                 messages,
+                stream: true,
               });
-              const finalUsage = finalResponse.usage;
-              totalInputTokens += finalUsage?.input_tokens || 0;
-              totalOutputTokens += finalUsage?.output_tokens || 0;
-              for (const block of finalResponse.content) {
-                if (block.type === "text" && block.text) {
-                  fullText += block.text;
-                  sendEvent({ type: "text_delta", delta: block.text });
+              for await (const synthEvent of synthStream) {
+                if (synthEvent.type === "message_start") {
+                  totalInputTokens += synthEvent.message.usage?.input_tokens || 0;
+                } else if (synthEvent.type === "content_block_delta" && synthEvent.delta.type === "text_delta") {
+                  fullText += synthEvent.delta.text;
+                  sendEvent({ type: "text_delta", delta: synthEvent.delta.text });
+                } else if (synthEvent.type === "message_delta") {
+                  totalOutputTokens += synthEvent.usage?.output_tokens || 0;
                 }
               }
             } catch (synthErr) {

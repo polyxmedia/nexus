@@ -822,7 +822,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_eschatological_convergence",
     description:
-      "Detect active eschatological convergences: where multiple state actors simultaneously pursue incompatible end-times theologies over the same geography, creating non-linear risk amplification because divine mandates cannot be negotiated away. Returns active programmes, incompatibility scores, amplification factors, and no-off-ramp pair detection. Use when analysing Middle East escalation, Temple Mount tensions, Iran-Israel dynamics, or any scenario where actors' theological commitments constrain diplomatic options. Can also query a specific actor's eschatological profile.",
+      "Detect active eschatological convergences (Seldon Crises): where multiple state actors simultaneously pursue incompatible end-times theologies over the same geography, creating non-linear risk amplification because divine mandates cannot be negotiated away. Returns active programmes, incompatibility scores, amplification factors, Seldon Crisis classification (crisis/approaching/latent), and no-off-ramp pair detection. A Seldon Crisis means structural forces dominate and individual agency is irrelevant to the outcome. Use when analysing Middle East escalation, Temple Mount tensions, Iran-Israel dynamics, or any scenario where actors' theological commitments constrain diplomatic options. Can also query a specific actor's eschatological profile.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1797,9 +1797,12 @@ async function executeGetEschatologicalConvergence(input: Record<string, unknown
       compositeRigidity: c.compositeRigidity,
       significance: c.significance,
       marketSectors: c.marketSectors,
+      seldonClassification: c.seldonClassification,
     })),
     highestAmplification: landscape.highestAmplification,
     noOffRampPairs: landscape.noOffRampPairs,
+    seldonCrisisCount: landscape.seldonCrisisCount,
+    seldonApproachingCount: landscape.seldonApproachingCount,
     calendarEventsChecked: calendarEvents,
   };
 }
@@ -1924,15 +1927,24 @@ async function executeGetPredictions(input: Record<string, unknown>) {
   };
 }
 
+const VALID_PREDICTION_OUTCOMES = ["confirmed", "denied", "partial", "expired"];
+const VALID_PREDICTION_CATEGORIES = ["market", "geopolitical", "celestial"];
+
 async function executeCreatePrediction(input: Record<string, unknown>, context?: ToolContext) {
   const claim = input.claim as string;
   const timeframe = input.timeframe as string;
   const deadline = input.deadline as string;
-  const confidence = input.confidence as number;
+  const confidence = input.confidence;
   const category = input.category as string;
 
   if (!claim || !timeframe || !deadline || confidence === undefined || !category) {
     return { error: "claim, timeframe, deadline, confidence, and category are all required" };
+  }
+  if (typeof confidence !== "number" || confidence < 0 || confidence > 1) {
+    return { error: "confidence must be a number between 0 and 1" };
+  }
+  if (!VALID_PREDICTION_CATEGORIES.includes(category)) {
+    return { error: `category must be one of: ${VALID_PREDICTION_CATEGORIES.join(", ")}` };
   }
 
   const values: Record<string, unknown> = {
@@ -1942,37 +1954,46 @@ async function executeCreatePrediction(input: Record<string, unknown>, context?:
     confidence,
     category,
     direction: (input.direction as string) || null,
-    priceTarget: (input.priceTarget as number) || null,
+    priceTarget: input.priceTarget !== undefined ? (input.priceTarget as number) : null,
     referenceSymbol: (input.referenceSymbol as string) || null,
     createdBy: context?.username || null,
   };
 
   // If already resolved at time of creation
   if (input.outcome) {
-    values.outcome = input.outcome as string;
+    const outcome = input.outcome as string;
+    if (!VALID_PREDICTION_OUTCOMES.includes(outcome)) {
+      return { error: `outcome must be one of: ${VALID_PREDICTION_OUTCOMES.join(", ")}` };
+    }
+    values.outcome = outcome;
     values.outcomeNotes = (input.outcomeNotes as string) || null;
     values.score = input.score !== undefined ? (input.score as number) : null;
     values.resolvedAt = new Date().toISOString();
   }
 
-  const rows = await db.insert(schema.predictions).values(values as typeof schema.predictions.$inferInsert).returning();
-  const prediction = rows[0];
+  try {
+    const rows = await db.insert(schema.predictions).values(values as typeof schema.predictions.$inferInsert).returning();
+    const prediction = rows[0];
 
-  return {
-    created: true,
-    prediction: {
-      id: prediction.id,
-      uuid: prediction.uuid,
-      claim: prediction.claim,
-      timeframe: prediction.timeframe,
-      deadline: prediction.deadline,
-      confidence: prediction.confidence,
-      category: prediction.category,
-      outcome: prediction.outcome || "pending",
-      direction: prediction.direction,
-      referenceSymbol: prediction.referenceSymbol,
-    },
-  };
+    return {
+      created: true,
+      prediction: {
+        id: prediction.id,
+        uuid: prediction.uuid,
+        claim: prediction.claim,
+        timeframe: prediction.timeframe,
+        deadline: prediction.deadline,
+        confidence: prediction.confidence,
+        category: prediction.category,
+        outcome: prediction.outcome || "pending",
+        direction: prediction.direction,
+        referenceSymbol: prediction.referenceSymbol,
+      },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Failed to create prediction: ${message}` };
+  }
 }
 
 async function executeResolvePrediction(input: Record<string, unknown>) {
@@ -1981,6 +2002,9 @@ async function executeResolvePrediction(input: Record<string, unknown>) {
   const outcome = input.outcome as string;
 
   if (!outcome) return { error: "outcome is required" };
+  if (!VALID_PREDICTION_OUTCOMES.includes(outcome)) {
+    return { error: `outcome must be one of: ${VALID_PREDICTION_OUTCOMES.join(", ")}` };
+  }
   if (!id && !uuid) return { error: "id or uuid is required to identify the prediction" };
 
   const existingRows = uuid

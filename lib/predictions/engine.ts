@@ -867,7 +867,9 @@ function getPendingCount(): Promise<number> {
 
 // ── Auto-Deny for Past Deadline ──
 // Predictions that pass their deadline without being confirmed are denied.
-// No "expired" state — every prediction is either a hit or a miss.
+// Keynes principle: "Markets can remain irrational longer than you can remain solvent."
+// We distinguish between "wrong direction" (real miss) and "right direction, wrong timing"
+// (partial credit + timing calibration feedback).
 
 export async function autoExpirePastDeadline(): Promise<number> {
   const pending = await db
@@ -875,22 +877,71 @@ export async function autoExpirePastDeadline(): Promise<number> {
     .from(schema.predictions)
     .where(isNull(schema.predictions.outcome));
 
-  // Predictions 7+ days past deadline that haven't been resolved → denied (missed deadline = miss)
+  // Predictions 7+ days past deadline that haven't been resolved → check direction before denying
   const graceDays = 7;
   const graceDate = new Date();
   graceDate.setDate(graceDate.getDate() - graceDays);
   const graceDateStr = graceDate.toISOString().split("T")[0];
 
   const stale = pending.filter((p) => p.deadline < graceDateStr);
+  if (stale.length === 0) return 0;
+
+  // Fetch current prices for direction check on predictions that have reference symbols
+  let currentPrices: Record<string, number> = {};
+  const symbolsNeeded: string[] = [];
+  for (const p of stale) {
+    if (p.referenceSymbol && !symbolsNeeded.includes(p.referenceSymbol)) {
+      symbolsNeeded.push(p.referenceSymbol);
+    }
+  }
+  if (symbolsNeeded.length > 0) {
+    try {
+      const alphaVantageKey = await getAlphaVantageKey();
+      currentPrices = await fetchReferencePrices(alphaVantageKey, symbolsNeeded);
+    } catch {
+      // Best effort -- if price fetch fails, deny without direction data
+    }
+  }
+
   let resolved = 0;
 
   for (const p of stale) {
+    let directionCorrect: number | null = null;
+    let outcome = "denied";
+    let score = 0;
+    let notes = `Auto-expired: ${graceDays}+ days past deadline without confirmation.`;
+
+    // Check if direction was correct despite missing the timing
+    if (p.direction && p.referenceSymbol && p.referencePrices) {
+      const refPrices = JSON.parse(p.referencePrices || "{}") as Record<string, number>;
+      const startPrice = refPrices[p.referenceSymbol];
+      const currentPrice = currentPrices[p.referenceSymbol];
+
+      if (startPrice && currentPrice) {
+        const pctMove = ((currentPrice - startPrice) / startPrice) * 100;
+        const isDirectionRight = (p.direction === "up" && currentPrice > startPrice) ||
+                                  (p.direction === "down" && currentPrice < startPrice);
+        directionCorrect = isDirectionRight ? 1 : 0;
+
+        if (isDirectionRight) {
+          // Right direction, wrong timing -- Keynes scenario
+          outcome = "partial";
+          score = 0.3; // Partial credit: direction was right, timing was wrong
+          notes = `Right direction, wrong timing: ${p.referenceSymbol} moved ${pctMove >= 0 ? "+" : ""}${pctMove.toFixed(2)}% from ${startPrice.toFixed(2)} to ${currentPrice.toFixed(2)} (predicted ${p.direction}). Direction correct but deadline missed by ${graceDays}+ days. Target ${p.priceTarget ? `of ${p.priceTarget} not reached in time` : "not met in window"}.`;
+        } else {
+          notes = `Auto-denied: ${p.referenceSymbol} moved ${pctMove >= 0 ? "+" : ""}${pctMove.toFixed(2)}% from ${startPrice.toFixed(2)} to ${currentPrice.toFixed(2)} (predicted ${p.direction}). Direction wrong and deadline missed.`;
+        }
+      }
+    }
+
     await db.update(schema.predictions)
       .set({
-        outcome: "denied",
-        score: 0,
-        outcomeNotes: `Auto-denied: ${graceDays}+ days past deadline without confirmation. Deadline miss = miss.`,
+        outcome,
+        score,
+        outcomeNotes: notes,
         resolvedAt: new Date().toISOString(),
+        directionCorrect,
+        levelCorrect: 0,
       })
       .where(eq(schema.predictions.id, p.id));
     resolved++;

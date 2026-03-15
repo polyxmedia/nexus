@@ -45,6 +45,11 @@ interface DirectionLevelStats {
   totalWithLevel: number;
   levelCorrectRate: number;
   partialRate: number; // direction correct + level wrong
+  /** Keynes metric: predictions where direction was right but deadline was missed */
+  timingErrorRate: number;
+  timingErrorCount: number;
+  /** Average days overdue for timing errors (direction right, expired past deadline) */
+  avgTimingOvershoot: number;
 }
 
 export interface BINReport {
@@ -683,6 +688,27 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
 
   const withDirection = resolved.filter((p) => p.directionCorrect != null);
   const withLevel = resolved.filter((p) => p.levelCorrect != null);
+
+  // Keynes metric: direction right but deadline missed (timing errors)
+  // These are predictions where directionCorrect=1 but levelCorrect=0 AND resolved after deadline
+  const timingErrors = withDirection.filter((p) => {
+    if (p.directionCorrect !== 1) return false;
+    // Check if resolved after deadline (timing miss, not just level miss)
+    const resolvedDate = p.resolvedAt?.split("T")[0] || "";
+    return resolvedDate > p.deadline;
+  });
+
+  // Average days overdue for timing errors
+  let avgTimingOvershoot = 0;
+  if (timingErrors.length > 0) {
+    const totalDaysOver = timingErrors.reduce((sum, p) => {
+      const resolved = new Date(p.resolvedAt || p.deadline);
+      const deadline = new Date(p.deadline);
+      return sum + Math.max(0, (resolved.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+    }, 0);
+    avgTimingOvershoot = totalDaysOver / timingErrors.length;
+  }
+
   const directionLevel: DirectionLevelStats = {
     totalWithDirection: withDirection.length,
     directionCorrectRate: withDirection.length > 0
@@ -695,6 +721,11 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     partialRate: withDirection.length > 0
       ? withDirection.filter((p) => p.directionCorrect === 1 && p.levelCorrect === 0).length / withDirection.length
       : 0,
+    timingErrorRate: withDirection.length > 0
+      ? timingErrors.length / withDirection.length
+      : 0,
+    timingErrorCount: timingErrors.length,
+    avgTimingOvershoot,
   };
 
   // ── BIN Decomposition ──
@@ -866,8 +897,17 @@ function buildPromptSection(report: Omit<PerformanceReport, "promptSection">): s
       lines.push(`  Level correct: ${(report.directionLevel.levelCorrectRate * 100).toFixed(0)}% (n=${report.directionLevel.totalWithLevel})`);
       lines.push(`  Direction right + level wrong (partial): ${(report.directionLevel.partialRate * 100).toFixed(0)}%`);
     }
+    if (report.directionLevel.timingErrorCount > 0) {
+      lines.push(`  Timing errors (right direction, missed deadline): ${report.directionLevel.timingErrorCount} (${(report.directionLevel.timingErrorRate * 100).toFixed(0)}%)`);
+      if (report.directionLevel.avgTimingOvershoot > 0) {
+        lines.push(`  Average timing overshoot: ${report.directionLevel.avgTimingOvershoot.toFixed(1)} days past deadline`);
+      }
+    }
     if (report.directionLevel.directionCorrectRate > 0.6 && report.directionLevel.levelCorrectRate < 0.3) {
       lines.push("  INSIGHT: Direction calls are solid but price targets are too aggressive. Widen your target ranges.");
+    }
+    if (report.directionLevel.timingErrorRate > 0.2 && report.directionLevel.timingErrorCount >= 3) {
+      lines.push(`  KEYNES WARNING: ${(report.directionLevel.timingErrorRate * 100).toFixed(0)}% of directional predictions are right but late. Your timeframe estimates are systematically too short. Add ${Math.ceil(report.directionLevel.avgTimingOvershoot)}+ days buffer to deadlines.`);
     }
   }
 

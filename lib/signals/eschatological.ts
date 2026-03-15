@@ -1,11 +1,25 @@
 /**
  * The Law of Eschatological Convergence
  *
- * Detection layer for identifying when multiple state actors simultaneously
- * pursue incompatible end-times or theologically mandated programmes over
- * the same geography. This creates non-linear risk amplification because
- * divine mandates cannot be negotiated away: traditional game theory fails
- * when actors believe they are fulfilling prophecy.
+ * "The fall of Empire, gentlemen, is a massive thing, however, and not
+ * easily fought. It is dictated by a rising bureaucracy, a receding
+ * initiative, a freezing of caste, a damming of curiosity — a hundred
+ * other factors. It has been going on, as I have said, for centuries,
+ * and it is too majestic and massive a movement to stop."
+ *   — Hari Seldon, Foundation (Isaac Asimov, 1951)
+ *
+ * Seldon's psychohistory modelled civilisational collapse as the product
+ * of structural forces too large for any individual to override. NEXUS
+ * applies the same principle to geopolitical-market convergence: when
+ * the structural forces are large enough, individual agency becomes
+ * noise in the signal.
+ *
+ * This module detects what Seldon would call a "crisis point": a moment
+ * where multiple state actors simultaneously pursue incompatible
+ * end-times or theologically mandated programmes over the same geography.
+ * These are the Seldon Crises of the real world. Divine mandates cannot
+ * be negotiated away. Traditional game theory fails when actors believe
+ * they are fulfilling prophecy. The outcome is structurally determined.
  *
  * The law states: when N >= 2 actors hold incompatible eschatological
  * commitments that converge on the same geography and time window,
@@ -18,6 +32,15 @@
  * to the same outcome, territory, or timeline, and that these claims
  * are politically operationalised (budgets, institutions, military
  * doctrine shaped by the theology).
+ *
+ * Asimov understood that the mathematics of large populations rendered
+ * individual behaviour predictable in aggregate. What he called
+ * psychohistory, we call Bayesian fusion across signal layers. What he
+ * called the Seldon Plan, we call the thesis engine. What he called the
+ * Encyclopedia Foundation, we call the knowledge bank. The Second
+ * Foundation, watching the watchers, is our meta-analysis layer.
+ *
+ * The names change. The math doesn't.
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -70,6 +93,20 @@ export interface EschatologicalConvergence {
   marketSectors: string[];
   /** Human-readable description */
   description: string;
+  /**
+   * Seldon Crisis classification. A Seldon Crisis is a convergence point
+   * where structural forces are so overwhelming that the outcome is
+   * determined regardless of individual decisions. Named after Hari Seldon's
+   * psychohistorical crisis points in Asimov's Foundation.
+   *
+   * - "seldon_crisis": compositeRigidity >= 0.80 AND significance >= 4.
+   *   Structural forces dominate. Diplomatic off-ramps are not credible.
+   * - "approaching": compositeRigidity >= 0.60 AND significance >= 3.
+   *   Forces are building but individual agency still matters.
+   * - "latent": below thresholds. Programmes are active but not yet
+   *   in structural collision.
+   */
+  seldonClassification: "seldon_crisis" | "approaching" | "latent";
 }
 
 /** Calendar events that carry eschatological weight for specific actors. */
@@ -436,6 +473,19 @@ export function detectEschatologicalConvergences(
     // Merge market sectors
     const sectors = new Set<string>([...prog1.marketSectors, ...prog2.marketSectors]);
 
+    // Seldon Crisis classification
+    // A Seldon Crisis occurs when structural forces are so dominant that
+    // individual agency is irrelevant to the outcome. In eschatological
+    // terms: when both actors' theological mandates are rigid enough and
+    // politically influential enough that no diplomat, general, or leader
+    // can credibly offer a compromise that their own constituency would accept.
+    const seldonClassification: "seldon_crisis" | "approaching" | "latent" =
+      compositeRigidity >= 0.80 && significance >= 4
+        ? "seldon_crisis"
+        : compositeRigidity >= 0.60 && significance >= 3
+          ? "approaching"
+          : "latent";
+
     convergences.push({
       actors: [entry.actor1, entry.actor2],
       programmes: [prog1.name, prog2.name],
@@ -447,6 +497,7 @@ export function detectEschatologicalConvergences(
       significance,
       marketSectors: Array.from(sectors),
       description: `${prog1.name} (${prog1.actorId}) vs ${prog2.name} (${prog2.actorId}): ${entry.reason}`,
+      seldonClassification,
     });
   }
 
@@ -512,5 +563,16 @@ export function getEschatologicalLandscape(activeCalendarEvents: string[] = []):
     .filter((c) => c.compositeRigidity >= 0.80)
     .map((c) => `${c.actors[0]} vs ${c.actors[1]}`);
 
-  return { programmes, convergences, highestAmplification, noOffRampPairs };
+  // Seldon Crisis count: how many convergences have reached crisis classification
+  const seldonCrises = convergences.filter((c) => c.seldonClassification === "seldon_crisis");
+  const approachingCrises = convergences.filter((c) => c.seldonClassification === "approaching");
+
+  return {
+    programmes,
+    convergences,
+    highestAmplification,
+    noOffRampPairs,
+    seldonCrisisCount: seldonCrises.length,
+    seldonApproachingCount: approachingCrises.length,
+  };
 }

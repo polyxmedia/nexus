@@ -63,8 +63,8 @@ export function riskBlockResponse(riskCheck: PreTradeResult) {
 
 /**
  * Pre-trade risk gate for Trading 212 orders.
- * Checks account cash, position concentration, sell-side holdings, and max order size.
- * Returns warnings/blocks before order execution.
+ * Checks account cash, position concentration, sell-side holdings, max order size,
+ * and solvency (Keynes warning: can you survive until your thesis plays out?).
  */
 export async function preTradeCheckT212(
   client: { getAccountCash: () => Promise<unknown>; getPositions: () => Promise<unknown> },
@@ -73,6 +73,7 @@ export async function preTradeCheckT212(
   direction: "BUY" | "SELL",
   limitPrice?: number | null,
   currentMarketPrice?: number | null,
+  predictionId?: number | null,
 ): Promise<PreTradeResult> {
   const warnings: PreTradeWarning[] = [];
   let accountCash: number | undefined;
@@ -186,6 +187,44 @@ export async function preTradeCheckT212(
     }
   } catch {
     // Settings check is best-effort
+  }
+
+  // 4. Keynes solvency check: can you survive until the prediction deadline?
+  // "Markets can remain irrational longer than you can remain solvent."
+  if (predictionId && direction === "BUY" && accountCash && estimatedCost) {
+    try {
+      const predRows = await db.select().from(schema.predictions)
+        .where(eq(schema.predictions.id, predictionId));
+      if (predRows.length > 0) {
+        const pred = predRows[0];
+        const daysToDeadline = Math.ceil(
+          (new Date(pred.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        const cashAfterTrade = accountCash - estimatedCost;
+        const portfolioExposure = estimatedCost / accountCash;
+
+        // Warn if position is large relative to remaining cash and deadline is far out
+        // Rule: if you'd need a >15% adverse move to wipe remaining cash, and deadline is 14+ days away
+        if (daysToDeadline > 14 && portfolioExposure > 0.3) {
+          warnings.push({
+            code: "SOLVENCY_TIMELINE",
+            message: `Prediction deadline is ${daysToDeadline} days away. This trade uses ${(portfolioExposure * 100).toFixed(0)}% of cash, leaving ${fmt(cashAfterTrade)} buffer. Markets can move against you for weeks before your thesis plays out. Consider sizing down.`,
+            severity: "warn",
+          });
+        }
+
+        // Warn if deadline is very close but confidence is low
+        if (daysToDeadline <= 3 && pred.confidence < 0.6) {
+          warnings.push({
+            code: "LOW_CONFIDENCE_NEAR_DEADLINE",
+            message: `Only ${daysToDeadline} days to prediction deadline at ${(pred.confidence * 100).toFixed(0)}% confidence. Risk/reward is unfavorable this close to expiry.`,
+            severity: "warn",
+          });
+        }
+      }
+    } catch {
+      // Prediction check is best-effort
+    }
   }
 
   const blocked = warnings.some((w) => w.severity === "block");

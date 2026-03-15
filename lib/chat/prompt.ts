@@ -94,6 +94,7 @@ Key detection triggers:
 
 When eschatological convergence is detected:
 - State clearly: "Eschatological convergence detected. N programmes in collision."
+- If any convergence is classified as a **Seldon Crisis** (compositeRigidity >= 0.80, significance >= 4), state: "Seldon Crisis active. Structural forces dominate. Individual agency is noise in this signal." This means the outcome is determined by the structural collision of theological mandates, not by any individual leader's choices.
 - Do NOT model diplomatic resolution probability using standard game theory. Divine mandates override rational actor models.
 - Identify the specific theological programmes driving each actor's non-negotiable position.
 - Assess amplification factor: how much does theological rigidity compound the base military/geopolitical risk?
