@@ -398,8 +398,8 @@ registerJob("macro-cache-refresh", 15 * 60_000, async () => {
   await refreshMarketSnapshotCache();
 });
 
-registerJob("news-sync", 10 * 60_000, async () => {
-  // Fetch news from RSS/GDELT/NewsData and cache in DB every 10 minutes
+registerJob("news-sync", 3 * 60_000, async () => {
+  // Fetch news from RSS/GDELT/NewsData and cache in DB every 3 minutes
   const { syncNewsToDb } = await import("@/lib/news/sync");
   await syncNewsToDb();
 });

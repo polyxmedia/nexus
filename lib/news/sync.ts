@@ -17,7 +17,7 @@ export async function syncNewsToDb(): Promise<{ inserted: number; pruned: number
   let inserted = 0;
 
   // Fetch all categories in parallel
-  const articles = await getNewsFeed(undefined, 200);
+  const articles = await getNewsFeed(undefined, 400);
 
   for (const article of articles) {
     try {

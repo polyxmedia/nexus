@@ -883,7 +883,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   // ── Memory Tools ──
   {
     name: "recall_memory",
-    description: "Recall stored memories about this user (preferences, active theses, portfolio positions, standing instructions). ALWAYS call this at the start of a conversation to personalise your responses. You can filter by category: preference, thesis, portfolio, context, instruction.",
+    description: "Recall stored memories about this user (preferences, active theses, portfolio positions, standing instructions, operator-confirmed intelligence). ALWAYS call this at the start of a conversation to personalise your responses. You can filter by category: preference, thesis, portfolio, context, instruction, ground_truth.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -898,14 +898,14 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   },
   {
     name: "save_memory",
-    description: "Save a persistent memory about this user that will be recalled in future conversations. Use this when the user states a preference, updates their thesis, describes their portfolio, gives a standing instruction, or shares context they want you to always remember. Categories: preference (risk tolerance, sectors, style), thesis (active investment theses), portfolio (positions, allocations), context (background info), instruction (standing orders like 'always check oil before answering').",
+    description: "Save a persistent memory about this user that will be recalled in future conversations. Use this when the user states a preference, updates their thesis, describes their portfolio, gives a standing instruction, or shares context they want you to always remember. Categories: preference (risk tolerance, sectors, style), thesis (active investment theses), portfolio (positions, allocations), context (background info), instruction (standing orders like 'always check oil before answering'), ground_truth (operator-confirmed facts that override lagged tool data, e.g. 'Hormuz is closed to commercial traffic' when the operator has confirmed this repeatedly). Use ground_truth when the operator insists on a factual claim that your tools cannot yet verify due to data lag.",
     input_schema: {
       type: "object" as const,
       properties: {
         category: {
           type: "string",
-          enum: ["preference", "thesis", "portfolio", "context", "instruction"],
-          description: "Memory category.",
+          enum: ["preference", "thesis", "portfolio", "context", "instruction", "ground_truth"],
+          description: "Memory category. Use ground_truth for operator-confirmed facts that should override lagged tool data.",
         },
         key: {
           type: "string",
@@ -2498,25 +2498,29 @@ async function executeWebSearch(input: Record<string, unknown>) {
   // Try cached news DB first (instant, no external call)
   try {
     const { getCachedNews } = await import("@/lib/news/sync");
-    const cached = await getCachedNews(undefined, 100);
+    const cached = await getCachedNews(undefined, 200);
     const queryLower = query.toLowerCase();
     const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
-    const matched = cached.filter((a) => {
+    const minTerms = Math.max(2, Math.ceil(queryTerms.length * 0.4));
+    const scored = cached.map((a) => {
       const text = `${a.title} ${a.description || ""} ${a.category || ""}`.toLowerCase();
-      return queryTerms.some(term => text.includes(term));
-    }).slice(0, 15);
+      const hits = queryTerms.filter(term => text.includes(term)).length;
+      return { article: a, hits };
+    }).filter(s => s.hits >= minTerms)
+      .sort((a, b) => b.hits - a.hits)
+      .slice(0, 15);
 
-    if (matched.length >= 3) {
+    if (scored.length >= 3) {
       return {
         query,
         source: "cached_news",
-        resultCount: matched.length,
-        articles: matched.map((a) => ({
-          title: a.title,
-          url: a.url,
-          source: a.source,
-          date: a.date,
-          category: a.category,
+        resultCount: scored.length,
+        articles: scored.map((s) => ({
+          title: s.article.title,
+          url: s.article.url,
+          source: s.article.source,
+          date: s.article.date,
+          category: s.article.category,
         })),
       };
     }
@@ -2525,8 +2529,13 @@ async function executeWebSearch(input: Record<string, unknown>) {
   }
 
   try {
-    // Try GDELT
-    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=15&format=json&sort=DateDesc`;
+    // Try GDELT with enhanced parameters
+    // Use negative tone filter for conflict/crisis queries to get more specific results
+    const conflictTerms = ["attack", "war", "strike", "bomb", "shoot", "closed", "blockade", "closure", "missile", "drone", "escalat", "conflict", "military"];
+    const isConflictQuery = conflictTerms.some(t => query.toLowerCase().includes(t));
+    const toneParam = isConflictQuery ? "&tone=<-3" : "";
+    const themeParam = isConflictQuery ? "&theme=TAX_FNCACT_MILITARY" : "";
+    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=25&format=json&sort=DateDesc&timespan=3d${toneParam}${themeParam}`;
     const data = await fetchGdeltJson(url);
 
     if (data) {
@@ -2578,26 +2587,30 @@ async function executeGetOsintEvents(input: Record<string, unknown>) {
   // Try cached news DB first (instant)
   try {
     const { getCachedNews } = await import("@/lib/news/sync");
-    const cached = await getCachedNews(undefined, 100);
+    const cached = await getCachedNews(undefined, 200);
     const queryLower = query.toLowerCase();
     const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
-    const matched = cached.filter((a) => {
+    const minTerms = Math.max(2, Math.ceil(queryTerms.length * 0.4));
+    const scored = cached.map((a) => {
       const text = `${a.title} ${a.description || ""} ${a.category || ""}`.toLowerCase();
-      return queryTerms.some(term => text.includes(term));
-    }).slice(0, limit);
+      const hits = queryTerms.filter(term => text.includes(term)).length;
+      return { article: a, hits };
+    }).filter(s => s.hits >= minTerms)
+      .sort((a, b) => b.hits - a.hits)
+      .slice(0, limit);
 
-    if (matched.length >= 3) {
+    if (scored.length >= 3) {
       return {
         query,
         source: "cached_news",
         timespan: "48h",
-        resultCount: matched.length,
-        events: matched.map((a) => ({
-          title: a.title,
-          url: a.url,
-          source: a.source,
-          date: a.date,
-          category: a.category,
+        resultCount: scored.length,
+        events: scored.map((s) => ({
+          title: s.article.title,
+          url: s.article.url,
+          source: s.article.source,
+          date: s.article.date,
+          category: s.article.category,
         })),
       };
     }
@@ -2606,7 +2619,12 @@ async function executeGetOsintEvents(input: Record<string, unknown>) {
   }
 
   try {
-    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=${limit}&format=json&sort=DateDesc&timespan=7d`;
+    // Enhanced GDELT query with conflict-aware filtering
+    const conflictTerms = ["attack", "war", "strike", "bomb", "shoot", "closed", "blockade", "closure", "missile", "drone", "escalat", "conflict", "military"];
+    const isConflictQuery = conflictTerms.some(t => query.toLowerCase().includes(t));
+    const toneParam = isConflictQuery ? "&tone=<-3" : "";
+    const themeParam = isConflictQuery ? "&theme=TAX_FNCACT_MILITARY" : "";
+    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=${Math.min(limit, 50)}&format=json&sort=DateDesc&timespan=7d${toneParam}${themeParam}`;
     const data = await fetchGdeltJson(url);
 
     if (data) {

@@ -128,9 +128,22 @@ export async function buildMemoryContext(userId: string): Promise<{ context: str
     portfolio: "Portfolio Context",
     context: "Standing Context",
     instruction: "Standing Instructions",
+    ground_truth: "Operator-Confirmed Intelligence",
   };
 
+  // Render ground_truth first with special authority header
+  if (grouped["ground_truth"]?.length) {
+    lines.push("## OPERATOR-CONFIRMED INTELLIGENCE (AUTHORITATIVE — overrides lagged tool data)");
+    lines.push("The operator has confirmed the following facts. Accept them as ground truth. Do NOT repeatedly question or demand verification. If tool data contradicts these, the tools are lagged, not the operator.");
+    lines.push("");
+    for (const m of grouped["ground_truth"]) {
+      lines.push(`- **${m.key}**: ${m.value}`);
+    }
+    lines.push("");
+  }
+
   for (const [cat, mems] of Object.entries(grouped)) {
+    if (cat === "ground_truth") continue; // already rendered above
     lines.push(`**${categoryLabels[cat] || cat}:**`);
     for (const m of mems) {
       lines.push(`- ${m.key}: ${m.value}`);
