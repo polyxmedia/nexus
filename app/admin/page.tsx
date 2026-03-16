@@ -5742,7 +5742,7 @@ export default function AdminPage() {
   const [granting, setGranting] = useState<string | null>(null);
   const [grantModal, setGrantModal] = useState<string | null>(null);
   const [grantForm, setGrantForm] = useState({
-    tier: "analyst",
+    tier: "observer",
     duration: "30", // days, "" = permanent
     note: "",
   });
@@ -5766,7 +5766,7 @@ export default function AdminPage() {
     await fetchUsers();
     setGranting(null);
     setGrantModal(null);
-    setGrantForm({ tier: "analyst", duration: "30", note: "" });
+    setGrantForm({ tier: "observer", duration: "30", note: "" });
   };
 
   const revokeAccess = async (username: string) => {
@@ -6343,7 +6343,7 @@ export default function AdminPage() {
                         <td className="px-4 py-3">
                           <span className="text-xs text-navy-400 capitalize">
                             {user.subscription
-                              ? user.tier || "active"
+                              ? (user.tier === "station" ? "institution" : user.tier === "analyst" ? "observer" : user.tier) || "active"
                               : "Free"}
                           </span>
                         </td>
@@ -6489,8 +6489,9 @@ export default function AdminPage() {
                                         className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-300 cursor-pointer outline-none hover:bg-accent-cyan/10 hover:text-accent-cyan transition-colors"
                                         onSelect={() => {
                                           setGrantModal(user.username);
+                                          const rawTier = user.compedGrant?.tier || user.tier || "observer";
                                           setGrantForm({
-                                            tier: user.compedGrant?.tier || user.tier || "analyst",
+                                            tier: rawTier === "station" ? "institution" : rawTier === "analyst" ? "observer" : rawTier,
                                             duration: "",
                                             note: user.compedGrant?.note || "",
                                           });
@@ -6512,7 +6513,7 @@ export default function AdminPage() {
                                       className="flex items-center gap-2 px-3 py-2 rounded text-[11px] font-mono text-navy-300 cursor-pointer outline-none hover:bg-accent-cyan/10 hover:text-accent-cyan transition-colors"
                                       onSelect={() => {
                                         setGrantModal(user.username);
-                                        setGrantForm({ tier: "analyst", duration: "30", note: "" });
+                                        setGrantForm({ tier: "observer", duration: "30", note: "" });
                                       }}
                                     >
                                       <Gift className="h-3 w-3" />
