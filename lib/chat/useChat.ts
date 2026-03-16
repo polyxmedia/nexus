@@ -245,6 +245,16 @@ export function useChat(sessionId: string) {
                   }
                   return updated;
                 });
+              } else if (event.type === "sycophancy_rewrite") {
+                // Replace the assistant's response with the corrected version
+                setTurns((prev) => {
+                  const updated = [...prev];
+                  const idx = findLastAssistantIndex(updated);
+                  if (idx >= 0) {
+                    updated[idx] = { ...updated[idx], content: event.content as string };
+                  }
+                  return updated;
+                });
               } else if (event.type === "sycophancy_index") {
                 setTurns((prev) => {
                   const updated = [...prev];

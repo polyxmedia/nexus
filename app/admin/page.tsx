@@ -6295,6 +6295,9 @@ export default function AdminPage() {
                       <th className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-widest text-navy-500">
                         Status
                       </th>
+                      <th className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-widest text-navy-500">
+                        Joined
+                      </th>
                       <th className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-widest text-navy-500 min-w-[280px]">
                         Actions
                       </th>
@@ -6367,6 +6370,13 @@ export default function AdminPage() {
                           ) : (
                             <span className="text-[10px] text-navy-600">--</span>
                           )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-[10px] font-mono text-navy-500">
+                            {user.createdAt
+                              ? new Date(user.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                              : "--"}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">

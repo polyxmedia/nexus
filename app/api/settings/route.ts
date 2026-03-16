@@ -8,7 +8,6 @@ import { validateOrigin } from "@/lib/security/csrf";
 
 // Keys that are global (not per-user) and readable by any authenticated user
 const GLOBAL_READABLE_KEYS = new Set([
-  "system_prompt",
   "trading_environment",
   "ai_model",
   "ai_chat_model",

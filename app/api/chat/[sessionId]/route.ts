@@ -816,6 +816,54 @@ Be strict. Most responses will have some degree of agreement bias.`,
                 const flags = Array.isArray(sycResult.flags) ? sycResult.flags : [];
                 sendEvent({ type: "sycophancy_index", result: { score, flags } });
 
+                // If sycophancy is high, rewrite the response before the user treats it as final
+                if (score > 0.4 && flags.length > 0) {
+                  try {
+                    const rewriteResponse = await client.messages.create({
+                      model: "claude-haiku-4-5-20251001",
+                      max_tokens: 4096,
+                      system: `You are a copy editor removing sycophantic patterns from an intelligence analyst's response. The response was flagged for these patterns: ${flags.join("; ")}.
+
+Rewrite the response to be fully independent and evidence-based. Rules:
+- Remove ALL filler validation ("Great question", "You're right", "That's smart", etc.)
+- If the analyst agreed with the user without citing data, either add a caveat or state the agreement is unverified
+- If probabilities seem rounded toward what the user wants, add the counter-case
+- If contradictory evidence was buried after agreement, lead with the contradiction instead
+- Remove hedging phrases that soften disagreement ("but there could be scenarios where...")
+- Keep all data, tool results, numbers, and substantive analysis intact
+- Keep the same length and structure, just fix the tone
+- Do NOT add meta-commentary about the rewrite. Just output the corrected response.
+- Tone: direct, flat, clinical. Intelligence briefing, not chatbot.`,
+                      messages: [
+                        { role: "user", content: `Original user message: ${userMessage.slice(0, 500)}\n\nSycophantic response to rewrite:\n${fullText}` },
+                      ],
+                    });
+
+                    const rewrittenText = rewriteResponse.content[0].type === "text" ? rewriteResponse.content[0].text : "";
+                    if (rewrittenText.length > 50) {
+                      fullText = rewrittenText;
+                      sendEvent({ type: "sycophancy_rewrite", content: rewrittenText });
+
+                      // Update the stored message with the corrected version
+                      try {
+                        await db.execute(drizzleSql`
+                          UPDATE chat_messages SET content = ${rewrittenText}
+                          WHERE session_id = ${id} AND role = 'assistant'
+                          ORDER BY id DESC LIMIT 1
+                        `);
+                      } catch {
+                        // Non-critical
+                      }
+                    }
+
+                    if (rewriteResponse.usage) {
+                      debitCredits(username, "claude-haiku-4-5-20251001", rewriteResponse.usage.input_tokens, rewriteResponse.usage.output_tokens, "sycophancy_rewrite", sessionId).catch(() => {});
+                    }
+                  } catch (err) {
+                    console.error("[Chat] sycophancy rewrite failed:", err);
+                  }
+                }
+
                 // Persist to DB metadata column for history reload
                 try {
                   await db.execute(drizzleSql`

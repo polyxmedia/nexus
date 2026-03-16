@@ -46,13 +46,20 @@ export async function GET() {
         username,
         role: data.role || "user",
         tier: data.tier || "free",
-        createdAt: s.updatedAt,
+        createdAt: data.createdAt || s.updatedAt,
         compedGrant: data.compedGrant || null,
         email: data.email || null,
         blocked: data.blocked || false,
         blockedAt: data.blockedAt || null,
         throttle: data.throttle || null,
       };
+    });
+
+    // Sort by registration date, newest first
+    users.sort((a: { createdAt: string | null }, b: { createdAt: string | null }) => {
+      const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return db - da;
     });
 
     // Get subscription data for each user
