@@ -126,7 +126,7 @@ export default function WikiPage() {
     const catConfig = CATEGORY_CONFIG[selectedArticle.category] || CATEGORY_CONFIG.event;
 
     return (
-      <UpgradeGate minTier="observer">
+      <UpgradeGate minTier="observer" feature="Wiki">
         <PageContainer title="Wiki">
           <div className="max-w-4xl">
             {/* Back button */}
@@ -201,7 +201,7 @@ export default function WikiPage() {
 
   // List view
   return (
-    <UpgradeGate minTier="observer">
+    <UpgradeGate minTier="observer" feature="Wiki">
       <PageContainer title="Wiki">
         <div className="max-w-5xl">
           {/* Header */}

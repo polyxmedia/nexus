@@ -45,7 +45,7 @@ const LIVE_STATS = [
 ];
 
 interface UpgradeGateProps {
-  minTier: "free" | "analyst" | "operator" | "institution";
+  minTier: "free" | "analyst" | "observer" | "operator" | "institution";
   feature: string;
   children: React.ReactNode;
   blur?: boolean;

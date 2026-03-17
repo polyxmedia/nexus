@@ -52,7 +52,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { PAGE_TIERS } from "@/lib/auth/tier-config";
 
-type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badge?: number };
 
 // ── Analyst tier: core intelligence ──
 const mainNav: NavItem[] = [
@@ -107,7 +107,7 @@ const analyticsNav: NavItem[] = [
   { name: "Simulation", href: "/simulation", icon: Dice5 },
 ];
 
-function NavSection({ label, items, pathname, checkAccess }: { label: string; items: NavItem[]; pathname: string; checkAccess?: (tier: "free" | "analyst" | "operator" | "institution") => boolean }) {
+function NavSection({ label, items, pathname, checkAccess }: { label: string; items: NavItem[]; pathname: string; checkAccess?: (tier: "free" | "analyst" | "observer" | "operator" | "institution") => boolean }) {
   if (items.length === 0) return null;
   return (
     <div className="mb-1">
