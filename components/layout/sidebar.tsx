@@ -43,6 +43,7 @@ import {
   Users,
   Bug,
   Briefcase,
+  Lightbulb,
   X,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -385,6 +386,15 @@ export function Sidebar() {
           <Settings className="h-4 w-4 shrink-0 opacity-70" />
           Settings
         </Link>
+        <a
+          href="mailto:support@nexushq.xyz?subject=Feature Request&body=What would you like to see?%0A%0AWhy would this be useful?%0A%0A"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium text-navy-500 hover:bg-navy-800/50 hover:text-navy-200 transition-colors"
+        >
+          <Lightbulb className="h-4 w-4 shrink-0 opacity-70" />
+          Request a Feature
+        </a>
         <a
           href="mailto:support@nexushq.xyz?subject=Bug Report&body=Describe the issue:%0A%0ASteps to reproduce:%0A%0AExpected behavior:%0A%0A"
           target="_blank"
