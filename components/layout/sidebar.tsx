@@ -140,6 +140,11 @@ function NavSection({ label, items, pathname, checkAccess }: { label: string; it
           >
             <item.icon className={cn("h-4 w-4 shrink-0", locked ? "opacity-40" : "opacity-70")} />
             <span className="flex-1">{item.name}</span>
+            {item.badge && item.badge > 0 ? (
+              <span className="ml-auto flex h-4 min-w-[16px] items-center justify-center rounded-full bg-accent-cyan/20 px-1 text-[9px] font-mono font-bold text-accent-cyan">
+                {item.badge}
+              </span>
+            ) : null}
             {locked && <Lock className="h-3 w-3 text-navy-700 shrink-0" />}
           </Link>
         );
@@ -296,9 +301,26 @@ export function Sidebar() {
   const { data: session } = useSession();
   const { isAdmin, meetsMinTier, tier, loading: subLoading } = useSubscription();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [supportUnread, setSupportUnread] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = () => {
+      fetch("/api/support/unread")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setSupportUnread(d.count))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media"];
   if (publicPages.includes(pathname) || pathname.startsWith("/research") || pathname.startsWith("/blog")) return null;
+
+  const toolsNavWithBadges = toolsNav.map((item) =>
+    item.href === "/support" ? { ...item, badge: supportUnread } : item
+  );
 
   const sidebarContent = (
     <div className="flex h-full flex-col">
@@ -325,7 +347,7 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-1" onClick={() => setMobileOpen(false)}>
         <NavSection label="" items={mainNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
         <NavSection label="Intelligence" items={intelligenceNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
-        <NavSection label="Tools" items={toolsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
+        <NavSection label="Tools" items={toolsNavWithBadges} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
         <NavSection label="Markets" items={marketsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
         <NavSection label="Analytics" items={analyticsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
       </nav>

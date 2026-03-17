@@ -20,6 +20,7 @@ import { eq, like, and, or, desc, sql } from "drizzle-orm";
 import type { KnowledgeEntry, NewKnowledgeEntry } from "@/lib/db/schema";
 import { embedKnowledgeEntry, semanticSearch, embedAllKnowledge } from "./embeddings";
 import { trackAccess, rescueFromGrace } from "./hygiene";
+import { extractAndLinkEntities, crossLinkKnowledge, graphAugmentedSearch } from "./graph-rag";
 
 // ── Core Operations ──
 
@@ -31,8 +32,18 @@ export async function addKnowledge(entry: Omit<NewKnowledgeEntry, "id" | "create
   const row = rows[0];
 
   // Generate embedding in background (don't block the insert)
-  embedKnowledgeEntry(row.id).catch((err) =>
-    console.error(`Failed to embed knowledge ${row.id}:`, err)
+  embedKnowledgeEntry(row.id)
+    .then(() => {
+      // After embedding, run cross-linking (needs the embedding to exist)
+      crossLinkKnowledge(row.id).catch((err) =>
+        console.error(`[GraphRAG] Cross-linking failed for ${row.id}:`, err)
+      );
+    })
+    .catch((err) => console.error(`Failed to embed knowledge ${row.id}:`, err));
+
+  // Extract entities and link to graph in background
+  extractAndLinkEntities(row.id).catch((err) =>
+    console.error(`[GraphRAG] Entity extraction failed for ${row.id}:`, err)
   );
 
   return row;
@@ -155,15 +166,26 @@ export async function searchKnowledge(query: string, options?: SearchOptions): P
         // Rescue any graced entries that are still being accessed
         rescueFromGrace(ids).catch(() => {});
 
-        return filtered.map((r) => ({
+        const baseResults = filtered.map((r) => ({
           id: r.id,
           title: r.title,
           content: r.content,
           category: r.category,
-          tags: r.tags,
+          confidence: r.confidence,
+        }));
+
+        // Graph augmentation: discover related knowledge via entity graph
+        const augmented = await graphAugmentedSearch(baseResults, options?.limit ?? 20).catch(() => baseResults);
+
+        return augmented.map((r) => ({
+          id: r.id,
+          title: r.title,
+          content: r.content + (r.graphContext?.length ? `\n\n[Graph connections: ${r.graphContext.join(", ")}]` : ""),
+          category: r.category,
+          tags: null,
           source: null,
           confidence: r.confidence,
-          status: r.status,
+          status: "active",
           supersededBy: null,
           validFrom: null,
           validUntil: null,

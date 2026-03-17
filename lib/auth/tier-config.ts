@@ -84,6 +84,7 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "get_economic_calendar": "analyst",
   "web_search": "analyst",
   "search_knowledge": "analyst",
+  "explore_connections": "analyst",
   "get_timeline": "analyst",
   "get_esoteric_reading": "analyst",
   "get_game_theory": "analyst",

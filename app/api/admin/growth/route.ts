@@ -46,7 +46,7 @@ export async function GET() {
         username: s.key.replace("user:", ""),
         role: data.role || "user",
         tier: data.tier || "free",
-        createdAt: data.createdAt || s.key, // fallback
+        createdAt: data.createdAt || null,
       };
     });
 
@@ -86,18 +86,24 @@ export async function GET() {
       (s) => s.status === "past_due"
     );
 
-    // MRR calculation
+    // MRR calculation (exclude comped accounts from revenue)
     let mrr = 0;
     const subscribersByTier: Record<string, number> = {};
     const revenueByTier: Record<string, number> = {};
+    let compedCount = 0;
     for (const sub of activeSubscriptions) {
+      const isComped = !sub.stripeSubscriptionId || sub.stripeSubscriptionId.startsWith("comped_");
       const tier = tierMap[sub.tierId];
       if (tier) {
-        mrr += tier.price;
         const tierName = tier.name.toLowerCase();
+        if (isComped) {
+          compedCount++;
+        } else {
+          mrr += tier.price;
+          revenueByTier[tierName] =
+            (revenueByTier[tierName] || 0) + tier.price;
+        }
         subscribersByTier[tierName] = (subscribersByTier[tierName] || 0) + 1;
-        revenueByTier[tierName] =
-          (revenueByTier[tierName] || 0) + tier.price;
       }
     }
 
@@ -205,6 +211,8 @@ export async function GET() {
       overview: {
         totalUsers,
         activeSubscribers: activeSubscriptions.length,
+        compedSubscribers: compedCount,
+        paidSubscribers: activeSubscriptions.length - compedCount,
         cancelledSubscribers: cancelledSubscriptions.length,
         pastDueSubscribers: pastDueSubscriptions.length,
         mrr,

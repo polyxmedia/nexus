@@ -6,6 +6,7 @@ import { NotificationToast } from "@/components/notifications/notification-toast
 import { AuthProvider } from "@/components/providers/session-provider";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
+import { OutageBanner } from "@/components/layout/outage-banner";
 import { TrialBanner } from "@/components/subscription/trial-banner";
 import { SubscriptionProvider } from "@/lib/hooks/useSubscription";
 import { OrganizationJsonLd, WebSiteJsonLd, SoftwareApplicationJsonLd } from "@/components/seo/json-ld";
@@ -98,6 +99,7 @@ export default function RootLayout({
           <Web3Provider>
             <NotificationProvider>
               <SubscriptionProvider>
+                <OutageBanner />
                 <ImpersonationBanner />
                 <TrialBanner />
                 <Sidebar />

@@ -335,6 +335,8 @@ interface GrowthData {
   overview: {
     totalUsers: number;
     activeSubscribers: number;
+    compedSubscribers: number;
+    paidSubscribers: number;
     cancelledSubscribers: number;
     pastDueSubscribers: number;
     mrr: number;
@@ -5531,6 +5533,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(true);
+  const [activity, setActivity] = useState<{ summary: { totalUsers: number; activeToday: number; active7d: number; totalMessages7d: number; totalPredictions7d: number }; users: Array<{ username: string; lastLogin: string | null; chatSessions7d: number; chatMessages7d: number; predictions7d: number; lastChatAt: string | null; tier: string; role: string }> } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showNewTier, setShowNewTier] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -5636,6 +5639,13 @@ export default function AdminPage() {
     setUsersLoading(false);
   }, []);
 
+  const fetchActivity = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/activity");
+      if (res.ok) setActivity(await res.json());
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
@@ -5665,6 +5675,7 @@ export default function AdminPage() {
       });
 
     fetchTiers();
+    fetchActivity();
 
     // Fetch prompts
     fetch("/api/settings/prompts")
@@ -5674,7 +5685,7 @@ export default function AdminPage() {
         setPromptsLoading(false);
       })
       .catch(() => setPromptsLoading(false));
-  }, [status, router, fetchTiers]);
+  }, [status, router, fetchTiers, fetchActivity]);
 
   const savePrompt = useCallback(async (key: string, value: string) => {
     await fetch("/api/settings/prompts", {
@@ -6258,10 +6269,77 @@ export default function AdminPage() {
         {/* Users Tab */}
         <Tabs.Content value="users">
           <div className="max-w-5xl">
+            {/* Activity Digest */}
+            {activity && (
+              <div className="mb-6 border border-navy-700/40 rounded bg-navy-900/40 p-4">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">7-Day Activity Digest</div>
+                {/* Summary cards */}
+                <div className="grid grid-cols-5 gap-3 mb-4">
+                  {[
+                    { label: "Active Today", value: activity.summary.activeToday, total: activity.summary.totalUsers, color: "text-accent-emerald" },
+                    { label: "Active 7d", value: activity.summary.active7d, total: activity.summary.totalUsers, color: "text-accent-cyan" },
+                    { label: "Messages 7d", value: activity.summary.totalMessages7d, color: "text-navy-200" },
+                    { label: "Predictions 7d", value: activity.summary.totalPredictions7d, color: "text-navy-200" },
+                    { label: "Total Users", value: activity.summary.totalUsers, color: "text-navy-200" },
+                  ].map((stat) => (
+                    <div key={stat.label} className="text-center">
+                      <div className={`text-lg font-mono font-bold tabular-nums ${stat.color}`}>
+                        {stat.value}
+                        {stat.total !== undefined && stat.total !== stat.value && (
+                          <span className="text-[10px] text-navy-600 font-normal">/{stat.total}</span>
+                        )}
+                      </div>
+                      <div className="text-[9px] font-mono text-navy-600 uppercase tracking-wider">{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Active users list */}
+                {activity.users.filter((u) => u.chatMessages7d > 0 || u.predictions7d > 0).length > 0 && (
+                  <div className="space-y-1.5">
+                    {activity.users.filter((u) => u.chatMessages7d > 0 || u.predictions7d > 0).map((u) => {
+                      const lastTime = u.lastChatAt || u.lastLogin;
+                      const timeAgo = lastTime ? (() => { const diff = Date.now() - new Date(lastTime).getTime(); const mins = Math.floor(diff / 60000); if (mins < 60) return `${mins}m ago`; const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h ago`; return `${Math.floor(hrs / 24)}d ago`; })() : "never";
+                      return (
+                        <div key={u.username} className="flex items-center gap-3 text-[11px] py-1 px-2 rounded hover:bg-navy-800/30">
+                          <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
+                            u.lastLogin && new Date(u.lastLogin) > new Date(Date.now() - 86400000) ? "bg-accent-emerald" :
+                            u.lastLogin && new Date(u.lastLogin) > new Date(Date.now() - 3 * 86400000) ? "bg-accent-amber" : "bg-navy-700"
+                          }`} />
+                          <span className="font-mono text-navy-300 w-44 truncate">{u.username}</span>
+                          <span className="text-[9px] font-mono text-navy-600 uppercase w-16">{u.tier}</span>
+                          <div className="flex items-center gap-3 flex-1">
+                            {u.chatMessages7d > 0 && (
+                              <span className="text-[10px] font-mono text-accent-cyan">
+                                {u.chatMessages7d} msg{u.chatMessages7d !== 1 ? "s" : ""} / {u.chatSessions7d} chat{u.chatSessions7d !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                            {u.predictions7d > 0 && (
+                              <span className="text-[10px] font-mono text-accent-amber">
+                                {u.predictions7d} prediction{u.predictions7d !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[9px] font-mono text-navy-600 tabular-nums">{timeAgo}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {activity.users.filter((u) => u.chatMessages7d > 0 || u.predictions7d > 0).length === 0 && (
+                  <p className="text-[11px] text-navy-600 font-mono text-center py-2">No active users in the last 7 days</p>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between mb-4">
-              <p className="text-[11px] text-navy-400">
-                Manage user roles and view subscription status.
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-[11px] text-navy-400">
+                  Manage user roles and view subscription status.
+                </p>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-navy-800 text-navy-300">
+                  {users.length} {users.length === 1 ? "user" : "users"}
+                </span>
+              </div>
               <Button
                 variant="outline"
                 size="sm"

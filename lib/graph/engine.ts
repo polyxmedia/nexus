@@ -218,7 +218,7 @@ export async function searchEntities(query: string, type?: string): Promise<Grap
 
 // ── Internal helpers ──
 
-async function upsertEntity(
+export async function upsertEntity(
   type: string,
   name: string,
   properties: Record<string, unknown>,
@@ -247,7 +247,7 @@ async function upsertEntity(
   return inserted;
 }
 
-async function upsertRelationship(fromId: number, toId: number, type: string, weight: number) {
+export async function upsertRelationship(fromId: number, toId: number, type: string, weight: number) {
   const existingRows = await db.select().from(schema.relationships)
     .where(and(
       eq(schema.relationships.fromEntityId, fromId),

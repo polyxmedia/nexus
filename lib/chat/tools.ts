@@ -677,6 +677,21 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "explore_connections",
+    description:
+      "Explore the entity graph to find connections around a topic, actor, location, or concept. Use this when the user asks about relationships between entities, 'what is connected to X', 'who is involved with Y', or when you need to understand the broader context around a subject. Returns connected entities and related knowledge.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "The entity or topic to explore connections for (e.g. 'Iran', 'oil', 'NATO', 'semiconductor')",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "get_timeline",
     description:
       "Retrieve timeline events from the intelligence timeline. Use when the user asks about recent events, what happened, event history, or wants a chronological view of signals, predictions, trades, or alerts. Supports filtering by type and date range.",
@@ -1399,6 +1414,8 @@ export async function executeTool(
       return { briefing: await loadPrompt("operator_briefing") };
     case "search_knowledge":
       return executeSearchKnowledge(input);
+    case "explore_connections":
+      return executeExploreConnections(input);
     case "save_to_knowledge":
       return executeSaveToKnowledge(input);
     case "get_timeline":
@@ -3087,6 +3104,38 @@ async function executeSearchKnowledge(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Knowledge search failed: ${message}` };
+  }
+}
+
+async function executeExploreConnections(input: Record<string, unknown>) {
+  const query = input.query as string;
+  try {
+    const { exploreEntityNeighborhood } = await import("@/lib/knowledge/graph-rag");
+    const result = await exploreEntityNeighborhood(query);
+    if (!result) {
+      return { query, found: false, message: `No entity matching "${query}" found in the graph. Try a different name or search the knowledge bank directly.` };
+    }
+    return {
+      query,
+      found: true,
+      entity: result.center,
+      connectionCount: result.connections.length,
+      connections: result.connections.slice(0, 15).map((c) => ({
+        name: c.name,
+        type: c.type,
+        relationship: c.relationship,
+        weight: Math.round(c.weight * 100) / 100,
+      })),
+      relatedKnowledge: result.relatedKnowledge.slice(0, 5).map((k) => ({
+        id: k.id,
+        title: k.title,
+        category: k.category,
+        confidence: k.confidence,
+      })),
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Graph exploration failed: ${message}` };
   }
 }
 

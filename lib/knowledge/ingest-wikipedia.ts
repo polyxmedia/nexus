@@ -173,6 +173,15 @@ export async function ingestWikipedia(
   let totalErrors = 0;
   const details: Array<{ category: string; fetched: number; ingested: number }> = [];
 
+  // Load all existing Wikipedia titles in one query upfront
+  const existingRows = await db
+    .select({ title: schema.knowledge.title })
+    .from(schema.knowledge)
+    .where(eq(schema.knowledge.source, "wikipedia"));
+  const existingTitles = new Set(
+    existingRows.map((r) => r.title.replace(/^Wikipedia:\s*/i, "").toLowerCase())
+  );
+
   for (const category of targetCategories) {
     try {
       // Get article titles from category
@@ -182,17 +191,21 @@ export async function ingestWikipedia(
         continue;
       }
 
-      // Fetch article content
-      const articles = await fetchArticles(titles);
+      // Filter out titles we already have BEFORE fetching content
+      const newTitles = titles.filter((t) => !existingTitles.has(t.toLowerCase()));
+      if (newTitles.length === 0) {
+        totalSkipped += titles.length;
+        details.push({ category, fetched: 0, ingested: 0 });
+        continue;
+      }
+      totalSkipped += titles.length - newTitles.length;
+
+      // Fetch article content only for new titles
+      const articles = await fetchArticles(newTitles);
       let categoryIngested = 0;
 
       for (const article of articles) {
         try {
-          // Skip if already in knowledge bank
-          if (await articleExists(article.title)) {
-            totalSkipped++;
-            continue;
-          }
 
           // Chunk long articles - max 3000 chars per entry for good embeddings
           const content = article.extract.slice(0, 3000);
@@ -216,6 +229,7 @@ export async function ingestWikipedia(
             }),
           });
 
+          existingTitles.add(article.title.toLowerCase());
           categoryIngested++;
           totalIngested++;
         } catch {

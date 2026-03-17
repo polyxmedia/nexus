@@ -87,6 +87,10 @@ export const authOptions: AuthOptions = {
           const valid = await verifyPassword(credentials.password, userData.password);
           if (!valid) return null;
 
+          // Backfill createdAt for users who predate this field
+          if (!userData.createdAt) {
+            userData.createdAt = users[0].updatedAt || new Date().toISOString();
+          }
           // Track last login
           userData.lastLogin = new Date().toISOString();
           await db

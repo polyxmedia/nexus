@@ -17,6 +17,7 @@ import { hasCredits, debitCredits, calculateCredits } from "@/lib/credits";
 import { buildMemoryContext, touchMemories } from "@/lib/memory/engine";
 import { validateOrigin } from "@/lib/security/csrf";
 import { getSettingValue } from "@/lib/settings/get-setting";
+import { flagAIOutage, clearAIOutage, isBillingError } from "@/lib/ai/outage";
 
 // ── Conversation compression ──
 // When a session exceeds COMPRESS_THRESHOLD messages, older messages are
@@ -626,6 +627,8 @@ export async function POST(
               const usage = event.message.usage as unknown as Record<string, number>;
               totalCacheReadTokens += usage?.cache_read_input_tokens || 0;
               totalCacheCreationTokens += usage?.cache_creation_input_tokens || 0;
+              // Successful API call - clear any outage flag
+              clearAIOutage().catch(() => {});
             } else if (event.type === "content_block_start") {
               if (event.content_block.type === "tool_use") {
                 pendingTools.push({ id: event.content_block.id, name: event.content_block.name, inputJson: "" });
@@ -983,7 +986,13 @@ Rewrite the response to be fully independent and evidence-based. Rules:
         controller.close();
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Stream error";
-        sendEvent({ type: "error", message });
+        // Detect billing/credit exhaustion and flag system-wide outage
+        if (isBillingError(err)) {
+          await flagAIOutage(message);
+          sendEvent({ type: "error", message: "AI services are temporarily unavailable. Our team has been notified and is working on it." });
+        } else {
+          sendEvent({ type: "error", message });
+        }
         controller.close();
       }
     },
