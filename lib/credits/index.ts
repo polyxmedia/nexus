@@ -26,8 +26,10 @@ const MODEL_RATES: Record<string, { input: number; output: number }> = {
 export const TIER_CREDITS: Record<string, number> = {
   free: 5_000, // trial cap: $5 worth of AI usage
   analyst: 50_000,
+  observer: 50_000, // current name for analyst tier
   operator: 250_000,
   institution: -1, // unlimited
+  station: -1, // legacy alias for institution
 };
 
 /**

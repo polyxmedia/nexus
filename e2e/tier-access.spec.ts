@@ -5,12 +5,12 @@ import { hash } from "bcryptjs";
 const DB_URL = process.env.DATABASE_URL || "postgresql://andrefigueira@localhost:5432/nexus";
 
 const USER_FREE = `e2e_tier_free_${Date.now()}`;
-const USER_ANALYST = `e2e_tier_anl_${Date.now()}`;
+const USER_OBSERVER = `e2e_tier_obs_${Date.now()}`;
 const USER_OPERATOR = `e2e_tier_opr_${Date.now()}`;
 const TEST_PASS = "E2eTierPass!99";
 
 let freeContext: BrowserContext;
-let analystContext: BrowserContext;
+let observerContext: BrowserContext;
 let operatorContext: BrowserContext;
 
 async function dbQuery(sql: string, params: unknown[] = []) {
@@ -64,15 +64,15 @@ test.describe.serial("Tier access gating", () => {
 
     // Create users directly in DB (avoids registration rate limits)
     await createUserInDb(USER_FREE, "free");
-    await createUserInDb(USER_ANALYST, "analyst");
+    await createUserInDb(USER_OBSERVER, "observer");
     await createUserInDb(USER_OPERATOR, "operator");
 
     // Login each user to get session cookies
     freeContext = await browser.newContext();
     await login(freeContext, USER_FREE);
 
-    analystContext = await browser.newContext();
-    await login(analystContext, USER_ANALYST);
+    observerContext = await browser.newContext();
+    await login(observerContext, USER_OBSERVER);
 
     operatorContext = await browser.newContext();
     await login(operatorContext, USER_OPERATOR);
@@ -80,7 +80,7 @@ test.describe.serial("Tier access gating", () => {
 
   test.afterAll(async () => {
     await freeContext?.close();
-    await analystContext?.close();
+    await observerContext?.close();
     await operatorContext?.close();
   });
 
@@ -104,17 +104,18 @@ test.describe.serial("Tier access gating", () => {
   });
 
   // ═══════════════════════════════════════════
-  // FREE TIER - blocked from analyst routes
+  // FREE TIER - blocked from observer routes
   // ═══════════════════════════════════════════
 
-  test("free: blocked from signals (analyst gate)", async () => {
+  test("free: blocked from signals (observer gate)", async () => {
     const { status, body } = await apiGet(freeContext, "/api/signals");
     expect(status).toBe(403);
+    // requireTier uses "analyst" internally (observer is alias at same level)
     expect(body?.requiredTier).toBe("analyst");
     expect(body?.currentTier).toBe("free");
   });
 
-  test("free: blocked from game theory (analyst gate)", async () => {
+  test("free: blocked from game theory (observer gate)", async () => {
     const { status, body } = await apiGet(freeContext, "/api/game-theory");
     expect(status).toBe(403);
     expect(body?.requiredTier).toBe("analyst");
@@ -140,51 +141,51 @@ test.describe.serial("Tier access gating", () => {
   });
 
   // ═══════════════════════════════════════════
-  // ANALYST TIER - can access analyst routes
+  // OBSERVER TIER - can access observer routes
   // ═══════════════════════════════════════════
 
-  test("analyst: can access signals (analyst gate)", async () => {
-    const { status } = await apiGet(analystContext, "/api/signals");
+  test("observer: can access signals", async () => {
+    const { status } = await apiGet(observerContext, "/api/signals");
     expect(status).toBe(200);
   });
 
-  test("analyst: can access game theory (analyst gate)", async () => {
-    const { status } = await apiGet(analystContext, "/api/game-theory");
+  test("observer: can access game theory", async () => {
+    const { status } = await apiGet(observerContext, "/api/game-theory");
     expect(status).toBe(200);
   });
 
-  test("analyst: can access dashboard (free gate)", async () => {
-    const { status } = await apiGet(analystContext, "/api/dashboard/widgets");
+  test("observer: can access dashboard (free gate)", async () => {
+    const { status } = await apiGet(observerContext, "/api/dashboard/widgets");
     expect([200, 304]).toContain(status);
   });
 
-  test("analyst: can access warroom (free gate)", async () => {
-    const { status } = await apiGet(analystContext, "/api/warroom");
+  test("observer: can access warroom (free gate)", async () => {
+    const { status } = await apiGet(observerContext, "/api/warroom");
     expect([200, 304]).toContain(status);
   });
 
-  test("analyst: can access predictions (free gate)", async () => {
-    const { status } = await apiGet(analystContext, "/api/predictions");
+  test("observer: can access predictions (free gate)", async () => {
+    const { status } = await apiGet(observerContext, "/api/predictions");
     expect(status).toBe(200);
   });
 
   // ═══════════════════════════════════════════
-  // ANALYST TIER - blocked from operator routes
+  // OBSERVER TIER - blocked from operator routes
   // ═══════════════════════════════════════════
 
-  test("analyst: blocked from trading (operator gate)", async () => {
-    const { status, body } = await apiGet(analystContext, "/api/trading212/portfolio");
+  test("observer: blocked from trading (operator gate)", async () => {
+    const { status, body } = await apiGet(observerContext, "/api/trading212/portfolio");
     expect(status).toBe(403);
     expect(body?.requiredTier).toBe("operator");
   });
 
-  test("analyst: blocked from gex (operator gate)", async () => {
-    const { status } = await apiGet(analystContext, "/api/gex");
+  test("observer: blocked from gex (operator gate)", async () => {
+    const { status } = await apiGet(observerContext, "/api/gex");
     expect(status).toBe(403);
   });
 
-  test("analyst: blocked from short interest (operator gate)", async () => {
-    const { status } = await apiGet(analystContext, "/api/short-interest");
+  test("observer: blocked from short interest (operator gate)", async () => {
+    const { status } = await apiGet(observerContext, "/api/short-interest");
     expect(status).toBe(403);
   });
 
@@ -192,7 +193,7 @@ test.describe.serial("Tier access gating", () => {
   // OPERATOR TIER - can access everything
   // ═══════════════════════════════════════════
 
-  test("operator: can access analyst-gated routes", async () => {
+  test("operator: can access observer-gated routes", async () => {
     const endpoints = ["/api/signals", "/api/game-theory"];
     for (const url of endpoints) {
       const { status } = await apiGet(operatorContext, url);
@@ -233,10 +234,11 @@ test.describe.serial("Tier access gating", () => {
     expect(body?.tier).toBe("free");
   });
 
-  test("credits API reflects analyst tier", async () => {
-    const { status, body } = await apiGet(analystContext, "/api/credits");
+  test("credits API reflects observer tier", async () => {
+    const { status, body } = await apiGet(observerContext, "/api/credits");
     expect(status).toBe(200);
-    expect(body?.tier).toBe("analyst");
+    // observer and analyst are aliases at the same level
+    expect(["observer", "analyst"]).toContain(body?.tier);
     expect(body?.creditsGranted).toBeGreaterThan(0);
   });
 
@@ -262,13 +264,14 @@ test.describe.serial("Tier access gating", () => {
     });
   });
 
-  test("analyst 403 on operator route shows correct tiers", async () => {
-    const { status, body } = await apiGet(analystContext, "/api/gex");
+  test("observer 403 on operator route shows correct tiers", async () => {
+    const { status, body } = await apiGet(observerContext, "/api/gex");
     expect(status).toBe(403);
     expect(body).toMatchObject({
       requiredTier: "operator",
-      currentTier: "analyst",
       upgrade: true,
     });
+    // currentTier will be "observer" (the value stored in settings)
+    expect(["observer", "analyst"]).toContain(body?.currentTier);
   });
 });
