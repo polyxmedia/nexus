@@ -781,7 +781,7 @@ export default function LandingPage() {
               href="/register"
               className="px-4 py-1.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
             >
-              Request Access
+              Get Access
             </Link>
           </div>
         </div>
@@ -810,17 +810,11 @@ export default function LandingPage() {
 
               <div className="mt-8 flex items-center gap-4">
                 <Link
-                  href="/dashboard"
+                  href="/register"
                   className="group flex items-center gap-2 px-5 py-2.5 text-[11px] font-mono tracking-widest uppercase text-navy-100 bg-white/[0.06] border border-white/[0.08] rounded-lg hover:bg-white/[0.1] hover:border-white/[0.15] transition-all"
                 >
-                  Enter Platform
+                  Get Access
                   <ArrowUpRight className="h-3 w-3 text-navy-500 group-hover:text-navy-300 transition-colors" />
-                </Link>
-                <Link
-                  href="/register"
-                  className="text-[11px] font-mono tracking-widest uppercase text-navy-500 hover:text-navy-300 transition-colors"
-                >
-                  Start for free
                 </Link>
                 <a
                   href="#features"
@@ -1066,10 +1060,10 @@ export default function LandingPage() {
           </p>
 
           <Link
-            href="/dashboard"
+            href="/register"
             className="group inline-flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10 hover:border-white/20 rounded-lg px-10 py-3.5 text-sm font-medium transition-all duration-300"
           >
-            Get Started
+            Get Access
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>

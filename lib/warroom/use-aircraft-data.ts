@@ -6,10 +6,28 @@ import type { AircraftResponse } from "./types";
 
 const POLL_INTERVAL = 60_000; // 60s - reduced from 20s to cut Vercel invocations
 
-export function useAircraftData(enabled: boolean) {
+export interface AircraftBounds {
+  lamin: number;
+  lomin: number;
+  lamax: number;
+  lomax: number;
+}
+
+export function useAircraftData(enabled: boolean, bounds?: AircraftBounds | null) {
   const visible = useDocumentVisible();
+
+  // Build URL with optional bounding box
+  let url: string | null = null;
+  if (enabled) {
+    if (bounds) {
+      url = `/api/warroom/aircraft?lamin=${bounds.lamin}&lomin=${bounds.lomin}&lamax=${bounds.lamax}&lomax=${bounds.lomax}`;
+    } else {
+      url = "/api/warroom/aircraft";
+    }
+  }
+
   const { data, isLoading: loading } = useSwrFetch<AircraftResponse>(
-    enabled ? "/api/warroom/aircraft" : null,
+    url,
     {
       refreshInterval: visible ? POLL_INTERVAL : 0,
       dedupingInterval: 15_000,

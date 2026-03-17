@@ -28,6 +28,75 @@ const TIER_LEVELS: Record<string, number> = { free: 0, analyst: 1, operator: 2, 
 
 type DbMessage = { id: number; role: string; content: string; toolUses: string | null; toolResults: string | null };
 
+const PROJECT_COLORS = [
+  "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#6366f1", "#84cc16", "#fb923c",
+];
+
+/**
+ * Auto-assign a chat session to a project based on the first message.
+ * Uses Haiku to classify the message against existing projects or create a new one.
+ * Runs as fire-and-forget — never blocks the chat response.
+ */
+async function autoAssignProject(
+  client: Anthropic,
+  sessionId: number,
+  userId: string,
+  firstMessage: string
+): Promise<void> {
+  try {
+    // Fetch existing projects for this user
+    const existingProjects = await db
+      .select({ id: schema.chatProjects.id, name: schema.chatProjects.name })
+      .from(schema.chatProjects)
+      .where(eq(schema.chatProjects.userId, userId));
+
+    const projectList = existingProjects.map((p) => `- ID:${p.id} "${p.name}"`).join("\n");
+
+    const prompt = existingProjects.length > 0
+      ? `You categorise chat messages into projects. Here are the user's existing projects:\n${projectList}\n\nBased on the user's first message, decide:\n1. If it fits an existing project, return: {"action":"existing","id":<project_id>}\n2. If it needs a new project, return: {"action":"new","name":"<short project name, 2-4 words>"}\n\nBe generous with matching to existing projects — only create a new one if the topic is genuinely different from all existing projects. Project names should be broad topic categories (e.g. "Market Analysis", "Geopolitical Risk", "Portfolio Strategy"), not specific questions.\n\nUser message: "${firstMessage.slice(0, 200)}"\n\nReturn ONLY the JSON, nothing else.`
+      : `You categorise chat messages into projects. This user has no projects yet. Based on their first message, suggest a short project name (2-4 words) that describes the broad topic category.\n\nUser message: "${firstMessage.slice(0, 200)}"\n\nReturn ONLY JSON: {"action":"new","name":"<project name>"}`;
+
+    const res = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 100,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = res.content[0].type === "text" ? res.content[0].text.trim() : "";
+    // Extract JSON from response (handle markdown code blocks)
+    const jsonMatch = text.match(/\{[^}]+\}/);
+    if (!jsonMatch) return;
+
+    const decision = JSON.parse(jsonMatch[0]);
+
+    if (decision.action === "existing" && typeof decision.id === "number") {
+      // Verify project belongs to user
+      const valid = existingProjects.some((p) => p.id === decision.id);
+      if (valid) {
+        await db.update(schema.chatSessions)
+          .set({ projectId: decision.id })
+          .where(eq(schema.chatSessions.id, sessionId));
+      }
+    } else if (decision.action === "new" && typeof decision.name === "string" && decision.name.trim()) {
+      const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
+      const [newProject] = await db.insert(schema.chatProjects).values({
+        name: decision.name.trim().slice(0, 200),
+        color,
+        userId,
+        createdAt: new Date().toISOString(),
+      }).returning();
+      if (newProject) {
+        await db.update(schema.chatSessions)
+          .set({ projectId: newProject.id })
+          .where(eq(schema.chatSessions.id, sessionId));
+      }
+    }
+  } catch (err) {
+    console.error("[Chat] Auto-project assignment failed (non-blocking):", err);
+  }
+}
+
 const JIANG_MODE_ADDENDUM = `
 
 ## NARRATIVE SYNTHESIS MODE (ACTIVE)
@@ -276,6 +345,13 @@ export async function POST(
   if (session.title === "New Chat") {
     const title = userMessage.slice(0, 50) + (userMessage.length > 50 ? "..." : "");
     await db.update(schema.chatSessions).set({ title, updatedAt: new Date().toISOString() }).where(eq(schema.chatSessions.id, id));
+    // Auto-assign project in background (only on first message, only if not already in a project)
+    if (!session.projectId) {
+      const bgClient = new Anthropic({ apiKey });
+      autoAssignProject(bgClient, id, username, userMessage).catch((err) =>
+        console.error("[Chat] Auto-project background error:", err)
+      );
+    }
   } else {
     await db.update(schema.chatSessions).set({ updatedAt: new Date().toISOString() }).where(eq(schema.chatSessions.id, id));
   }

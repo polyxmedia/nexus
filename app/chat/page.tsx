@@ -17,6 +17,7 @@ import {
   FolderInput,
   Pencil,
   Hash,
+  GripVertical,
 } from "lucide-react";
 
 interface ChatProject {
@@ -54,6 +55,8 @@ export default function ChatPage() {
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
   const [tagInput, setTagInput] = useState<{ sessionId: number; value: string } | null>(null);
   const [moveMenu, setMoveMenu] = useState<number | null>(null);
+  const [dragSessionId, setDragSessionId] = useState<number | null>(null);
+  const [dragOverProject, setDragOverProject] = useState<number | "all" | null>(null);
   const router = useRouter();
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -219,7 +222,17 @@ export default function ChatPage() {
           </div>
 
           {/* All Chats */}
-          <div>
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverProject("all"); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverProject(null); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverProject(null);
+              if (dragSessionId !== null) moveToProject(dragSessionId, null);
+              setDragSessionId(null);
+            }}
+            className={`rounded transition-all ${dragOverProject === "all" ? "ring-1 ring-navy-500 bg-navy-800/80" : ""}`}
+          >
             <button
               onClick={() => { setActiveProject(null); setActiveTag(null); }}
               className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-mono transition-colors ${
@@ -288,7 +301,21 @@ export default function ChatPage() {
 
             <div className="space-y-0.5">
               {projects.map((p) => (
-                <div key={p.id} className="group flex items-center">
+                <div
+                  key={p.id}
+                  className={`group flex items-center rounded transition-all ${
+                    dragOverProject === p.id ? "ring-1 ring-offset-0 bg-navy-800/80" : ""
+                  }`}
+                  style={dragOverProject === p.id ? { ringColor: p.color, boxShadow: `inset 0 0 0 1px ${p.color}40` } : undefined}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverProject(p.id); }}
+                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverProject(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverProject(null);
+                    if (dragSessionId !== null) moveToProject(dragSessionId, p.id);
+                    setDragSessionId(null);
+                  }}
+                >
                   <button
                     onClick={() => { setActiveProject(p.id); setActiveTag(null); }}
                     className={`flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-mono transition-colors ${
@@ -364,8 +391,18 @@ export default function ChatPage() {
                 return (
                   <div
                     key={session.id}
-                    className="group relative flex items-center gap-3 rounded border border-navy-700/50 bg-navy-900/40 px-4 py-3 hover:bg-navy-800/60 hover:border-navy-600/50 transition-colors"
+                    draggable
+                    onDragStart={(e) => {
+                      setDragSessionId(session.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", String(session.id));
+                    }}
+                    onDragEnd={() => { setDragSessionId(null); setDragOverProject(null); }}
+                    className={`group relative flex items-center gap-3 rounded border border-navy-700/50 bg-navy-900/40 px-4 py-3 hover:bg-navy-800/60 hover:border-navy-600/50 transition-colors cursor-grab active:cursor-grabbing ${
+                      dragSessionId === session.id ? "opacity-50" : ""
+                    }`}
                   >
+                    <GripVertical className="h-3.5 w-3.5 text-navy-700 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                     <button
                       onClick={() => router.push(`/chat/${session.uuid}`)}
                       className="flex-1 flex items-center gap-3 text-left min-w-0"
