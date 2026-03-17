@@ -5,13 +5,14 @@ import Link from "next/link";
 import { Lock } from "lucide-react";
 
 interface UpgradeGateProps {
-  minTier: "analyst" | "operator" | "institution";
+  minTier: "analyst" | "observer" | "operator" | "institution";
   feature: string;
   children: React.ReactNode;
 }
 
 const TIER_LABELS: Record<string, string> = {
-  analyst: "Analyst",
+  analyst: "Observer",
+  observer: "Observer",
   operator: "Operator",
   institution: "Institution",
 };

@@ -2456,7 +2456,7 @@ async function executeMonteCarloSimulation(input: Record<string, unknown>) {
 // Always check content-type before parsing.
 async function fetchGdeltJson(url: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") || "";
     if (!ct.includes("application/json") && !ct.includes("text/json")) {
@@ -2473,7 +2473,7 @@ async function fetchGdeltJson(url: string): Promise<Record<string, unknown> | nu
 
 async function searchGoogleNewsRSS(query: string) {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
   if (!res.ok) throw new Error(`Google News RSS failed: ${res.status}`);
   const xml = await res.text();
 
@@ -2528,55 +2528,54 @@ async function executeWebSearch(input: Record<string, unknown>) {
     // DB read failed, continue to external sources
   }
 
+  // Race GDELT and Google News in parallel - first good result wins
   try {
-    // Try GDELT with enhanced parameters
-    // Use negative tone filter for conflict/crisis queries to get more specific results
     const conflictTerms = ["attack", "war", "strike", "bomb", "shoot", "closed", "blockade", "closure", "missile", "drone", "escalat", "conflict", "military"];
     const isConflictQuery = conflictTerms.some(t => query.toLowerCase().includes(t));
     const toneParam = isConflictQuery ? "&tone=<-3" : "";
     const themeParam = isConflictQuery ? "&theme=TAX_FNCACT_MILITARY" : "";
-    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=25&format=json&sort=DateDesc&timespan=3d${toneParam}${themeParam}`;
-    const data = await fetchGdeltJson(url);
+    const gdeltUrl = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=ArtList&maxrecords=25&format=json&sort=DateDesc&timespan=3d${toneParam}${themeParam}`;
 
-    if (data) {
-      const articles = (data.articles as Array<Record<string, unknown>>) || [];
-      return {
-        query,
-        source: "gdelt",
-        resultCount: articles.length,
-        articles: articles.slice(0, 15).map((a) => ({
-          title: a.title,
-          url: a.url,
-          source: a.domain || a.sourcecountry,
-          date: a.seendate,
-          language: a.language,
-          tone: a.tone,
-        })),
-      };
+    const [gdeltResult, gnResult] = await Promise.allSettled([
+      fetchGdeltJson(gdeltUrl),
+      searchGoogleNewsRSS(query),
+    ]);
+
+    // Prefer GDELT if it returned data
+    if (gdeltResult.status === "fulfilled" && gdeltResult.value) {
+      const articles = (gdeltResult.value.articles as Array<Record<string, unknown>>) || [];
+      if (articles.length > 0) {
+        return {
+          query,
+          source: "gdelt",
+          resultCount: articles.length,
+          articles: articles.slice(0, 15).map((a) => ({
+            title: a.title,
+            url: a.url,
+            source: a.domain || a.sourcecountry,
+            date: a.seendate,
+            language: a.language,
+            tone: a.tone,
+          })),
+        };
+      }
     }
 
-    // Fallback to Google News RSS
-    const gnArticles = await searchGoogleNewsRSS(query);
-    return {
-      query,
-      source: "google_news",
-      resultCount: gnArticles.length,
-      articles: gnArticles,
-    };
-  } catch {
-    // Final fallback attempt
-    try {
-      const gnArticles = await searchGoogleNewsRSS(query);
+    // Fall back to Google News
+    if (gnResult.status === "fulfilled" && gnResult.value.length > 0) {
       return {
         query,
         source: "google_news",
-        resultCount: gnArticles.length,
-        articles: gnArticles,
+        resultCount: gnResult.value.length,
+        articles: gnResult.value,
       };
-    } catch (err2: unknown) {
-      const message = err2 instanceof Error ? err2.message : "Unknown error";
-      return { error: `Web search failed: ${message}` };
     }
+
+    // Both returned empty
+    return { query, source: "none", resultCount: 0, articles: [], note: "No results found. Try different search terms." };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Web search failed: ${message}` };
   }
 }
 

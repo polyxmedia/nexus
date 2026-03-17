@@ -5,6 +5,7 @@ import { ingestFinalKnowledge, FINAL_ENTRY_COUNT } from "@/lib/knowledge/ingest-
 import { ingestEpsteinNetwork } from "@/lib/knowledge/ingest-epstein-network";
 import { ingestDeepGeopolitical, DEEP_GEOPOLITICAL_ENTRY_COUNT } from "@/lib/knowledge/ingest-geopolitical-deep";
 import { ingestStructuralKnowledge, STRUCTURAL_ENTRY_COUNT } from "@/lib/knowledge/ingest-structural";
+import { ingestWikipedia, WIKIPEDIA_CATEGORY_COUNT } from "@/lib/knowledge/ingest-wikipedia";
 import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
 export async function POST(request: NextRequest) {
@@ -45,6 +46,11 @@ export async function POST(request: NextRequest) {
     if (pack === "structural" || pack === "all") {
       console.log(`Ingesting structural knowledge (${STRUCTURAL_ENTRY_COUNT} entries)...`);
       results.structural = await ingestStructuralKnowledge();
+    }
+
+    if (pack === "wikipedia") {
+      console.log(`Ingesting Wikipedia articles (${WIKIPEDIA_CATEGORY_COUNT} categories)...`);
+      results.wikipedia = await ingestWikipedia();
     }
 
     return NextResponse.json(results);

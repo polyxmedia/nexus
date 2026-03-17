@@ -74,7 +74,7 @@ export interface TierCheckResult {
  * Returns TierCheckResult if authorized.
  */
 export async function requireTier(
-  minTier: "free" | "analyst" | "operator" | "institution"
+  minTier: "free" | "analyst" | "observer" | "operator" | "institution"
 ): Promise<{ result: TierCheckResult } | { response: NextResponse }> {
   // Allow internal scheduler calls via CRON_SECRET bearer token
   const cronSecret = process.env.CRON_SECRET;

@@ -71,6 +71,7 @@ const intelligenceNav: NavItem[] = [
   { name: "Parallels", href: "/parallels", icon: History },
   { name: "Actors", href: "/actors", icon: Users },
   { name: "Knowledge", href: "/knowledge", icon: BookOpen },
+  { name: "Wiki", href: "/wiki", icon: Network },
   { name: "Longevity", href: "/longevity", icon: Skull },
 ];
 

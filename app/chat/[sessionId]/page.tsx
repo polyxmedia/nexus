@@ -29,27 +29,33 @@ import { useSubscription } from "@/lib/hooks/useSubscription";
 function AutoPrompt({ sendMessage, historyLoaded, isStreaming }: { sendMessage: (msg: string) => void; historyLoaded: boolean; isStreaming: boolean }) {
   const searchParams = useSearchParams();
   const sent = useRef(false);
+  const promptRef = useRef(searchParams.get("prompt") || "");
   const sendRef = useRef(sendMessage);
   sendRef.current = sendMessage;
 
-  const prompt = searchParams.get("prompt") || "";
+  // Capture prompt on mount only - don't react to searchParams changes
+  useEffect(() => {
+    if (!promptRef.current) {
+      promptRef.current = searchParams.get("prompt") || "";
+    }
+  }, [searchParams]);
 
   useEffect(() => {
+    const prompt = promptRef.current;
     if (prompt && !sent.current && historyLoaded && !isStreaming) {
       sent.current = true;
 
-      // Clear the prompt from URL so reload won't re-send
-      const url = new URL(window.location.href);
-      url.searchParams.delete("prompt");
-      window.history.replaceState({}, "", url.pathname);
-
-      // Send after a short delay to ensure chat state is fully ready
+      // Send first, then clear URL
       const timer = setTimeout(() => {
         sendRef.current(prompt);
-      }, 300);
+        // Clear prompt from URL after sending so reload won't re-send
+        const url = new URL(window.location.href);
+        url.searchParams.delete("prompt");
+        window.history.replaceState({}, "", url.pathname);
+      }, 150);
       return () => clearTimeout(timer);
     }
-  }, [prompt, historyLoaded, isStreaming]);
+  }, [historyLoaded, isStreaming]);
 
   return null;
 }

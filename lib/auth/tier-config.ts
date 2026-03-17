@@ -7,7 +7,7 @@
  * Never trust the client.
  */
 
-export type MinTier = "free" | "analyst" | "operator" | "institution";
+export type MinTier = "free" | "analyst" | "observer" | "operator" | "institution";
 
 // ── API Route → Minimum Tier ──
 // Every protected route must call requireTier() with the mapped tier.
