@@ -1,23 +1,46 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
+import { Client } from "pg";
+import { hash } from "bcryptjs";
 
+const DB_URL = process.env.DATABASE_URL || "postgresql://andrefigueira@localhost:5432/nexus";
 const TEST_USER = `e2e_test_sub_${Date.now()}`;
 const TEST_PASS = "E2eTestPass!99";
 
-// Register + login once, reuse the session cookie for all tests in this file
 let authedContext: BrowserContext;
 
+async function dbQuery(sql: string, params: unknown[] = []) {
+  const client = new Client({ connectionString: DB_URL });
+  try {
+    await client.connect();
+    const res = await client.query(sql, params);
+    return res.rows;
+  } finally {
+    await client.end();
+  }
+}
+
 test.beforeAll(async ({ browser }) => {
+  // Create user directly in DB to avoid registration rate limits
+  const hashed = await hash(TEST_PASS, 12);
+  const value = JSON.stringify({
+    password: hashed,
+    role: "user",
+    email: `${TEST_USER}@e2etest.local`,
+    tier: "analyst",
+  });
+  await dbQuery(
+    `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [`user:${TEST_USER}`, value]
+  );
+
+  // Login to get session cookie
   authedContext = await browser.newContext();
   const page = await authedContext.newPage();
-
-  await page.goto("/register");
-  await page.locator('input[type="email"]').fill(`${TEST_USER}@e2etest.local`);
+  await page.goto("/login");
   await page.locator('input[type="text"]').fill(TEST_USER);
-  const pwFields = page.locator('input[type="password"]');
-  await pwFields.nth(0).fill(TEST_PASS);
-  await pwFields.nth(1).fill(TEST_PASS);
-  await page.getByRole("button", { name: /create account/i }).click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 12000 });
+  await page.locator('input[type="password"]').fill(TEST_PASS);
+  await page.getByRole("button", { name: /enter platform|sign in/i }).click();
+  await expect(page).toHaveURL(/\/dashboard|\/settings/, { timeout: 12000 });
   await page.close();
 });
 
@@ -29,7 +52,6 @@ test.describe("Subscription flow", () => {
   test("settings page shows subscription section", async () => {
     const page = await authedContext.newPage();
     await page.goto("/settings");
-    // Click the Subscription tab (default tab is AI Models)
     await page.getByRole("tab", { name: /subscription/i }).click();
     await expect(page.locator("text=Current Plan")).toBeVisible({ timeout: 8000 });
     await page.close();
@@ -39,17 +61,14 @@ test.describe("Subscription flow", () => {
     const page = await authedContext.newPage();
     await page.goto("/settings");
 
-    // Navigate to subscription tab
     await page.getByRole("tab", { name: /subscription/i }).click();
 
-    // Wait for the tier cards to load (fetched async after mount)
     const subscribeBtn = page
       .getByRole("button", { name: /upgrade|contact us/i })
       .first();
 
     await expect(subscribeBtn).toBeVisible({ timeout: 15000 });
 
-    // Capture the checkout API call
     const [checkoutRequest] = await Promise.all([
       page.waitForRequest((req) => req.url().includes("/api/stripe/checkout"), { timeout: 10000 }),
       subscribeBtn.click(),
@@ -59,7 +78,6 @@ test.describe("Subscription flow", () => {
       expect(checkoutRequest.method()).toBe("POST");
       console.log("Stripe checkout request fired");
     } else {
-      // No stripe configured locally — just confirm the button is there and clickable
       console.log("Stripe not configured locally — button present and clickable");
     }
 
