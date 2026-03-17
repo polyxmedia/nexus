@@ -4151,7 +4151,7 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
     // 1. Knowledge context - what do we already know about this?
     let knowledgeContext: { count: number; entries: Array<{ title: string; summary: string }> } = { count: 0, entries: [] };
     try {
-      const knowledge = await searchKnowledge(description, 5);
+      const knowledge = await searchKnowledge(description, { limit: 5 });
       knowledgeContext = {
         count: knowledge.length,
         entries: knowledge.slice(0, 3).map((k: Record<string, unknown>) => ({
@@ -4199,9 +4199,10 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
     if (symbols.length > 0 && (type === "market" || type === "hybrid")) {
       const results = await Promise.allSettled(
         symbols.slice(0, 5).map(async (sym) => {
+          const { getDailySeries } = await import("@/lib/market-data/provider");
           const [quote, snapshot] = await Promise.allSettled([
             getQuoteData(sym.toUpperCase()),
-            computeTechnicalSnapshot(sym.toUpperCase()),
+            getDailySeries(sym.toUpperCase()).then((data) => computeTechnicalSnapshot(sym.toUpperCase(), data)),
           ]);
           const q = quote.status === "fulfilled" ? quote.value : null;
           const s = snapshot.status === "fulfilled" ? snapshot.value : null;
@@ -4209,15 +4210,15 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
             symbol: sym.toUpperCase(),
             price: q?.price ?? null,
             change: q?.changePercent ?? null,
-            rsi: s?.rsi ?? null,
+            rsi: s?.rsi14 ?? null,
             trend: s?.trend ?? null,
             volatilityRegime: s?.volatilityRegime ?? null,
           };
         })
       );
       marketData = results
-        .filter((r): r is PromiseFulfilledResult<typeof marketData[number]> => r.status === "fulfilled")
-        .map((r) => r.value);
+        .filter((r) => r.status === "fulfilled")
+        .map((r) => (r as PromiseFulfilledResult<typeof marketData[number]>).value);
     }
 
     // 4. Game theory context
@@ -4230,7 +4231,8 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
     } = { scenario: null, nashEquilibria: 0, dominantOutcome: null, marketDirection: null, escalationRisk: null };
     if ((type === "geopolitical" || type === "hybrid") && scenarioId) {
       try {
-        const analysis = await analyzeScenario(scenarioId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const analysis = await analyzeScenario(scenarioId as any) as any;
         if (analysis && !("error" in analysis)) {
           gameTheoryContext = {
             scenario: scenarioId,
@@ -4253,19 +4255,19 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
           actors.slice(0, 4).map((a) => getExtendedActorProfile(a))
         );
         actorProfiles = profiles
-          .filter((r): r is PromiseFulfilledResult<Record<string, unknown>> => r.status === "fulfilled" && !!r.value)
-          .map((r) => ({
-            id: (r.value.id as string) || "",
-            name: (r.value.name as string) || "",
-            type: (r.value.type as string) || "",
-          }));
+          .filter((r) => r.status === "fulfilled" && !!(r as PromiseFulfilledResult<unknown>).value)
+          .map((r) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const v = (r as PromiseFulfilledResult<any>).value;
+            return { id: (v.id as string) || "", name: (v.name as string) || "", type: (v.type as string) || "" };
+          });
       } catch { /* actor lookup is best-effort */ }
     }
 
     // 6. Regime context
     let regimeContext: { label: string | null; score: number | null } = { label: null, score: null };
     try {
-      const regime = await loadRegimeState();
+      const regime = await loadRegimeState("current");
       if (regime) {
         regimeContext = {
           label: (regime as Record<string, unknown>).label as string || null,

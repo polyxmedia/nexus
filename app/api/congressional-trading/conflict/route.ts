@@ -7,6 +7,8 @@ import { eq, desc, and, like } from "drizzle-orm";
 import { creditGate } from "@/lib/credits/gate";
 import { getSettingValue } from "@/lib/settings/get-setting";
 
+export const maxDuration = 30;
+
 async function getApiKey(): Promise<string | null> {
   try {
     return await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY) || null;
@@ -62,12 +64,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch trading data" }, { status: 502 });
     }
 
+    // Match by case-insensitive substring to handle partial/variant names from the UI
+    const memberLower = memberName.toLowerCase();
     const memberTrades = snapshot.congressional.recent.filter(
-      (t) => t.name.toLowerCase() === memberName.toLowerCase()
+      (t) => t.name.toLowerCase() === memberLower ||
+             t.name.toLowerCase().includes(memberLower) ||
+             memberLower.includes(t.name.toLowerCase())
     );
 
     if (memberTrades.length === 0) {
-      return NextResponse.json({ error: "No trades found for this member" }, { status: 404 });
+      return NextResponse.json(
+        { error: `No recent trades found for "${memberName}". This member may not have disclosed trades in the current reporting window.` },
+        { status: 404 }
+      );
     }
 
     const party = memberTrades[0].party || "Unknown";
@@ -96,19 +105,19 @@ Using your knowledge of this congress member's committee assignments, legislativ
 4. Excess returns: Do they consistently outperform the market? (check excessReturn fields)
 5. Filing delays: Large gaps between trade and filing dates?
 
-Return JSON:
+Return ONLY valid JSON, no markdown fences:
 {
   "member": "${memberName}",
   "party": "${party}",
   "chamber": "${chamber}",
   "totalTrades": ${memberTrades.length},
-  "riskScore": 1-10,
+  "riskScore": <number 1-10>,
   "committees": ["Known or likely committee assignments based on your knowledge"],
   "conflicts": [
     {
       "ticker": "TICKER",
-      "type": "committee_overlap" | "legislative_timing" | "industry_concentration" | "excess_return" | "filing_delay",
-      "severity": "high" | "medium" | "low",
+      "type": "committee_overlap | legislative_timing | industry_concentration | excess_return | filing_delay",
+      "severity": "high | medium | low",
       "explanation": "Brief explanation of the potential conflict"
     }
   ],
@@ -117,25 +126,35 @@ Return JSON:
   "disclaimer": "This is automated analysis based on public data and should not be taken as evidence of wrongdoing."
 }
 
-Be thorough but fair. Flag genuine patterns, not speculative connections.`;
+Be thorough but fair. Flag genuine patterns, not speculative connections. Keep explanations concise to fit within response limits.`;
 
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: HAIKU_MODEL,
-      max_tokens: 1000,
+      max_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
     });
 
     await gate.debit(HAIKU_MODEL, response.usage.input_tokens, response.usage.output_tokens, "conflict_analysis");
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+    // Strip markdown fences if present
+    const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
+      console.error("Conflict analysis: failed to extract JSON from response:", text.slice(0, 300));
       return NextResponse.json({ error: "Failed to parse conflict analysis" }, { status: 500 });
     }
 
-    const analysis = JSON.parse(jsonMatch[0]);
+    let analysis;
+    try {
+      analysis = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("Conflict analysis: JSON parse failed:", parseErr, "Raw:", jsonMatch[0].slice(0, 300));
+      return NextResponse.json({ error: "Analysis returned malformed data" }, { status: 500 });
+    }
 
     // Save analysis to knowledge bank for persistence
     try {

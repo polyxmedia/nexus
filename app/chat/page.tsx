@@ -306,7 +306,7 @@ export default function ChatPage() {
                   className={`group flex items-center rounded transition-all ${
                     dragOverProject === p.id ? "ring-1 ring-offset-0 bg-navy-800/80" : ""
                   }`}
-                  style={dragOverProject === p.id ? { ringColor: p.color, boxShadow: `inset 0 0 0 1px ${p.color}40` } : undefined}
+                  style={dragOverProject === p.id ? { boxShadow: `inset 0 0 0 1px ${p.color}40, 0 0 8px ${p.color}20` } : undefined}
                   onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverProject(p.id); }}
                   onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverProject(null); }}
                   onDrop={(e) => {
