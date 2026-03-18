@@ -180,6 +180,71 @@ export async function GET() {
       },
     };
 
+    // ── Voyage AI usage (from tracked settings) ──
+    const currentPeriod = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    const voyageRows = await db.select().from(schema.settings)
+      .where(eq(schema.settings.key, `voyage_usage:${currentPeriod}`))
+      .catch(() => []);
+    const voyageData = voyageRows.length > 0 ? JSON.parse(voyageRows[0].value) : { tokens: 0, calls: 0, texts: 0 };
+    const VOYAGE_PRICE_PER_MTOK = 0.06; // $0.06 per million tokens for voyage-3
+    const voyageCost = (voyageData.tokens / 1_000_000) * VOYAGE_PRICE_PER_MTOK;
+
+    // Get knowledge count for context
+    const knowledgeCount = await db.execute(sql`SELECT count(*)::int as total, count(*) FILTER (WHERE embedding IS NOT NULL)::int as embedded FROM knowledge`)
+      .then((r) => (r.rows[0] || { total: 0, embedded: 0 }) as { total: number; embedded: number })
+      .catch(() => ({ total: 0, embedded: 0 }));
+
+    const voyage = {
+      period: currentPeriod,
+      tokens: voyageData.tokens || 0,
+      calls: voyageData.calls || 0,
+      texts: voyageData.texts || 0,
+      estimatedCost: Math.round(voyageCost * 1000) / 1000,
+      pricePerMTok: VOYAGE_PRICE_PER_MTOK,
+      knowledgeEntries: knowledgeCount.total,
+      embeddedEntries: knowledgeCount.embedded,
+    };
+
+    // ── Vercel estimated costs (from inference, no API needed) ──
+    // Count recent function invocations from chat + API activity
+    const [chatMessageCount, apiActivityEstimate] = await Promise.all([
+      db.execute(sql`
+        SELECT count(*)::int as total,
+          count(*) FILTER (WHERE created_at >= ${monthAgo})::int as month
+        FROM chat_messages WHERE role = 'user'
+      `).then((r) => (r.rows[0] || { total: 0, month: 0 }) as { total: number; month: number }).catch(() => ({ total: 0, month: 0 })),
+      db.execute(sql`
+        SELECT count(*)::int as month FROM analytics_events WHERE created_at >= ${monthAgo}
+      `).then((r) => (r.rows[0] || { month: 0 }) as { month: number }).catch(() => ({ month: 0 })),
+    ]);
+
+    // Estimate: each chat message = ~2 function invocations (POST + streaming), each page view = 1-3
+    const estimatedInvocations = (chatMessageCount.month * 2) + (apiActivityEstimate.month * 2);
+    // Pro plan: 1M invocations included, $0.60 per additional 1M
+    const VERCEL_INCLUDED_INVOCATIONS = 1_000_000;
+    const VERCEL_OVERAGE_PER_M = 0.60;
+    const VERCEL_PRO_BASE = 20; // $20/mo Pro plan
+    const VERCEL_BANDWIDTH_INCLUDED_GB = 1000; // 1TB included
+    const invocationOverage = Math.max(0, estimatedInvocations - VERCEL_INCLUDED_INVOCATIONS);
+    const invocationCost = (invocationOverage / 1_000_000) * VERCEL_OVERAGE_PER_M;
+
+    // Estimate bandwidth: ~50KB per page load, ~5KB per API call
+    const estimatedBandwidthGB = ((apiActivityEstimate.month * 0.05) + (chatMessageCount.month * 0.005)) / 1024;
+    const bandwidthOverage = Math.max(0, estimatedBandwidthGB - VERCEL_BANDWIDTH_INCLUDED_GB);
+    const bandwidthCost = bandwidthOverage * 0.15; // $0.15/GB overage
+
+    const vercel = {
+      plan: "Pro",
+      baseCost: VERCEL_PRO_BASE,
+      estimatedInvocations,
+      invocationOverageCost: Math.round(invocationCost * 100) / 100,
+      estimatedBandwidthGB: Math.round(estimatedBandwidthGB * 100) / 100,
+      bandwidthOverageCost: Math.round(bandwidthCost * 100) / 100,
+      estimatedTotal: Math.round((VERCEL_PRO_BASE + invocationCost + bandwidthCost) * 100) / 100,
+      chatMessages: chatMessageCount.month,
+      analyticsEvents: apiActivityEstimate.month,
+    };
+
     return NextResponse.json({
       credits: {
         today: todayCredits,
@@ -208,6 +273,8 @@ export async function GET() {
       hasAlerts: alerts.length > 0,
       highestAlertLevel: alerts.some(a => a.level === "critical") ? "critical" : alerts.length > 0 ? "warning" : "ok",
       neon,
+      voyage,
+      vercel,
     }, { headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120" } });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

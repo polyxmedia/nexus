@@ -48,7 +48,36 @@ export async function generateEmbeddings(
   }
 
   const data = await res.json();
+
+  // Track usage for cost monitoring (non-blocking)
+  if (data.usage?.total_tokens) {
+    trackVoyageUsage(data.usage.total_tokens, texts.length).catch(() => {});
+  }
+
   return data.data.map((d: { embedding: number[] }) => d.embedding);
+}
+
+/**
+ * Track Voyage API usage in settings for cost monitoring.
+ * Stores cumulative token count and call count per month.
+ */
+async function trackVoyageUsage(tokens: number, texts: number): Promise<void> {
+  const period = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
+  const key = `voyage_usage:${period}`;
+  try {
+    const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
+    if (rows.length > 0) {
+      const existing = JSON.parse(rows[0].value);
+      existing.tokens = (existing.tokens || 0) + tokens;
+      existing.calls = (existing.calls || 0) + 1;
+      existing.texts = (existing.texts || 0) + texts;
+      await db.update(schema.settings).set({ value: JSON.stringify(existing), updatedAt: new Date().toISOString() }).where(eq(schema.settings.key, key));
+    } else {
+      await db.insert(schema.settings).values({ key, value: JSON.stringify({ tokens, calls: 1, texts, period }), updatedAt: new Date().toISOString() });
+    }
+  } catch {
+    // Non-critical, don't fail embedding on tracking error
+  }
 }
 
 /**

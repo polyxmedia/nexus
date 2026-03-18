@@ -6377,20 +6377,18 @@ export default function AdminPage() {
 
       <Tabs.Root value={activeTab} onValueChange={handleTabChange}>
         <div className="relative mb-6">
-          <Tabs.List className="flex gap-0 border-b border-navy-700 overflow-x-auto scrollbar-none">
+          <Tabs.List className="flex flex-wrap gap-0 border-b border-navy-700">
             {ADMIN_TABS.map((tab) => (
               <Tabs.Trigger
                 key={tab.id}
                 value={tab.id}
-                className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-navy-500 border-b-2 border-transparent transition-colors data-[state=active]:text-navy-100 data-[state=active]:border-navy-100 hover:text-navy-300 whitespace-nowrap flex-shrink-0"
+                className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-navy-500 border-b-2 border-transparent transition-colors data-[state=active]:text-navy-100 data-[state=active]:border-navy-100 hover:text-navy-300 whitespace-nowrap"
               >
                 <tab.icon className="h-3 w-3" />
                 {tab.label}
               </Tabs.Trigger>
             ))}
           </Tabs.List>
-          {/* Right fade hint */}
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-navy-950 to-transparent pointer-events-none" />
         </div>
 
         {/* Tiers Tab */}
