@@ -73,7 +73,7 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages (session_id)`,
   `CREATE INDEX IF NOT EXISTS idx_trades_user_id ON trades (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_predictions_deadline ON predictions (deadline)`,
-  `CREATE INDEX IF NOT EXISTS idx_predictions_status ON predictions (status)`,
+  `CREATE INDEX IF NOT EXISTS idx_predictions_outcome ON predictions (outcome)`,
   `CREATE INDEX IF NOT EXISTS idx_alert_history_alert_id ON alert_history (alert_id)`,
   `CREATE INDEX IF NOT EXISTS idx_analytics_events_path ON analytics_events (path)`,
   `CREATE INDEX IF NOT EXISTS idx_analytics_events_created_at ON analytics_events (created_at)`,
@@ -118,8 +118,8 @@ const STATEMENTS: string[] = [
     last_synced_at TEXT,
     created_at TEXT NOT NULL DEFAULT (to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_benchmarks_unresolved ON prediction_benchmarks (resolved, source) WHERE resolved = 0`,
-  `CREATE INDEX IF NOT EXISTS idx_benchmarks_resolved ON prediction_benchmarks (resolved, source) WHERE resolved = 1`,
+  `CREATE INDEX IF NOT EXISTS idx_benchmarks_unresolved ON prediction_benchmarks (resolved, source) WHERE resolved = false`,
+  `CREATE INDEX IF NOT EXISTS idx_benchmarks_resolved ON prediction_benchmarks (resolved, source) WHERE resolved = true`,
 
   // 0007: news_articles
   `CREATE TABLE IF NOT EXISTS news_articles (

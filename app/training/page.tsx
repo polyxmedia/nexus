@@ -317,183 +317,153 @@ export default function TrainingPage() {
 
       {/* ── PLAYBOOKS VIEW ── */}
       {viewMode === "playbooks" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {PLAYBOOKS.map((playbook) => {
             const isExpanded = expandedPlaybook === playbook.id;
             const isComplete = (progress?.completedPlaybooks || []).includes(playbook.id);
             const isCompletingThis = completing === `playbook:${playbook.id}`;
 
-            const ACCENT_COLORS = {
-              cyan: { border: "border-accent-cyan/20", bg: "bg-accent-cyan/5", text: "text-accent-cyan", dot: "bg-accent-cyan", line: "border-accent-cyan/20" },
-              amber: { border: "border-accent-amber/20", bg: "bg-accent-amber/5", text: "text-accent-amber", dot: "bg-accent-amber", line: "border-accent-amber/20" },
-              emerald: { border: "border-accent-emerald/20", bg: "bg-accent-emerald/5", text: "text-accent-emerald", dot: "bg-accent-emerald", line: "border-accent-emerald/20" },
-              rose: { border: "border-accent-rose/20", bg: "bg-accent-rose/5", text: "text-accent-rose", dot: "bg-accent-rose", line: "border-accent-rose/20" },
-            };
-            const ac = ACCENT_COLORS[playbook.accent];
-            const DIFFICULTY_COLORS = {
-              beginner: "text-accent-emerald bg-accent-emerald/10",
-              intermediate: "text-accent-amber bg-accent-amber/10",
-              advanced: "text-accent-rose bg-accent-rose/10",
-            };
-
             return (
               <div
                 key={playbook.id}
-                className={cn(
-                  "border rounded-xl transition-all duration-200 overflow-hidden",
-                  isComplete
-                    ? "border-accent-emerald/20 bg-accent-emerald/[0.02]"
-                    : cn(ac.border, "bg-navy-900/30 hover:bg-navy-900/50")
-                )}
+                className="group border border-navy-700/20 rounded-lg bg-navy-900/40 hover:bg-navy-900/70 hover:border-navy-600/30 transition-all duration-200"
               >
-                {/* Accent bar */}
-                <div className={cn("h-0.5", isComplete ? "bg-accent-emerald" : ac.dot)} />
-
-                {/* Header */}
+                {/* Header row - prediction card style */}
                 <button
                   onClick={() => setExpandedPlaybook(isExpanded ? null : playbook.id)}
-                  className="w-full flex items-center gap-4 p-5 text-left"
+                  className="w-full text-left px-5 py-4"
                 >
-                  <div className={cn(
-                    "h-12 w-12 shrink-0 rounded-xl flex items-center justify-center",
-                    isComplete ? "bg-accent-emerald/10" : ac.bg
-                  )}>
-                    {isComplete ? (
-                      <Check className="h-6 w-6 text-accent-emerald" />
-                    ) : (
-                      <Route className={cn("h-6 w-6", ac.text)} />
+                  {/* Title line */}
+                  <div className="flex items-start gap-3">
+                    {isComplete && (
+                      <Check className="h-3.5 w-3.5 text-accent-emerald mt-0.5 shrink-0" />
                     )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className={cn(
-                        "text-sm font-bold",
-                        isComplete ? "text-accent-emerald" : "text-navy-100"
-                      )}>
-                        {playbook.title}
-                      </h3>
-                      <span className={cn("px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider rounded", DIFFICULTY_COLORS[playbook.difficulty])}>
-                        {playbook.difficulty}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-navy-400 mt-0.5">{playbook.subtitle}</p>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span className="flex items-center gap-1 text-[9px] font-mono text-navy-500">
-                        <Clock className="h-2.5 w-2.5" />
-                        {playbook.duration}
-                      </span>
-                      <span className="flex items-center gap-1 text-[9px] font-mono text-navy-500">
-                        <Map className="h-2.5 w-2.5" />
-                        {playbook.steps.length} steps
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 flex items-center gap-3">
-                    <span className={cn(
-                      "px-2 py-1 rounded text-[10px] font-mono font-medium",
-                      isComplete
-                        ? "bg-accent-emerald/10 text-accent-emerald"
-                        : "bg-accent-amber/10 text-accent-amber"
+                    <p className={cn(
+                      "text-[13px] leading-relaxed flex-1",
+                      isComplete ? "text-accent-emerald" : "text-navy-100"
                     )}>
+                      {playbook.title}
+                    </p>
+                    <ChevronRight className={cn(
+                      "h-4 w-4 shrink-0 mt-0.5 transition-transform",
+                      isExpanded ? "rotate-90 text-navy-300" : "text-navy-600"
+                    )} />
+                  </div>
+
+                  <p className={cn(
+                    "text-[11px] text-navy-400 mt-1 leading-relaxed",
+                    isComplete && "ml-[1.625rem]"
+                  )}>
+                    {playbook.subtitle}
+                  </p>
+
+                  {/* Meta row */}
+                  <div className={cn(
+                    "flex items-center gap-3 mt-3 pt-3 border-t border-navy-800/40",
+                    isComplete && "ml-[1.625rem]"
+                  )}>
+                    <span className={cn(
+                      "text-[10px] font-mono uppercase tracking-wider",
+                      playbook.difficulty === "beginner" ? "text-accent-emerald" :
+                      playbook.difficulty === "advanced" ? "text-accent-rose" :
+                      "text-accent-amber"
+                    )}>
+                      {playbook.difficulty}
+                    </span>
+
+                    <span className="text-navy-800">|</span>
+
+                    <span className="text-[10px] font-mono text-navy-500">
+                      {playbook.steps.length} steps
+                    </span>
+
+                    <span className="text-navy-800">|</span>
+
+                    <span className="text-[10px] font-mono text-navy-500">
+                      {playbook.duration}
+                    </span>
+
+                    <span className="text-navy-800">|</span>
+
+                    <span className="text-[10px] font-mono text-accent-amber">
                       +{playbook.xp} XP
                     </span>
-                    <ChevronDown className={cn(
-                      "h-4 w-4 transition-transform",
-                      isExpanded ? "rotate-180 text-navy-300" : "text-navy-600"
-                    )} />
+
+                    <div className="flex-1" />
+
+                    {isComplete && (
+                      <span className="text-[9px] font-mono text-accent-emerald">complete</span>
+                    )}
                   </div>
                 </button>
 
-                {/* Expanded content */}
+                {/* Expanded steps */}
                 {isExpanded && (
-                  <div className="px-5 pb-5">
-                    {/* Description */}
-                    <p className="text-xs text-navy-300 leading-relaxed mb-6 pl-16">
+                  <div className="px-5 pb-5 border-t border-navy-800/30">
+                    <p className="text-[11px] text-navy-400 leading-relaxed mt-4 mb-5">
                       {playbook.description}
                     </p>
 
-                    {/* Pipeline visualization */}
-                    <div className="relative pl-16">
-                      {/* Vertical connector line */}
-                      <div className={cn("absolute left-[4.6rem] top-0 bottom-0 w-px", ac.line)} />
+                    {/* Steps as a clean list */}
+                    <div className="space-y-3">
+                      {playbook.steps.map((step, idx) => {
+                        const StepIcon = ICON_MAP[step.icon] || Activity;
 
-                      <div className="space-y-0">
-                        {playbook.steps.map((step, idx) => {
-                          const StepIcon = ICON_MAP[step.icon] || Activity;
-                          const isLast = idx === playbook.steps.length - 1;
+                        return (
+                          <div key={idx} className="flex gap-3">
+                            {/* Step number */}
+                            <span className="text-[9px] font-mono text-navy-600 pt-0.5 w-5 shrink-0 text-right">
+                              {String(idx + 1).padStart(2, "0")}
+                            </span>
 
-                          return (
-                            <div key={idx} className="relative flex gap-4 pb-6">
-                              {/* Node */}
-                              <div className="relative z-10 shrink-0">
-                                <div className={cn(
-                                  "h-8 w-8 rounded-lg flex items-center justify-center border",
-                                  ac.border, ac.bg
-                                )}>
-                                  <StepIcon className={cn("h-4 w-4", ac.text)} />
-                                </div>
+                            <div className="flex-1 min-w-0">
+                              {/* Tool + nav */}
+                              <div className="flex items-center gap-2">
+                                <StepIcon className="h-3 w-3 text-navy-500" />
+                                <span className="text-xs font-semibold text-navy-200">{step.tool}</span>
+                                <button
+                                  onClick={() => router.push(step.route)}
+                                  className="text-[8px] font-mono text-navy-600 hover:text-navy-300 transition-colors uppercase tracking-wider"
+                                >
+                                  open
+                                </button>
                               </div>
 
-                              {/* Content */}
-                              <div className="flex-1 min-w-0 pt-0.5">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-[9px] font-mono text-navy-600">{String(idx + 1).padStart(2, "0")}</span>
-                                  <h4 className="text-xs font-semibold text-navy-100">{step.tool}</h4>
-                                  <button
-                                    onClick={() => router.push(step.route)}
-                                    className="px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider rounded border border-navy-700/30 text-navy-500 hover:text-navy-300 hover:border-navy-600/30 transition-colors"
-                                  >
-                                    Open
-                                  </button>
-                                </div>
+                              {/* Action */}
+                              <p className="text-[11px] text-navy-400 leading-relaxed mt-1">
+                                {step.action}
+                              </p>
 
-                                <p className="text-[11px] text-navy-300 leading-relaxed mb-2">
-                                  {step.action}
-                                </p>
-
-                                <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-navy-800/30 border border-navy-700/15">
-                                  <ArrowRight className={cn("h-3 w-3 shrink-0 mt-0.5", ac.text)} />
-                                  <p className={cn("text-[10px] font-mono", ac.text)}>
-                                    {step.output}
-                                  </p>
-                                </div>
-
-                                {/* Connector arrow to next step */}
-                                {!isLast && (
-                                  <div className="flex items-center gap-1 mt-2 ml-[-2.5rem]">
-                                    <div className={cn("h-px w-4", ac.dot, "opacity-30")} />
-                                    <span className="text-[8px] font-mono text-navy-600 uppercase">feeds into</span>
-                                  </div>
-                                )}
-                              </div>
+                              {/* Output */}
+                              <p className="text-[10px] font-mono text-navy-600 mt-1">
+                                {step.output}
+                              </p>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                      {/* Complete button */}
-                      <div className="mt-2 flex items-center gap-3">
-                        <button
-                          onClick={() => completePlaybook(playbook.id)}
-                          disabled={isComplete || isCompletingThis}
-                          className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-all",
-                            isComplete
-                              ? "bg-accent-emerald/10 text-accent-emerald cursor-default"
-                              : isCompletingThis
-                              ? "bg-navy-800/60 text-navy-500 cursor-wait"
-                              : cn("border", ac.border, ac.text, "hover:bg-navy-800/40 active:scale-[0.98]")
-                          )}
-                        >
-                          <Check className="h-3 w-3" />
-                          {isComplete ? "Playbook Complete" : "Mark Playbook Complete"}
-                        </button>
-                        {isComplete && (
-                          <span className="text-[10px] font-mono text-accent-emerald">+{playbook.xp} XP earned</span>
+                    {/* Complete button */}
+                    <div className="mt-5 pt-4 border-t border-navy-800/30 flex items-center gap-3">
+                      <button
+                        onClick={() => completePlaybook(playbook.id)}
+                        disabled={isComplete || isCompletingThis}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-all",
+                          isComplete
+                            ? "bg-accent-emerald/10 text-accent-emerald cursor-default"
+                            : isCompletingThis
+                            ? "bg-navy-800/60 text-navy-500 cursor-wait"
+                            : "border border-navy-700/30 text-navy-400 hover:text-navy-200 hover:border-navy-600/30 active:scale-[0.98]"
                         )}
-                      </div>
+                      >
+                        <Check className="h-3 w-3" />
+                        {isComplete ? "Complete" : "Mark Complete"}
+                      </button>
+                      {isComplete && (
+                        <span className="text-[10px] font-mono text-accent-emerald">+{playbook.xp} XP earned</span>
+                      )}
                     </div>
                   </div>
                 )}
