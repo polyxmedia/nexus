@@ -175,7 +175,7 @@ function fredToReturns(points: Array<{ value: number }>): number[] {
 }
 
 // Get API key from settings
-async function getAlphaVantageKey(): Promise<string | null> {
+export async function getAlphaVantageKey(): Promise<string | null> {
   try {
     const rows = await db
       .select()
@@ -220,7 +220,7 @@ async function fetchPairData(
   }
 }
 
-function classifySignificance(deviation: number): "normal" | "notable" | "significant" | "extreme" {
+export function classifySignificance(deviation: number): "normal" | "notable" | "significant" | "extreme" {
   const abs = Math.abs(deviation);
   if (abs < 1) return "normal";
   if (abs < 1.5) return "notable";

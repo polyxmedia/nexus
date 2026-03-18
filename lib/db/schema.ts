@@ -1,4 +1,4 @@
-import { pgTable, text, integer, serial, doublePrecision, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, doublePrecision, uuid, real } from "drizzle-orm/pg-core";
 
 export const signals = pgTable("signals", {
   id: serial("id").primaryKey(),

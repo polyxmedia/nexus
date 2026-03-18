@@ -178,11 +178,12 @@ export function OilDivergenceWidget({ data }: { data: any }) {
             Recent Oil vs SPX Returns
           </div>
           <div className="space-y-1">
-            {sparkData.map((r: any, i: number) => {
+            {(() => {
               const maxAbs = Math.max(
                 ...sparkData.map((d: any) => Math.max(Math.abs(d.oilChange || 0), Math.abs(d.spxChange || 0))),
                 0.5
               );
+              return sparkData.map((r: any, i: number) => {
               const oilWidth = Math.abs(r.oilChange || 0) / maxAbs * 45;
               const spxWidth = Math.abs(r.spxChange || 0) / maxAbs * 45;
 

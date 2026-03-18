@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, FlaskConical, CheckCircle2, BarChart3, RefreshCw, XCircle, X, ArrowDownRight, ArrowUpRight, Zap, Clock } from "lucide-react";
+import { Loader2, FlaskConical, CheckCircle2, BarChart3, RefreshCw, XCircle, X, ArrowDownRight, ArrowUpRight, Zap, Clock, Plus, ChevronRight } from "lucide-react";
 
 interface CalibrationReport {
   ready: boolean;

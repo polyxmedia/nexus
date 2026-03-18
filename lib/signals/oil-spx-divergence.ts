@@ -8,11 +8,10 @@
 // Based on observed pattern: oil futures down premarket → SPX
 // opens with upward momentum in first 30 minutes.
 
-import { getFredSeries, type FredDataPoint } from "@/lib/market-data/fred";
+import { getFredSeries } from "@/lib/market-data/fred";
 import { getDailySeries, type DailyBar } from "@/lib/market-data/provider";
 import { saveRegimeState, loadRegimeState } from "@/lib/regime/store";
-import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { pearsonCorrelation, classifySignificance, getAlphaVantageKey } from "@/lib/regime/correlations";
 
 export interface OilSpxReading {
   date: string;
@@ -70,48 +69,12 @@ function classifyTrend(changePct: number, downThreshold: number, upThreshold: nu
   return "flat";
 }
 
-function pearsonCorrelation(x: number[], y: number[]): number {
-  const n = Math.min(x.length, y.length);
-  if (n < 5) return 0;
-  const xs = x.slice(-n);
-  const ys = y.slice(-n);
-  const mx = xs.reduce((a, b) => a + b, 0) / n;
-  const my = ys.reduce((a, b) => a + b, 0) / n;
-  let num = 0, dx2 = 0, dy2 = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = xs[i] - mx;
-    const dy = ys[i] - my;
-    num += dx * dy;
-    dx2 += dx * dx;
-    dy2 += dy * dy;
-  }
-  const den = Math.sqrt(dx2 * dy2);
-  return den === 0 ? 0 : num / den;
-}
-
 function toReturns(values: number[]): number[] {
   const r: number[] = [];
   for (let i = 1; i < values.length; i++) {
     if (values[i - 1] !== 0) r.push(((values[i] - values[i - 1]) / Math.abs(values[i - 1])) * 100);
   }
   return r;
-}
-
-async function getAlphaVantageKey(): Promise<string | null> {
-  try {
-    const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, "alpha_vantage_api_key")).limit(1);
-    return rows[0]?.value || process.env.ALPHA_VANTAGE_API_KEY || null;
-  } catch {
-    return process.env.ALPHA_VANTAGE_API_KEY || null;
-  }
-}
-
-function classifySignificance(dev: number): "normal" | "notable" | "significant" | "extreme" {
-  const abs = Math.abs(dev);
-  if (abs < 1) return "normal";
-  if (abs < 1.5) return "notable";
-  if (abs < 2.5) return "significant";
-  return "extreme";
 }
 
 function classifyRegime(
@@ -165,11 +128,33 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
     };
   }
 
-  // Align dates: create return series
-  const oilPrices = oilPoints.map(p => p.value);
-  const spxPrices = spxBars.slice(-oilPoints.length).map(b => b.close);
-  const oilReturns = toReturns(oilPrices);
-  const spxReturns = toReturns(spxPrices);
+  // Align by date (FRED and Alpha Vantage have different trading day gaps)
+  const oilByDate = new Map(oilPoints.map(p => [p.date, p.value]));
+  const spxByDate = new Map(spxBars.map(b => [b.date, b.close]));
+  const commonDates = [...oilByDate.keys()].filter(d => spxByDate.has(d)).sort();
+
+  if (commonDates.length < 10) {
+    return {
+      timestamp: new Date().toISOString(),
+      currentReading: null,
+      signalActive: false,
+      signalStrength: "none",
+      regime: "neutral",
+      regimeContext: "Insufficient overlapping dates between oil and SPX data.",
+      history: [],
+      stats: { totalDivergences: 0, divergenceRate: 0, avgSpxMoveAfterOilDrop: 0, avgOilDropMagnitude: 0, winRate: 0, sampleSize: 0 },
+      correlation: { rolling20d: 0, rolling60d: 0, historicalMean: HISTORICAL_CORR_MEAN, deviation: 0, significance: "normal" },
+      interpretation: "Insufficient overlapping data.",
+      tradingImplication: "No actionable signal.",
+    };
+  }
+
+  const alignedOil = commonDates.map(d => oilByDate.get(d)!);
+  const alignedSpx = commonDates.map(d => spxByDate.get(d)!);
+  const oilReturns = toReturns(alignedOil);
+  const spxReturns = toReturns(alignedSpx);
+  // Dates for returns start at index 1 of commonDates
+  const returnDates = commonDates.slice(1);
 
   // Correlation
   const corr20d = pearsonCorrelation(oilReturns.slice(-20), spxReturns.slice(-20));
@@ -181,24 +166,22 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
   const { regime, context: regimeContext } = classifyRegime(oilReturns, spxReturns, corr20d);
 
   // Build history of readings (last 60 trading days)
-  const minLen = Math.min(oilReturns.length, spxReturns.length, 60);
+  const startIdx = Math.max(0, oilReturns.length - 60);
   const history: OilSpxReading[] = [];
 
-  for (let i = oilReturns.length - minLen; i < oilReturns.length; i++) {
-    const spxIdx = spxReturns.length - (oilReturns.length - i);
-    if (spxIdx < 0 || spxIdx >= spxReturns.length) continue;
-
+  for (let i = startIdx; i < oilReturns.length; i++) {
     const oilRet = oilReturns[i];
-    const spxRet = spxReturns[spxIdx];
-    const oilIdx = i + 1; // +1 because returns start at index 1
-    const spxBarIdx = spxBars.length - (oilReturns.length - i);
+    const spxRet = spxReturns[i];
+    const date = returnDates[i];
+    // Price indices are offset by 1 from returns (returns[i] = price[i+1] / price[i])
+    const priceIdx = i + 1;
 
     const reading: OilSpxReading = {
-      date: oilPoints[oilIdx]?.date || spxBars[spxBarIdx]?.date || "",
-      oilPrice: oilPrices[oilIdx] || 0,
+      date,
+      oilPrice: alignedOil[priceIdx] || 0,
       oilChange: Math.round(oilRet * 100) / 100,
       oilTrend: classifyTrend(oilRet, OIL_DOWN_THRESHOLD, OIL_UP_THRESHOLD),
-      spxPrice: spxPrices[oilIdx] || 0,
+      spxPrice: alignedSpx[priceIdx] || 0,
       spxChange: Math.round(spxRet * 100) / 100,
       spxTrend: classifyTrend(spxRet, -SPX_FLAT_THRESHOLD, SPX_FLAT_THRESHOLD),
       divergent: oilRet <= OIL_DOWN_THRESHOLD && spxRet > -SPX_FLAT_THRESHOLD,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isNextResponse } from "@/lib/auth/session";
+import { validateOrigin } from "@/lib/security/csrf";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { DEFAULT_PROGRESS, MISSIONS, PLAYBOOKS, getLevelForXp, type TrainingProgress } from "@/lib/training/missions";
@@ -38,11 +39,23 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
+
   const auth = await requireAuth();
   if (isNextResponse(auth)) return auth;
 
-  const body = await req.json();
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const { action, missionId, stepId } = body;
+  if (typeof action !== "string") {
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  }
 
   const progress = await getProgress(auth.username);
 
