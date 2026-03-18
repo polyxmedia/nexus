@@ -71,6 +71,7 @@ const intelligenceNav: NavItem[] = [
   { name: "Narratives", href: "/narrative", icon: Globe },
   { name: "Parallels", href: "/parallels", icon: History },
   { name: "Actors", href: "/actors", icon: Users },
+  { name: "Sentiment", href: "/sentiment", icon: Radar },
   { name: "Knowledge", href: "/knowledge", icon: BookOpen },
   { name: "Wiki", href: "/wiki", icon: Network },
   { name: "Longevity", href: "/longevity", icon: Skull },
@@ -373,18 +374,6 @@ export function Sidebar() {
         </Link>
         {isAdmin && (
           <>
-            <Link
-              href="/partnerships"
-              className={cn(
-                "mx-0 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
-                pathname.startsWith("/partnerships")
-                  ? "bg-navy-800/80 text-navy-100"
-                  : "text-navy-400 hover:bg-navy-800/50 hover:text-navy-200"
-              )}
-            >
-              <Briefcase className="h-4 w-4 shrink-0 opacity-70" />
-              Partnerships
-            </Link>
             <Link
               href="/admin"
               className={cn(

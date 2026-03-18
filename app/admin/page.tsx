@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { PageContainer } from "@/components/layout/page-container";
 
 const TrafficMap = dynamic(() => import("@/components/admin/traffic-map"), { ssr: false });
+import { PartnershipsTab } from "@/components/admin/partnerships-tab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +59,7 @@ import {
   MoreVertical,
   UserCheck,
   Sparkles,
+  Briefcase,
 } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -400,6 +402,7 @@ const ADMIN_TABS = [
   { id: "integrations", label: "Integrations", icon: Globe },
   { id: "blog", label: "Blog Writer", icon: FileText },
   { id: "costs", label: "Costs", icon: Coins },
+  { id: "partnerships", label: "Partnerships", icon: Briefcase },
 ];
 
 const PROMPT_CATEGORIES = [
@@ -8143,6 +8146,9 @@ export default function AdminPage() {
 
         <Tabs.Content value="costs">
           <CostMonitorPanel />
+        </Tabs.Content>
+        <Tabs.Content value="partnerships">
+          <PartnershipsTab />
         </Tabs.Content>
       </Tabs.Root>
       {/* Confirm Modal */}

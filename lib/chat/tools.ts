@@ -44,8 +44,8 @@ import { create, all as mathjsAll } from "mathjs";
 const limitedMath = create(mathjsAll, { number: "number" });
 const mathEvaluate = limitedMath.evaluate!.bind(limitedMath);
 // Remove dangerous functions after binding evaluate (which depends on parse internally)
-const BLOCKED_FNS = ["import", "createUnit", "compile", "derivative", "rationalize", "simplify"];
-for (const fn of BLOCKED_FNS) delete (limitedMath as Record<string, unknown>)[fn];
+const BLOCKED_MATH_FUNCTIONS = ["import", "createUnit", "compile", "derivative", "rationalize", "simplify"];
+for (const fn of BLOCKED_MATH_FUNCTIONS) delete (limitedMath as unknown as Record<string, unknown>)[fn];
 import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Tool Definitions (Anthropic format) ──
