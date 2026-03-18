@@ -872,7 +872,7 @@ export default function PredictionsPage() {
       title="Predictions"
       subtitle="AI-generated falsifiable claims with auto-resolution and forecasting analytics"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <Button variant="primary" size="sm" onClick={aiGenerate} disabled={generating}>
             {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
             Generate
@@ -1938,9 +1938,9 @@ export default function PredictionsPage() {
 
       {/* ── Filter bar ── */}
       {!loading && predictions.length > 0 && (
-        <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6 px-4 py-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="w-52">
+        <div className="border border-navy-700/30 rounded-md bg-navy-900/60 mb-6 px-3 sm:px-4 py-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="w-full sm:w-52">
               <Input
                 placeholder="Search predictions..."
                 value={searchQuery}
@@ -2138,7 +2138,7 @@ export default function PredictionsPage() {
                 onClick={() => router.push(`/predictions/${p.uuid}`)}
                 className="group border border-navy-700/20 rounded-lg bg-navy-900/40 cursor-pointer hover:bg-navy-900/70 hover:border-navy-600/30 transition-all duration-200"
               >
-                <div className="px-5 py-4">
+                <div className="px-4 sm:px-5 py-3 sm:py-4">
                   {/* Claim */}
                   <p className="text-[13px] text-navy-100 leading-relaxed pr-4">{p.claim}</p>
 
@@ -2147,14 +2147,14 @@ export default function PredictionsPage() {
                   )}
 
                   {/* Meta row */}
-                  <div className="flex items-center gap-3 mt-3 pt-3 border-t border-navy-800/40">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-3 pt-3 border-t border-navy-800/40">
                     {/* Category */}
                     <div className="flex items-center gap-1.5">
                       <CatIcon className="h-3 w-3 text-navy-500" />
                       <span className="text-[10px] font-mono text-navy-500 uppercase tracking-wider">{p.category}</span>
                     </div>
 
-                    <span className="text-navy-800">|</span>
+                    <span className="text-navy-800 hidden sm:inline">|</span>
 
                     {/* Confidence */}
                     <div className="flex items-center gap-2">
@@ -2167,7 +2167,7 @@ export default function PredictionsPage() {
                     {/* Direction */}
                     {p.direction && (
                       <>
-                        <span className="text-navy-800">|</span>
+                        <span className="text-navy-800 hidden sm:inline">|</span>
                         <span className={`text-[10px] font-mono ${
                           p.direction === "up" ? "text-navy-300" : p.direction === "down" ? "text-navy-300" : "text-navy-500"
                         }`}>
@@ -2176,7 +2176,7 @@ export default function PredictionsPage() {
                       </>
                     )}
 
-                    <span className="text-navy-800">|</span>
+                    <span className="text-navy-800 hidden sm:inline">|</span>
 
                     {/* Deadline */}
                     <span className="text-[10px] text-navy-500 font-mono">
@@ -2193,9 +2193,9 @@ export default function PredictionsPage() {
                     </span>
 
                     {/* Regime - far right, very subtle */}
-                    <div className="flex-1" />
+                    <div className="flex-1 hidden sm:block" />
                     {p.regimeAtCreation && (
-                      <span className="text-[9px] font-mono text-navy-600">{p.regimeAtCreation}</span>
+                      <span className="text-[9px] font-mono text-navy-600 hidden sm:inline">{p.regimeAtCreation}</span>
                     )}
                     {commentCounts[p.id] > 0 && (
                       <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-600">
@@ -2224,9 +2224,9 @@ export default function PredictionsPage() {
                 onClick={() => router.push(`/predictions/${p.uuid}`)}
                 className="group border border-navy-700/20 rounded-lg bg-navy-900/40 cursor-pointer hover:bg-navy-900/70 hover:border-navy-600/30 transition-all duration-200"
               >
-                <div className="px-5 py-4">
+                <div className="px-4 sm:px-5 py-3 sm:py-4">
                   {/* Header: outcome + claim */}
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-2 sm:gap-3">
                     <div className="flex items-center gap-1.5 pt-0.5 flex-shrink-0">
                       <Icon className={`h-3.5 w-3.5 ${isHit ? "text-accent-emerald" : p.outcome === "denied" ? "text-navy-400" : p.outcome === "partial" ? "text-accent-amber" : "text-navy-600"}`} />
                       <span className={`text-[10px] font-mono font-medium uppercase tracking-wider ${isHit ? "text-accent-emerald" : p.outcome === "denied" ? "text-navy-400" : p.outcome === "partial" ? "text-accent-amber" : "text-navy-600"}`}>
@@ -2238,14 +2238,14 @@ export default function PredictionsPage() {
 
                   {/* Resolution notes */}
                   {p.outcomeNotes && (
-                    <p className="text-[10px] text-navy-400 mt-2 ml-[3.25rem] leading-relaxed line-clamp-2">{p.outcomeNotes}</p>
+                    <p className="text-[10px] text-navy-400 mt-2 sm:ml-[3.25rem] leading-relaxed line-clamp-2">{p.outcomeNotes}</p>
                   )}
                   {grounding && !p.outcomeNotes && (
-                    <p className="text-[10px] text-navy-500 mt-2 ml-[3.25rem] leading-relaxed">{grounding}</p>
+                    <p className="text-[10px] text-navy-500 mt-2 sm:ml-[3.25rem] leading-relaxed">{grounding}</p>
                   )}
 
                   {/* Meta row */}
-                  <div className="flex items-center gap-3 mt-3 pt-3 border-t border-navy-800/40 ml-[3.25rem]">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-3 pt-3 border-t border-navy-800/40 sm:ml-[3.25rem]">
                     {/* Score */}
                     {p.score != null && (
                       <span className={`text-[10px] font-mono ${p.score >= 0.7 ? "text-navy-300" : p.score >= 0.4 ? "text-navy-400" : "text-navy-500"}`}>
@@ -2261,7 +2261,7 @@ export default function PredictionsPage() {
                       <span className="text-[10px] text-navy-500 font-mono">{(p.confidence * 100).toFixed(0)}%</span>
                     </div>
 
-                    <span className="text-navy-800">|</span>
+                    <span className="text-navy-800 hidden sm:inline">|</span>
 
                     {/* Category */}
                     <span className="text-[10px] font-mono text-navy-500 uppercase tracking-wider">{p.category}</span>
@@ -2269,7 +2269,7 @@ export default function PredictionsPage() {
                     {/* Direction + correctness */}
                     {p.direction && (
                       <>
-                        <span className="text-navy-800">|</span>
+                        <span className="text-navy-800 hidden sm:inline">|</span>
                         <span className="text-[10px] font-mono text-navy-500">
                           {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
                           {p.directionCorrect !== null && (
@@ -2281,7 +2281,7 @@ export default function PredictionsPage() {
                       </>
                     )}
 
-                    <span className="text-navy-800">|</span>
+                    <span className="text-navy-800 hidden sm:inline">|</span>
 
                     {/* Dates */}
                     <span className="text-[10px] text-navy-600 font-mono">
@@ -2293,12 +2293,12 @@ export default function PredictionsPage() {
                       </span>
                     )}
 
-                    <div className="flex-1" />
+                    <div className="flex-1 hidden sm:block" />
                     {p.regimeAtCreation && (
-                      <span className="text-[9px] font-mono text-navy-600">{p.regimeAtCreation}</span>
+                      <span className="text-[9px] font-mono text-navy-600 hidden sm:inline">{p.regimeAtCreation}</span>
                     )}
                     {p.regimeInvalidated === 1 && (
-                      <span className="text-[9px] font-mono text-navy-700">invalidated</span>
+                      <span className="text-[9px] font-mono text-navy-700 hidden sm:inline">invalidated</span>
                     )}
                     {commentCounts[p.id] > 0 && (
                       <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-600">

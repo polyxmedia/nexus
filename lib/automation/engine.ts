@@ -307,7 +307,7 @@ async function executeAction(action: ActionConfig, rule: AutomationRule): Promis
     case "send_telegram": {
       const { broadcastAlert } = await import("@/lib/telegram/alerts");
       const message = (action.config.message as string) || `Automation "${rule.name}" triggered`;
-      await broadcastAlert("automation", message);
+      await broadcastAlert("automation" as never, message);
       break;
     }
 

@@ -217,7 +217,7 @@ export default function AIProgressionPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* ── Left Column ── */}
         <div className="space-y-8">
           {/* Remote Labor Index */}
@@ -233,7 +233,7 @@ export default function AIProgressionPage() {
               <div className="border border-navy-800/60 rounded bg-navy-950/80 p-4">
                 <p className="text-[11px] text-navy-500 mb-4 leading-relaxed">{data.rli.description}</p>
 
-                <div className="grid grid-cols-3 gap-4 mb-4 pb-4 border-b border-navy-800/40">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 pb-4 border-b border-navy-800/40">
                   <div>
                     <span className="text-[9px] font-mono text-navy-600 block mb-0.5">Best Rate</span>
                     <span className="text-xl font-mono font-light text-navy-200 tabular-nums">{data.rli.bestRate.toFixed(1)}%</span>
@@ -251,7 +251,7 @@ export default function AIProgressionPage() {
                 <div className="space-y-2.5">
                   {data.rli.models.map((m) => (
                     <div key={m.name} className="flex items-center gap-3">
-                      <span className="text-[10px] text-navy-400 w-36 truncate">{m.name}</span>
+                      <span className="text-[10px] text-navy-400 w-24 sm:w-36 truncate">{m.name}</span>
                       <div className="flex-1 h-1 bg-navy-800/60 rounded-full overflow-hidden">
                         <div className="h-full bg-navy-500/50 rounded-full transition-all duration-500" style={{ width: `${Math.min(m.automationRate * 10, 100)}%` }} />
                       </div>
@@ -378,8 +378,8 @@ export default function AIProgressionPage() {
             </div>
           </div>
 
-          <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-hidden">
-            <table className="w-full">
+          <div className="border border-navy-800/60 rounded bg-navy-950/80 overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-navy-800/40">
                   <th className="text-left text-[9px] font-mono font-normal text-navy-600 uppercase tracking-wider px-4 py-2.5 w-48">Sector</th>

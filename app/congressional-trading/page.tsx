@@ -606,13 +606,13 @@ export default function CongressionalTradingPage() {
       </div>
 
       {/* Tabs + Filters */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-0.5">
+      <div className="space-y-3 mb-4">
+        <div className="flex items-center gap-0.5 overflow-x-auto -mx-1 px-1 pb-1 scrollbar-hide">
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded transition-colors ${
+              className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded transition-colors whitespace-nowrap ${
                 tab === t.key
                   ? "bg-accent-cyan/10 text-accent-cyan"
                   : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
@@ -624,7 +624,7 @@ export default function CongressionalTradingPage() {
         </div>
 
         {tab !== "clusters" && tab !== "insiders" && (
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Chamber filter */}
             <div className="flex items-center gap-1">
               <Building2 className="h-3 w-3 text-navy-500" />
@@ -660,14 +660,14 @@ export default function CongressionalTradingPage() {
             </div>
 
             {/* Search */}
-            <div className="relative">
+            <div className="relative ml-auto w-full sm:w-auto">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-navy-600" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Name or ticker..."
-                className="pl-7 pr-3 py-1.5 w-48 rounded bg-navy-800/60 text-xs text-navy-100 font-mono placeholder:text-navy-600 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30"
+                className="pl-7 pr-3 py-1.5 w-full sm:w-48 rounded bg-navy-800/60 text-xs text-navy-100 font-mono placeholder:text-navy-600 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30"
               />
             </div>
           </div>
@@ -677,8 +677,8 @@ export default function CongressionalTradingPage() {
       {/* Congressional Trades Table */}
       {(tab === "recent" || tab === "buys" || tab === "sells") && (
         <div className="border border-navy-700/30 rounded-md overflow-hidden">
-          {/* Header */}
-          <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-navy-800/40 border-b border-navy-700/20">
+          {/* Header - desktop only */}
+          <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-2 bg-navy-800/40 border-b border-navy-700/20">
             <span className="col-span-3 text-[9px] font-mono uppercase tracking-wider text-navy-500">Member</span>
             <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500">Ticker</span>
             <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500">Type</span>
@@ -701,10 +701,10 @@ export default function CongressionalTradingPage() {
             if (showPanel) shownConflictPanel.add(t.name);
             return (
               <div key={t.id || i}>
+                {/* Desktop row */}
                 <div
-                  className={`grid grid-cols-12 gap-2 px-4 py-2 border-b border-navy-700/10 hover:bg-navy-800/20 transition-colors group ${isAnalyzing ? "bg-navy-800/20" : ""}`}
+                  className={`hidden md:grid grid-cols-12 gap-2 px-4 py-2 border-b border-navy-700/10 hover:bg-navy-800/20 transition-colors group ${isAnalyzing ? "bg-navy-800/20" : ""}`}
                 >
-                  {/* Member with photo */}
                   <div className="col-span-3 flex items-center gap-2">
                     <MemberAvatar name={t.name} bioguideId={t.bioguideId} party={t.party} />
                     <div className="min-w-0">
@@ -744,7 +744,6 @@ export default function CongressionalTradingPage() {
                       {t.chamber === "senate" ? "SEN" : "HSE"}
                     </span>
                   </div>
-                  {/* Actions */}
                   <div className="col-span-2 flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => copyTrade(t.ticker, t.transactionType)}
@@ -767,6 +766,63 @@ export default function CongressionalTradingPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Mobile card */}
+                <div
+                  className={`md:hidden px-4 py-3 border-b border-navy-700/10 ${isAnalyzing ? "bg-navy-800/20" : ""}`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <MemberAvatar name={t.name} bioguideId={t.bioguideId} party={t.party} />
+                    <div className="flex-1 min-w-0">
+                      <button
+                        onClick={() => setConflictMember(isAnalyzing ? null : t.name)}
+                        className={`text-[11px] transition-colors block truncate text-left ${isAnalyzing ? "text-accent-cyan" : "text-navy-200 hover:text-accent-cyan"}`}
+                      >
+                        {t.name}
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {t.state && <span className="text-[9px] text-navy-500">{t.state}</span>}
+                        <span className={`text-[9px] font-mono uppercase px-1 py-px rounded ${
+                          t.chamber === "senate" ? "bg-purple-900/30 text-purple-400" : "bg-navy-800/60 text-navy-400"
+                        }`}>
+                          {t.chamber === "senate" ? "SEN" : "HSE"}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-mono uppercase font-bold ${
+                      t.transactionType === "purchase" ? "text-accent-emerald" : t.transactionType === "sale" ? "text-accent-rose" : "text-navy-400"
+                    }`}>
+                      {t.transactionType === "purchase" ? "BUY" : t.transactionType === "sale" ? "SELL" : "XCHG"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] font-mono text-accent-cyan font-bold">{t.ticker}</span>
+                      <span className="text-[10px] font-mono text-navy-300">{t.amount}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-navy-500">{formatDate(t.transactionDate)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <button
+                      onClick={() => copyTrade(t.ticker, t.transactionType)}
+                      className="flex items-center gap-1 px-2 py-1 rounded bg-navy-100 text-navy-950 text-[9px] font-mono uppercase font-medium"
+                    >
+                      <Copy className="h-2.5 w-2.5" />
+                      Copy Trade
+                    </button>
+                    <button
+                      onClick={() => setConflictMember(isAnalyzing ? null : t.name)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-mono uppercase ${
+                        isAnalyzing
+                          ? "bg-accent-cyan/10 text-accent-cyan"
+                          : "bg-navy-800/60 text-navy-400"
+                      }`}
+                    >
+                      <Shield className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                </div>
+
                 {/* Inline conflict analysis - only show once per member */}
                 {showPanel && (
                   <ConflictPanel memberName={t.name} onClose={() => setConflictMember(null)} />

@@ -14,7 +14,7 @@ import {
 
 // Prediction prompts are defined inline in lib/predictions/engine.ts,
 // so we duplicate the defaults here to avoid circular imports.
-export const PREDICTION_GENERATE_DEFAULT = `You are NEXUS, a celestial-geopolitical market intelligence engine. You generate falsifiable predictions grounded in the active thesis, trading actions, game theory analysis, and signal convergences provided to you.
+export const PREDICTION_GENERATE_DEFAULT = `You are NEXUS, a geopolitical-market intelligence engine. You generate falsifiable predictions grounded in the active thesis, trading actions, game theory analysis, and signal convergences provided to you. Your predictions connect real intelligence signals to specific, measurable market outcomes.
 
 REGIME DETECTION (CRITICAL - READ FIRST):
 Before generating predictions, determine the geopolitical regime from the thesis and signals:

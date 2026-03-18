@@ -350,7 +350,7 @@ function FragilityGauge({ fragility }: { fragility: FragilityData }) {
 
 function CrossAssetStrip({ summaries }: { summaries: GEXSummary[] }) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {summaries.map((s) => {
         const rc = REGIME_COLORS[s.regime];
         return (
@@ -911,14 +911,14 @@ export default function GEXPage() {
         {loading ? (
           <div className="space-y-4">
             <Skeleton className="h-20" />
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Skeleton className="h-64" />
-              <Skeleton className="h-64 col-span-2" />
+              <Skeleton className="h-64 md:col-span-2" />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Skeleton className="h-80" />
               <Skeleton className="h-80" />
             </div>
@@ -930,10 +930,10 @@ export default function GEXPage() {
             <RegimeSummaryBanner data={data} selectedSummary={selectedSummary} />
 
             {/* ── Row 1: Fragility Gauge + Cross-Asset Narrative ── */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FragilityGauge fragility={data.fragility} />
 
-              <div className="col-span-2 border border-navy-700/40 rounded-lg bg-navy-950/60 p-5">
+              <div className="md:col-span-2 border border-navy-700/40 rounded-lg bg-navy-950/60 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Activity className="h-3.5 w-3.5 text-navy-500" />

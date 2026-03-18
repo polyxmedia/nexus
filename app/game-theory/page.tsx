@@ -944,30 +944,30 @@ export default function GameTheoryPage() {
     <div className="ml-0 md:ml-48 h-screen flex flex-col bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="Game theory analysis" blur>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-navy-700/50 px-6 h-14 shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-navy-700/50 px-4 md:px-6 py-3 md:h-14 shrink-0">
         <div className="flex items-center gap-3">
           <Swords className="h-4 w-4 text-accent-rose" />
           <div>
             <h1 className="text-sm font-bold text-navy-100 tracking-wide">Game Theory</h1>
             <p className="text-[10px] text-navy-500 uppercase tracking-wider font-mono">
-              {items.length} strategic scenario{items.length !== 1 ? "s" : ""} analysed
+              {items.length} scenario{items.length !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => { setCreating(true); setSelected(null); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-emerald border border-accent-emerald/20 rounded hover:bg-accent-emerald/10 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-emerald border border-accent-emerald/20 rounded hover:bg-accent-emerald/10 transition-colors"
           >
             <Plus className="h-3 w-3" />
-            Create Scenario
+            <span className="hidden sm:inline">Create</span>
           </button>
           <Link
             href="/game-theory/global"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-cyan border border-accent-cyan/20 rounded hover:bg-accent-cyan/10 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider text-accent-cyan border border-accent-cyan/20 rounded hover:bg-accent-cyan/10 transition-colors"
           >
             <Globe className="h-3 w-3" />
-            Global Scenario
+            <span className="hidden sm:inline">Global</span>
           </Link>
         </div>
       </div>
@@ -990,9 +990,13 @@ export default function GameTheoryPage() {
           </button>
         </div>
       ) : (
-        <div className="flex-1 flex min-h-0">
-          {/* Scenario list */}
-          <div className="w-72 shrink-0 border-r border-navy-800/40 overflow-y-auto bg-navy-950">
+        <div className="flex-1 flex flex-col md:flex-row min-h-0">
+          {/* Scenario list -- full width on mobile when no detail shown, sidebar on desktop */}
+          <div className={cn(
+            "md:w-72 md:shrink-0 md:border-r border-navy-800/40 overflow-y-auto bg-navy-950",
+            // On mobile: hide list when detail/create is showing
+            (selected || creating) ? "hidden md:block" : "block"
+          )}>
             <div className="p-2 space-y-1">
               {items.map(item => {
                 const isSelected = !creating && selected?.scenario.id === item.scenario.id;
@@ -1033,7 +1037,7 @@ export default function GameTheoryPage() {
                         {item.scenario.actors.map(a => a.shortName).join(" vs ")}
                       </span>
                       <span className="text-[9px] text-navy-600 font-mono">
-                        {nashCount} eq{nashCount !== 1 ? "" : ""}{stableCount > 0 ? ` (${stableCount} stable)` : ""}
+                        {nashCount} eq{stableCount > 0 ? ` (${stableCount} stable)` : ""}
                       </span>
                     </div>
                     <div className="text-[9px] text-navy-600 font-mono mt-0.5">
@@ -1046,18 +1050,34 @@ export default function GameTheoryPage() {
           </div>
 
           {/* Detail panel or Create form */}
-          {creating ? (
-            <CreateScenarioForm onCreated={handleCreated} onCancel={() => { setCreating(false); if (items.length > 0) setSelected(items[0]); }} />
-          ) : selected ? (
-            <ScenarioDetail item={selected} />
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <Swords className="h-10 w-10 text-navy-700 mx-auto mb-3" />
-                <p className="text-sm text-navy-500 font-sans">Select a scenario to analyse</p>
+          <div className={cn(
+            "flex-1 min-w-0",
+            // On mobile: hide detail when list is showing (no selection)
+            !selected && !creating ? "hidden md:flex md:items-center md:justify-center" : "block"
+          )}>
+            {/* Mobile back button */}
+            {(selected || creating) && (
+              <button
+                onClick={() => { setSelected(null); setCreating(false); }}
+                className="md:hidden flex items-center gap-1.5 px-4 py-2 text-[10px] font-mono text-navy-400 border-b border-navy-800/40"
+              >
+                <ArrowLeft className="h-3 w-3" />
+                Back to scenarios
+              </button>
+            )}
+            {creating ? (
+              <CreateScenarioForm onCreated={handleCreated} onCancel={() => { setCreating(false); if (items.length > 0) setSelected(items[0]); }} />
+            ) : selected ? (
+              <ScenarioDetail item={selected} />
+            ) : (
+              <div className="hidden md:flex flex-1 items-center justify-center">
+                <div className="text-center">
+                  <Swords className="h-10 w-10 text-navy-700 mx-auto mb-3" />
+                  <p className="text-sm text-navy-500 font-sans">Select a scenario to analyse</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
       </UpgradeGate>
