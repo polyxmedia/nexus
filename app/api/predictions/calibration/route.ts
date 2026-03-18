@@ -95,7 +95,7 @@ export async function GET() {
       difficultyTiers: report.difficultyTiers,
       rollingBrier: report.rollingBrier,
       insights,
-    });
+    }, { headers: { "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600" } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

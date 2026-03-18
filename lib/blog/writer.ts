@@ -323,7 +323,7 @@ function trackUsage(
 }
 
 function newCost(): GenerationCost {
-  return { totalInputTokens: 0, totalOutputTokens: 0, totalCostUsd: 0, model: "claude-opus-4-6", calls: [] };
+  return { totalInputTokens: 0, totalOutputTokens: 0, totalCostUsd: 0, model: "claude-sonnet-4-20250514", calls: [] };
 }
 
 /** Progress events emitted during article generation for real-time UI updates. */
@@ -505,7 +505,7 @@ export async function generateArticle(opts: {
   if (!opts.predictionId && !opts.topic) {
     console.log("[blog] Step 1: Establishing premise...");
     const premiseRes = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
       system: PREMISE_SYSTEM,
       messages: [{ role: "user", content: sourceData }],
@@ -528,7 +528,7 @@ export async function generateArticle(opts: {
   // ── Step 2: Generate draft ──
   console.log("[blog] Step 2: Generating draft...");
   const draftRes = await client.messages.create({
-    model: "claude-opus-4-6",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 4096,
     system: WRITER_SYSTEM,
     messages: [{ role: "user", content: premisePrompt }],
@@ -553,7 +553,7 @@ export async function generateArticle(opts: {
     emit({ type: "validating", iteration: i + 1, maxIterations: MAX_ITERATIONS });
     console.log(`[blog] Validating (iteration ${i + 1}/${MAX_ITERATIONS})...`);
     const analysisRes = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 2048,
       system: ANALYSIS_SYSTEM,
       messages: [{
@@ -608,7 +608,7 @@ export async function generateArticle(opts: {
     emit({ type: "fixing", iteration: i + 1, issueCount: issues.length, suggestionCount: suggestions.length });
     console.log(`[blog] Fixing ${issues.length} issues, ${suggestions.length} suggestions...`);
     const fixRes = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 4096,
       system: REWRITE_SYSTEM,
       messages: [{
@@ -675,7 +675,7 @@ export async function refineArticle(opts: {
   const { sourceData } = await getSourceData();
 
   const refineRes = await client.messages.create({
-    model: "claude-opus-4-6",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 4096,
     system: `You are the NEXUS Research Desk editor performing a refinement pass on an existing article.
 
@@ -743,7 +743,7 @@ export async function analyzeArticle(opts: {
   const { sourceData } = await getSourceData();
 
   const res = await client.messages.create({
-    model: "claude-opus-4-6",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 2048,
     system: ANALYSIS_SYSTEM,
     messages: [{
@@ -786,7 +786,7 @@ export async function fixFromAnalysis(opts: {
   const suggestionsList = opts.suggestions.map((s, n) => `${n + 1}. ${s}`).join("\n");
 
   const res = await client.messages.create({
-    model: "claude-opus-4-6",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 4096,
     system: `You are the NEXUS Research Desk editor. You are given an article and specific issues/suggestions from a quality analysis. Your job is to fix EVERY issue and incorporate EVERY suggestion to produce the best possible version.
 
@@ -839,7 +839,7 @@ export async function craftArticleThread(opts: {
   const articleUrl = `https://nexusintelligence.io/blog/${opts.slug}`;
 
   const res = await client.messages.create({
-    model: "claude-opus-4-6",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 2048,
     system: `You write Twitter threads for NEXUS Intelligence (@nexaboratorio). You're promoting an article we just published.
 

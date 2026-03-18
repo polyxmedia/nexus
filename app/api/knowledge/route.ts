@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   const entries = await listKnowledge({ category, status, search, tags });
   const currentStats = await getKnowledgeStats();
 
-  return NextResponse.json({ entries, stats: currentStats });
+  return NextResponse.json({ entries, stats: currentStats }, { headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=300" } });
 }
 
 export async function POST(request: NextRequest) {

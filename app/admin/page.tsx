@@ -399,6 +399,7 @@ const ADMIN_TABS = [
   { id: "og-tester", label: "OG Image", icon: Eye },
   { id: "integrations", label: "Integrations", icon: Globe },
   { id: "blog", label: "Blog Writer", icon: FileText },
+  { id: "costs", label: "Costs", icon: Coins },
 ];
 
 const PROMPT_CATEGORIES = [
@@ -3819,6 +3820,142 @@ interface BlogPostRecord {
   publishedAt: string | null;
   createdAt: string;
   predictionId: number | null;
+}
+
+function CostMonitorPanel() {
+  const [data, setData] = useState<{
+    credits: { today: number; week: number; month: number; total: number; transactions: number };
+    estimatedCosts: { today: number; week: number; month: number };
+    dailyBreakdown: Array<{ date: string; credits: number; transactions: number; cost: number }>;
+    usage: { chatSessions: { total: number; today: number; week: number }; predictions: { total: number; today: number; week: number } };
+    thresholds: Record<string, number>;
+    alerts: Array<{ level: "warning" | "critical"; message: string; metric: string; value: number; threshold: number }>;
+    hasAlerts: boolean;
+    highestAlertLevel: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/costs")
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="py-12 text-center"><Loader2 className="h-4 w-4 animate-spin inline-block text-navy-500" /></div>;
+  if (!data) return <div className="py-12 text-center text-xs text-navy-500">Failed to load cost data</div>;
+
+  const alertBorder = data.highestAlertLevel === "critical" ? "border-accent-rose/40" : data.highestAlertLevel === "warning" ? "border-accent-amber/40" : "border-navy-700/40";
+
+  return (
+    <div className="space-y-4">
+      {/* Alerts Banner */}
+      {data.alerts.length > 0 && (
+        <div className={`rounded-md border ${data.alerts.some(a => a.level === "critical") ? "border-accent-rose/40 bg-accent-rose/5" : "border-accent-amber/40 bg-accent-amber/5"} p-3`}>
+          <div className="flex items-center gap-2 mb-2">
+            <Shield className={`h-4 w-4 ${data.alerts.some(a => a.level === "critical") ? "text-accent-rose" : "text-accent-amber"}`} />
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-navy-200">Cost Alerts</span>
+          </div>
+          <div className="space-y-1">
+            {data.alerts.map((alert, i) => (
+              <div key={i} className={`text-[11px] font-mono ${alert.level === "critical" ? "text-accent-rose" : "text-accent-amber"}`}>
+                [{alert.level.toUpperCase()}] {alert.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cost Overview Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`rounded-md border ${alertBorder} bg-navy-950 p-3`}>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Today</div>
+          <div className="text-lg font-bold font-mono text-navy-100">${data.estimatedCosts.today.toFixed(2)}</div>
+          <div className="text-[10px] text-navy-500">{data.credits.today.toLocaleString()} credits</div>
+        </div>
+        <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">This Week</div>
+          <div className="text-lg font-bold font-mono text-navy-100">${data.estimatedCosts.week.toFixed(2)}</div>
+          <div className="text-[10px] text-navy-500">{data.credits.week.toLocaleString()} credits</div>
+        </div>
+        <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">This Month</div>
+          <div className="text-lg font-bold font-mono text-accent-amber">${data.estimatedCosts.month.toFixed(2)}</div>
+          <div className="text-[10px] text-navy-500">{data.credits.month.toLocaleString()} credits</div>
+        </div>
+        <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">All Time</div>
+          <div className="text-lg font-bold font-mono text-navy-100">{data.credits.total.toLocaleString()}</div>
+          <div className="text-[10px] text-navy-500">{data.credits.transactions.toLocaleString()} transactions</div>
+        </div>
+      </div>
+
+      {/* Usage Drivers */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-2">Chat Sessions (AI Cost Driver)</div>
+          <div className="grid grid-cols-3 gap-2">
+            <div><div className="text-sm font-bold font-mono text-navy-100">{data.usage.chatSessions.today}</div><div className="text-[9px] text-navy-600">today</div></div>
+            <div><div className="text-sm font-bold font-mono text-navy-100">{data.usage.chatSessions.week}</div><div className="text-[9px] text-navy-600">this week</div></div>
+            <div><div className="text-sm font-bold font-mono text-navy-100">{data.usage.chatSessions.total}</div><div className="text-[9px] text-navy-600">total</div></div>
+          </div>
+        </div>
+        <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-2">Predictions (Generation + Resolution)</div>
+          <div className="grid grid-cols-3 gap-2">
+            <div><div className="text-sm font-bold font-mono text-navy-100">{data.usage.predictions.today}</div><div className="text-[9px] text-navy-600">today</div></div>
+            <div><div className="text-sm font-bold font-mono text-navy-100">{data.usage.predictions.week}</div><div className="text-[9px] text-navy-600">this week</div></div>
+            <div><div className="text-sm font-bold font-mono text-navy-100">{data.usage.predictions.total}</div><div className="text-[9px] text-navy-600">total</div></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Daily Breakdown */}
+      {data.dailyBreakdown.length > 0 && (
+        <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-2">Daily Breakdown (Last 7 Days)</div>
+          <div className="space-y-1">
+            {data.dailyBreakdown.map((day) => {
+              const maxCredits = Math.max(...data.dailyBreakdown.map(d => d.credits), 1);
+              return (
+                <div key={day.date} className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-navy-400 w-20">{day.date}</span>
+                  <div className="flex-1 h-2 bg-navy-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-accent-cyan rounded-full" style={{ width: `${(day.credits / maxCredits) * 100}%` }} />
+                  </div>
+                  <span className="text-[10px] font-mono text-navy-400 w-20 text-right">{day.credits.toLocaleString()} cr</span>
+                  <span className="text-[10px] font-mono text-navy-500 w-14 text-right">${day.cost.toFixed(2)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Thresholds */}
+      <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+        <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-2">Alert Thresholds (Credits)</div>
+        <div className="grid grid-cols-3 gap-3 text-[10px] font-mono">
+          <div>
+            <div className="text-navy-400 mb-1">Daily</div>
+            <div className="text-accent-amber">{data.thresholds.dailyCreditWarning?.toLocaleString()} warn</div>
+            <div className="text-accent-rose">{data.thresholds.dailyCreditCritical?.toLocaleString()} crit</div>
+          </div>
+          <div>
+            <div className="text-navy-400 mb-1">Weekly</div>
+            <div className="text-accent-amber">{data.thresholds.weeklyCreditWarning?.toLocaleString()} warn</div>
+            <div className="text-accent-rose">{data.thresholds.weeklyCreditCritical?.toLocaleString()} crit</div>
+          </div>
+          <div>
+            <div className="text-navy-400 mb-1">Monthly</div>
+            <div className="text-accent-amber">{data.thresholds.monthlyCreditWarning?.toLocaleString()} warn</div>
+            <div className="text-accent-rose">{data.thresholds.monthlyCreditCritical?.toLocaleString()} crit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BlogWriterPanel() {
@@ -7797,6 +7934,10 @@ export default function AdminPage() {
 
         <Tabs.Content value="blog">
           <BlogWriterPanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="costs">
+          <CostMonitorPanel />
         </Tabs.Content>
       </Tabs.Root>
       {/* Confirm Modal */}

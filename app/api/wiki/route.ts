@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       const cleanTitle = entry.title.replace(/^Wikipedia:\s*/i, "");
       const images = await fetchArticleImage(cleanTitle);
 
-      return NextResponse.json({ entry, ...images });
+      return NextResponse.json({ entry, ...images }, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200" } });
     }
 
     // Semantic search
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       });
       // Filter to Wikipedia entries only
       const wikiResults = results.filter((r) => r.source === "wikipedia");
-      return NextResponse.json({ entries: wikiResults, total: wikiResults.length });
+      return NextResponse.json({ entries: wikiResults, total: wikiResults.length }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
     }
 
     // Browse mode - list Wikipedia entries

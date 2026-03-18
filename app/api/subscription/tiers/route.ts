@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         features: (() => { try { return JSON.parse(t.features); } catch { return []; } })(),
         highlighted: t.highlighted === 1,
       })),
-    });
+    }, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } });
   } catch {
     return NextResponse.json({ tiers: [] });
   }

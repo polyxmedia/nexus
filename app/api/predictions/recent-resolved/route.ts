@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(schema.predictions.resolvedAt))
       .limit(20);
 
-    return NextResponse.json({ predictions: resolved });
+    return NextResponse.json({ predictions: resolved }, { headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120" } });
   } catch (error) {
     console.error("Recent resolved predictions error:", error);
     return NextResponse.json({ error: "Failed to fetch predictions" }, { status: 500 });

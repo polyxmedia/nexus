@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
         report: null,
       });
     }
-    return NextResponse.json({ report });
+    return NextResponse.json({ report }, { headers: { "Cache-Control": "private, s-maxage=120, stale-while-revalidate=300" } });
   } catch (error) {
     console.error("Prediction feedback error:", error);
     return NextResponse.json({ error: "Failed to generate feedback" }, { status: 500 });

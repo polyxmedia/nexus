@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       sessions = sessions.filter((s) => matchedIds.has(s.id));
     }
 
-    return NextResponse.json({ sessions });
+    return NextResponse.json({ sessions }, { headers: { "Cache-Control": "private, s-maxage=30, stale-while-revalidate=120" } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

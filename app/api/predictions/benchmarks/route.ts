@@ -24,7 +24,7 @@ export async function GET() {
 
   try {
     const scores = await getBenchmarkScores();
-    return NextResponse.json(scores);
+    return NextResponse.json(scores, { headers: { "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600" } });
   } catch (error) {
     console.error("[benchmarks] GET error:", error);
     return NextResponse.json({ error: "Failed to load benchmarks" }, { status: 500 });
