@@ -29,37 +29,11 @@ export async function POST(req: NextRequest) {
       try {
         const engine = await import("@/lib/predictions/engine");
 
-        // ── Phase 1: Fast data-driven resolve (30s timeout to avoid blocking AI resolver) ──
-        send("step", { id: "fast-init", label: "Starting data-driven resolution (no AI, 30s timeout)", status: "running" });
-
-        try {
-          const fastPromise = engine.resolveByData();
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 30_000)
-          );
-          const fastResults = await Promise.race([fastPromise, timeoutPromise]).catch(() => [] as Awaited<ReturnType<typeof engine.resolveByData>>);
-          if (fastResults.length > 0) {
-            totalResolved += fastResults.length;
-            allResults.push(...fastResults);
-            for (const r of fastResults) {
-              send("step", { id: `fast-${r.id}`, label: `[DATA] ${r.outcome.toUpperCase()}: prediction #${r.id} -- ${r.notes.slice(0, 120)}`, status: r.outcome === "confirmed" ? "done" : r.outcome === "partial" ? "warn" : "done" });
-            }
-            send("step", { id: "fast-done", label: `Data resolver: ${fastResults.length} prediction${fastResults.length !== 1 ? "s" : ""} resolved`, status: "done" });
-          } else {
-            send("step", { id: "fast-done", label: "Data resolver: no predictions resolved (or timed out)", status: "done" });
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Unknown error";
-          send("step", { id: "fast-err", label: `Data resolver: ${msg}`, status: "warn" });
-        }
-
-        // Phase 2 (auto-expire) removed from manual resolve flow.
-        // Auto-expire is a housekeeping concern that runs on the daily cron only.
-        // Predictions should never expire just because a data fetch failed.
-
-        // ── Phase 3: AI-powered resolution for remaining ──
-        send("step", { id: "ai-init", label: "Starting AI resolver for remaining overdue predictions", status: "running" });
-        console.log("[resolve-stream] Phase 3: calling resolvePredictions()...");
+        // ── AI-powered resolution ──
+        // Skip data-only resolver in manual flow (it's slow, rate-limited, and runs on its own cron).
+        // Go straight to AI which can handle all prediction types including qualitative claims.
+        send("step", { id: "ai-init", label: "Starting AI resolution for overdue predictions", status: "running" });
+        console.log("[resolve-stream] Calling resolvePredictions()...");
 
         try {
           const aiResults = await engine.resolvePredictions({ skipHousekeeping: true });

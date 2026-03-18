@@ -153,8 +153,8 @@ function EquilibriumCard({ eq, index }: { eq: BayesianEquilibrium; index: number
 
       {/* Strategy profile */}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1.5">
-        {Object.entries(eq.strategyProfile).map(([actor, strategy]) => (
-          <span key={actor} className="text-[10px] font-mono">
+        {Object.entries(eq.strategyProfile).map(([actor, strategy], i) => (
+          <span key={`${actor}-${i}`} className="text-[10px] font-mono">
             <span className="text-navy-400">{actor}:</span>{" "}
             <span className="text-navy-200">{strategy}</span>
           </span>
