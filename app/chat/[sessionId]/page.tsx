@@ -418,6 +418,7 @@ export default function ChatSessionPage() {
                     }
                     onSuggestionClick={sendMessage}
                     cumulativeCredits={cumulativeCredits}
+                    isAdmin={isAdmin}
                   />
                 );
               });

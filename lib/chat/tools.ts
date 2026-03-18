@@ -37,7 +37,7 @@ import { getGEXSnapshot } from "@/lib/gex";
 import { findHistoricalParallels } from "@/lib/parallels/engine";
 import { initializeBeliefs, runBayesianAnalysis, createSignalFromOSINT } from "@/lib/game-theory/bayesian";
 import { N_PLAYER_SCENARIOS } from "@/lib/game-theory/scenarios-nplayer";
-import { getExtendedActorProfile, getAllExtendedProfiles } from "@/lib/actors/profiles";
+import { getExtendedActorProfile, getAllExtendedProfiles, type ExtendedActorProfile } from "@/lib/actors/profiles";
 import { generateNarrativeReport } from "@/lib/reports/narrative";
 import { recallMemories, saveMemory, deleteMemory } from "@/lib/memory/engine";
 import type Anthropic from "@anthropic-ai/sdk";
@@ -3035,8 +3035,8 @@ async function executeSaveToKnowledge(input: Record<string, unknown>) {
   }
 
   try {
-    // Check for duplicates by searching for similar titles
-    const existing = await searchKnowledge(title, { limit: 5 });
+    // Check for duplicates using text search (no embedding API call needed for dedup)
+    const existing = await searchKnowledge(title, { limit: 5, useVector: false });
     const duplicate = existing.find((e) => {
       const titleSimilar = e.title.toLowerCase().trim() === title.toLowerCase().trim();
       if (titleSimilar) return true;
@@ -3200,6 +3200,11 @@ async function executeGetTimeline(input: Record<string, unknown>) {
 
 async function executeGetIWStatus(input: Record<string, unknown>) {
   try {
+    // Run auto-detection first so indicators reflect current reality
+    // This is what makes the I&W module actually useful instead of showing stale 0% everywhere
+    const { autoDetectIndicators } = await import("@/lib/iw/engine");
+    await autoDetectIndicators();
+
     const scenarioId = input.scenario_id as string | undefined;
     if (scenarioId) {
       const status = await evaluateScenario(scenarioId);
@@ -4237,10 +4242,43 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
   }
 
   try {
-    // 1. Knowledge context - what do we already know about this?
+    // Run all independent data fetches in parallel instead of sequential
+    // Each of these is independent and best-effort, so parallel is safe
+    const [knowledgeResult, signalResult, marketResult, gameTheoryResult, actorResult, regimeResult] = await Promise.allSettled([
+      // 1. Knowledge context
+      searchKnowledge(description, { limit: 5 }).catch(() => []),
+      // 2. Signal convergence
+      db.select().from(schema.signals).where(eq(schema.signals.status, "upcoming")).orderBy(desc(schema.signals.intensity)).catch(() => []),
+      // 3. Market data
+      (symbols.length > 0 && (type === "market" || type === "hybrid"))
+        ? Promise.allSettled(symbols.slice(0, 5).map(async (sym) => {
+            const { getDailySeries } = await import("@/lib/market-data/provider");
+            const [quote, snapshot] = await Promise.allSettled([
+              getQuoteData(sym.toUpperCase()),
+              getDailySeries(sym.toUpperCase()).then((data) => computeTechnicalSnapshot(sym.toUpperCase(), data)),
+            ]);
+            const q = quote.status === "fulfilled" ? quote.value : null;
+            const s = snapshot.status === "fulfilled" ? snapshot.value : null;
+            return { symbol: sym.toUpperCase(), price: q?.price ?? null, change: q?.changePercent ?? null, rsi: s?.rsi14 ?? null, trend: s?.trend ?? null, volatilityRegime: s?.volatilityRegime ?? null };
+          }))
+        : Promise.resolve([]),
+      // 4. Game theory
+      ((type === "geopolitical" || type === "hybrid") && scenarioId)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? analyzeScenario(scenarioId as any).catch(() => null)
+        : Promise.resolve(null),
+      // 5. Actor profiles (skipKnowledge to avoid N vector searches)
+      actors.length > 0
+        ? Promise.allSettled(actors.slice(0, 4).map((a) => getExtendedActorProfile(a, { skipKnowledge: true })))
+        : Promise.resolve([]),
+      // 6. Regime
+      loadRegimeState("current").catch(() => null),
+    ]);
+
+    // Process knowledge
     let knowledgeContext: { count: number; entries: Array<{ title: string; summary: string }> } = { count: 0, entries: [] };
-    try {
-      const knowledge = await searchKnowledge(description, { limit: 5 });
+    if (knowledgeResult.status === "fulfilled") {
+      const knowledge = knowledgeResult.value as Awaited<ReturnType<typeof searchKnowledge>>;
       knowledgeContext = {
         count: knowledge.length,
         entries: knowledge.slice(0, 3).map((k: Record<string, unknown>) => ({
@@ -4248,17 +4286,12 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
           summary: ((k.content as string) || "").slice(0, 200),
         })),
       };
-    } catch { /* knowledge search is best-effort */ }
+    }
 
-    // 2. Signal convergence support
+    // Process signals
     let signalSupport: { count: number; maxIntensity: number; sectors: string[] } = { count: 0, maxIntensity: 0, sectors: [] };
-    try {
-      const allSignals: Signal[] = await db
-        .select()
-        .from(schema.signals)
-        .where(eq(schema.signals.status, "upcoming"))
-        .orderBy(desc(schema.signals.intensity));
-
+    if (signalResult.status === "fulfilled") {
+      const allSignals = signalResult.value as Signal[];
       const STOP_WORDS = new Set(["the","a","an","if","of","in","on","to","for","and","or","is","are","long","short","buy","sell","will","may","could","should","would","that","this","with","from","into","when","then"]);
       const keywords = description.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !STOP_WORDS.has(w));
       const relevant = allSignals.filter(
@@ -4269,101 +4302,51 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
         const sectors = s.marketSectors as string[] | null;
         if (sectors) sectors.forEach((sec) => sectorSet.add(sec));
       });
-      signalSupport = {
-        count: relevant.length,
-        maxIntensity: relevant.length > 0 ? relevant[0].intensity : 0,
-        sectors: Array.from(sectorSet).slice(0, 8),
+      signalSupport = { count: relevant.length, maxIntensity: relevant.length > 0 ? relevant[0].intensity : 0, sectors: Array.from(sectorSet).slice(0, 8) };
+    }
+
+    // Process market data
+    type MarketDataItem = { symbol: string; price: number | null; change: number | null; rsi: number | null; trend: string | null; volatilityRegime: string | null };
+    let marketData: MarketDataItem[] = [];
+    if (marketResult.status === "fulfilled") {
+      const results = marketResult.value as PromiseSettledResult<MarketDataItem>[];
+      marketData = results.filter((r) => r.status === "fulfilled").map((r) => (r as PromiseFulfilledResult<MarketDataItem>).value);
+    }
+
+    // Process game theory
+    let gameTheoryContext: { scenario: string | null; nashEquilibria: number; dominantOutcome: string | null; marketDirection: string | null; escalationRisk: string | null } = { scenario: null, nashEquilibria: 0, dominantOutcome: null, marketDirection: null, escalationRisk: null };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (gameTheoryResult.status === "fulfilled" && gameTheoryResult.value && !("error" in (gameTheoryResult.value as any))) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const analysis = gameTheoryResult.value as any;
+      gameTheoryContext = {
+        scenario: scenarioId || null,
+        nashEquilibria: analysis.nashEquilibria?.length || 0,
+        dominantOutcome: analysis.nashEquilibria?.[0]?.label || null,
+        marketDirection: analysis.marketAssessment?.direction || null,
+        escalationRisk: analysis.escalationLadder?.[0]?.level ? `Level ${analysis.escalationLadder[analysis.escalationLadder.length - 1]?.level || "?"}` : null,
       };
-    } catch { /* signals query is best-effort */ }
-
-    // 3. Market data for specified symbols
-    let marketData: Array<{
-      symbol: string;
-      price: number | null;
-      change: number | null;
-      rsi: number | null;
-      trend: string | null;
-      volatilityRegime: string | null;
-    }> = [];
-    if (symbols.length > 0 && (type === "market" || type === "hybrid")) {
-      const results = await Promise.allSettled(
-        symbols.slice(0, 5).map(async (sym) => {
-          const { getDailySeries } = await import("@/lib/market-data/provider");
-          const [quote, snapshot] = await Promise.allSettled([
-            getQuoteData(sym.toUpperCase()),
-            getDailySeries(sym.toUpperCase()).then((data) => computeTechnicalSnapshot(sym.toUpperCase(), data)),
-          ]);
-          const q = quote.status === "fulfilled" ? quote.value : null;
-          const s = snapshot.status === "fulfilled" ? snapshot.value : null;
-          return {
-            symbol: sym.toUpperCase(),
-            price: q?.price ?? null,
-            change: q?.changePercent ?? null,
-            rsi: s?.rsi14 ?? null,
-            trend: s?.trend ?? null,
-            volatilityRegime: s?.volatilityRegime ?? null,
-          };
-        })
-      );
-      marketData = results
-        .filter((r) => r.status === "fulfilled")
-        .map((r) => (r as PromiseFulfilledResult<typeof marketData[number]>).value);
     }
 
-    // 4. Game theory context
-    let gameTheoryContext: {
-      scenario: string | null;
-      nashEquilibria: number;
-      dominantOutcome: string | null;
-      marketDirection: string | null;
-      escalationRisk: string | null;
-    } = { scenario: null, nashEquilibria: 0, dominantOutcome: null, marketDirection: null, escalationRisk: null };
-    if ((type === "geopolitical" || type === "hybrid") && scenarioId) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const analysis = await analyzeScenario(scenarioId as any) as any;
-        if (analysis && !("error" in analysis)) {
-          gameTheoryContext = {
-            scenario: scenarioId,
-            nashEquilibria: analysis.nashEquilibria?.length || 0,
-            dominantOutcome: analysis.nashEquilibria?.[0]?.label || null,
-            marketDirection: analysis.marketAssessment?.direction || null,
-            escalationRisk: analysis.escalationLadder?.[0]?.level
-              ? `Level ${analysis.escalationLadder[analysis.escalationLadder.length - 1]?.level || "?"}`
-              : null,
-          };
-        }
-      } catch { /* game theory is best-effort */ }
-    }
-
-    // 5. Actor profiles
+    // Process actor profiles
     let actorProfiles: Array<{ id: string; name: string; type: string }> = [];
-    if (actors.length > 0) {
-      try {
-        const profiles = await Promise.allSettled(
-          actors.slice(0, 4).map((a) => getExtendedActorProfile(a))
-        );
-        actorProfiles = profiles
-          .filter((r) => r.status === "fulfilled" && !!(r as PromiseFulfilledResult<unknown>).value)
-          .map((r) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const v = (r as PromiseFulfilledResult<any>).value;
-            return { id: (v.id as string) || "", name: (v.name as string) || "", type: (v.type as string) || "" };
-          });
-      } catch { /* actor lookup is best-effort */ }
+    if (actorResult.status === "fulfilled") {
+      const profiles = actorResult.value as PromiseSettledResult<ExtendedActorProfile | null>[];
+      actorProfiles = profiles
+        .filter((r) => r.status === "fulfilled" && !!(r as PromiseFulfilledResult<unknown>).value)
+        .map((r) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const v = (r as PromiseFulfilledResult<any>).value;
+          return { id: (v.id as string) || "", name: (v.name as string) || "", type: (v.type as string) || "" };
+        });
     }
 
-    // 6. Regime context
+    // Process regime
     let regimeContext: { label: string | null; score: number | null } = { label: null, score: null };
-    try {
-      const regime = await loadRegimeState("current");
-      if (regime) {
-        regimeContext = {
-          label: (regime as Record<string, unknown>).label as string || null,
-          score: (regime as Record<string, unknown>).compositeScore as number || null,
-        };
-      }
-    } catch { /* regime is best-effort */ }
+    if (regimeResult.status === "fulfilled" && regimeResult.value) {
+      const regime = regimeResult.value as Record<string, unknown>;
+      regimeContext = { label: (regime.label as string) || null, score: (regime.compositeScore as number) || null };
+    }
 
     // 7. Compute asymmetry assessment
     const asymmetry = computeAsymmetryScore({

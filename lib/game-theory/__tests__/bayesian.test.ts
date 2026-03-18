@@ -342,6 +342,34 @@ describe("findBayesianEquilibria", () => {
       expect(["bullish", "bearish", "mixed"]).toContain(eq.marketImpact.direction);
     }
   });
+
+  it("equilibrium probabilities are normalized to sum to ~1.0", () => {
+    const scenario = makeTestScenario();
+    const beliefs = initializeBeliefs(["actor_a", "actor_b"]);
+    const equilibria = findBayesianEquilibria(scenario, beliefs);
+    if (equilibria.length === 0) return; // Skip if no equilibria found
+    const totalProb = equilibria.reduce((s, eq) => s + eq.probability, 0);
+    expect(totalProb).toBeCloseTo(1.0, 1);
+  });
+
+  it("no equilibrium has P=0% after normalization (if it exists)", () => {
+    const scenario = makeTestScenario();
+    const beliefs = initializeBeliefs(["actor_a", "actor_b"]);
+    const equilibria = findBayesianEquilibria(scenario, beliefs);
+    // All equilibria that exist should have some probability mass
+    for (const eq of equilibria) {
+      expect(eq.probability).toBeGreaterThan(0);
+    }
+  });
+
+  it("highest probability equilibrium has a meaningful share", () => {
+    const scenario = makeTestScenario();
+    const beliefs = initializeBeliefs(["actor_a", "actor_b"]);
+    const equilibria = findBayesianEquilibria(scenario, beliefs);
+    if (equilibria.length === 0) return;
+    // Top equilibrium should have at least 5% after normalization
+    expect(equilibria[0].probability).toBeGreaterThanOrEqual(0.05);
+  });
 });
 
 // ── computeSequentialPaths ──

@@ -238,102 +238,116 @@ export async function getAllScenarioStatuses(): Promise<ScenarioStatus[]> {
   return results;
 }
 
-// Auto-detect indicators by matching GDELT/OSINT headlines against detection queries
+// Auto-detect indicators from GDELT headlines AND existing platform signals.
+// Actually activates indicators (not just suggests) so the I&W display reflects reality.
 export async function autoDetectIndicators(): Promise<{
   scenariosChecked: number;
+  activated: number;
   suggestedActivations: Array<{
     scenarioId: string;
     scenarioName: string;
     indicatorId: string;
     indicatorTitle: string;
-    matchedHeadlines: string[];
+    matchedEvidence: string[];
     currentStatus: IndicatorStatus;
-    suggestedStatus: IndicatorStatus;
+    newStatus: IndicatorStatus;
   }>;
 }> {
-  const suggestions: Array<{
+  const activations: Array<{
     scenarioId: string;
     scenarioName: string;
     indicatorId: string;
     indicatorTitle: string;
-    matchedHeadlines: string[];
+    matchedEvidence: string[];
     currentStatus: IndicatorStatus;
-    suggestedStatus: IndicatorStatus;
+    newStatus: IndicatorStatus;
   }> = [];
 
-  // Fetch recent OSINT events/articles from GDELT
-  let recentHeadlines: string[] = [];
-  try {
-    const url = "https://api.gdeltproject.org/api/v2/doc/doc?query=conflict%20OR%20military%20OR%20crisis%20OR%20attack%20OR%20nuclear%20OR%20sanctions&mode=ArtList&maxrecords=50&format=json&sort=DateDesc";
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (res.ok) {
+  // Fetch evidence from two sources in parallel
+  const [gdeltResult, signalResult] = await Promise.allSettled([
+    // 1. GDELT headlines (external OSINT)
+    (async () => {
+      const url = "https://api.gdeltproject.org/api/v2/doc/doc?query=conflict%20OR%20military%20OR%20crisis%20OR%20attack%20OR%20nuclear%20OR%20sanctions%20OR%20war%20OR%20strike%20OR%20blockade%20OR%20missile&mode=ArtList&maxrecords=100&format=json&sort=DateDesc&timespan=7d";
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) return [];
       const json = await res.json();
-      recentHeadlines = (json?.articles || [])
-        .map((a: { title?: string }) => (a.title || "").toLowerCase())
+      return ((json?.articles || []) as Array<{ title?: string }>)
+        .map((a) => (a.title || "").toLowerCase())
         .filter((t: string) => t.length > 10);
-    }
-  } catch {
-    // Continue with empty headlines
+    })(),
+    // 2. Platform signals (internal intelligence)
+    db.select().from(schema.signals)
+      .orderBy(desc(schema.signals.id))
+      .limit(100)
+      .catch(() => []),
+  ]);
+
+  const gdeltHeadlines = gdeltResult.status === "fulfilled" ? gdeltResult.value : [];
+  const platformSignals = signalResult.status === "fulfilled" ? signalResult.value : [];
+
+  // Combine evidence sources
+  const allEvidence: string[] = [
+    ...gdeltHeadlines,
+    ...platformSignals.map(s => `${s.title} ${s.description || ""}`.toLowerCase()),
+  ];
+
+  if (allEvidence.length === 0) {
+    return { scenariosChecked: THREAT_SCENARIOS.length, activated: 0, suggestedActivations: [] };
   }
 
-  if (recentHeadlines.length === 0) {
-    return { scenariosChecked: THREAT_SCENARIOS.length, suggestedActivations: [] };
-  }
+  const statusOrder: IndicatorStatus[] = ["inactive", "watching", "active", "confirmed"];
 
   for (const scenario of THREAT_SCENARIOS) {
     const states = await getIndicatorStates(scenario.id);
 
     for (const indicator of scenario.indicators) {
       const currentStatus = states.get(indicator.id)?.status || "inactive";
-      if (currentStatus === "confirmed") continue; // Already confirmed, skip
+      if (currentStatus === "confirmed") continue;
 
-      // Check if any headlines match the detection query keywords
       const queryWords = indicator.detectionQuery.toLowerCase().split(/\s+/);
-      const matchedHeadlines: string[] = [];
+      const matchedEvidence: string[] = [];
 
-      for (const headline of recentHeadlines) {
-        // Require at least 2 keyword matches for relevance
-        const matchCount = queryWords.filter(word => headline.includes(word)).length;
+      for (const evidence of allEvidence) {
+        const matchCount = queryWords.filter(word => evidence.includes(word)).length;
+        // Require 2+ keyword matches for relevance
         if (matchCount >= 2) {
-          matchedHeadlines.push(headline);
+          matchedEvidence.push(evidence.slice(0, 120));
         }
       }
 
-      if (matchedHeadlines.length > 0) {
-        // Suggest escalation based on match strength
-        let suggestedStatus: IndicatorStatus;
-        if (matchedHeadlines.length >= 5) suggestedStatus = "active";
-        else if (matchedHeadlines.length >= 2) suggestedStatus = "watching";
-        else suggestedStatus = "watching";
+      if (matchedEvidence.length === 0) continue;
 
-        // Only suggest if it would be an escalation
-        const statusOrder: IndicatorStatus[] = ["inactive", "watching", "active", "confirmed"];
-        if (statusOrder.indexOf(suggestedStatus) > statusOrder.indexOf(currentStatus)) {
-          suggestions.push({
-            scenarioId: scenario.id,
-            scenarioName: scenario.name,
-            indicatorId: indicator.id,
-            indicatorTitle: indicator.title,
-            matchedHeadlines: matchedHeadlines.slice(0, 5),
-            currentStatus,
-            suggestedStatus,
-          });
+      // Determine activation level from evidence strength
+      let newStatus: IndicatorStatus;
+      if (matchedEvidence.length >= 10) newStatus = "active";
+      else if (matchedEvidence.length >= 5) newStatus = "active";
+      else if (matchedEvidence.length >= 2) newStatus = "watching";
+      else newStatus = "watching";
 
-          // Auto-activate if enough evidence and currently inactive
-          if (currentStatus === "inactive" && matchedHeadlines.length >= 3) {
-            await activateIndicator(
-              scenario.id,
-              indicator.id,
-              "watching",
-              `Auto-detected from ${matchedHeadlines.length} matching headlines: ${matchedHeadlines[0]}`
-            );
-          }
-        }
-      }
+      // Only escalate, never downgrade
+      if (statusOrder.indexOf(newStatus) <= statusOrder.indexOf(currentStatus)) continue;
+
+      // Actually activate the indicator
+      await activateIndicator(
+        scenario.id,
+        indicator.id,
+        newStatus,
+        `Auto-detected from ${matchedEvidence.length} evidence sources: ${matchedEvidence[0]}`
+      );
+
+      activations.push({
+        scenarioId: scenario.id,
+        scenarioName: scenario.name,
+        indicatorId: indicator.id,
+        indicatorTitle: indicator.title,
+        matchedEvidence: matchedEvidence.slice(0, 3),
+        currentStatus,
+        newStatus,
+      });
     }
   }
 
-  return { scenariosChecked: THREAT_SCENARIOS.length, suggestedActivations: suggestions };
+  return { scenariosChecked: THREAT_SCENARIOS.length, activated: activations.length, suggestedActivations: activations };
 }
 
 export async function getEscalationHistory(scenarioId: string): Promise<Array<{

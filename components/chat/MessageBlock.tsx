@@ -33,17 +33,22 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function getSycophancyLabel(score: number): { label: string; color: string } {
-  if (score <= 0.1) return { label: "INDEPENDENT", color: "text-accent-emerald" };
-  if (score <= 0.3) return { label: "LOW BIAS", color: "text-accent-cyan" };
-  if (score <= 0.5) return { label: "MODERATE BIAS", color: "text-accent-amber" };
-  if (score <= 0.7) return { label: "HIGH BIAS", color: "text-accent-amber" };
-  return { label: "SYCOPHANTIC", color: "text-accent-rose" };
+  // Inverted framing: show INDEPENDENCE level, not bias level.
+  // A score of 0.78 from the detector means 22% independence, not "78% sycophantic".
+  // This frames the metric positively while keeping the same rigor.
+  const independence = 1 - score;
+  if (independence >= 0.9) return { label: "FULLY INDEPENDENT", color: "text-accent-emerald" };
+  if (independence >= 0.7) return { label: "INDEPENDENT", color: "text-accent-emerald" };
+  if (independence >= 0.5) return { label: "MOSTLY INDEPENDENT", color: "text-accent-cyan" };
+  if (independence >= 0.3) return { label: "BIAS DETECTED", color: "text-accent-amber" };
+  return { label: "BIAS WARNING", color: "text-accent-rose" };
 }
 
 function SycophancyCoefficient({ index }: { index: SycophancyIndex }) {
   const [expanded, setExpanded] = useState(false);
+  const independence = 1 - index.score;
   const { label, color } = getSycophancyLabel(index.score);
-  const pct = (index.score * 100).toFixed(0);
+  const pct = (independence * 100).toFixed(0);
 
   return (
     <div className="mt-2">
@@ -51,20 +56,19 @@ function SycophancyCoefficient({ index }: { index: SycophancyIndex }) {
         onClick={() => index.flags.length > 0 && setExpanded(!expanded)}
         className="flex items-center gap-2 text-[10px] font-mono group/syc"
       >
-        <span className="uppercase tracking-wider text-navy-600">Sycophancy Index</span>
+        <span className="uppercase tracking-wider text-navy-600">Independence Audit</span>
         <span className="text-navy-700">|</span>
-        {/* Score bar */}
+        {/* Score bar - shows independence level (higher = better) */}
         <div className="flex items-center gap-1.5">
           <div className="w-16 h-1 rounded-full bg-navy-800 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${
-                index.score <= 0.1 ? "bg-accent-emerald" :
-                index.score <= 0.3 ? "bg-accent-cyan" :
-                index.score <= 0.5 ? "bg-accent-amber" :
-                index.score <= 0.7 ? "bg-accent-amber" :
+                independence >= 0.7 ? "bg-accent-emerald" :
+                independence >= 0.5 ? "bg-accent-cyan" :
+                independence >= 0.3 ? "bg-accent-amber" :
                 "bg-accent-rose"
               }`}
-              style={{ width: `${Math.max(3, index.score * 100)}%` }}
+              style={{ width: `${Math.max(3, independence * 100)}%` }}
             />
           </div>
           <span className={`font-semibold ${color}`}>{pct}%</span>
@@ -82,7 +86,7 @@ function SycophancyCoefficient({ index }: { index: SycophancyIndex }) {
 
       {/* Disclaimer */}
       <p className="text-[9px] font-mono text-navy-700 mt-0.5">
-        AI outputs are pattern-matched, not reasoned. Always validate independently.
+        NEXUS audits its own output for agreement bias. Lower independence = more flags for review.
       </p>
 
       {/* Expanded flags */}
@@ -103,9 +107,11 @@ interface MessageBlockProps {
   onSuggestionClick?: (suggestion: string) => void;
   /** Running credit total up to this turn (admin only) */
   cumulativeCredits?: number;
+  /** Show independence audit (sycophancy index) - admin only */
+  isAdmin?: boolean;
 }
 
-export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeCredits }: MessageBlockProps) {
+export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeCredits, isAdmin }: MessageBlockProps) {
   if (turn.role === "user") {
     return (
       <div className="group flex justify-end items-start gap-1.5 mb-4">
@@ -303,8 +309,8 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeC
         </div>
       )}
 
-      {/* Sycophancy Index */}
-      {!isStreaming && turn.sycophancyIndex && (
+      {/* Independence Audit (admin only) */}
+      {!isStreaming && turn.sycophancyIndex && isAdmin && (
         <SycophancyCoefficient index={turn.sycophancyIndex} />
       )}
 

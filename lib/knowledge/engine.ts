@@ -266,8 +266,13 @@ export async function getRelevantKnowledge(topics: string[], limit = 10): Promis
   const seen = new Set<number>();
   const results: KnowledgeEntry[] = [];
 
-  for (const topic of topics) {
-    const matches = await searchKnowledge(topic, { limit: 5 });
+  // Run all topic searches in parallel instead of sequential
+  // Each searchKnowledge call may hit an embedding API, so parallel saves N * 2-3s
+  const allMatches = await Promise.all(
+    topics.map((topic) => searchKnowledge(topic, { limit: 5 }).catch(() => [] as KnowledgeEntry[]))
+  );
+
+  for (const matches of allMatches) {
     for (const m of matches) {
       if (!seen.has(m.id)) {
         seen.add(m.id);

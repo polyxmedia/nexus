@@ -830,7 +830,17 @@ export function findBayesianEquilibria(
     }
   }
 
-  return equilibria.sort((a, b) => b.probability - a.probability);
+  // Normalize probabilities so they sum to 1.0
+  // Without this, each equilibrium's QRE probability is independent and they
+  // can sum to far less than 100%, which makes the display meaningless.
+  const sorted = equilibria.sort((a, b) => b.probability - a.probability);
+  const totalProb = sorted.reduce((s, eq) => s + eq.probability, 0);
+  if (totalProb > 0) {
+    for (const eq of sorted) {
+      eq.probability = eq.probability / totalProb;
+    }
+  }
+  return sorted;
 }
 
 /**

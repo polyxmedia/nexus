@@ -151,6 +151,34 @@ export async function embedAllKnowledge(): Promise<{ embedded: number; skipped: 
   return { embedded, skipped, errors };
 }
 
+// ── Query Embedding Cache ──
+// Avoids repeated Voyage AI API calls for the same or similar queries.
+// Chat sessions frequently search for the same topics ("Iran", "OPEC", "oil").
+// Cache TTL: 30 min, max 200 entries (LRU eviction).
+const QUERY_EMBED_CACHE = new Map<string, { embedding: number[]; ts: number }>();
+const EMBED_CACHE_TTL = 30 * 60 * 1000;
+const EMBED_CACHE_MAX = 200;
+
+function normalizeQueryKey(query: string): string {
+  return query.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+async function getCachedQueryEmbedding(query: string): Promise<number[]> {
+  const key = normalizeQueryKey(query);
+  const cached = QUERY_EMBED_CACHE.get(key);
+  if (cached && Date.now() - cached.ts < EMBED_CACHE_TTL) {
+    return cached.embedding;
+  }
+  const embedding = await generateEmbedding(query, "query");
+  // Evict oldest if at capacity
+  if (QUERY_EMBED_CACHE.size >= EMBED_CACHE_MAX) {
+    const oldest = QUERY_EMBED_CACHE.keys().next().value;
+    if (oldest !== undefined) QUERY_EMBED_CACHE.delete(oldest);
+  }
+  QUERY_EMBED_CACHE.set(key, { embedding, ts: Date.now() });
+  return embedding;
+}
+
 /**
  * Semantic search: find knowledge entries most similar to a query.
  */
@@ -169,7 +197,7 @@ export async function semanticSearch(
 }>> {
   const limit = options?.limit ?? 10;
 
-  const queryEmbedding = await generateEmbedding(query, "query");
+  const queryEmbedding = await getCachedQueryEmbedding(query);
   const vectorStr = `[${queryEmbedding.join(",")}]`;
 
   // Build WHERE clauses using parameterized queries
