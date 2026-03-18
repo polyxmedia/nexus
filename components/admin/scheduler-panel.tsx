@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Timer, Zap, Clock, CheckCircle2, XCircle, RefreshCw, Hash } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, Timer, Zap, Clock, CheckCircle2, XCircle, RefreshCw, Hash, Coins, Activity, Save } from "lucide-react";
 import type { SchedulerJob } from "./types";
 
 const AI_JOB_COST_ESTIMATES: Record<string, { model: string; inputTokens: number; outputTokens: number; label: string }> = {

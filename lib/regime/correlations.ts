@@ -126,7 +126,7 @@ const CORRELATION_PAIRS: Array<{
 ];
 
 // Calculate Pearson correlation coefficient
-function pearsonCorrelation(x: number[], y: number[]): number {
+export function pearsonCorrelation(x: number[], y: number[]): number {
   const n = Math.min(x.length, y.length);
   if (n < 5) return 0;
 

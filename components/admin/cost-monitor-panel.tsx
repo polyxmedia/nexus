@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Coins, Loader2, RefreshCw } from "lucide-react";
+import { Coins, Loader2, RefreshCw, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function CostMonitorPanel() {
