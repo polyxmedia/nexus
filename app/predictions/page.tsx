@@ -2127,7 +2127,7 @@ export default function PredictionsPage() {
           {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-md" />)}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {activeTab === "pending" && paginatedList.map((p) => {
             const overdue = p.deadline <= today;
             const grounding = parseGrounding(p.metrics);
@@ -2138,71 +2138,76 @@ export default function PredictionsPage() {
               <div
                 key={p.id}
                 onClick={() => router.push(`/predictions/${p.uuid}`)}
-                className={`border rounded-md overflow-hidden transition-colors cursor-pointer hover:border-navy-600/60 ${overdue ? "border-accent-rose/20 bg-accent-rose/[0.03]" : "border-navy-700/30 bg-navy-900/60"}`}
+                className="group border border-navy-700/20 rounded-lg bg-navy-900/40 cursor-pointer hover:bg-navy-900/70 hover:border-navy-600/30 transition-all duration-200"
               >
-                <div className="h-1 w-full bg-navy-800/40">
-                  <div
-                    className={`h-full transition-all ${urgency.color}`}
-                    style={{ width: `${urgency.progress * 100}%` }}
-                  />
-                </div>
-                <div className="p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <CatIcon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${catConfig?.color || "text-navy-400"}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
-                        {grounding && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
-                      </div>
+                <div className="px-5 py-4">
+                  {/* Claim */}
+                  <p className="text-[13px] text-navy-100 leading-relaxed pr-4">{p.claim}</p>
+
+                  {grounding && (
+                    <p className="text-[10px] text-navy-500 mt-2 leading-relaxed">{grounding}</p>
+                  )}
+
+                  {/* Meta row */}
+                  <div className="flex items-center gap-3 mt-3 pt-3 border-t border-navy-800/40">
+                    {/* Category */}
+                    <div className="flex items-center gap-1.5">
+                      <CatIcon className="h-3 w-3 text-navy-500" />
+                      <span className="text-[10px] font-mono text-navy-500 uppercase tracking-wider">{p.category}</span>
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0 flex-wrap ml-6 sm:ml-0">
-                      {p.direction && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                          p.direction === "up" ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" :
-                          p.direction === "down" ? "bg-accent-rose/10 text-accent-rose border border-accent-rose/20" :
-                          "bg-navy-800/40 text-navy-400 border border-navy-700/20"
+
+                    <span className="text-navy-800">|</span>
+
+                    {/* Confidence */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-12 h-1 rounded-full bg-navy-800 overflow-hidden">
+                        <div className={`h-full rounded-full ${p.confidence >= 0.7 ? "bg-navy-300" : p.confidence >= 0.5 ? "bg-navy-400" : "bg-navy-500"}`} style={{ width: `${p.confidence * 100}%` }} />
+                      </div>
+                      <span className="text-[10px] text-navy-400 font-mono">{(p.confidence * 100).toFixed(0)}%</span>
+                    </div>
+
+                    {/* Direction */}
+                    {p.direction && (
+                      <>
+                        <span className="text-navy-800">|</span>
+                        <span className={`text-[10px] font-mono ${
+                          p.direction === "up" ? "text-navy-300" : p.direction === "down" ? "text-navy-300" : "text-navy-500"
                         }`}>
                           {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
                         </span>
-                      )}
-                      {confidenceBar(p.confidence)}
-                      <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
-                        {p.category}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 mt-2.5 ml-6">
+                      </>
+                    )}
+
+                    <span className="text-navy-800">|</span>
+
+                    {/* Deadline */}
                     <span className="text-[10px] text-navy-500 font-mono">
-                      {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </span>
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
-                      urgency.level === "overdue" ? "bg-signal-5/15 text-signal-5" :
-                      urgency.level === "critical" ? "bg-signal-5/15 text-signal-5" :
-                      urgency.level === "urgent" ? "bg-accent-rose/10 text-accent-rose" :
-                      urgency.level === "soon" ? "bg-accent-amber/10 text-accent-amber" :
-                      "bg-navy-800/40 text-navy-400"
+
+                    {/* Urgency - subtle, only colored when actually urgent */}
+                    <span className={`text-[10px] font-mono ${
+                      urgency.level === "overdue" || urgency.level === "critical" ? "text-accent-rose" :
+                      urgency.level === "urgent" ? "text-accent-amber" :
+                      "text-navy-600"
                     }`}>
-                      {(urgency.level === "overdue" || urgency.level === "critical") && <AlertTriangle className="h-2.5 w-2.5" />}
-                      {urgency.level === "urgent" && <Zap className="h-2.5 w-2.5" />}
-                      {urgency.level === "soon" && <Clock className="h-2.5 w-2.5" />}
                       {urgency.label}
                     </span>
-                    <span className="text-[10px] text-navy-600 font-mono">{p.timeframe}</span>
+
+                    {/* Regime - far right, very subtle */}
+                    <div className="flex-1" />
                     {p.regimeAtCreation && (
-                      <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
-                        p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
-                        p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
-                        "bg-accent-emerald/10 text-accent-emerald"
-                      }`}>
-                        {p.regimeAtCreation}
-                      </span>
+                      <span className="text-[9px] font-mono text-navy-600">{p.regimeAtCreation}</span>
                     )}
                     {commentCounts[p.id] > 0 && (
-                      <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
-                        <MessageSquare className="h-3 w-3" />
+                      <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-600">
+                        <MessageSquare className="h-2.5 w-2.5" />
                         {commentCounts[p.id]}
                       </span>
                     )}
+
+                    {/* Progress indicator - thin line at bottom, only visible when overdue */}
+                    {overdue && <span className="h-1 w-1 rounded-full bg-accent-rose flex-shrink-0" />}
                   </div>
                 </div>
               </div>
@@ -2215,78 +2220,94 @@ export default function PredictionsPage() {
             const grounding = parseGrounding(p.metrics);
             const catConfig = CATEGORY_CONFIG[p.category];
             const isHit = p.outcome === "confirmed";
-            const isMiss = p.outcome === "denied";
             return (
               <div
                 key={p.id}
                 onClick={() => router.push(`/predictions/${p.uuid}`)}
-                className={`border rounded-md overflow-hidden cursor-pointer hover:border-navy-600/60 transition-colors ${config.border} ${config.bg}`}
+                className="group border border-navy-700/20 rounded-lg bg-navy-900/40 cursor-pointer hover:bg-navy-900/70 hover:border-navy-600/30 transition-all duration-200"
               >
-                <div className="flex">
-                  <div className={`w-14 flex-shrink-0 flex flex-col items-center justify-center gap-1 ${
-                    isHit ? "bg-accent-emerald/15" : isMiss ? "bg-accent-rose/15" : p.outcome === "partial" ? "bg-accent-amber/15" : "bg-navy-800/30"
-                  }`}>
-                    <Icon className={`h-5 w-5 ${config.color}`} />
-                    <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${config.color}`}>
-                      {config.label}
-                    </span>
-                    {p.score != null && (
-                      <span className={`text-xs font-bold font-mono ${p.score >= 0.7 ? "text-accent-emerald" : p.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
-                        {(p.score * 100).toFixed(0)}%
+                <div className="px-5 py-4">
+                  {/* Header: outcome + claim */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-1.5 pt-0.5 flex-shrink-0">
+                      <Icon className={`h-3.5 w-3.5 ${isHit ? "text-accent-emerald" : p.outcome === "denied" ? "text-navy-400" : p.outcome === "partial" ? "text-accent-amber" : "text-navy-600"}`} />
+                      <span className={`text-[10px] font-mono font-medium uppercase tracking-wider ${isHit ? "text-accent-emerald" : p.outcome === "denied" ? "text-navy-400" : p.outcome === "partial" ? "text-accent-amber" : "text-navy-600"}`}>
+                        {config.label}
                       </span>
-                    )}
+                    </div>
+                    <p className="text-[13px] text-navy-100 leading-relaxed flex-1">{p.claim}</p>
                   </div>
 
-                  <div className="flex-1 p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-navy-200 leading-snug">{p.claim}</p>
-                        {p.outcomeNotes && <p className="text-[10px] text-navy-400 mt-1.5 leading-relaxed">{p.outcomeNotes}</p>}
-                        {grounding && !p.outcomeNotes && <p className="text-[10px] text-navy-500 mt-1.5 italic">{grounding}</p>}
+                  {/* Resolution notes */}
+                  {p.outcomeNotes && (
+                    <p className="text-[10px] text-navy-400 mt-2 ml-[3.25rem] leading-relaxed line-clamp-2">{p.outcomeNotes}</p>
+                  )}
+                  {grounding && !p.outcomeNotes && (
+                    <p className="text-[10px] text-navy-500 mt-2 ml-[3.25rem] leading-relaxed">{grounding}</p>
+                  )}
+
+                  {/* Meta row */}
+                  <div className="flex items-center gap-3 mt-3 pt-3 border-t border-navy-800/40 ml-[3.25rem]">
+                    {/* Score */}
+                    {p.score != null && (
+                      <span className={`text-[10px] font-mono ${p.score >= 0.7 ? "text-navy-300" : p.score >= 0.4 ? "text-navy-400" : "text-navy-500"}`}>
+                        Score {(p.score * 100).toFixed(0)}%
+                      </span>
+                    )}
+
+                    {/* Confidence */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-1 rounded-full bg-navy-800 overflow-hidden">
+                        <div className="h-full rounded-full bg-navy-500" style={{ width: `${p.confidence * 100}%` }} />
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                        {p.direction && (
-                          <div className="flex items-center gap-1">
-                            <span className={`text-[9px] font-mono font-bold ${
-                              p.direction === "up" ? "text-accent-emerald" : p.direction === "down" ? "text-accent-rose" : "text-navy-400"
-                            }`}>
-                              {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                      <span className="text-[10px] text-navy-500 font-mono">{(p.confidence * 100).toFixed(0)}%</span>
+                    </div>
+
+                    <span className="text-navy-800">|</span>
+
+                    {/* Category */}
+                    <span className="text-[10px] font-mono text-navy-500 uppercase tracking-wider">{p.category}</span>
+
+                    {/* Direction + correctness */}
+                    {p.direction && (
+                      <>
+                        <span className="text-navy-800">|</span>
+                        <span className="text-[10px] font-mono text-navy-500">
+                          {p.direction === "up" ? "LONG" : p.direction === "down" ? "SHORT" : "FLAT"}
+                          {p.directionCorrect !== null && (
+                            <span className={`ml-1 ${p.directionCorrect === 1 ? "text-accent-emerald" : "text-navy-600"}`}>
+                              {p.directionCorrect === 1 ? "correct" : "wrong"}
                             </span>
-                            {p.directionCorrect !== null && (
-                              <span className={`text-[8px] font-mono ${p.directionCorrect === 1 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                                {p.directionCorrect === 1 ? "OK" : "WRONG"}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        {confidenceBar(p.confidence)}
-                        <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border ${catConfig?.border || ""} ${catConfig?.bg || ""} ${catConfig?.color || ""}`}>
-                          {p.category}
+                          )}
                         </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 mt-2.5 flex-wrap">
-                      <span className="text-[10px] text-navy-500 font-mono">Deadline: {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                      {p.resolvedAt && <span className="text-[10px] text-navy-600 font-mono">Resolved: {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
-                      {p.regimeAtCreation && (
-                        <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
-                          p.regimeAtCreation === "wartime" ? "bg-accent-rose/10 text-accent-rose" :
-                          p.regimeAtCreation === "transitional" ? "bg-accent-amber/10 text-accent-amber" :
-                          "bg-accent-emerald/10 text-accent-emerald"
-                        }`}>
-                          {p.regimeAtCreation}
-                        </span>
-                      )}
-                      {p.regimeInvalidated === 1 && (
-                        <span className="text-[9px] font-mono text-navy-500 px-1 py-0.5 rounded bg-navy-800/40">regime invalidated</span>
-                      )}
-                      {commentCounts[p.id] > 0 && (
-                        <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-500">
-                          <MessageSquare className="h-3 w-3" />
-                          {commentCounts[p.id]}
-                        </span>
-                      )}
-                    </div>
+                      </>
+                    )}
+
+                    <span className="text-navy-800">|</span>
+
+                    {/* Dates */}
+                    <span className="text-[10px] text-navy-600 font-mono">
+                      {new Date(p.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                    {p.resolvedAt && (
+                      <span className="text-[10px] text-navy-600 font-mono">
+                        resolved {new Date(p.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    )}
+
+                    <div className="flex-1" />
+                    {p.regimeAtCreation && (
+                      <span className="text-[9px] font-mono text-navy-600">{p.regimeAtCreation}</span>
+                    )}
+                    {p.regimeInvalidated === 1 && (
+                      <span className="text-[9px] font-mono text-navy-700">invalidated</span>
+                    )}
+                    {commentCounts[p.id] > 0 && (
+                      <span className="flex items-center gap-0.5 text-[10px] font-mono text-navy-600">
+                        <MessageSquare className="h-2.5 w-2.5" />
+                        {commentCounts[p.id]}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

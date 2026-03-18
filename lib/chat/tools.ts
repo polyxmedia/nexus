@@ -40,6 +40,7 @@ import { N_PLAYER_SCENARIOS } from "@/lib/game-theory/scenarios-nplayer";
 import { getExtendedActorProfile, getAllExtendedProfiles, type ExtendedActorProfile } from "@/lib/actors/profiles";
 import { generateNarrativeReport } from "@/lib/reports/narrative";
 import { recallMemories, saveMemory, deleteMemory } from "@/lib/memory/engine";
+import { evaluate as mathEvaluate } from "mathjs";
 import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Tool Definitions (Anthropic format) ──
@@ -1349,6 +1350,35 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: ["description", "type"],
     },
   },
+  {
+    name: "calculate",
+    description:
+      "Evaluate mathematical expressions accurately. Use this ANY TIME you need to perform arithmetic, financial calculations, unit conversions, percentages, or any numeric computation. Supports variables, functions (sqrt, abs, round, ceil, floor, log, exp, pow, min, max), percentages, and complex expressions. Examples: '44 * 64.55', '(2855.91 - 2590.72) / 2590.72 * 100', 'round(249.50 * 1.26, 2)'. ALWAYS use this tool instead of doing mental math.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        expressions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              label: {
+                type: "string",
+                description: "Short description of what this calculation represents (e.g. 'total_cost', 'profit_pct', 'units_to_sell')",
+              },
+              expr: {
+                type: "string",
+                description: "The mathematical expression to evaluate. Can reference previous labels as variables.",
+              },
+            },
+            required: ["label", "expr"],
+          },
+          description: "Array of labeled expressions to evaluate in sequence. Later expressions can reference earlier labels as variables.",
+        },
+      },
+      required: ["expressions"],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -1597,6 +1627,9 @@ export async function executeTool(
 
     case "analyze_opportunity":
       return executeAnalyzeOpportunity(input);
+
+    case "calculate":
+      return executeCalculate(input);
 
     default:
       return { error: `Unknown tool: ${toolName}` };
@@ -4535,4 +4568,31 @@ function deriveMonetizationPaths(
   }
 
   return paths;
+}
+
+// ── Calculator Tool ──
+
+function executeCalculate(input: Record<string, unknown>) {
+  const expressions = input.expressions as Array<{ label: string; expr: string }>;
+  if (!expressions || !Array.isArray(expressions) || expressions.length === 0) {
+    return { error: "expressions array is required and must not be empty" };
+  }
+
+  const scope: Record<string, number> = {};
+  const results: Array<{ label: string; expression: string; result: number | string }> = [];
+
+  for (const { label, expr } of expressions) {
+    try {
+      const value = mathEvaluate(expr, scope);
+      const numValue = typeof value === "number" ? value :
+        typeof value?.toNumber === "function" ? value.toNumber() : Number(value);
+      scope[label] = numValue;
+      results.push({ label, expression: expr, result: numValue });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Invalid expression";
+      results.push({ label, expression: expr, result: `ERROR: ${message}` });
+    }
+  }
+
+  return { results, variables: scope };
 }

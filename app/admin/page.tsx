@@ -3839,6 +3839,27 @@ function CostMonitorPanel() {
       estimatedMonthlyCost: { storage: number; history: number; compute: number; total: number; minimum: number };
       pricing: { storagePerGB: number; historyPerGB: number; computePerCUHour: number; computeCUs: number; computeHoursPerMonth: number };
     };
+    voyage?: {
+      period: string;
+      tokens: number;
+      calls: number;
+      texts: number;
+      estimatedCost: number;
+      pricePerMTok: number;
+      knowledgeEntries: number;
+      embeddedEntries: number;
+    };
+    vercel?: {
+      plan: string;
+      baseCost: number;
+      estimatedInvocations: number;
+      invocationOverageCost: number;
+      estimatedBandwidthGB: number;
+      bandwidthOverageCost: number;
+      estimatedTotal: number;
+      chatMessages: number;
+      analyticsEvents: number;
+    };
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -4033,6 +4054,112 @@ function CostMonitorPanel() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Voyage AI Embeddings ── */}
+      {data.voyage && (
+        <>
+          <div className="pt-4 border-t border-navy-800/60">
+            <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-navy-500 mb-3">Voyage AI Embeddings</div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Tokens ({data.voyage.period})</div>
+              <div className="text-lg font-bold font-mono text-navy-100">{data.voyage.tokens.toLocaleString()}</div>
+              <div className="text-[10px] text-navy-500">{data.voyage.calls} API calls</div>
+            </div>
+            <div className="rounded-md border border-accent-cyan/20 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Est. Cost</div>
+              <div className="text-lg font-bold font-mono text-accent-cyan">${data.voyage.estimatedCost.toFixed(3)}</div>
+              <div className="text-[10px] text-navy-500">${data.voyage.pricePerMTok}/MTok</div>
+            </div>
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Knowledge</div>
+              <div className="text-lg font-bold font-mono text-navy-100">{data.voyage.knowledgeEntries}</div>
+              <div className="text-[10px] text-navy-500">entries total</div>
+            </div>
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Embedded</div>
+              <div className="text-lg font-bold font-mono text-accent-emerald">{data.voyage.embeddedEntries}</div>
+              <div className="text-[10px] text-navy-500">{data.voyage.knowledgeEntries > 0 ? Math.round((data.voyage.embeddedEntries / data.voyage.knowledgeEntries) * 100) : 0}% coverage</div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Vercel Hosting ── */}
+      {data.vercel && (
+        <>
+          <div className="pt-4 border-t border-navy-800/60">
+            <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-navy-500 mb-3">Vercel Hosting ({data.vercel.plan})</div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Base Plan</div>
+              <div className="text-lg font-bold font-mono text-navy-100">${data.vercel.baseCost}</div>
+              <div className="text-[10px] text-navy-500">/month</div>
+            </div>
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Invocations</div>
+              <div className="text-lg font-bold font-mono text-navy-100">{(data.vercel.estimatedInvocations / 1000).toFixed(1)}k</div>
+              <div className="text-[10px] text-navy-500">{data.vercel.invocationOverageCost > 0 ? `+$${data.vercel.invocationOverageCost} overage` : "within limit"}</div>
+            </div>
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Bandwidth</div>
+              <div className="text-lg font-bold font-mono text-navy-100">{data.vercel.estimatedBandwidthGB} GB</div>
+              <div className="text-[10px] text-navy-500">{data.vercel.bandwidthOverageCost > 0 ? `+$${data.vercel.bandwidthOverageCost} overage` : "within 1TB"}</div>
+            </div>
+            <div className="rounded-md border border-accent-cyan/20 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Est. Total</div>
+              <div className="text-lg font-bold font-mono text-accent-cyan">${data.vercel.estimatedTotal.toFixed(2)}</div>
+              <div className="text-[10px] text-navy-500">/month</div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-navy-800/40 bg-navy-900/30 p-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-600 mb-1">Activity This Month</div>
+            <div className="flex flex-wrap gap-4 text-[10px] font-mono text-navy-500">
+              <span>Chat messages: {data.vercel.chatMessages.toLocaleString()}</span>
+              <span>Analytics events: {data.vercel.analyticsEvents.toLocaleString()}</span>
+              <span>Est. function calls: {data.vercel.estimatedInvocations.toLocaleString()}</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Monthly Total Estimate ── */}
+      {data.neon && data.voyage && data.vercel && (
+        <div className="pt-4 border-t border-navy-800/60">
+          <div className="rounded-md border border-accent-amber/20 bg-accent-amber/5 p-4">
+            <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-accent-amber mb-2">Total Estimated Monthly Infrastructure</div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div>
+                <div className="text-[10px] font-mono text-navy-400">Anthropic</div>
+                <div className="text-sm font-bold font-mono text-navy-200">${data.estimatedCosts.month.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono text-navy-400">Neon</div>
+                <div className="text-sm font-bold font-mono text-navy-200">${data.neon.estimatedMonthlyCost.total.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono text-navy-400">Voyage</div>
+                <div className="text-sm font-bold font-mono text-navy-200">${data.voyage.estimatedCost.toFixed(3)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono text-navy-400">Vercel</div>
+                <div className="text-sm font-bold font-mono text-navy-200">${data.vercel.estimatedTotal.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono text-accent-amber">Total</div>
+                <div className="text-lg font-bold font-mono text-accent-amber">
+                  ${(data.estimatedCosts.month + data.neon.estimatedMonthlyCost.total + data.voyage.estimatedCost + data.vercel.estimatedTotal).toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
