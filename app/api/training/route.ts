@@ -81,6 +81,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ progress, levelInfo, missionCompleted: allDone });
   }
 
+  if (action === "complete_playbook") {
+    const { playbookId } = body;
+    if (!playbookId) return NextResponse.json({ error: "playbookId required" }, { status: 400 });
+
+    const playbook = PLAYBOOKS.find((p) => p.id === playbookId);
+    if (!playbook) return NextResponse.json({ error: "Playbook not found" }, { status: 404 });
+
+    if (!progress.completedPlaybooks) progress.completedPlaybooks = [];
+
+    if (!progress.completedPlaybooks.includes(playbookId)) {
+      progress.completedPlaybooks.push(playbookId);
+      progress.xp += playbook.xp;
+      progress.level = getLevelForXp(progress.xp).level;
+    }
+
+    progress.lastActivityAt = new Date().toISOString();
+    await saveProgress(auth.username, progress);
+
+    const levelInfo = getLevelForXp(progress.xp);
+    return NextResponse.json({ progress, levelInfo });
+  }
+
   if (action === "reset") {
     const fresh = { ...DEFAULT_PROGRESS, startedAt: new Date().toISOString(), lastActivityAt: new Date().toISOString() };
     await saveProgress(auth.username, fresh);

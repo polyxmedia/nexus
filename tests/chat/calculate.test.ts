@@ -117,6 +117,12 @@ vi.mock("@/lib/memory/engine", () => ({
 
 import { executeTool } from "@/lib/chat/tools";
 
+interface CalcResponse {
+  results: Array<{ label: string; expression: string; result: number | string }>;
+  variables: Record<string, number>;
+  error?: string;
+}
+
 describe("calculate tool", () => {
   // ── Basic Arithmetic ──
 
@@ -145,7 +151,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "product", expr: "44 * 64.55" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(2840.2, 1);
     });
 
@@ -153,7 +159,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "quotient", expr: "2590.72 / 44" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(58.88, 2);
     });
 
@@ -161,7 +167,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "power", expr: "2^10" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(1024);
     });
 
@@ -169,7 +175,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "neg", expr: "-5 + 3" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(-2);
     });
 
@@ -177,7 +183,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "pemdas", expr: "2 + 3 * 4" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(14); // Not 20
     });
 
@@ -185,7 +191,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "parens", expr: "(2 + 3) * 4" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(20);
     });
 
@@ -193,7 +199,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "nested", expr: "((2 + 3) * (4 - 1)) / 5" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(3);
     });
   });
@@ -205,7 +211,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "dec", expr: "0.1 + 0.2" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(0.3, 10);
     });
 
@@ -213,7 +219,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "money", expr: "64.55 * 11" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(710.05, 2);
     });
 
@@ -221,7 +227,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "small", expr: "0.00001 * 0.00001" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(1e-10, 15);
     });
 
@@ -229,7 +235,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "large", expr: "999999999 * 999999999" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(999999998000000001, 0);
     });
   });
@@ -241,7 +247,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "position_value", expr: "44 * 64.907" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(2855.908, 2);
     });
 
@@ -253,7 +259,7 @@ describe("calculate tool", () => {
           { label: "pnl", expr: "current_value - entry_cost" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBeCloseTo(265.188, 1);
     });
 
@@ -265,7 +271,7 @@ describe("calculate tool", () => {
           { label: "pct_gain", expr: "(current - entry) / entry * 100" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBeCloseTo(10.236, 1);
     });
 
@@ -277,7 +283,7 @@ describe("calculate tool", () => {
           { label: "trim_proceeds", expr: "trim_units * 64.55" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[1].result).toBe(4);
       expect(r.results[2].result).toBeCloseTo(258.2, 2);
     });
@@ -288,7 +294,7 @@ describe("calculate tool", () => {
           { label: "cost_per_unit", expr: "2590.72 / 44" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(58.88, 2);
     });
 
@@ -299,7 +305,7 @@ describe("calculate tool", () => {
           { label: "usd_profit", expr: "gbp_profit * 1.26" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[1].result).toBeCloseTo(334.14, 1);
     });
 
@@ -312,7 +318,7 @@ describe("calculate tool", () => {
           { label: "final", expr: "initial * (1 + daily_return)^days" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[3].result).toBeCloseTo(71.27, 1);
     });
 
@@ -324,7 +330,7 @@ describe("calculate tool", () => {
           { label: "target_price", expr: "entry_price * (1 + target_profit_pct / 100)" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBeCloseTo(67.712, 2);
     });
 
@@ -338,7 +344,7 @@ describe("calculate tool", () => {
           { label: "total_risk", expr: "max_loss_per_unit * 44" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBeCloseTo(61.3225, 2);
       expect(r.results[4].result).toBeCloseTo(141.9, 0);
     });
@@ -351,7 +357,7 @@ describe("calculate tool", () => {
           { label: "weight_pct", expr: "position_value / portfolio_total * 100" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBeCloseTo(11.36, 1);
     });
 
@@ -366,7 +372,7 @@ describe("calculate tool", () => {
           { label: "rr_ratio", expr: "reward / risk" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[5].result).toBeCloseTo(3.396, 2);
     });
 
@@ -382,7 +388,7 @@ describe("calculate tool", () => {
           { label: "breakeven", expr: "remaining_cost / remaining_units" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[3].result).toBeCloseTo(710.05, 2);
       expect(r.results[6].result).toBeCloseTo(57, 0);
     });
@@ -399,7 +405,7 @@ describe("calculate tool", () => {
           { label: "total", expr: "a + b" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBe(30);
       expect(r.variables).toEqual({ a: 10, b: 20, total: 30 });
     });
@@ -414,7 +420,7 @@ describe("calculate tool", () => {
           { label: "final", expr: "w - 10" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[4].result).toBe(54); // ((2*3)+2)^2 - 10 = 64 - 10 = 54
     });
 
@@ -426,7 +432,7 @@ describe("calculate tool", () => {
           { label: "value", expr: "units * price" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.variables.units).toBe(44);
       expect(r.variables.price).toBe(64.55);
       expect(r.variables.value).toBeCloseTo(2840.2, 1);
@@ -440,7 +446,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "r", expr: "round(3.14159, 2)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(3.14);
     });
 
@@ -448,7 +454,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "c", expr: "ceil(4.1)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(5);
     });
 
@@ -456,7 +462,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "f", expr: "floor(4.9)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(4);
     });
 
@@ -464,7 +470,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "s", expr: "sqrt(144)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(12);
     });
 
@@ -472,7 +478,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "a", expr: "abs(-42.5)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(42.5);
     });
 
@@ -480,7 +486,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "l", expr: "log(e)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(1, 10);
     });
 
@@ -488,7 +494,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "l", expr: "log10(1000)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(3, 10);
     });
 
@@ -499,7 +505,7 @@ describe("calculate tool", () => {
           { label: "hi", expr: "max(10, 20, 5, 15)" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(5);
       expect(r.results[1].result).toBe(20);
     });
@@ -508,7 +514,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "e_val", expr: "exp(1)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(Math.E, 10);
     });
 
@@ -516,7 +522,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "p", expr: "pow(2, 8)" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(256);
     });
 
@@ -524,7 +530,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "area", expr: "pi * 5^2" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBeCloseTo(78.5398, 2);
     });
   });
@@ -536,13 +542,13 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.error).toBeTruthy();
     });
 
     it("returns error for missing expressions", async () => {
       const result = await executeTool("calculate", {});
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.error).toBeTruthy();
     });
 
@@ -550,7 +556,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: null,
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.error).toBeTruthy();
     });
 
@@ -558,7 +564,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "inf", expr: "1 / 0" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(Infinity);
     });
 
@@ -566,7 +572,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "bad", expr: "2 @@ 3" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(typeof r.results[0].result).toBe("string");
       expect(r.results[0].result).toContain("ERROR:");
     });
@@ -575,7 +581,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "bad", expr: "undefined_var + 1" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(typeof r.results[0].result).toBe("string");
       expect(r.results[0].result).toContain("ERROR:");
     });
@@ -588,7 +594,7 @@ describe("calculate tool", () => {
           { label: "good2", expr: "good1 + 5" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(10);
       expect(r.results[1].result).toContain("ERROR:");
       expect(r.results[2].result).toBe(15);
@@ -598,7 +604,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "single", expr: "42" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(42);
     });
 
@@ -606,7 +612,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "zero", expr: "0" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(0);
     });
 
@@ -614,7 +620,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "neg", expr: "10 - 25" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toBe(-15);
     });
   });
@@ -635,7 +641,7 @@ describe("calculate tool", () => {
           { label: "usd_profit", expr: "total_profit * 1.26" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       // Entry per unit should be ~58.88
       expect(r.results[2].result).toBeCloseTo(58.88, 2);
       // Current value should be ~2855.91
@@ -661,7 +667,7 @@ describe("calculate tool", () => {
           { label: "trim_profit", expr: "trim_proceeds - trim_cost" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBe(4); // 10% of 44 = 4.4, rounded = 4
       expect(r.results[4].result).toBeCloseTo(258.2, 2);
       expect(r.results[7].result).toBeCloseTo(22.68, 1); // profit from 4 units
@@ -677,7 +683,7 @@ describe("calculate tool", () => {
           { label: "remaining", expr: "units - sell_units" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[1].result).toBe(11);
       expect(r.results[3].result).toBeCloseTo(710.05, 2);
       expect(r.results[4].result).toBe(33);
@@ -693,7 +699,7 @@ describe("calculate tool", () => {
           { label: "target_price", expr: "target_value / units" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[4].result).toBeCloseTo(63.43, 2);
     });
   });
@@ -715,7 +721,7 @@ describe("calculate tool", () => {
           { label: "convergence", expr: "geo_score * geo_weight + mkt_score * mkt_weight + osi_score * osi_weight + risk_score * risk_weight" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[8].result).toBeCloseTo(3.9, 2);
     });
 
@@ -727,7 +733,7 @@ describe("calculate tool", () => {
           { label: "brier", expr: "(forecast - outcome)^2" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBeCloseTo(0.0625, 4);
     });
 
@@ -741,7 +747,7 @@ describe("calculate tool", () => {
           { label: "ev", expr: "win_prob * win_amount + loss_prob * loss_amount" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[4].result).toBeCloseTo(255, 2);
     });
 
@@ -756,7 +762,7 @@ describe("calculate tool", () => {
           { label: "position_size", expr: "portfolio * half_kelly" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[2].result).toBeCloseTo(0.4, 2); // kelly = 0.4
       expect(r.results[5].result).toBeCloseTo(5000, 0); // half-kelly = $5000
     });
@@ -775,7 +781,7 @@ describe("calculate tool", () => {
           { label: "e", expr: "100 / 3" },
         ],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results.length).toBe(5);
       expect(r.results[0].result).toBe(2);
       expect(r.results[1].result).toBe(4);
@@ -792,7 +798,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "hack", expr: "process.env" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toContain("ERROR:");
     });
 
@@ -800,7 +806,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "hack", expr: "import('fs')" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toContain("ERROR:");
     });
 
@@ -808,7 +814,7 @@ describe("calculate tool", () => {
       const result = await executeTool("calculate", {
         expressions: [{ label: "hack", expr: "eval('1+1')" }],
       });
-      const r = result as any;
+      const r = result as CalcResponse;
       expect(r.results[0].result).toContain("ERROR:");
     });
   });

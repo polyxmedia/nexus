@@ -90,14 +90,12 @@ export function CalculateWidget({ data }: { data: CalculateData }) {
   );
 }
 
+const numberFormat = new Intl.NumberFormat("en-GB", {
+  maximumFractionDigits: 4,
+  useGrouping: true,
+});
+
 function formatNumber(n: number): string {
   if (Number.isNaN(n) || !Number.isFinite(n)) return String(n);
-  // Use locale formatting for readability
-  if (Number.isInteger(n)) return n.toLocaleString("en-GB");
-  // Show up to 4 decimal places, trimming trailing zeros
-  const fixed = n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-  // Add thousand separators to the integer part
-  const [int, dec] = fixed.split(".");
-  const formattedInt = Number(int).toLocaleString("en-GB");
-  return dec ? `${formattedInt}.${dec}` : formattedInt;
+  return numberFormat.format(n);
 }

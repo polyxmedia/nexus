@@ -40,7 +40,9 @@ import { N_PLAYER_SCENARIOS } from "@/lib/game-theory/scenarios-nplayer";
 import { getExtendedActorProfile, getAllExtendedProfiles, type ExtendedActorProfile } from "@/lib/actors/profiles";
 import { generateNarrativeReport } from "@/lib/reports/narrative";
 import { recallMemories, saveMemory, deleteMemory } from "@/lib/memory/engine";
-import { evaluate as mathEvaluate } from "mathjs";
+import { create, evaluateDependencies } from "mathjs";
+const limitedMath = create(evaluateDependencies);
+const mathEvaluate = limitedMath.evaluate;
 import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Tool Definitions (Anthropic format) ──
@@ -4669,6 +4671,7 @@ function executeCalculate(input: Record<string, unknown>) {
       results.push({ label, expression: expr, result: numValue });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Invalid expression";
+      scope[label] = NaN;
       results.push({ label, expression: expr, result: `ERROR: ${message}` });
     }
   }

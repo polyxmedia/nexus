@@ -35,6 +35,35 @@ const SECTOR_TICKERS: Record<string, string[]> = {
   transport: ["IYT", "DAL", "FDX", "UPS"],
 };
 
+// Common sector name aliases → canonical key in SECTOR_TICKERS
+const SECTOR_ALIASES: Record<string, string> = {
+  tech: "technology",
+  financials: "finance",
+  financial: "finance",
+  banks: "finance",
+  "consumer discretionary": "consumer",
+  "consumer staples": "consumer",
+  "real estate": "real estate",
+  oil: "energy",
+  gas: "energy",
+  military: "defense",
+  aerospace: "defense",
+  pharma: "healthcare",
+  biotech: "healthcare",
+  chips: "semiconductors",
+  semis: "semiconductors",
+  telecom: "communications",
+  media: "communications",
+  mining: "materials",
+  metals: "materials",
+  commodities: "agriculture",
+  travel: "airlines",
+  aviation: "airlines",
+  "precious metals": "gold",
+  treasuries: "bonds",
+  "fixed income": "bonds",
+};
+
 // Magnitude → % shock mapping
 const MAGNITUDE_SHOCKS: Record<string, number> = {
   low: 0.03,
@@ -81,12 +110,22 @@ function scenarioToShocks(
   const shocks: Record<string, number> = {};
 
   for (const sector of keySectors) {
-    const sectorLower = sector.toLowerCase();
-    // Find matching sector tickers
-    for (const [key, tickers] of Object.entries(SECTOR_TICKERS)) {
-      if (sectorLower.includes(key) || key.includes(sectorLower)) {
-        for (const ticker of tickers) {
-          shocks[ticker] = baseMag * sign;
+    const sectorLower = sector.toLowerCase().trim();
+    // Resolve alias first, then try exact match, then substring as last resort
+    const canonicalKey = SECTOR_ALIASES[sectorLower] || sectorLower;
+    const matchedTickers = SECTOR_TICKERS[canonicalKey];
+    if (matchedTickers) {
+      for (const ticker of matchedTickers) {
+        shocks[ticker] = baseMag * sign;
+      }
+    } else {
+      // Fallback: find the first sector key that this sector name contains as a whole word
+      for (const [key, tickers] of Object.entries(SECTOR_TICKERS)) {
+        if (canonicalKey === key || canonicalKey.split(/\s+/).includes(key)) {
+          for (const ticker of tickers) {
+            shocks[ticker] = baseMag * sign;
+          }
+          break;
         }
       }
     }

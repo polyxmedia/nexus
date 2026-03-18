@@ -44,8 +44,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const { name, description, shocks } = await request.json();
-    if (!name || !shocks || typeof shocks !== "object") {
-      return NextResponse.json({ error: "name and shocks required" }, { status: 400 });
+    if (!name || typeof name !== "string" || !shocks || typeof shocks !== "object" || Array.isArray(shocks)) {
+      return NextResponse.json({ error: "name (string) and shocks (object) required" }, { status: 400 });
+    }
+    // Validate shock values are numbers in reasonable range
+    const validatedShocks: Record<string, number> = {};
+    for (const [ticker, value] of Object.entries(shocks)) {
+      if (typeof ticker !== "string" || ticker.length > 10) continue;
+      const num = Number(value);
+      if (isNaN(num) || num < -1 || num > 2) continue;
+      validatedShocks[ticker.toUpperCase()] = num;
+    }
+    if (Object.keys(validatedShocks).length === 0) {
+      return NextResponse.json({ error: "No valid shocks provided. Values must be numbers between -1 and 2." }, { status: 400 });
     }
 
     const positions = await getUserPositions(username);
@@ -53,7 +64,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No positions found" }, { status: 400 });
     }
 
-    const result = simulateCustomShock(positions, name, description || name, shocks);
+    const result = simulateCustomShock(positions, name, description || name, validatedShocks);
     return NextResponse.json({ scenario: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
