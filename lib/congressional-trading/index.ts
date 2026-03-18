@@ -47,11 +47,27 @@ export interface ClusterBuy {
   significance: "high" | "medium" | "low";
 }
 
+export interface TopTrader {
+  name: string;
+  party: string;
+  chamber: "senate" | "house";
+  bioguideId?: string;
+  totalTrades: number;
+  purchases: number;
+  sales: number;
+  avgExcessReturn: number;
+  totalExcessReturn: number;
+  bestTrade: { ticker: string; excessReturn: number } | null;
+  worstTrade: { ticker: string; excessReturn: number } | null;
+  recentTickers: string[];
+}
+
 export interface TradingSnapshot {
   congressional: {
     recent: CongressionalTrade[];
     topBuys: CongressionalTrade[];
     topSells: CongressionalTrade[];
+    topTraders: TopTrader[];
     byParty: { democrat: number; republican: number; independent: number };
     byChamber: { senate: number; house: number };
   };
@@ -242,6 +258,58 @@ function detectClusterBuys(trades: InsiderTrade[], windowDays: number = 14): Clu
     .sort((a, b) => b.insiders.length - a.insiders.length);
 }
 
+// ── Top Traders Aggregation ──
+
+function aggregateTopTraders(trades: CongressionalTrade[]): TopTrader[] {
+  const byMember = new Map<string, CongressionalTrade[]>();
+  for (const t of trades) {
+    const existing = byMember.get(t.name) || [];
+    existing.push(t);
+    byMember.set(t.name, existing);
+  }
+
+  const traders: TopTrader[] = [];
+
+  for (const [name, memberTrades] of byMember) {
+    if (memberTrades.length < 2) continue;
+
+    const withReturn = memberTrades.filter((t) => t.excessReturn !== undefined);
+    const purchases = memberTrades.filter((t) => t.transactionType === "purchase").length;
+    const sales = memberTrades.filter((t) => t.transactionType === "sale").length;
+
+    const totalExcessReturn = withReturn.reduce((sum, t) => sum + (t.excessReturn || 0), 0);
+    const avgExcessReturn = withReturn.length > 0 ? totalExcessReturn / withReturn.length : 0;
+
+    let bestTrade: TopTrader["bestTrade"] = null;
+    let worstTrade: TopTrader["worstTrade"] = null;
+    for (const t of withReturn) {
+      const er = t.excessReturn || 0;
+      if (!bestTrade || er > bestTrade.excessReturn) bestTrade = { ticker: t.ticker, excessReturn: er };
+      if (!worstTrade || er < worstTrade.excessReturn) worstTrade = { ticker: t.ticker, excessReturn: er };
+    }
+
+    const recentTickers = [...new Set(memberTrades.slice(0, 5).map((t) => t.ticker))];
+    const first = memberTrades[0];
+
+    traders.push({
+      name,
+      party: first.party || "",
+      chamber: first.chamber,
+      bioguideId: first.bioguideId,
+      totalTrades: memberTrades.length,
+      purchases,
+      sales,
+      avgExcessReturn,
+      totalExcessReturn,
+      bestTrade,
+      worstTrade,
+      recentTickers,
+    });
+  }
+
+  return traders.sort((a, b) => b.avgExcessReturn - a.avgExcessReturn);
+}
+
 // ── Combined Snapshot ──
 
 export async function getTradingSnapshot(): Promise<TradingSnapshot> {
@@ -273,6 +341,7 @@ export async function getTradingSnapshot(): Promise<TradingSnapshot> {
   const purchases = allCongressional.filter((t) => t.transactionType === "purchase");
   const sales = allCongressional.filter((t) => t.transactionType === "sale");
 
+  const topTraders = aggregateTopTraders(allCongressional);
   const clusterBuys = detectClusterBuys(insiderTrades);
 
   const insiderBuys = insiderTrades.filter((t) => t.transactionType === "purchase").length;
@@ -284,6 +353,7 @@ export async function getTradingSnapshot(): Promise<TradingSnapshot> {
       recent: allCongressional.slice(0, 50),
       topBuys: purchases.slice(0, 20),
       topSells: sales.slice(0, 20),
+      topTraders,
       byParty,
       byChamber: { senate: senate.length, house: house.length },
     },

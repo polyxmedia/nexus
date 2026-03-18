@@ -540,7 +540,7 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
   // Use nonExpired for display stats (total/confirmed/denied) but scoreable
   // population for Brier to stay consistent with the headline metric.
 
-  const categories = ["market", "geopolitical", "celestial"];
+  const categories = ["market", "geopolitical"];
   const byCategory: CategoryStats[] = categories
     .map((cat) => {
       const inCat = resolved.filter((p) => p.category === cat);
@@ -760,14 +760,29 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
   // BSS = 1 - (BS_system / BS_baseline)
   // BS_baseline uses per-prediction base rates as the "no skill" reference forecast
 
-  const DEFAULT_BASE_RATE = 0.30;
+  // Compute category-level observed confirmation rates as fallback base rates.
+  // This is the climatological baseline: "if you always predicted the observed rate,
+  // how would you score?" Using hardcoded 0.30 was artificially low and inflated BSS.
+  const categoryObservedRates: Record<string, number> = {};
+  for (const cat of ["market", "geopolitical"]) {
+    const catPreds = nonExpired.filter((p) => p.category === cat);
+    const catConfirmed = catPreds.filter((p) => p.outcome === "confirmed").length;
+    categoryObservedRates[cat] = catPreds.length >= 5
+      ? catConfirmed / catPreds.length
+      : 0.50; // uninformative prior when insufficient data
+  }
+  const DEFAULT_BASE_RATE = 0.50; // uninformative prior (maximum entropy)
 
   let brierSkillScore: number | null = null;
   let brierBaseline: number | null = null;
 
   if (scoreable.length >= 3) {
     const baselineSum = scoreable.reduce((sum, p) => {
-      const br = p.baseRateAtCreation ?? DEFAULT_BASE_RATE;
+      // Use per-prediction stored base rate if available,
+      // otherwise use observed category rate, otherwise uninformative prior
+      const br = p.baseRateAtCreation
+        ?? categoryObservedRates[p.category]
+        ?? DEFAULT_BASE_RATE;
       const actual = outcomeToNumeric(p.outcome!);
       return sum + Math.pow(br - actual, 2);
     }, 0);
@@ -799,7 +814,7 @@ export async function computePerformanceReport(): Promise<PerformanceReport | nu
     };
 
     for (const p of scoreable) {
-      const br = p.baseRateAtCreation ?? DEFAULT_BASE_RATE;
+      const br = p.baseRateAtCreation ?? categoryObservedRates[p.category] ?? DEFAULT_BASE_RATE;
       const tier = classifyDifficulty(br);
       tierBuckets[tier].push({ confidence: p.confidence, outcome: p.outcome!, baseRate: br });
     }

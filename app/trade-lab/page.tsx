@@ -450,7 +450,7 @@ function IntelPanel({ intel, setup }: { intel: EnrichmentData; setup: TradeSetup
   const q = intel.quote;
 
   return (
-    <div className="space-y-3 p-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 112px)" }}>
+    <div className="space-y-3 p-4 overflow-y-auto xl:max-h-[calc(100vh-112px)]">
       {/* Live Quote */}
       {q && (
         <IntelCard icon={<DollarSign className="h-3.5 w-3.5" />} title="LIVE QUOTE" color="text-navy-300">
@@ -896,17 +896,17 @@ export default function TradeLabPage() {
     <div className="ml-0 md:ml-48 min-h-screen bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="operator" feature="Trade Lab">
         {/* Header */}
-        <div className="border-b border-navy-700 px-6 h-14 flex items-center justify-between">
+        <div className="border-b border-navy-700 px-4 sm:px-6 py-2.5 sm:py-0 sm:h-14 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
           <div className="flex items-center gap-3">
             <FlaskConical className="h-5 w-5 text-accent-cyan" />
             <div>
               <h1 className="text-sm font-bold text-navy-100 tracking-wide">Trade Lab</h1>
-              <p className="text-[10px] text-navy-500 uppercase tracking-wider">
+              <p className="text-[10px] text-navy-500 uppercase tracking-wider hidden sm:block">
                 Intelligence-enriched scenario simulator
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div ref={predsRef} className="relative">
               <button
                 onClick={fetchPredictions}
@@ -914,11 +914,11 @@ export default function TradeLabPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent-amber/10 border border-accent-amber/30 text-xs text-accent-amber hover:bg-accent-amber/20 transition-colors disabled:opacity-40"
               >
                 {loadingPreds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}
-                Load Prediction
+                <span className="hidden sm:inline">Load </span>Prediction
                 <ChevronDown className="h-3 w-3" />
               </button>
               {predsOpen && (
-                <div className="absolute z-50 top-full right-0 mt-1.5 w-[380px] max-h-80 overflow-y-auto bg-navy-800 border border-navy-700 rounded-lg shadow-2xl">
+                <div className="absolute z-50 top-full right-0 mt-1.5 w-[calc(100vw-2rem)] sm:w-[380px] max-h-80 overflow-y-auto bg-navy-800 border border-navy-700 rounded-lg shadow-2xl">
                   {predictions.length === 0 ? (
                     <div className="px-4 py-6 text-center">
                       <Target className="h-6 w-6 text-navy-600 mx-auto mb-2" />
@@ -979,13 +979,13 @@ export default function TradeLabPage() {
         </div>
 
         {enrichError && (
-          <div className="mx-6 mt-2 px-3 py-1.5 rounded border border-accent-rose/30 bg-accent-rose/5 text-[10px] font-mono text-accent-rose">
+          <div className="mx-4 sm:mx-6 mt-2 px-3 py-1.5 rounded border border-accent-rose/30 bg-accent-rose/5 text-[10px] font-mono text-accent-rose">
             {enrichError}
           </div>
         )}
 
         {/* Metrics Bar */}
-        <div className="border-b border-navy-800/50 px-6 py-2.5 flex items-center gap-5 overflow-x-auto">
+        <div className="border-b border-navy-800/50 px-4 sm:px-6 py-2.5 flex items-center gap-3 sm:gap-5 overflow-x-auto">
           <MetricPill label="EV" value={fmtUsd(ev)} color={ev >= 0 ? "text-accent-emerald" : "text-accent-rose"} />
           <MetricPill label="Max+" value={fmtUsd(maxProfit)} color="text-accent-emerald" />
           <MetricPill label="Max-" value={fmtUsd(maxLoss)} color="text-accent-rose" />
@@ -1002,9 +1002,9 @@ export default function TradeLabPage() {
           )}
         </div>
 
-        <div className="flex flex-col xl:flex-row" style={{ height: "calc(100vh - 112px)" }}>
+        <div className="flex flex-col xl:flex-row xl:h-[calc(100vh-112px)]">
           {/* Left: Setup + Scenarios */}
-          <div className="w-full xl:w-[400px] shrink-0 border-r border-navy-800/50 overflow-y-auto">
+          <div className="w-full xl:w-[400px] shrink-0 xl:border-r border-b xl:border-b-0 border-navy-800/50 xl:overflow-y-auto">
             {/* Trade Setup */}
             <div className="p-4 border-b border-navy-800/50">
               <h2 className="text-[10px] font-mono font-bold text-navy-500 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -1135,7 +1135,7 @@ export default function TradeLabPage() {
           </div>
 
           {/* Right: Flowchart / Intel tabs */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-[400px] xl:min-h-0">
             {/* Tab switcher */}
             {intel && (
               <div className="flex border-b border-navy-800/50 shrink-0">
@@ -1152,8 +1152,10 @@ export default function TradeLabPage() {
 
             <div className="flex-1 overflow-auto">
               {rightTab === "flowchart" ? (
-                <div className="p-4 bg-[#050508] h-full">
-                  <FlowChart setup={setup} scenarios={scenarios} intel={intel} />
+                <div className="p-4 bg-[#050508] h-full overflow-x-auto">
+                  <div className="min-w-[640px]">
+                    <FlowChart setup={setup} scenarios={scenarios} intel={intel} />
+                  </div>
                 </div>
               ) : intel ? (
                 <IntelPanel intel={intel} setup={setup} />

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Shield,
   ExternalLink,
+  Trophy,
 } from "lucide-react";
 
 // ── Types ──
@@ -52,11 +53,27 @@ interface ClusterBuy {
   significance: "high" | "medium" | "low";
 }
 
+interface TopTrader {
+  name: string;
+  party: string;
+  chamber: "senate" | "house";
+  bioguideId?: string;
+  totalTrades: number;
+  purchases: number;
+  sales: number;
+  avgExcessReturn: number;
+  totalExcessReturn: number;
+  bestTrade: { ticker: string; excessReturn: number } | null;
+  worstTrade: { ticker: string; excessReturn: number } | null;
+  recentTickers: string[];
+}
+
 interface Snapshot {
   congressional: {
     recent: CongressionalTrade[];
     topBuys: CongressionalTrade[];
     topSells: CongressionalTrade[];
+    topTraders: TopTrader[];
     byParty: { democrat: number; republican: number; independent: number };
     byChamber: { senate: number; house: number };
   };
@@ -135,6 +152,7 @@ const TABS = [
   { key: "recent", label: "Recent Trades" },
   { key: "buys", label: "Top Buys" },
   { key: "sells", label: "Top Sells" },
+  { key: "leaderboard", label: "Leaderboard" },
   { key: "clusters", label: "Cluster Buys" },
   { key: "insiders", label: "Insider Filings" },
 ] as const;

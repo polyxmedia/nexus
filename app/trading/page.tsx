@@ -326,7 +326,7 @@ function ManualPortfolioPanel() {
   return (
     <>
       {/* Metrics */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <Metric label="Portfolio Value" value={`$${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
         <Metric label="Total Cost" value={`$${totalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
         <Metric
@@ -343,15 +343,16 @@ function ManualPortfolioPanel() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2">
           <Button variant="primary" size="sm" onClick={openAddModal}>
             <Plus className="h-3 w-3 mr-1.5" />
-            Add Position
+            <span className="hidden sm:inline">Add Position</span>
+            <span className="sm:hidden">Add</span>
           </Button>
           <Button variant="outline" size="sm" onClick={fetchPositions}>
-            <RefreshCw className="h-3 w-3 mr-1.5" />
-            Refresh Prices
+            <RefreshCw className="h-3 w-3 sm:mr-1.5" />
+            <span className="hidden sm:inline">Refresh Prices</span>
           </Button>
         </div>
         <button
@@ -366,11 +367,94 @@ function ManualPortfolioPanel() {
         </button>
       </div>
 
-      {/* Positions table */}
+      {/* Positions - table on desktop, cards on mobile */}
       {displayPositions.length > 0 ? (
-        <DataGrid columns={columns} data={displayPositions} keyExtractor={(row) => row.id} emptyMessage="No positions" />
+        <>
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <DataGrid columns={columns} data={displayPositions} keyExtractor={(row) => row.id} emptyMessage="No positions" />
+          </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            {displayPositions.map((p) => {
+              const positive = (p.pnl || 0) >= 0;
+              return (
+                <div key={p.id} className="border border-navy-700/20 rounded-lg bg-navy-900/40 p-4">
+                  {/* Top: ticker + direction + actions */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm text-accent-cyan font-medium">{p.ticker}</span>
+                      <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                        p.direction === "long" ? "bg-accent-emerald/10 text-accent-emerald" : "bg-accent-rose/10 text-accent-rose"
+                      }`}>
+                        {p.direction}
+                      </span>
+                      {p.closedAt && <span className="text-[9px] font-mono text-navy-600">CLOSED</span>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {!p.closedAt && (
+                        <>
+                          <button onClick={() => openEditModal(p)} className="p-1.5 rounded text-navy-500 hover:text-navy-200 hover:bg-navy-800/50 transition-colors">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => { setCloseModalId(p.id); setClosePrice(p.currentPrice?.toFixed(2) || ""); }}
+                            className="p-1.5 rounded text-navy-500 hover:text-accent-amber hover:bg-accent-amber/10 transition-colors"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => deletePosition(p.id)}
+                        disabled={deleting === p.id}
+                        className="p-1.5 rounded text-navy-600 hover:text-accent-rose hover:bg-accent-rose/10 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {p.name && <p className="text-[10px] text-navy-500 mb-2">{p.name}</p>}
+
+                  {/* Price row */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <span className="text-[9px] text-navy-500 block">Qty</span>
+                      <span className="font-mono text-xs text-navy-200">{p.quantity}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-navy-500 block">Avg Cost</span>
+                      <span className="font-mono text-xs text-navy-300">${p.avgCost.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-navy-500 block">Current</span>
+                      <span className="font-mono text-xs text-navy-200">
+                        {p.currentPrice ? `$${p.currentPrice.toFixed(2)}` : "--"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* P&L */}
+                  {p.pnl != null && (
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-navy-800/40">
+                      {positive ? <TrendingUp className="h-3 w-3 text-accent-emerald" /> : <TrendingDown className="h-3 w-3 text-accent-rose" />}
+                      <span className={`font-mono text-sm font-medium ${positive ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        {positive ? "+" : "-"}${Math.abs(p.pnl).toFixed(2)}
+                      </span>
+                      <span className={`text-[10px] font-mono ${positive ? "text-accent-emerald/60" : "text-accent-rose/60"}`}>
+                        ({positive ? "+" : ""}{p.pnlPercent?.toFixed(1)}%)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       ) : (
-        <div className="border border-navy-700/30 rounded-lg p-12 text-center bg-navy-900/20">
+        <div className="border border-navy-700/30 rounded-lg p-8 sm:p-12 text-center bg-navy-900/20">
           <DollarSign className="h-8 w-8 text-navy-700 mx-auto mb-3" />
           <p className="text-sm text-navy-400 mb-1">No {showClosed ? "" : "open "}positions yet</p>
           <p className="text-[10px] text-navy-600">Add your first position to start tracking your portfolio</p>
@@ -381,7 +465,7 @@ function ManualPortfolioPanel() {
       <Dialog.Root open={modalOpen} onOpenChange={(open) => !open && setModalOpen(false)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border border-navy-700/60 bg-navy-900/95 backdrop-blur-md p-6 shadow-2xl">
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border border-navy-700/60 bg-navy-900/95 backdrop-blur-md p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <Dialog.Title className="text-sm font-semibold text-navy-100 font-mono">
                 {editingId ? "Edit Position" : "Add Position"}
@@ -398,7 +482,7 @@ function ManualPortfolioPanel() {
 
             <div className="space-y-4">
               {/* Ticker + Name row */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Ticker</label>
                   <Input
@@ -445,7 +529,7 @@ function ManualPortfolioPanel() {
               </div>
 
               {/* Quantity + Avg Cost */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Quantity</label>
                   <Input
@@ -469,7 +553,7 @@ function ManualPortfolioPanel() {
               </div>
 
               {/* Currency + Date */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] text-navy-500 uppercase tracking-wider mb-1.5 block">Currency</label>
                   <Input
@@ -523,7 +607,7 @@ function ManualPortfolioPanel() {
       <Dialog.Root open={!!closeModalId} onOpenChange={(open) => !open && setCloseModalId(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-navy-700/60 bg-navy-900/95 backdrop-blur-md p-6 shadow-2xl">
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-navy-700/60 bg-navy-900/95 backdrop-blur-md p-4 sm:p-6 shadow-2xl">
             <Dialog.Title className="text-sm font-semibold text-navy-100 font-mono mb-4">
               Close Position
             </Dialog.Title>
@@ -565,12 +649,12 @@ export default function TradingPage() {
 
 type TabKey = "stocks" | "crypto" | "ibkr" | "ig" | "manual";
 
-const TABS: { key: TabKey; icon: typeof BarChart3; label: string }[] = [
-  { key: "stocks", icon: BarChart3, label: "Trading 212" },
-  { key: "crypto", icon: Coins, label: "Coinbase" },
-  { key: "ibkr", icon: Landmark, label: "Interactive Brokers" },
-  { key: "ig", icon: Flame, label: "IG Markets" },
-  { key: "manual", icon: ClipboardList, label: "Manual Portfolio" },
+const TABS: { key: TabKey; icon: typeof BarChart3; label: string; shortLabel: string }[] = [
+  { key: "stocks", icon: BarChart3, label: "Trading 212", shortLabel: "T212" },
+  { key: "crypto", icon: Coins, label: "Coinbase", shortLabel: "Crypto" },
+  { key: "ibkr", icon: Landmark, label: "Interactive Brokers", shortLabel: "IBKR" },
+  { key: "ig", icon: Flame, label: "IG Markets", shortLabel: "IG" },
+  { key: "manual", icon: ClipboardList, label: "Manual Portfolio", shortLabel: "Manual" },
 ];
 
 function TradingPageInner() {
@@ -584,7 +668,7 @@ function TradingPageInner() {
     >
       {/* ── Trading integrations coming soon ── */}
       {activeTab !== "manual" && (
-        <div className="border border-navy-700/40 rounded-lg p-12 bg-navy-900/30 text-center">
+        <div className="border border-navy-700/40 rounded-lg p-6 sm:p-12 bg-navy-900/30 text-center">
           <Link2 className="h-10 w-10 text-navy-600 mx-auto mb-4" />
           <h2 className="text-base font-semibold text-navy-200 mb-2">Trading Integrations Coming Soon</h2>
           <p className="text-xs text-navy-400 mb-6 max-w-md mx-auto leading-relaxed">
@@ -601,21 +685,22 @@ function TradingPageInner() {
       )}
 
       {/* ── Tabs ── */}
-      <div className="flex items-center gap-1 mb-6 border-b border-navy-700/30 pb-0">
+      <div className="flex items-center gap-1 mb-6 border-b border-navy-700/30 pb-0 overflow-x-auto">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2.5 text-[10px] sm:text-xs font-medium uppercase tracking-wider transition-colors border-b-2 -mb-px shrink-0 whitespace-nowrap ${
                 activeTab === tab.key
                   ? "border-accent-cyan text-accent-cyan"
                   : "border-transparent text-navy-500 hover:text-navy-300"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
-              {tab.label}
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.shortLabel}</span>
             </button>
           );
         })}

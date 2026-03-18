@@ -209,12 +209,13 @@ export default function MarketsPage() {
       {/* Chart area */}
       <div className="border border-navy-700/30 rounded-md bg-navy-900/60">
         {/* Chart header */}
-        <div className="px-4 py-3 border-b border-navy-700/20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-navy-100">{selectedSymbol.symbol}</span>
-            <span className="text-xs text-navy-500">{quote?.name || selectedSymbol.name}</span>
-          </div>
-          <div className="flex items-center gap-4">
+        <div className="px-4 py-3 border-b border-navy-700/20">
+          {/* Top row: symbol + price */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold text-navy-100">{selectedSymbol.symbol}</span>
+              <span className="text-xs text-navy-500 hidden sm:inline">{quote?.name || selectedSymbol.name}</span>
+            </div>
             {quote && !loading && (
               <div className="flex items-center gap-3">
                 <span className="text-sm font-bold text-navy-100">
@@ -226,19 +227,20 @@ export default function MarketsPage() {
                   }`}
                 >
                   {quote.change >= 0 ? "+" : ""}
-                  {quote.change.toFixed(2)}
-                  {" "}
-                  ({quote.changePercent >= 0 ? "+" : ""}{quote.changePercent.toFixed(2)}%)
+                  {quote.changePercent >= 0 ? "+" : ""}{quote.changePercent.toFixed(2)}%
                 </span>
               </div>
             )}
-            {/* Period selector */}
+          </div>
+          {/* Period selector - own row on mobile */}
+          <div className="flex items-center justify-between gap-3 mt-2">
+            <span className="text-xs text-navy-500 sm:hidden">{quote?.name || selectedSymbol.name}</span>
             <div className="flex h-7 rounded border border-navy-700/30 overflow-hidden">
               {PERIODS.map((p) => (
                 <button
                   key={p.value}
                   onClick={() => setPeriod(p.value)}
-                  className={`px-2.5 text-[10px] font-medium tracking-wider transition-colors ${
+                  className={`px-2 sm:px-2.5 text-[10px] font-medium tracking-wider transition-colors ${
                     period === p.value
                       ? "bg-accent-cyan/10 text-accent-cyan"
                       : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
@@ -253,7 +255,7 @@ export default function MarketsPage() {
 
         {/* Quote stats row */}
         {quote && !loading && (
-          <div className="px-4 py-2 border-b border-navy-700/10 flex items-center gap-6 text-[10px]">
+          <div className="px-4 py-2 border-b border-navy-700/10 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px]">
             {quote.volume > 0 && (
               <div>
                 <span className="text-navy-600 uppercase tracking-wider mr-1.5">Vol</span>
@@ -262,7 +264,7 @@ export default function MarketsPage() {
             )}
             {quote.marketCap && (
               <div>
-                <span className="text-navy-600 uppercase tracking-wider mr-1.5">Mkt Cap</span>
+                <span className="text-navy-600 uppercase tracking-wider mr-1.5">Cap</span>
                 <span className="text-navy-300">
                   {quote.marketCap >= 1e12
                     ? `${(quote.marketCap / 1e12).toFixed(2)}T`
@@ -272,13 +274,13 @@ export default function MarketsPage() {
             )}
             {quote.high52w && (
               <div>
-                <span className="text-navy-600 uppercase tracking-wider mr-1.5">52w H</span>
+                <span className="text-navy-600 uppercase tracking-wider mr-1.5">52H</span>
                 <span className="text-navy-300">{fmtPrice(quote.high52w)}</span>
               </div>
             )}
             {quote.low52w && (
               <div>
-                <span className="text-navy-600 uppercase tracking-wider mr-1.5">52w L</span>
+                <span className="text-navy-600 uppercase tracking-wider mr-1.5">52L</span>
                 <span className="text-navy-300">{fmtPrice(quote.low52w)}</span>
               </div>
             )}
@@ -286,7 +288,7 @@ export default function MarketsPage() {
         )}
 
         {/* Chart body */}
-        <div className="p-2 min-h-[440px] flex items-center justify-center">
+        <div className="p-2 min-h-[300px] sm:min-h-[440px] flex items-center justify-center">
           {loading ? (
             <div className="flex flex-col items-center gap-2 text-navy-500">
               <Loader2 className="h-5 w-5 animate-spin" />
