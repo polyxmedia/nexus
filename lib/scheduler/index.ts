@@ -271,6 +271,15 @@ registerJob("social-sentiment-scan", 30 * 60_000, async () => {
   console.log(`[scheduler] Social sentiment scan: ${result.scanned} topics, ${result.errors} errors`);
 });
 
+registerJob("automation-rules", 5 * 60_000, async () => {
+  // Evaluate automation rules every 5 minutes
+  const { evaluateRules } = await import("@/lib/automation/engine");
+  const result = await evaluateRules();
+  if (result.triggered > 0) {
+    console.log(`[scheduler] Automation: ${result.triggered} rules fired (${result.errors} errors)`);
+  }
+});
+
 registerJob("iw-auto-detect", 15 * 60_000, async () => {
   // Auto-detect I&W indicators from OSINT feeds every 15 minutes
   const res = await internalFetch(`${getBaseUrl()}/api/iw/evaluate`, { method: "POST", headers: internalHeaders() });

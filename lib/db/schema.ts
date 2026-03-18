@@ -1152,6 +1152,26 @@ export const pushDevices = pgTable("push_devices", {
 
 export type PushDevice = typeof pushDevices.$inferSelect;
 
+// ── Automation Rules ──
+
+export const automationRules = pgTable("automation_rules", {
+  id: serial("id").primaryKey(),
+  uuid: text("uuid").notNull().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  enabled: integer("enabled").notNull().default(1),
+  triggerType: text("trigger_type").notNull(),
+  triggerConfig: text("trigger_config").notNull(), // JSON
+  actions: text("actions").notNull(), // JSON array
+  lastTriggeredAt: text("last_triggered_at"),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  lastError: text("last_error"),
+  cooldownMinutes: integer("cooldown_minutes").notNull().default(30),
+  createdBy: text("created_by"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // ── Parallel Analyses ──
 
 export const parallelAnalyses = pgTable("parallel_analyses", {

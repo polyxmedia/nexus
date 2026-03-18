@@ -2452,8 +2452,8 @@ export async function resolvePredictions(options?: { skipHousekeeping?: boolean 
 CRITICAL RULES:
 1. You MUST call get_market_price for EVERY market prediction before resolving it. Never guess prices.
 2. You MUST call search_news for EVERY geopolitical prediction before resolving it. Never assume events happened.
-3. For FX pairs: verify you are reading the quote in the correct direction. EUR/USD = euros per dollar. USD/JPY = yen per dollar. If the claim says "USD will strengthen vs EUR" that means EUR/USD goes DOWN.
-4. For relative performance claims (X outperforms Y): fetch BOTH instruments and compute the relative return yourself.
+3. For FX pairs: verify you are reading the quote in the correct direction. EUR/USD = dollars per euro (how many USD for 1 EUR). USD/JPY = yen per dollar. If the claim says "USD will strengthen vs EUR" that means EUR/USD goes DOWN (fewer dollars needed per euro).
+4. For relative performance claims (X outperforms Y): fetch BOTH instruments and compute the relative return yourself. CRITICAL: "outperform" in a DOWN market means falling LESS. If SPY drops 3% and IEF drops 1%, IEF outperformed by 2%. Outperformance = return_X - return_Y, not absolute returns.
 5. For "close above/below" claims: check the CLOSE price, not the intraday high/low.
 6. For "on at least N trading days" claims: COUNT the specific days the condition was met.
 7. For percentage move claims: compute the actual percentage from the start price (reference price at creation) to the price during the prediction window.
@@ -2484,7 +2484,7 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content: `Evaluate these predictions. Today is ${today}. All deadlines have passed. Use the tools to fetch real data before making any judgement.\n\n${predictionsText}`,
+      content: `Evaluate these predictions. Today is ${today} (year ${new Date().getFullYear()}). All deadlines have passed. Use the tools to fetch real data before making any judgement.\n\n${predictionsText}`,
     },
   ];
 
