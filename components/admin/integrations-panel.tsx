@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, CheckCircle2, XCircle, RefreshCw, Globe, Plus, Trash2, Save, Eye, ChevronDown, ChevronRight, Zap } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, CheckCircle2, XCircle, RefreshCw, Globe, Plus, Trash2, Save, Eye, ChevronDown, ChevronRight, Zap, X, Send, Sparkles } from "lucide-react";
 
 export function IntegrationsPanel() {
   const [twitterStatus, setTwitterStatus] = useState<{

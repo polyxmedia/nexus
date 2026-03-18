@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Button } from "@/components/ui/button";
@@ -39,12 +40,34 @@ interface ParallelAnalysis {
   warning: string | null;
 }
 
+interface PastAnalysis {
+  id: number;
+  uuid: string;
+  query: string;
+  synthesis: string;
+  probabilityOfRepetition: number;
+  regime: string;
+  confidence: number;
+  createdAt: string;
+}
+
 export default function ParallelsPage() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ParallelAnalysis | null>(null);
+  const [result, setResult] = useState<(ParallelAnalysis & { uuid?: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [pastAnalyses, setPastAnalyses] = useState<PastAnalysis[]>([]);
+  const [loadingPast, setLoadingPast] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/parallels?limit=10")
+      .then((r) => r.json())
+      .then((data) => setPastAnalyses(data.analyses || []))
+      .catch(() => {})
+      .finally(() => setLoadingPast(false));
+  }, []);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -66,6 +89,10 @@ export default function ParallelsPage() {
 
       const data = await res.json();
       setResult(data);
+      // Navigate to the persisted detail page
+      if (data.uuid) {
+        router.push(`/parallels/${data.uuid}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
     } finally {
@@ -341,6 +368,49 @@ export default function ParallelsPage() {
                   {example}
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Past Analyses */}
+        {!result && (
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
+              Recent Analyses
+            </span>
+            <div className="mt-3 space-y-2">
+              {loadingPast ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+                </div>
+              ) : pastAnalyses.length === 0 ? (
+                <p className="text-[11px] text-navy-600 py-4">No analyses yet. Run a search above to get started.</p>
+              ) : (
+                pastAnalyses.map((a) => (
+                  <button
+                    key={a.uuid}
+                    onClick={() => router.push(`/parallels/${a.uuid}`)}
+                    className="w-full rounded-lg border border-navy-700/20 bg-navy-900/40 p-4 text-left hover:bg-navy-900/70 hover:border-navy-600/30 transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <History className="h-3.5 w-3.5 text-navy-500 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[13px] text-navy-200 truncate">{a.query}</p>
+                          <p className="text-[10px] text-navy-500 mt-0.5 line-clamp-1">{a.synthesis.slice(0, 120)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-4">
+                        <span className="text-[10px] font-mono text-navy-400">{(a.probabilityOfRepetition * 100).toFixed(0)}%</span>
+                        <span className="text-[10px] font-mono text-navy-600">{a.regime}</span>
+                        <span className="text-[9px] font-mono text-navy-700">
+                          {new Date(a.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         )}

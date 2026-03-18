@@ -1151,3 +1151,23 @@ export const pushDevices = pgTable("push_devices", {
 });
 
 export type PushDevice = typeof pushDevices.$inferSelect;
+
+// ── Parallel Analyses ──
+
+export const parallelAnalyses = pgTable("parallel_analyses", {
+  id: serial("id").primaryKey(),
+  uuid: text("uuid").notNull().$defaultFn(() => crypto.randomUUID()),
+  query: text("query").notNull(),
+  synthesis: text("synthesis").notNull(),
+  probabilityOfRepetition: real("probability_of_repetition").notNull().default(0),
+  regime: text("regime").notNull().default("peacetime"),
+  confidence: real("confidence").notNull().default(0),
+  warning: text("warning"),
+  actionableInsights: text("actionable_insights"), // JSON
+  parallels: text("parallels").notNull(), // JSON
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  createdBy: text("created_by"),
+});
+
+export type ParallelAnalysis = typeof parallelAnalyses.$inferSelect;
+export type NewParallelAnalysis = typeof parallelAnalyses.$inferInsert;

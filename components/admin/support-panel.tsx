@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Send, Clock, ChevronDown, ChevronRight, MessageSquare, ArrowRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, Send, Clock, ChevronDown, ChevronRight, MessageSquare, ArrowRight, X } from "lucide-react";
 
 interface SupportTicket {
   id: number;

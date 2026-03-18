@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Eye, RefreshCw } from "lucide-react";
+import { Loader2, Eye, RefreshCw, Globe, CheckCircle2, XCircle } from "lucide-react";
 
 export function OGTesterPanel() {
   const [url, setUrl] = useState("");

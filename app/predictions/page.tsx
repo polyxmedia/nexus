@@ -428,74 +428,46 @@ export default function PredictionsPage() {
     console.log("[Predictions] Resolve button clicked, starting resolution...");
     setResolving(true);
     setStatusMessage(null);
-    setResolveSteps([]);
+    setResolveSteps([{ id: "ai-start", label: "Starting AI resolution for overdue predictions...", status: "running", timestamp: Date.now() }]);
     setResolveError(null);
     setResolveComplete(false);
     setResolveResultCount(undefined);
 
     try {
-      const res = await fetch("/api/predictions/resolve-stream", { method: "POST", credentials: "include" });
-      const contentType = res.headers.get("content-type") || "";
-      if (!res.ok || !contentType.includes("text/event-stream")) {
-        const text = await res.text();
-        const isRedirect = text.includes("/login") || res.redirected;
-        if (isRedirect) {
-          setResolveError("Session expired. Please refresh the page and try again.");
-        } else {
-          try { const data = JSON.parse(text); setResolveError(data.error || `Resolution failed (${res.status})`); }
-          catch { setResolveError(`Resolution failed (${res.status}): ${text.slice(0, 200)}`); }
-        }
+      // Simple direct resolution (no streaming, more reliable)
+      const res = await fetch("/api/predictions/resolve-now", { method: "POST", credentials: "include" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResolveError(data.error || `Resolution failed (${res.status})`);
         setResolving(false);
         return;
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) { setResolveError("No response stream"); setResolving(false); return; }
+      const count = data.resolved || 0;
+      setResolveResultCount(count);
+      setResolveComplete(true);
+      setResolveSteps([
+        { id: "ai-start", label: "AI resolution complete", status: "done", timestamp: Date.now() },
+        ...(data.results || []).map((r: { id: number; outcome: string; notes: string }) => ({
+          id: `res-${r.id}`,
+          label: `[${r.outcome.toUpperCase()}] #${r.id}: ${r.notes?.slice(0, 120) || ""}`,
+          status: r.outcome === "confirmed" ? "done" : r.outcome === "partial" ? "warn" : "done",
+          timestamp: Date.now(),
+        })),
+      ]);
 
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        let eventType = "";
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith("data: ") && eventType) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (eventType === "step") {
-                setResolveSteps(prev => {
-                  const existing = prev.findIndex(s => s.id === data.id && s.status === "running");
-                  if (existing >= 0 && data.status !== "running") {
-                    const updated = [...prev];
-                    updated[existing] = { ...data, timestamp: updated[existing].timestamp };
-                    return updated;
-                  }
-                  return [...prev, { ...data, timestamp: Date.now() }];
-                });
-              } else if (eventType === "complete") {
-                setResolveComplete(true);
-                setResolveResultCount(data.count);
-                fetchPredictions();
-                fetchFeedback();
-              } else if (eventType === "error") {
-                setResolveError(data.message);
-              }
-            } catch { /* skip malformed JSON */ }
-            eventType = "";
-          }
-        }
+      if (count > 0) {
+        setStatusMessage({ text: `Resolved ${count} prediction${count !== 1 ? "s" : ""}`, type: "success" });
+        fetchPredictions();
+        fetchFeedback();
+      } else {
+        setStatusMessage({ text: "No predictions could be resolved. AI may need more data.", type: "info" });
       }
-    } catch {
-      setResolveError("Connection lost during resolution");
-    } finally {
+
+      setResolving(false);
+    } catch (err) {
+      setResolveError(err instanceof Error ? err.message : "Resolution failed");
       setResolving(false);
     }
   };

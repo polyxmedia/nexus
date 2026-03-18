@@ -1918,6 +1918,68 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
   );
 }
 
+function OilDivergenceDashWidget() {
+  const [data, setData] = useState<{ signalActive?: boolean; signalStrength?: string; regime?: string; stats?: { winRate?: number; sampleSize?: number }; correlation?: { rolling20d?: number }; currentReading?: { oilChange?: number; spxChange?: number } } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/signals/oil-divergence")
+      .then(r => r.json())
+      .then(d => setData(d))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <WidgetSkeleton lines={3} />;
+  if (!data) return <WidgetError message="No divergence data" />;
+
+  const strengthColor = data.signalStrength === "strong" ? "text-accent-rose" : data.signalStrength === "moderate" ? "text-accent-amber" : "text-navy-400";
+  const regimeLabel = data.regime === "geopolitical_proxy" ? "GEO PROXY" : data.regime === "demand_driven" ? "DEMAND" : "NEUTRAL";
+  const regimeColor = data.regime === "geopolitical_proxy" ? "text-accent-rose" : "text-navy-400";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`h-2 w-2 rounded-full ${data.signalActive ? "bg-accent-rose animate-pulse" : "bg-navy-600"}`} />
+          <span className={`text-xs font-mono font-bold uppercase ${strengthColor}`}>
+            {data.signalActive ? data.signalStrength : "No Signal"}
+          </span>
+        </div>
+        <span className={`text-[9px] font-mono uppercase ${regimeColor}`}>{regimeLabel}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <span className="text-[9px] text-navy-500 block">Oil</span>
+          <span className={`text-[11px] font-mono ${(data.currentReading?.oilChange || 0) < 0 ? "text-accent-rose" : "text-accent-emerald"}`}>
+            {(data.currentReading?.oilChange || 0) > 0 ? "+" : ""}{data.currentReading?.oilChange?.toFixed(2) || "0.00"}%
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-navy-500 block">SPX</span>
+          <span className={`text-[11px] font-mono ${(data.currentReading?.spxChange || 0) < 0 ? "text-accent-rose" : "text-accent-emerald"}`}>
+            {(data.currentReading?.spxChange || 0) > 0 ? "+" : ""}{data.currentReading?.spxChange?.toFixed(2) || "0.00"}%
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 pt-1 border-t border-navy-700/20">
+        <div>
+          <span className="text-[9px] text-navy-500 block">Win Rate</span>
+          <span className="text-[11px] font-mono text-navy-200">{data.stats?.winRate || 0}%</span>
+        </div>
+        <div>
+          <span className="text-[9px] text-navy-500 block">Sample</span>
+          <span className="text-[11px] font-mono text-navy-400">{data.stats?.sampleSize || 0}</span>
+        </div>
+        <div>
+          <span className="text-[9px] text-navy-500 block">Corr 20d</span>
+          <span className="text-[11px] font-mono text-navy-400">{data.correlation?.rolling20d?.toFixed(2) || "N/A"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Available Widgets Registry ──
 
 export const AVAILABLE_WIDGETS = [

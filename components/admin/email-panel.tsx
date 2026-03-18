@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Send, Mail, RefreshCw, ChevronDown, ChevronRight, Eye } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, Send, Mail, RefreshCw, ChevronDown, ChevronRight, Eye, CheckCircle2, XCircle, X } from "lucide-react";
 
 interface EmailLog {
   id: string;
