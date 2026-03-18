@@ -693,8 +693,8 @@ export default function LandingPage() {
   };
   const tiers = dbTiers.map((t) => ({
     name: t.name,
-    price: t.price > 0 ? `$${t.price}` : "Custom",
-    priceAnnual: t.price > 0 ? `$${Math.round(t.price * 0.85)}` : "Custom",
+    price: t.price > 0 ? `$${(t.price / 100).toFixed(2)}` : "Custom",
+    priceAnnual: t.price > 0 ? `$${((t.price * 0.85) / 100).toFixed(2)}` : "Custom",
     period: t.price > 0 ? "/mo" : "",
     description: tierMeta[t.name]?.description || t.name,
     features: t.features,

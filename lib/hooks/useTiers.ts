@@ -33,14 +33,14 @@ export function useTiers(): { tiers: TierData[]; loading: boolean } {
   return { tiers, loading };
 }
 
-/** Format price for display: 199 -> "$199", 0 -> "Custom" */
+/** Format price for display: 19900 -> "$199.00", 0 -> "Custom" */
 export function formatPrice(price: number): string {
   if (price === 0) return "Custom";
-  return `$${price}`;
+  return `$${(price / 100).toFixed(2)}`;
 }
 
 /** Rough annual discount (15% off) */
 export function formatAnnualPrice(price: number): string {
   if (price === 0) return "Custom";
-  return `$${Math.round(price * 0.85)}`;
+  return `$${((price * 0.85) / 100).toFixed(2)}`;
 }
