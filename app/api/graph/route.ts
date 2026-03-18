@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncEntityGraph, getEntityGraph, searchEntities } from "@/lib/graph/engine";
 import { db, schema } from "@/lib/db";
+import { sql } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
 import { validateOrigin } from "@/lib/security/csrf";
 
@@ -10,8 +11,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action");
 
-  // Auto-sync if entity table is empty
-  const count = (await db.select().from(schema.entities)).length;
+  // Auto-sync if entity table is empty (use COUNT instead of loading all rows)
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(schema.entities);
   if (count === 0) {
     syncEntityGraph();
   }

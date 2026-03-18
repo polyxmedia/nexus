@@ -3832,6 +3832,13 @@ function CostMonitorPanel() {
     alerts: Array<{ level: "warning" | "critical"; message: string; metric: string; value: number; threshold: number }>;
     hasAlerts: boolean;
     highestAlertLevel: string;
+    neon?: {
+      database: { sizeBytes: number; sizeGB: number; sizeMB: number };
+      tables: Array<{ name: string; totalMB: number; dataMB: number; indexMB: number; rows: number }>;
+      connections: number;
+      estimatedMonthlyCost: { storage: number; history: number; compute: number; total: number; minimum: number };
+      pricing: { storagePerGB: number; historyPerGB: number; computePerCUHour: number; computeCUs: number; computeHoursPerMonth: number };
+    };
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -3954,6 +3961,79 @@ function CostMonitorPanel() {
           </div>
         </div>
       </div>
+
+      {/* ── Neon Database Costs ── */}
+      {data.neon && (
+        <>
+          <div className="pt-4 border-t border-navy-800/60">
+            <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-navy-500 mb-3">Neon Database</div>
+          </div>
+
+          {/* DB Overview + Estimated Monthly Cost */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">DB Size</div>
+              <div className="text-lg font-bold font-mono text-navy-100">{data.neon.database.sizeMB} MB</div>
+              <div className="text-[10px] text-navy-500">{data.neon.database.sizeGB} GB</div>
+            </div>
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Connections</div>
+              <div className="text-lg font-bold font-mono text-navy-100">{data.neon.connections}</div>
+              <div className="text-[10px] text-navy-500">active</div>
+            </div>
+            <div className="rounded-md border border-accent-cyan/20 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Est. Monthly</div>
+              <div className="text-lg font-bold font-mono text-accent-cyan">${data.neon.estimatedMonthlyCost.total.toFixed(2)}</div>
+              <div className="text-[10px] text-navy-500">min ${data.neon.estimatedMonthlyCost.minimum}</div>
+            </div>
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Cost Breakdown</div>
+              <div className="space-y-0.5 mt-1">
+                <div className="flex justify-between text-[10px] font-mono"><span className="text-navy-400">Storage</span><span className="text-navy-300">${data.neon.estimatedMonthlyCost.storage.toFixed(2)}</span></div>
+                <div className="flex justify-between text-[10px] font-mono"><span className="text-navy-400">History</span><span className="text-navy-300">${data.neon.estimatedMonthlyCost.history.toFixed(2)}</span></div>
+                <div className="flex justify-between text-[10px] font-mono"><span className="text-navy-400">Compute</span><span className="text-navy-300">${data.neon.estimatedMonthlyCost.compute.toFixed(2)}</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Sizes */}
+          {data.neon.tables.length > 0 && (
+            <div className="rounded-md border border-navy-700/40 bg-navy-950 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-2">Top Tables by Size</div>
+              <div className="space-y-1">
+                {data.neon.tables.map((t) => {
+                  const maxMB = Math.max(...data.neon!.tables.map(x => x.totalMB), 0.01);
+                  return (
+                    <div key={t.name} className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-navy-400 w-40 truncate" title={t.name}>{t.name}</span>
+                      <div className="flex-1 h-2 bg-navy-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{
+                          width: `${Math.max((t.totalMB / maxMB) * 100, 1)}%`,
+                          background: t.totalMB > 10 ? "rgba(245,158,11,0.5)" : "rgba(6,182,212,0.4)",
+                        }} />
+                      </div>
+                      <span className="text-[10px] font-mono text-navy-400 w-16 text-right">{t.totalMB} MB</span>
+                      <span className="text-[10px] font-mono text-navy-600 w-20 text-right">{t.rows.toLocaleString()} rows</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Pricing Reference */}
+          <div className="rounded-md border border-navy-800/40 bg-navy-900/30 p-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-navy-600 mb-1">Neon Pricing Reference (Launch Tier)</div>
+            <div className="flex flex-wrap gap-4 text-[10px] font-mono text-navy-500">
+              <span>Storage: ${data.neon.pricing.storagePerGB}/GB-mo</span>
+              <span>History: ${data.neon.pricing.historyPerGB}/GB-mo</span>
+              <span>Compute: ${data.neon.pricing.computePerCUHour}/CU-hr</span>
+              <span>CUs: {data.neon.pricing.computeCUs}</span>
+              <span>Hours/mo: {data.neon.pricing.computeHoursPerMonth}</span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

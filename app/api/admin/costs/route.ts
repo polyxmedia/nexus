@@ -108,6 +108,78 @@ export async function GET() {
       alerts.push({ level: "warning", message: `Monthly credit usage elevated at ${monthCredits} (warning: ${thresholds.monthlyCreditWarning})`, metric: "monthly_credits", value: monthCredits, threshold: thresholds.monthlyCreditWarning });
     }
 
+    // ── Neon DB metrics (introspection, no API key needed) ──
+    const [tableSizes, dbSize, connectionCount] = await Promise.all([
+      // Per-table size and row estimates
+      db.execute(sql`
+        SELECT
+          relname as table_name,
+          pg_total_relation_size(quote_ident(relname))::bigint as total_bytes,
+          pg_relation_size(quote_ident(relname))::bigint as data_bytes,
+          (pg_total_relation_size(quote_ident(relname)) - pg_relation_size(quote_ident(relname)))::bigint as index_bytes,
+          n_live_tup::bigint as row_estimate
+        FROM pg_stat_user_tables
+        ORDER BY pg_total_relation_size(quote_ident(relname)) DESC
+        LIMIT 20
+      `).catch(() => ({ rows: [] })),
+
+      // Total database size
+      db.execute(sql`
+        SELECT pg_database_size(current_database())::bigint as total_bytes
+      `).catch(() => ({ rows: [{ total_bytes: 0 }] })),
+
+      // Active connections
+      db.execute(sql`
+        SELECT count(*)::int as connections FROM pg_stat_activity WHERE datname = current_database()
+      `).catch(() => ({ rows: [{ connections: 0 }] })),
+    ]);
+
+    const dbSizeBytes = Number((dbSize.rows[0] as Record<string, unknown>)?.total_bytes || 0);
+    const dbSizeGB = dbSizeBytes / (1024 * 1024 * 1024);
+
+    // Neon pricing (post-Databricks acquisition, 2026)
+    const NEON_STORAGE_PER_GB = 0.35; // $/GB-month
+    const NEON_HISTORY_PER_GB = 0.20; // $/GB-month (PITR)
+    const NEON_COMPUTE_PER_CU_HOUR = 0.106; // $/CU-hour (Launch tier)
+    const NEON_MIN_MONTHLY = 5.00; // $5 minimum
+    const estimatedComputeHours = 730; // ~24/7 for always-on, adjust if autosuspend
+    const computeCUs = 0.25; // Default CU size, adjust per plan
+
+    const storageCost = dbSizeGB * NEON_STORAGE_PER_GB;
+    const historyCost = dbSizeGB * 0.5 * NEON_HISTORY_PER_GB; // estimate history at 50% of data
+    const computeCost = estimatedComputeHours * computeCUs * NEON_COMPUTE_PER_CU_HOUR;
+    const totalNeonEstimate = Math.max(NEON_MIN_MONTHLY, storageCost + historyCost + computeCost);
+
+    const neon = {
+      database: {
+        sizeBytes: dbSizeBytes,
+        sizeGB: Math.round(dbSizeGB * 1000) / 1000,
+        sizeMB: Math.round(dbSizeBytes / (1024 * 1024) * 10) / 10,
+      },
+      tables: (tableSizes.rows as Array<Record<string, unknown>>).map((t) => ({
+        name: t.table_name as string,
+        totalMB: Math.round(Number(t.total_bytes) / (1024 * 1024) * 100) / 100,
+        dataMB: Math.round(Number(t.data_bytes) / (1024 * 1024) * 100) / 100,
+        indexMB: Math.round(Number(t.index_bytes) / (1024 * 1024) * 100) / 100,
+        rows: Number(t.row_estimate),
+      })),
+      connections: Number((connectionCount.rows[0] as Record<string, unknown>)?.connections || 0),
+      estimatedMonthlyCost: {
+        storage: Math.round(storageCost * 100) / 100,
+        history: Math.round(historyCost * 100) / 100,
+        compute: Math.round(computeCost * 100) / 100,
+        total: Math.round(totalNeonEstimate * 100) / 100,
+        minimum: NEON_MIN_MONTHLY,
+      },
+      pricing: {
+        storagePerGB: NEON_STORAGE_PER_GB,
+        historyPerGB: NEON_HISTORY_PER_GB,
+        computePerCUHour: NEON_COMPUTE_PER_CU_HOUR,
+        computeCUs,
+        computeHoursPerMonth: estimatedComputeHours,
+      },
+    };
+
     return NextResponse.json({
       credits: {
         today: todayCredits,
@@ -135,6 +207,7 @@ export async function GET() {
       alerts,
       hasAlerts: alerts.length > 0,
       highestAlertLevel: alerts.some(a => a.level === "critical") ? "critical" : alerts.length > 0 ? "warning" : "ok",
+      neon,
     }, { headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120" } });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

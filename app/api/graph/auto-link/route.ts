@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
         .returning();
     }
 
-    // Find all existing entities mentioned in the source text
-    const allEntities = await db.select().from(schema.entities);
+    // Find existing entities mentioned in the source text (select only id+name, not full rows)
+    const allEntities = await db.select({ id: schema.entities.id, name: schema.entities.name }).from(schema.entities);
     const mentioned = allEntities.filter(
       (e) => e.id !== sourceEntity.id && e.name.length > 2 && sourceText.toLowerCase().includes(e.name.toLowerCase())
     );
