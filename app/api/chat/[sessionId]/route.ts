@@ -113,7 +113,7 @@ Instead, focus entirely on:
 
 When using tools, still gather data, but interpret it through the narrative/belief lens rather than the quantitative convergence framework.`;
 
-const XML_GUARD = "\n\nCRITICAL: NEVER output raw XML tool calls as text. Do not write <function_calls>, <invoke>, or any XML-formatted tool invocations in your response. Use the tool calling API provided by the system. Any tool calls rendered as visible text to the user is a failure mode.\n";
+const XML_GUARD = "\n\nCRITICAL: NEVER output raw XML tool calls as text. Do not write <function_calls>, <invoke>, or any XML-formatted tool invocations in your response. Use the tool calling API provided by the system. Any tool calls rendered as visible text to the user is a failure mode.\n\nIMPORTANT: You do NOT have a read_file tool. File contents from user uploads are included directly in the conversation messages. To re-read uploaded content, look back through the conversation. To read from the knowledge bank, use read_knowledge with an entry ID. Never attempt to call read_file, open_file, or any file-reading tool that is not in your tool list.\n";
 
 async function getSystemPromptWithMode(username?: string, projectId?: number | null): Promise<string> {
   let prompt = await loadPrompt("chat_system") + XML_GUARD;

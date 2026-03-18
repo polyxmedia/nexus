@@ -944,7 +944,8 @@ const EXTENDED_DATA: Record<
  * Get the full extended profile for an actor, including knowledge bank data.
  */
 export async function getExtendedActorProfile(
-  actorId: string
+  actorId: string,
+  options?: { skipKnowledge?: boolean }
 ): Promise<ExtendedActorProfile | null> {
   const base = ACTOR_PROFILES.find((a) => a.id === actorId);
   if (!base) return null;
@@ -961,11 +962,20 @@ export async function getExtendedActorProfile(
     decisionPattern: "No decision pattern data available.",
   };
 
-  // Search knowledge bank for related entries
-  const knowledgeResults = await searchKnowledge(base.name, {
-    limit: 5,
-    useVector: true,
-  });
+  // Search knowledge bank for related entries (skip when loading all profiles
+  // to avoid 26 sequential vector searches that cause timeouts)
+  let knowledgeCount = 0;
+  if (!options?.skipKnowledge) {
+    try {
+      const knowledgeResults = await searchKnowledge(base.name, {
+        limit: 5,
+        useVector: false, // text search only -- vector search is too slow per-actor
+      });
+      knowledgeCount = knowledgeResults.length;
+    } catch {
+      // best effort
+    }
+  }
 
   return {
     base,
@@ -975,7 +985,7 @@ export async function getExtendedActorProfile(
     pastDecisions: extended.pastDecisions,
     beliefFramework: extended.beliefFramework,
     decisionPattern: extended.decisionPattern,
-    knowledgeBankEntries: knowledgeResults.length,
+    knowledgeBankEntries: knowledgeCount,
   };
 }
 
@@ -983,12 +993,11 @@ export async function getExtendedActorProfile(
  * Get all actor profiles with their extended data.
  */
 export async function getAllExtendedProfiles(): Promise<ExtendedActorProfile[]> {
-  const profiles: ExtendedActorProfile[] = [];
-  for (const actor of ACTOR_PROFILES) {
-    const profile = await getExtendedActorProfile(actor.id);
-    if (profile) profiles.push(profile);
-  }
-  return profiles;
+  // Parallel with skipKnowledge to avoid 26 sequential vector searches
+  const results = await Promise.all(
+    ACTOR_PROFILES.map((actor) => getExtendedActorProfile(actor.id, { skipKnowledge: true }))
+  );
+  return results.filter((p): p is ExtendedActorProfile => p !== null);
 }
 
 /**

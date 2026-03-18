@@ -15,7 +15,7 @@ import { getHijriDateInfo } from "@/lib/signals/islamic-calendar";
 import { getPutCallRatio } from "@/lib/market-data/options-flow";
 import { extractEntities } from "@/lib/osint/entity-extractor";
 import { loadPrompt } from "@/lib/prompts/loader";
-import { searchKnowledge, getRelevantKnowledge, addKnowledge } from "@/lib/knowledge/engine";
+import { searchKnowledge, getRelevantKnowledge, addKnowledge, getKnowledgeById } from "@/lib/knowledge/engine";
 import { getAllScenarioStatuses, evaluateScenario } from "@/lib/iw/engine";
 import { detectCurrentRegime, getLatestShifts } from "@/lib/regime/detection";
 import { loadRegimeState } from "@/lib/regime/store";
@@ -674,6 +674,21 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
         },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "read_knowledge",
+    description:
+      "Read the full content of a specific knowledge bank entry by its ID. Use this after search_knowledge returns results and you need the complete text of a particular entry. Also use when the user asks you to read or open a specific knowledge entry.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "number",
+          description: "The knowledge entry ID to read",
+        },
+      },
+      required: ["id"],
     },
   },
   {
@@ -1414,6 +1429,8 @@ export async function executeTool(
       return { briefing: await loadPrompt("operator_briefing") };
     case "search_knowledge":
       return executeSearchKnowledge(input);
+    case "read_knowledge":
+      return executeReadKnowledge(input);
     case "explore_connections":
       return executeExploreConnections(input);
     case "save_to_knowledge":
@@ -3104,6 +3121,30 @@ async function executeSearchKnowledge(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Knowledge search failed: ${message}` };
+  }
+}
+
+async function executeReadKnowledge(input: Record<string, unknown>) {
+  const id = input.id as number;
+  try {
+    const entry = await getKnowledgeById(id);
+    if (!entry) return { error: `Knowledge entry ${id} not found` };
+    return {
+      id: entry.id,
+      title: entry.title,
+      category: entry.category,
+      confidence: entry.confidence,
+      tags: entry.tags ? JSON.parse(entry.tags) : [],
+      source: entry.source,
+      status: entry.status,
+      content: entry.content,
+      validFrom: entry.validFrom,
+      validUntil: entry.validUntil,
+      createdAt: entry.createdAt,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Failed to read knowledge: ${message}` };
   }
 }
 
