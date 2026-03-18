@@ -45,6 +45,7 @@ export function OilDivergenceWidget({ data }: { data: any }) {
     history = [],
     stats = {},
     correlation = {},
+    confirmations = {} as any,
     interpretation,
     tradingImplication,
     timestamp,
@@ -171,6 +172,55 @@ export function OilDivergenceWidget({ data }: { data: any }) {
         </div>
       </div>
 
+      {/* Confirmation Filters */}
+      {(confirmations.gammaRegime || confirmations.optionsFlow) && (
+        <div className="border border-navy-700/40 rounded bg-navy-900/50 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-mono text-[9px] text-navy-500 uppercase tracking-wider">
+              Confirmation Filters
+            </div>
+            <span className="font-mono text-[9px]" style={{ color: (confirmations.confirmationCount || 0) >= 2 ? "#10b981" : (confirmations.confirmationCount || 0) >= 1 ? "#f59e0b" : "#555" }}>
+              {confirmations.confirmationCount || 0}/2
+            </span>
+          </div>
+          <div className="space-y-2">
+            {/* Gamma */}
+            {confirmations.gammaRegime && (
+              <div className="flex items-start gap-2">
+                <div
+                  className="mt-0.5 h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: confirmations.gammaRegime.confirms ? "#10b981" : confirmations.gammaRegime.regime === "unavailable" ? "#555" : "#f43f5e" }}
+                />
+                <div>
+                  <div className="font-mono text-[10px] text-navy-300">
+                    Gamma: {confirmations.gammaRegime.regime === "unavailable" ? "N/A" : confirmations.gammaRegime.regime?.toUpperCase()}
+                  </div>
+                  <div className="font-mono text-[9px] text-navy-500">{confirmations.gammaRegime.note}</div>
+                </div>
+              </div>
+            )}
+            {/* Options Flow */}
+            {confirmations.optionsFlow && (
+              <div className="flex items-start gap-2">
+                <div
+                  className="mt-0.5 h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: confirmations.optionsFlow.confirms ? "#10b981" : confirmations.optionsFlow.signal === null ? "#555" : "#f43f5e" }}
+                />
+                <div>
+                  <div className="font-mono text-[10px] text-navy-300">
+                    Flow: {confirmations.optionsFlow.signal ? confirmations.optionsFlow.signal.replace(/_/g, " ").toUpperCase() : "N/A"}
+                    {confirmations.optionsFlow.putCallRatio != null && (
+                      <span className="text-navy-500 ml-1">P/C {confirmations.optionsFlow.putCallRatio.toFixed(2)}</span>
+                    )}
+                  </div>
+                  <div className="font-mono text-[9px] text-navy-500">{confirmations.optionsFlow.note}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Recent History - visual bar chart */}
       {sparkData.length > 0 && (
         <div className="border border-navy-700/40 rounded bg-navy-900/50 p-3">
@@ -223,7 +273,8 @@ export function OilDivergenceWidget({ data }: { data: any }) {
                   )}
                 </div>
               );
-            })}
+            });
+            })()}
             <div className="flex items-center gap-1.5 pt-1">
               <span className="w-14 shrink-0" />
               <div className="flex-1 text-right font-mono text-[8px] text-navy-600">OIL</div>

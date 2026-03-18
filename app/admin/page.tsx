@@ -487,6 +487,7 @@ export default function AdminPage() {
             fetchUsers={fetchUsers}
             activity={activity}
             tiers={tiers}
+            session={session}
           />
         </Tabs.Content>
 

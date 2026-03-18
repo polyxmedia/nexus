@@ -2320,7 +2320,7 @@ async function executeResolutionTool(
         current_price: quote.price,
         change: quote.change,
         change_percent: quote.changePercent,
-        timestamp: quote.timestamp,
+        timestamp: (quote as Record<string, unknown>).timestamp || new Date().toISOString(),
         recent_history: daily.slice(-30).map((b) => ({
           date: b.date,
           open: b.open,
@@ -2468,7 +2468,15 @@ SCORING:
 - denied (wrong): score = 0.0
 - skip (insufficient data): will retry later
 
-After gathering all evidence, call submit_resolution with your final verdicts.`;
+After gathering evidence, you MUST call submit_resolution with your final verdicts. Do NOT keep searching endlessly.
+
+CRITICAL WORKFLOW:
+1. Make 2-3 tool calls maximum per prediction to gather data
+2. If data is available: resolve as confirmed/denied/partial based on evidence
+3. If data is unavailable or ambiguous: resolve as "partial" with score 0.3 and notes explaining what data was missing and your best assessment. Only use "skip" if you truly cannot make any judgement at all.
+4. Call submit_resolution within 5 rounds. Every prediction MUST get a verdict.
+
+You MUST call submit_resolution before finishing. Never end without submitting.`;
 
   const client = new Anthropic({ apiKey: anthropicKey });
 
@@ -2492,6 +2500,7 @@ After gathering all evidence, call submit_resolution with your final verdicts.`;
   const MAX_TOOL_ROUNDS = 10; // Safety cap on tool-use iterations
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    console.log(`[resolvePredictions] Round ${round + 1}/${MAX_TOOL_ROUNDS}, messages=${messages.length}`);
     const response = await client.messages.create({
       model: SONNET_MODEL,
       max_tokens: 4096,
@@ -2500,8 +2509,18 @@ After gathering all evidence, call submit_resolution with your final verdicts.`;
       messages,
     });
 
+    console.log(`[resolvePredictions] Response: stop_reason=${response.stop_reason}, content_types=${response.content.map(b => b.type).join(",")}`);
+
     // Check if we're done (no more tool use)
-    if (response.stop_reason === "end_turn") break;
+    if (response.stop_reason === "end_turn") {
+      console.log("[resolvePredictions] End turn - no more tool use");
+      // Check if there's text content with resolutions we missed
+      const textBlock = response.content.find(b => b.type === "text");
+      if (textBlock && "text" in textBlock) {
+        console.log(`[resolvePredictions] Final text: ${(textBlock.text as string).slice(0, 300)}`);
+      }
+      break;
+    }
 
     // Process tool calls
     const toolUseBlocks = response.content.filter(
@@ -2509,7 +2528,10 @@ After gathering all evidence, call submit_resolution with your final verdicts.`;
         b.type === "tool_use"
     );
 
-    if (toolUseBlocks.length === 0) break;
+    if (toolUseBlocks.length === 0) {
+      console.log("[resolvePredictions] No tool use blocks, breaking");
+      break;
+    }
 
     // Add assistant response to conversation
     messages.push({ role: "assistant", content: response.content as Anthropic.ContentBlockParam[] });
@@ -2518,10 +2540,12 @@ After gathering all evidence, call submit_resolution with your final verdicts.`;
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
     for (const toolUse of toolUseBlocks) {
+      console.log(`[resolvePredictions] Tool call: ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 200)})`);
       if (toolUse.name === "submit_resolution") {
         // Final submission -- extract resolutions
         const input = toolUse.input as { resolutions: typeof finalResolutions };
         finalResolutions = input.resolutions || [];
+        console.log(`[resolvePredictions] SUBMIT: ${finalResolutions.length} resolutions: ${finalResolutions.map(r => `#${r.id}=${r.outcome}`).join(", ")}`);
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,
@@ -2542,6 +2566,30 @@ After gathering all evidence, call submit_resolution with your final verdicts.`;
 
     // If we got final resolutions, do verification pass
     if (finalResolutions.length > 0) break;
+  }
+
+  // If Claude never submitted, force a final attempt
+  if (finalResolutions.length === 0 && due.length > 0) {
+    console.log("[resolvePredictions] No resolutions submitted after tool loop. Forcing final call...");
+    try {
+      messages.push({ role: "user", content: "You have not submitted resolutions yet. You MUST call submit_resolution NOW with verdicts for all predictions. If you lack data, mark as denied with explanation. Do it immediately." });
+      const forceResponse = await client.messages.create({
+        model: SONNET_MODEL,
+        max_tokens: 4096,
+        system: systemPrompt,
+        tools: RESOLUTION_TOOLS,
+        messages,
+      });
+      for (const block of forceResponse.content) {
+        if (block.type === "tool_use" && block.name === "submit_resolution") {
+          const input = block.input as { resolutions: typeof finalResolutions };
+          finalResolutions = input.resolutions || [];
+          console.log(`[resolvePredictions] Forced submit: ${finalResolutions.length} resolutions: ${finalResolutions.map(r => `#${r.id}=${r.outcome}`).join(", ")}`);
+        }
+      }
+    } catch (err) {
+      console.error("[resolvePredictions] Forced resolution failed:", err);
+    }
   }
 
   // ── Verification pass: challenge confirmed predictions ──
@@ -2596,11 +2644,12 @@ ${confirmed.map((r) => `ID ${r.id}: ${r.notes}`).join("\n\n")}`;
   const validOutcomes = ["confirmed", "denied", "partial", "post_event"];
   const updated: Array<{ id: number; outcome: string; score: number; notes: string }> = [];
 
+  console.log(`[resolvePredictions] Final resolutions to persist: ${finalResolutions.length} total, outcomes: ${finalResolutions.map(r => `#${r.id}=${r.outcome}`).join(", ") || "NONE"}`);
   for (const r of finalResolutions) {
     const pred = due.find((p) => p.id === r.id);
-    if (!pred) continue;
-    if (r.outcome === "skip") continue; // Retry next cycle when data may be available
-    if (!validOutcomes.includes(r.outcome)) continue;
+    if (!pred) { console.log(`[resolvePredictions] Skipping #${r.id}: no matching prediction`); continue; }
+    if (r.outcome === "skip") { console.log(`[resolvePredictions] Skipping #${r.id}: outcome is skip (${r.notes?.slice(0, 80)})`); continue; }
+    if (!validOutcomes.includes(r.outcome)) { console.log(`[resolvePredictions] Skipping #${r.id}: invalid outcome "${r.outcome}"`); continue; }
 
     // ── Final sanity checks before persisting ──
     // Check if this prediction was already true at issuance (belt-and-suspenders)

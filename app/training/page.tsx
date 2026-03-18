@@ -59,6 +59,13 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 // ── Tier access ──
 const TIER_LEVELS: Record<string, number> = { free: 0, analyst: 1, operator: 2, institution: 3 };
 
+function getLevelProgress(xp: number, levelInfo: ReturnType<typeof getLevelForXp> | null): number {
+  if (!levelInfo?.nextLevel) return 1;
+  const range = levelInfo.nextLevel.xpRequired - levelInfo.xpRequired;
+  if (range <= 0) return 1;
+  return Math.min(1, (xp - levelInfo.xpRequired) / range);
+}
+
 export default function TrainingPage() {
   const router = useRouter();
   const { tier, isAdmin } = useSubscription();
@@ -198,7 +205,7 @@ export default function TrainingPage() {
                   fill="none" stroke="currentColor" strokeWidth="3"
                   className="text-accent-cyan"
                   strokeDasharray={`${2 * Math.PI * 28}`}
-                  strokeDashoffset={`${2 * Math.PI * 28 * (1 - (levelInfo?.nextLevel ? (xp - (levelInfo?.xpRequired || 0)) / ((levelInfo.nextLevel?.xpRequired || 1) - (levelInfo?.xpRequired || 0)) : 1))}`}
+                  strokeDashoffset={`${2 * Math.PI * 28 * (1 - getLevelProgress(xp, levelInfo))}`}
                   strokeLinecap="round"
                   transform="rotate(-90 32 32)"
                 />

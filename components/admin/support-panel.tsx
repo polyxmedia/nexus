@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Send, Clock, ChevronDown, ChevronRight, MessageSquare, ArrowRight, X } from "lucide-react";
+import { Loader2, Send, Clock, ChevronDown, ChevronRight, MessageSquare, ArrowRight, X, Shield, User } from "lucide-react";
 
 interface SupportTicket {
   id: number;

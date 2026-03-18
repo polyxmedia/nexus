@@ -12,6 +12,8 @@ import { getFredSeries } from "@/lib/market-data/fred";
 import { getDailySeries, type DailyBar } from "@/lib/market-data/provider";
 import { saveRegimeState, loadRegimeState } from "@/lib/regime/store";
 import { pearsonCorrelation, classifySignificance, getAlphaVantageKey } from "@/lib/regime/correlations";
+import { getGEXSnapshot, type GEXSummary } from "@/lib/gex";
+import { getPutCallRatio, type PutCallData } from "@/lib/market-data/options-flow";
 
 export interface OilSpxReading {
   date: string;
@@ -52,6 +54,25 @@ export interface OilSpxSignal {
     significance: "normal" | "notable" | "significant" | "extreme";
   };
 
+  // Confirmation filters (from the article's 3 additional checks)
+  confirmations: {
+    gammaRegime: {
+      regime: "dampening" | "amplifying" | "neutral" | "unavailable";
+      spyNetGEX: number | null;
+      zeroGammaLevel: number | null;
+      spotPrice: number | null;
+      confirms: boolean;  // negative gamma = price can move freely = confirms
+      note: string;
+    };
+    optionsFlow: {
+      putCallRatio: number | null;
+      signal: string | null;   // extreme_fear | fear | neutral | greed | extreme_greed
+      confirms: boolean;  // greed/extreme_greed (call-heavy) confirms bullish opening
+      note: string;
+    };
+    confirmationCount: number;  // 0-2, how many filters confirm
+  };
+
   interpretation: string;
   tradingImplication: string;
 }
@@ -60,8 +81,6 @@ export interface OilSpxSignal {
 const OIL_DOWN_THRESHOLD = -0.3;    // % - oil must drop more than this
 const OIL_UP_THRESHOLD = 0.3;
 const SPX_FLAT_THRESHOLD = 0.15;    // % - within this is "flat"
-const HISTORICAL_CORR_MEAN = 0.25;  // oil-SPX daily return correlation (weaker than USO-XLE)
-const HISTORICAL_CORR_STD = 0.30;
 
 function classifyTrend(changePct: number, downThreshold: number, upThreshold: number): "down" | "flat" | "up" {
   if (changePct <= downThreshold) return "down";
@@ -103,16 +122,44 @@ function classifyRegime(
   };
 }
 
+function computeBaselineCorrelation(oilReturns: number[], spxReturns: number[]): { mean: number; std: number } {
+  // Compute rolling 20d correlations across the full history to establish baseline
+  const correlations: number[] = [];
+  const windowSize = 20;
+  const n = Math.min(oilReturns.length, spxReturns.length);
+  for (let i = windowSize; i <= n; i++) {
+    const c = pearsonCorrelation(oilReturns.slice(i - windowSize, i), spxReturns.slice(i - windowSize, i));
+    correlations.push(c);
+  }
+  if (correlations.length < 3) return { mean: 0.25, std: 0.30 }; // fallback only if truly no data
+  const mean = correlations.reduce((a, b) => a + b, 0) / correlations.length;
+  const variance = correlations.reduce((s, c) => s + (c - mean) ** 2, 0) / correlations.length;
+  return { mean: Math.round(mean * 1000) / 1000, std: Math.round(Math.sqrt(variance) * 1000) / 1000 || 0.01 };
+}
+
 export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
   const apiKey = await getAlphaVantageKey();
 
-  // Fetch oil (FRED WTI) and SPX (Alpha Vantage SPY)
-  const [oilPoints, spxBars] = await Promise.all([
+  // Fetch oil (FRED WTI), SPX (Alpha Vantage SPY), and confirmation data in parallel
+  const [oilPoints, spxBars, gexSnapshot, pcrData] = await Promise.allSettled([
     getFredSeries("DCOILWTICO", 100),
     apiKey ? getDailySeries("SPY", apiKey) : ([] as DailyBar[]),
+    getGEXSnapshot(),
+    getPutCallRatio(),
   ]);
 
-  if (oilPoints.length < 10 || spxBars.length < 10) {
+  const oil = oilPoints.status === "fulfilled" ? oilPoints.value : [];
+  const spx = spxBars.status === "fulfilled" ? spxBars.value : [];
+  const gex = gexSnapshot.status === "fulfilled" ? gexSnapshot.value : null;
+  const pcr = pcrData.status === "fulfilled" ? pcrData.value : null;
+
+  const emptyConfirmations: OilSpxSignal["confirmations"] = {
+    gammaRegime: { regime: "unavailable", spyNetGEX: null, zeroGammaLevel: null, spotPrice: null, confirms: false, note: "Data unavailable" },
+    optionsFlow: { putCallRatio: null, signal: null, confirms: false, note: "Data unavailable" },
+    confirmationCount: 0,
+  };
+
+  if (oil.length < 10 || spx.length < 10) {
     return {
       timestamp: new Date().toISOString(),
       currentReading: null,
@@ -122,15 +169,16 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
       regimeContext: "Insufficient data to compute oil-SPX divergence.",
       history: [],
       stats: { totalDivergences: 0, divergenceRate: 0, avgSpxMoveAfterOilDrop: 0, avgOilDropMagnitude: 0, winRate: 0, sampleSize: 0 },
-      correlation: { rolling20d: 0, rolling60d: 0, historicalMean: HISTORICAL_CORR_MEAN, deviation: 0, significance: "normal" },
+      correlation: { rolling20d: 0, rolling60d: 0, historicalMean: 0, deviation: 0, significance: "normal" },
+      confirmations: emptyConfirmations,
       interpretation: "Insufficient data.",
       tradingImplication: "No actionable signal.",
     };
   }
 
   // Align by date (FRED and Alpha Vantage have different trading day gaps)
-  const oilByDate = new Map(oilPoints.map(p => [p.date, p.value]));
-  const spxByDate = new Map(spxBars.map(b => [b.date, b.close]));
+  const oilByDate = new Map(oil.map(p => [p.date, p.value]));
+  const spxByDate = new Map(spx.map(b => [b.date, b.close]));
   const commonDates = [...oilByDate.keys()].filter(d => spxByDate.has(d)).sort();
 
   if (commonDates.length < 10) {
@@ -143,7 +191,8 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
       regimeContext: "Insufficient overlapping dates between oil and SPX data.",
       history: [],
       stats: { totalDivergences: 0, divergenceRate: 0, avgSpxMoveAfterOilDrop: 0, avgOilDropMagnitude: 0, winRate: 0, sampleSize: 0 },
-      correlation: { rolling20d: 0, rolling60d: 0, historicalMean: HISTORICAL_CORR_MEAN, deviation: 0, significance: "normal" },
+      correlation: { rolling20d: 0, rolling60d: 0, historicalMean: 0, deviation: 0, significance: "normal" },
+      confirmations: emptyConfirmations,
       interpretation: "Insufficient overlapping data.",
       tradingImplication: "No actionable signal.",
     };
@@ -153,13 +202,13 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
   const alignedSpx = commonDates.map(d => spxByDate.get(d)!);
   const oilReturns = toReturns(alignedOil);
   const spxReturns = toReturns(alignedSpx);
-  // Dates for returns start at index 1 of commonDates
   const returnDates = commonDates.slice(1);
 
-  // Correlation
+  // Correlation: compute baseline from actual data, not hardcoded
+  const baseline = computeBaselineCorrelation(oilReturns, spxReturns);
   const corr20d = pearsonCorrelation(oilReturns.slice(-20), spxReturns.slice(-20));
   const corr60d = pearsonCorrelation(oilReturns.slice(-60), spxReturns.slice(-60));
-  const deviation = HISTORICAL_CORR_STD > 0 ? (corr20d - HISTORICAL_CORR_MEAN) / HISTORICAL_CORR_STD : 0;
+  const deviation = baseline.std > 0 ? (corr20d - baseline.mean) / baseline.std : 0;
   const significance = classifySignificance(deviation);
 
   // Regime classification
@@ -213,15 +262,49 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
   // Current reading (latest)
   const currentReading = history.length > 0 ? history[history.length - 1] : null;
 
-  // Signal assessment
+  // ── Confirmation filter 1: Gamma regime (negative gamma = price moves freely) ──
+  const spyGex: GEXSummary | undefined = gex?.summaries?.find((s) => s.ticker === "SPY");
+  const gammaRegime: OilSpxSignal["confirmations"]["gammaRegime"] = spyGex
+    ? {
+        regime: spyGex.regime,
+        spyNetGEX: spyGex.netGEX,
+        zeroGammaLevel: spyGex.zeroGammaLevel,
+        spotPrice: spyGex.spotPrice,
+        confirms: spyGex.regime === "amplifying", // negative gamma amplifies moves
+        note: spyGex.regime === "amplifying"
+          ? `SPY in negative gamma (${spyGex.regime}). Dealers will amplify directional moves. Zero-gamma at ${spyGex.zeroGammaLevel.toFixed(0)}, spot at ${spyGex.spotPrice.toFixed(0)}.`
+          : spyGex.regime === "dampening"
+          ? `SPY in positive gamma (${spyGex.regime}). Dealers dampen moves, reducing breakout potential. Less favorable for momentum trades.`
+          : `SPY gamma regime is neutral. No strong dealer positioning bias.`,
+      }
+    : { regime: "unavailable", spyNetGEX: null, zeroGammaLevel: null, spotPrice: null, confirms: false, note: "GEX data unavailable. Cannot assess dealer positioning." };
+
+  // ── Confirmation filter 2: Options flow (bullish flow confirms relief rally) ──
+  const optionsFlow: OilSpxSignal["confirmations"]["optionsFlow"] = pcr
+    ? {
+        putCallRatio: pcr.totalPCRatio,
+        signal: pcr.signal,
+        confirms: pcr.signal === "greed" || pcr.signal === "extreme_greed",
+        note: pcr.signal === "greed" || pcr.signal === "extreme_greed"
+          ? `P/C ratio ${pcr.totalPCRatio.toFixed(2)} shows call-heavy flow (${pcr.signal}). Bullish options positioning supports opening rally thesis.`
+          : pcr.signal === "extreme_fear" || pcr.signal === "fear"
+          ? `P/C ratio ${pcr.totalPCRatio.toFixed(2)} shows put-heavy flow (${pcr.signal}). Hedging activity is elevated, which could cap upside despite oil divergence.`
+          : `P/C ratio ${pcr.totalPCRatio.toFixed(2)} is neutral. No strong directional bias from options flow.`,
+      }
+    : { putCallRatio: null, signal: null, confirms: false, note: "Options flow data unavailable." };
+
+  const confirmationCount = (gammaRegime.confirms ? 1 : 0) + (optionsFlow.confirms ? 1 : 0);
+  const confirmations: OilSpxSignal["confirmations"] = { gammaRegime, optionsFlow, confirmationCount };
+
+  // ── Signal assessment (incorporates confirmations) ──
   const signalActive = currentReading?.divergent === true && regime === "geopolitical_proxy";
 
   let signalStrength: OilSpxSignal["signalStrength"] = "none";
   if (currentReading?.divergent) {
     if (regime === "geopolitical_proxy" && Math.abs(currentReading.oilChange) > 1) {
-      signalStrength = "strong";
+      signalStrength = confirmationCount >= 1 ? "strong" : "moderate";
     } else if (regime === "geopolitical_proxy") {
-      signalStrength = "moderate";
+      signalStrength = confirmationCount >= 2 ? "strong" : "moderate";
     } else if (currentReading.oilChange < -0.5) {
       signalStrength = "weak";
     }
@@ -230,7 +313,7 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
   // Interpretation
   let interpretation = "";
   if (signalActive) {
-    interpretation = `Oil down ${currentReading!.oilChange.toFixed(2)}% while oil-SPX correlation is negative (${corr20d.toFixed(2)}), indicating oil is acting as a geopolitical fear gauge. Historically, when oil drops in this regime, SPX shows positive opening momentum ${stats.winRate}% of the time (n=${stats.sampleSize}).`;
+    interpretation = `Oil down ${currentReading!.oilChange.toFixed(2)}% while oil-SPX correlation is negative (${corr20d.toFixed(2)}), indicating oil is acting as a geopolitical fear gauge. Historically, when oil drops in this regime, SPX shows positive opening momentum ${stats.winRate}% of the time (n=${stats.sampleSize}). ${confirmationCount}/2 confirmation filters active.`;
   } else if (currentReading?.divergent) {
     interpretation = `Oil-SPX divergence detected but regime is ${regime}, reducing signal reliability. The divergence pattern is strongest when oil is a geopolitical proxy (negative correlation regime).`;
   } else {
@@ -239,9 +322,9 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
 
   let tradingImplication = "";
   if (signalStrength === "strong") {
-    tradingImplication = "Strong signal: oil drop in geopolitical proxy regime suggests opening rally potential. Historical win rate supports 0DTE call entries in first 30 minutes. Exit by 10:00 AM due to theta decay. Confirm with overnight news flow and options positioning.";
+    tradingImplication = `Strong signal: oil drop in geopolitical proxy regime with ${confirmationCount}/2 confirmations. ${gammaRegime.confirms ? "Negative gamma amplifies moves." : ""} ${optionsFlow.confirms ? "Call-heavy flow supports bullish opening." : ""} Historical win rate ${stats.winRate}% supports 0DTE call entries in first 30 minutes. Exit by 10:00 AM due to theta decay.`.trim();
   } else if (signalStrength === "moderate") {
-    tradingImplication = "Moderate signal: divergence present in correct regime but oil move is small. Consider reduced position size or wait for additional confirmation from overnight geopolitical developments.";
+    tradingImplication = `Moderate signal: divergence present in correct regime but ${confirmationCount === 0 ? "no confirmation filters active" : "only partial confirmation"}. Consider reduced position size or wait for gamma/flow confirmation.`;
   } else if (signalStrength === "weak") {
     tradingImplication = "Weak signal: divergence detected but regime does not strongly support the pattern. Monitor only, do not trade on this signal alone.";
   } else {
@@ -255,15 +338,16 @@ export async function computeOilSpxDivergence(): Promise<OilSpxSignal> {
     signalStrength,
     regime,
     regimeContext,
-    history: history.slice(-20), // last 20 for display
+    history: history.slice(-20),
     stats,
     correlation: {
       rolling20d: Math.round(corr20d * 1000) / 1000,
       rolling60d: Math.round(corr60d * 1000) / 1000,
-      historicalMean: HISTORICAL_CORR_MEAN,
+      historicalMean: baseline.mean,
       deviation: Math.round(deviation * 100) / 100,
       significance,
     },
+    confirmations,
     interpretation,
     tradingImplication,
   };

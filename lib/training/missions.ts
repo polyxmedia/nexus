@@ -315,10 +315,6 @@ export function getTotalXp(): number {
   return MISSIONS.reduce((sum, m) => sum + m.xp, 0);
 }
 
-export function getTrackXp(trackId: string): number {
-  return MISSIONS.filter((m) => m.track === trackId).reduce((sum, m) => sum + m.xp, 0);
-}
-
 export function getTrackProgress(trackId: string, completed: string[]): number {
   const trackMissions = MISSIONS.filter((m) => m.track === trackId);
   if (trackMissions.length === 0) return 0;

@@ -7,9 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
-  ChevronDown, ChevronRight, Clock, CreditCard, Gift, Hash, Loader2,
-  MoreVertical, Plus, Shield, Trash2, User, X, XCircle, BarChart3,
-  Coins, Eye, LogIn, RefreshCw, Save, Zap,
+  Activity, ArrowDownRight, ArrowUpRight, ChevronDown, ChevronRight, Clock,
+  Coins, CreditCard, Eye, FileText, Gift, Hash, Loader2, LogIn, Mail,
+  MessageSquare, MoreVertical, Plus, RefreshCw, RotateCcw, Save, Shield,
+  Timer, Trash2, TrendingUp, User, UserCheck, X, XCircle, Zap, BarChart3,
 } from "lucide-react";
 import type { ConfirmModalState, Tier, UserRecord, UserStats, UserThrottle, TransactionsData } from "./types";
 import { CONFIRM_INITIAL } from "./types";
@@ -21,9 +22,11 @@ interface UsersTabProps {
   fetchUsers: () => Promise<void>;
   activity: { summary: { totalUsers: number; activeToday: number; active7d: number; totalMessages7d: number; totalPredictions7d: number }; users: Array<{ username: string; lastLogin: string | null; chatSessions7d: number; chatMessages7d: number; predictions7d: number; lastChatAt: string | null; tier: string; role: string }> } | null;
   tiers: Tier[];
+  session: { user?: { name?: string | null } } | null;
 }
 
-export function UsersTab({ users, usersLoading, fetchUsers, activity, tiers }: UsersTabProps) {
+export function UsersTab({ users, usersLoading, fetchUsers, activity, tiers, session }: UsersTabProps) {
+  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const updateRole = async (username: string, role: string) => {
     setRoleUpdating(username);
     await fetch("/api/admin/users", {
