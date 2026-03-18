@@ -23,7 +23,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "../db";
-import { eq, desc, isNull, not, and, gte } from "drizzle-orm";
+import { eq, desc, isNull, not, and, gte, sql } from "drizzle-orm";
 import type { NewPrediction } from "../db/schema";
 import { getQuote, getDailySeries } from "../market-data/provider";
 import { getActiveKnowledge } from "../knowledge/engine";
@@ -749,59 +749,134 @@ async function validateAndCorrectSymbol(
 async function adjustConfidenceForBaseRate(rawConfidence: number, category: string, claim: string): Promise<{ confidence: number; baseRate: number }> {
   const clamped = Math.max(0.05, Math.min(0.90, rawConfidence));
 
-  // ── Calibration shrinkage ──
-  // Light shrinkage toward empirical midpoint. Reduced from original 0.40/0.20
-  // toward 0.30 anchor after track record showed underconfidence: 86% directional
-  // accuracy at ~46% stated confidence (Brier ~0.27). The old aggressive shrinkage
-  // was overcorrecting. New values: 15%/10% pull toward 0.45 anchor.
-  const anchor = 0.45;
-  const shrinkage = clamped > 0.50 ? 0.15 : 0.10;
-  const shrunk = clamped * (1 - shrinkage) + anchor * shrinkage;
-
   // ── Compound probability detection ──
-  // If claim is conditional on a scenario (Hormuz closure, Taiwan escalation, etc.),
-  // the confidence should be P(scenario) * P(outcome | scenario), not just the latter.
+  // Only for explicitly conditional claims (if X then Y). The prompt no longer
+  // tells Claude to compound, so this only fires on genuinely conditional framing.
   const compoundDiscount = detectCompoundProbability(claim);
-  const compounded = shrunk * compoundDiscount;
+  const afterCompound = clamped * compoundDiscount;
 
-  // Infer evidence strength conservatively:
-  // Only high raw confidence (>0.70) with specific price targets earns strong evidence
+  // ── Evidence strength ──
+  // Higher raw confidence + specific targets = stronger evidence for base rate update
   const hasTarget = /\$[\d,]+|\d+\.\d{2}/.test(claim);
-  const evidenceStrength = clamped < 0.3 ? 1
-    : clamped < 0.5 ? 2
-    : (clamped < 0.7 || !hasTarget) ? 2  // cap at 2 without specific target
-    : clamped < 0.85 ? 3
-    : 4; // never assign max strength from LLM confidence alone
+  const evidenceStrength = afterCompound < 0.3 ? 2
+    : afterCompound < 0.5 ? 3
+    : (afterCompound < 0.7 || !hasTarget) ? 3
+    : afterCompound < 0.85 ? 4
+    : 4;
 
-  // Get best matching base rate from DB (keyword-scored, with observed rate blending)
+  // ── Base rate anchoring ──
   const { rate: baseRate } = await getBaseRate(category, claim);
-
-  const baseRateAdjusted = adjustForBaseRate(compounded, baseRate, evidenceStrength);
+  const baseRateAdjusted = adjustForBaseRate(afterCompound, baseRate, evidenceStrength);
 
   // ── Specificity penalty ──
-  // Claims with multiple narrow quantitative conditions are inherently harder to hit.
-  // Each additional condition reduces the joint probability.
   const specificityMultiplier = computeSpecificityPenalty(claim);
   const specificityAdjusted = baseRateAdjusted * specificityMultiplier;
 
-  // Apply backtest calibration correction on top of base rate adjustment
+  // ── Calibration correction from backtest ──
   try {
     const catAdj = await getCategoryCalibrationAdjustment(category);
     if (catAdj.reliable) {
       return { confidence: Math.max(0.05, Math.min(0.85, specificityAdjusted * catAdj.multiplier)), baseRate };
     }
   } catch {
-    // Backtest data unavailable, proceed with base rate adjustment only
+    // Backtest data unavailable
+  }
+
+  // ── Live calibration correction (fallback when backtest data insufficient) ──
+  // Query resolved predictions directly to compute category-level calibration gap.
+  // This closes the feedback loop even with small sample sizes (5+).
+  try {
+    const liveAdj = await getLiveCalibrationAdjustment(category);
+    if (liveAdj.reliable) {
+      return { confidence: Math.max(0.05, Math.min(0.85, specificityAdjusted * liveAdj.multiplier)), baseRate };
+    }
+  } catch {
+    // Live calibration unavailable, proceed without
   }
 
   return { confidence: Math.max(0.05, Math.min(0.85, specificityAdjusted)), baseRate };
 }
 
+// ── Live Calibration from Resolved Predictions ──
+// When backtest data is insufficient (< 10 samples), fall back to computing
+// the calibration gap directly from resolved predictions. This allows the
+// feedback loop to close even in early operation.
+
+interface LiveCalibrationResult {
+  multiplier: number;
+  reliable: boolean;
+  reason: string;
+}
+
+const MIN_LIVE_SAMPLES = 5;
+let liveCalibrationCache: Record<string, { result: LiveCalibrationResult; fetchedAt: number }> = {};
+const LIVE_CAL_TTL = 10 * 60 * 1000; // 10 min
+
+async function getLiveCalibrationAdjustment(category: string): Promise<LiveCalibrationResult> {
+  const cached = liveCalibrationCache[category];
+  if (cached && Date.now() - cached.fetchedAt < LIVE_CAL_TTL) return cached.result;
+
+  const rows = await db
+    .select({
+      avgConfidence: sql<number>`avg(confidence)`,
+      hitRate: sql<number>`avg(case when outcome = 'confirmed' then 1.0 when outcome = 'partial' then 0.5 else 0.0 end)`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(schema.predictions)
+    .where(
+      and(
+        eq(schema.predictions.category, category),
+        not(isNull(schema.predictions.outcome)),
+        sql`outcome NOT IN ('expired', 'post_event')`,
+        eq(schema.predictions.preEvent, 1)
+      )
+    );
+
+  const row = rows[0];
+  if (!row || row.count < MIN_LIVE_SAMPLES) {
+    const result: LiveCalibrationResult = { multiplier: 1.0, reliable: false, reason: `Insufficient resolved ${category} predictions (n=${row?.count ?? 0})` };
+    liveCalibrationCache[category] = { result, fetchedAt: Date.now() };
+    return result;
+  }
+
+  const gap = row.avgConfidence - row.hitRate; // positive = overconfident, negative = underconfident
+
+  if (Math.abs(gap) < 0.05) {
+    const result: LiveCalibrationResult = { multiplier: 1.0, reliable: true, reason: `${category} well-calibrated (gap ${(gap * 100).toFixed(1)}pp, n=${row.count})` };
+    liveCalibrationCache[category] = { result, fetchedAt: Date.now() };
+    return result;
+  }
+
+  // Apply damped correction: half the gap, clamped to [0.7, 1.4]
+  // Underconfident (gap < 0) produces multiplier > 1.0 to boost confidence
+  // Overconfident (gap > 0) produces multiplier < 1.0 to reduce confidence
+  const correction = gap * 0.5;
+  const multiplier = Math.max(0.7, Math.min(1.4, 1 - correction));
+
+  const direction = gap > 0 ? "overconfident" : "underconfident";
+  const result: LiveCalibrationResult = {
+    multiplier,
+    reliable: true,
+    reason: `Live calibration: ${direction} in ${category} by ${(Math.abs(gap) * 100).toFixed(1)}pp (n=${row.count}). Multiplier: ${multiplier.toFixed(3)}`,
+  };
+  liveCalibrationCache[category] = { result, fetchedAt: Date.now() };
+  return result;
+}
+
 // ── Compound Probability Detection ──
-// Predictions conditional on a scenario happening should discount by P(scenario).
-// Returns a multiplier in (0, 1].
+// Only discount predictions that are EXPLICITLY CONDITIONAL on a low-probability
+// scenario occurring. "If Hormuz closes, then X" is compound. "X will happen
+// because of Y" or "X will happen ahead of Y" is NOT compound -- Y is causal
+// context, not a condition.
+//
+// The prompt no longer tells Claude to compound, so we only apply this for
+// claims with explicit conditional structure (if/when/should + rare scenario).
 function detectCompoundProbability(claim: string): number {
   const lower = claim.toLowerCase();
+
+  // Only trigger on explicit conditional framing
+  const hasConditionalFrame = /\b(if|should|in the event|contingent on|conditional on)\b/i.test(lower);
+  if (!hasConditionalFrame) return 1.0;
 
   // Scenario-conditional patterns and their approximate P(scenario)
   const scenarioTriggers: Array<{ pattern: RegExp; pScenario: number }> = [
@@ -819,10 +894,7 @@ function detectCompoundProbability(claim: string): number {
     if (pattern.test(lower)) return pScenario;
   }
 
-  // Mild discount for claims referencing escalation / tension as triggers
-  if (/escalat|tension.*intensif|conflict.*spread/i.test(lower)) return 0.60;
-
-  // No compound discount
+  // No compound discount -- causal framing is not conditional
   return 1.0;
 }
 
@@ -1396,7 +1468,7 @@ FORMAT: SUBJECT + "will" + measurable outcome. No imperatives (execute, monitor,
 
 UNIQUENESS: Avoid duplicating the exact same claim or threshold variant vs pending. But you MUST always generate at least 3 predictions. If major tickers are covered, find new angles: different timeframes, different catalysts, related but uncovered assets, geopolitical outcomes, or cross-asset correlations. NEVER return an empty array.
 
-CONFIDENCE: Compound P(trigger)*P(outcome|trigger). Range 0.10-0.90. Follow calibration feedback above. No contradictions. Price targets base rate ~25-35%, geo announcements ~40-60%.
+CONFIDENCE: Your stated confidence should be your ALL-THINGS-CONSIDERED probability that this exact outcome will occur. Range 0.10-0.90. Do NOT manually compound conditional probabilities -- just state your honest forecast. The system applies its own calibration adjustments downstream. Follow calibration feedback above. Be honest: if evidence is strong, confidence should be strong.
 
 MAGNITUDE: Equity indices 7d typical 1-4% (>8% needs <15% confidence). Sector ETFs 2-5%. Leveraged 8-20%. Prefer price-levels over RSI/MACD. Multi-condition claims max 0.40 confidence. Prefer conservative thresholds.
 DIRECTION: Always specify direction (up/down/flat) + price_target + reference_symbol where possible.

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     await seedKnowledge();
   }
 
-  // Get by ID
+  // Get by ID (optionally with graph connections)
   const idParam = searchParams.get("id");
   if (idParam) {
     const id = parseInt(idParam, 10);
@@ -28,6 +28,18 @@ export async function GET(request: NextRequest) {
     if (!entry) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+
+    // Optionally include graph connections
+    if (searchParams.get("connections") === "true") {
+      try {
+        const { exploreEntityNeighborhood } = await import("@/lib/knowledge/graph-rag");
+        const neighborhood = await exploreEntityNeighborhood(entry.title);
+        return NextResponse.json({ entry, connections: neighborhood });
+      } catch {
+        return NextResponse.json({ entry, connections: null });
+      }
+    }
+
     return NextResponse.json({ entry });
   }
 

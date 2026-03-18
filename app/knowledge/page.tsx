@@ -13,6 +13,8 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Network,
+  ArrowRight,
 } from "lucide-react";
 
 interface KnowledgeEntry {
@@ -85,6 +87,13 @@ export default function KnowledgePage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [connectionsId, setConnectionsId] = useState<number | null>(null);
+  const [connectionsData, setConnectionsData] = useState<{
+    center: { name: string; type: string };
+    connections: Array<{ name: string; type: string; relationship: string; weight: number }>;
+    relatedKnowledge: Array<{ id: number; title: string; category: string; confidence: number | null }>;
+  } | null>(null);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -184,6 +193,20 @@ export default function KnowledgePage() {
       // fail silently
     }
     setSaving(false);
+  };
+
+  const openConnections = async (entry: KnowledgeEntry) => {
+    setConnectionsId(entry.id);
+    setConnectionsLoading(true);
+    setConnectionsData(null);
+    try {
+      const res = await fetch(`/api/knowledge?id=${entry.id}&connections=true`);
+      const json = await res.json();
+      setConnectionsData(json.connections || null);
+    } catch {
+      setConnectionsData(null);
+    }
+    setConnectionsLoading(false);
   };
 
   const handleArchive = async (id: number) => {
@@ -321,6 +344,7 @@ export default function KnowledgePage() {
             return (
               <div
                 key={entry.id}
+                id={`knowledge-${entry.id}`}
                 className={`border rounded-lg px-4 py-3 transition-colors ${
                   entry.status === "active"
                     ? "border-navy-700 bg-navy-900/60"
@@ -369,6 +393,13 @@ export default function KnowledgePage() {
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => openConnections(entry)}
+                      className={`p-1 transition-colors ${connectionsId === entry.id ? "text-accent-cyan" : "text-navy-600 hover:text-accent-cyan"}`}
+                      title="View connections"
+                    >
+                      <Network className="h-3 w-3" />
+                    </button>
                     <button
                       onClick={() => openEdit(entry)}
                       className="p-1 text-navy-600 hover:text-navy-300 transition-colors"
@@ -610,6 +641,123 @@ export default function KnowledgePage() {
                 )}
                 {editingId ? "Save Changes" : "Add Entry"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Connections Panel */}
+      {connectionsId !== null && (
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/50 backdrop-blur-[2px]">
+          <div className="h-full w-[420px] bg-navy-950 border-l border-navy-700/60 flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-navy-800">
+              <div>
+                <h2 className="text-[11px] font-mono uppercase tracking-[0.12em] text-navy-100">
+                  Graph Connections
+                </h2>
+                <p className="text-[9px] font-mono text-navy-600 mt-0.5">
+                  Entities and relationships extracted from this entry
+                </p>
+              </div>
+              <button
+                onClick={() => { setConnectionsId(null); setConnectionsData(null); }}
+                className="p-1.5 rounded text-navy-600 hover:text-navy-300 hover:bg-navy-800 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              {connectionsLoading ? (
+                <div className="flex items-center justify-center py-12 gap-2 text-navy-500 text-xs">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading graph...
+                </div>
+              ) : !connectionsData ? (
+                <div className="text-center py-12">
+                  <Network className="h-8 w-8 text-navy-700 mx-auto mb-3" />
+                  <p className="text-xs text-navy-500">No graph connections yet</p>
+                  <p className="text-[10px] text-navy-600 mt-1">
+                    Connections are extracted automatically when knowledge is added. New entries may take a moment to process.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Center Entity */}
+                  <div>
+                    <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-2">Center Entity</div>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded border border-accent-cyan/20 bg-accent-cyan/5">
+                      <div className="w-2 h-2 rounded-full bg-accent-cyan" />
+                      <span className="text-xs font-mono text-navy-200">{connectionsData.center.name}</span>
+                      <span className="text-[9px] font-mono text-navy-500 ml-auto">{connectionsData.center.type}</span>
+                    </div>
+                  </div>
+
+                  {/* Connections */}
+                  {connectionsData.connections.length > 0 && (
+                    <div>
+                      <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-2">
+                        Connected Entities ({connectionsData.connections.length})
+                      </div>
+                      <div className="space-y-1">
+                        {connectionsData.connections.map((conn, i) => (
+                          <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded border border-navy-800 bg-navy-900/40 hover:border-navy-700 transition-colors">
+                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                              conn.type === "actor" ? "bg-accent-rose" :
+                              conn.type === "location" ? "bg-accent-emerald" :
+                              conn.type === "sector" ? "bg-accent-amber" :
+                              conn.type === "ticker" ? "bg-accent-cyan" :
+                              conn.type === "organization" ? "bg-signal-3" :
+                              "bg-navy-500"
+                            }`} />
+                            <span className="text-[11px] text-navy-300 flex-1 truncate">{conn.name}</span>
+                            <span className="text-[8px] font-mono text-navy-600 shrink-0">{conn.relationship}</span>
+                            <div className="w-8 h-1 rounded-full bg-navy-800 shrink-0 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-accent-cyan/40"
+                                style={{ width: `${Math.round(conn.weight * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Related Knowledge */}
+                  {connectionsData.relatedKnowledge.length > 0 && (
+                    <div>
+                      <div className="text-[9px] font-mono uppercase tracking-wider text-navy-500 mb-2">
+                        Related Knowledge ({connectionsData.relatedKnowledge.length})
+                      </div>
+                      <div className="space-y-1">
+                        {connectionsData.relatedKnowledge.map((k) => (
+                          <button
+                            key={k.id}
+                            onClick={() => {
+                              setConnectionsId(null);
+                              setConnectionsData(null);
+                              setExpandedId(k.id);
+                              // Scroll to the entry if visible
+                              document.getElementById(`knowledge-${k.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded border border-navy-800 bg-navy-900/40 hover:border-navy-700 hover:bg-navy-900/60 transition-colors text-left"
+                          >
+                            <span className={`text-[8px] px-1.5 py-0.5 rounded font-mono border shrink-0 ${
+                              CATEGORY_COLORS[k.category] || "bg-navy-700 text-navy-300 border-navy-600"
+                            }`}>
+                              {k.category}
+                            </span>
+                            <span className="text-[11px] text-navy-300 flex-1 truncate">{k.title}</span>
+                            <ArrowRight className="h-3 w-3 text-navy-600 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
