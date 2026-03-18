@@ -1353,7 +1353,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "calculate",
     description:
-      "Evaluate mathematical expressions accurately. Use this ANY TIME you need to perform arithmetic, financial calculations, unit conversions, percentages, or any numeric computation. Supports variables, functions (sqrt, abs, round, ceil, floor, log, exp, pow, min, max), percentages, and complex expressions. Examples: '44 * 64.55', '(2855.91 - 2590.72) / 2590.72 * 100', 'round(249.50 * 1.26, 2)'. ALWAYS use this tool instead of doing mental math.",
+      "Evaluate mathematical expressions accurately. ALWAYS use this tool instead of doing mental math — wrong calculations destroy credibility. Supports: arithmetic (+, -, *, /, ^), functions (sqrt, abs, round, ceil, floor, log, exp, pow, min, max), constants (pi, e), and chained labeled expressions where later expressions reference earlier results. Common use cases: Position P&L: 'units * current_price - units * entry_price'. Percentage gain: '(current - entry) / entry * 100'. Trim sizing: 'round(total_units * 0.25)'. Currency conversion: 'gbp_amount * 1.26'. Cost basis per unit: 'total_cost / units'. Decay/leverage calcs: 'initial * (1 + daily_return)^days'. Thesis valuations, profit targets, stop-loss levels, portfolio weights — use this for ALL of them.",
     input_schema: {
       type: "object" as const,
       properties: {

@@ -24,6 +24,7 @@ const CORE_TOOLS = new Set([
   "web_search",
   "get_operator_context",
   "save_document_to_knowledge",
+  "calculate",
 ]);
 
 // Tool groups by domain

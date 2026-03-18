@@ -1,15 +1,16 @@
 export const maxDuration = 180;
 
-import { NextRequest } from "next/server";
-import { requireCronOrAdmin } from "@/lib/auth/require-cron";
+import { NextRequest, NextResponse } from "next/server";
+import { requireTier } from "@/lib/auth/require-tier";
 
 /**
  * Streaming prediction resolution endpoint.
  * Runs fast data-resolve first, then AI resolve, with real-time SSE progress.
+ * Available to any analyst+ user (not just cron/admin) so the resolve button works.
  */
 export async function POST(req: NextRequest) {
-  const denied = await requireCronOrAdmin(req);
-  if (denied) return denied;
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveByData } from "@/lib/predictions/engine";
-import { requireCronOrAdmin } from "@/lib/auth/require-cron";
+import { requireTier } from "@/lib/auth/require-tier";
 import { fetchAndTweetResolutions } from "@/lib/twitter/predictions";
 
 // Fast data-driven resolution - no AI, just market data comparison
-// Safe to run frequently (every 30 min)
+// Available to analyst+ users so auto-resolve on page load works
 export async function POST(req: NextRequest) {
-  const denied = await requireCronOrAdmin(req);
-  if (denied) return denied;
+  const tierCheck = await requireTier("analyst");
+  if ("response" in tierCheck) return tierCheck.response;
 
   try {
     const results = await resolveByData();
