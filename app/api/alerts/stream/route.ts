@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
 
 export async function GET() {
@@ -20,29 +20,42 @@ export async function GET() {
         }
       };
 
+      // Select only needed columns instead of SELECT *
+      const selectColumns = {
+        id: schema.alertHistory.id,
+        title: schema.alertHistory.title,
+        message: schema.alertHistory.message,
+        severity: schema.alertHistory.severity,
+        triggeredAt: schema.alertHistory.triggeredAt,
+        dismissed: schema.alertHistory.dismissed,
+      };
+
       // Send initial undismissed alerts
       const recent = await db
-        .select()
+        .select(selectColumns)
         .from(schema.alertHistory)
         .where(eq(schema.alertHistory.dismissed, 0))
-        ;
+        .orderBy(desc(schema.alertHistory.id))
+        .limit(50);
       sendEvent({ type: "init", alerts: recent });
 
-      // Poll for new alerts every 30 seconds
+      // Poll every 60s instead of 10s - alerts don't need sub-minute updates
+      // This alone cuts DB reads by 6x per connected client
       const interval = setInterval(async () => {
         if (closed) {
           clearInterval(interval);
           return;
         }
         const newAlerts = await db
-          .select()
+          .select(selectColumns)
           .from(schema.alertHistory)
           .where(eq(schema.alertHistory.dismissed, 0))
-          ;
+          .orderBy(desc(schema.alertHistory.id))
+          .limit(50);
         sendEvent({ type: "update", alerts: newAlerts });
-      }, 10_000);
+      }, 60_000);
 
-      // Keepalive
+      // Keepalive every 30s
       const keepalive = setInterval(() => {
         if (closed) {
           clearInterval(keepalive);
@@ -55,7 +68,7 @@ export async function GET() {
           clearInterval(keepalive);
           clearInterval(interval);
         }
-      }, 15_000);
+      }, 30_000);
     },
   });
 

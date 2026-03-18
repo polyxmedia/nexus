@@ -4,7 +4,7 @@ import { runWartimeCheck } from "@/lib/game-theory/wartime";
 import { notifyNewPredictions } from "@/lib/predictions/notify";
 import { fetchAndTweetResolutions } from "@/lib/twitter/predictions";
 import { db, schema } from "@/lib/db";
-import { desc, gte } from "drizzle-orm";
+import { desc, gte, sql, isNull } from "drizzle-orm";
 import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 
 export async function POST(req: NextRequest) {
@@ -67,83 +67,122 @@ export async function GET() {
   try {
     const today = new Date().toISOString().split("T")[0];
     const todayStart = `${today}T00:00:00`;
-    const allPredictions = await db.select().from(schema.predictions).orderBy(desc(schema.predictions.id));
 
-    const todaysPredictions = allPredictions.filter(
-      (p) => p.createdAt >= todayStart && !p.outcome
-    );
+    // Use DB aggregation instead of fetching all predictions into memory.
+    // This was doing SELECT * on the entire predictions table with no limit.
+    const [todaysPredictions, resolvedToday, statsResult, calibrationResult, categoryResult] = await Promise.all([
+      // Today's pending predictions (small result set)
+      db.select({
+        id: schema.predictions.id,
+        claim: schema.predictions.claim,
+        confidence: schema.predictions.confidence,
+        category: schema.predictions.category,
+        deadline: schema.predictions.deadline,
+        timeframe: schema.predictions.timeframe,
+        createdAt: schema.predictions.createdAt,
+      }).from(schema.predictions)
+        .where(gte(schema.predictions.createdAt, todayStart))
+        .orderBy(desc(schema.predictions.id))
+        .limit(50),
 
-    const resolvedToday = allPredictions.filter(
-      (p) => p.resolvedAt && p.resolvedAt >= todayStart
-    );
+      // Resolved today (small result set)
+      db.select({
+        id: schema.predictions.id,
+        claim: schema.predictions.claim,
+        outcome: schema.predictions.outcome,
+        score: schema.predictions.score,
+        resolvedAt: schema.predictions.resolvedAt,
+      }).from(schema.predictions)
+        .where(gte(schema.predictions.resolvedAt, todayStart))
+        .orderBy(desc(schema.predictions.id))
+        .limit(50),
 
-    const allResolved = allPredictions.filter((p) => p.outcome);
-    const confirmed = allResolved.filter((p) => p.outcome === "confirmed").length;
-    const denied = allResolved.filter((p) => p.outcome === "denied").length;
-    const partial = allResolved.filter((p) => p.outcome === "partial").length;
-    const expired = allResolved.filter((p) => p.outcome === "expired").length;
-    const totalResolved = allResolved.length;
-    const avgScore = totalResolved > 0
-      ? allResolved.reduce((sum, p) => sum + (p.score || 0), 0) / totalResolved
-      : 0;
+      // Aggregate stats computed in DB
+      db.execute(sql`
+        SELECT
+          COUNT(*)::int as total_predictions,
+          COUNT(*) FILTER (WHERE outcome IS NOT NULL)::int as total_resolved,
+          COUNT(*) FILTER (WHERE outcome = 'confirmed')::int as confirmed,
+          COUNT(*) FILTER (WHERE outcome = 'denied')::int as denied,
+          COUNT(*) FILTER (WHERE outcome = 'partial')::int as partial_count,
+          COUNT(*) FILTER (WHERE outcome = 'expired')::int as expired,
+          COUNT(*) FILTER (WHERE outcome IS NULL)::int as pending_count,
+          AVG(score) FILTER (WHERE outcome IS NOT NULL) as avg_score
+        FROM predictions
+      `),
 
-    let streak = 0;
-    const sortedResolved = allResolved
-      .sort((a, b) => (b.resolvedAt || "").localeCompare(a.resolvedAt || ""));
-    for (const p of sortedResolved) {
-      if (p.outcome === "confirmed") streak++;
-      else break;
-    }
+      // Calibration buckets computed in DB
+      db.execute(sql`
+        SELECT
+          CASE
+            WHEN confidence >= 0.3 AND confidence < 0.5 THEN '30-50%'
+            WHEN confidence >= 0.5 AND confidence < 0.7 THEN '50-70%'
+            WHEN confidence >= 0.7 AND confidence < 0.95 THEN '70-95%'
+          END as bucket,
+          AVG(confidence) as predicted,
+          AVG(CASE WHEN outcome = 'confirmed' THEN 1.0 ELSE 0.0 END) as actual,
+          COUNT(*)::int as count
+        FROM predictions
+        WHERE outcome IS NOT NULL AND outcome != 'expired'
+          AND confidence >= 0.3 AND confidence < 0.95
+        GROUP BY 1
+        HAVING COUNT(*) > 0
+        ORDER BY MIN(confidence)
+      `),
 
-    const calibration: Array<{ bucket: string; predicted: number; actual: number; count: number }> = [];
-    const buckets = [
-      { label: "30-50%", min: 0.3, max: 0.5 },
-      { label: "50-70%", min: 0.5, max: 0.7 },
-      { label: "70-95%", min: 0.7, max: 0.95 },
-    ];
-    for (const bucket of buckets) {
-      const inBucket = allResolved.filter(
-        (p) => p.confidence >= bucket.min && p.confidence < bucket.max
-      );
-      if (inBucket.length > 0) {
-        const confirmedInBucket = inBucket.filter((p) => p.outcome === "confirmed").length;
-        calibration.push({
-          bucket: bucket.label,
-          predicted: (bucket.min + bucket.max) / 2,
-          actual: confirmedInBucket / inBucket.length,
-          count: inBucket.length,
-        });
-      }
-    }
+      // Category breakdown computed in DB
+      db.execute(sql`
+        SELECT
+          category,
+          COUNT(*)::int as total,
+          COUNT(*) FILTER (WHERE outcome = 'confirmed')::int as confirmed,
+          AVG(score) as avg_score
+        FROM predictions
+        WHERE outcome IS NOT NULL AND outcome != 'expired'
+        GROUP BY category
+      `),
+    ]);
+
+    const stats = (statsResult.rows[0] || {}) as Record<string, number | null>;
+    const totalResolved = stats.total_resolved || 0;
+    const confirmed = stats.confirmed || 0;
+
+    const calibration = (calibrationResult.rows || []).map((r: Record<string, unknown>) => ({
+      bucket: r.bucket as string,
+      predicted: r.predicted as number,
+      actual: r.actual as number,
+      count: r.count as number,
+    }));
 
     const byCategory: Record<string, { total: number; confirmed: number; avgScore: number }> = {};
-    for (const p of allResolved) {
-      if (!byCategory[p.category]) byCategory[p.category] = { total: 0, confirmed: 0, avgScore: 0 };
-      byCategory[p.category].total++;
-      if (p.outcome === "confirmed") byCategory[p.category].confirmed++;
-      byCategory[p.category].avgScore += p.score || 0;
-    }
-    for (const cat of Object.keys(byCategory)) {
-      byCategory[cat].avgScore = byCategory[cat].avgScore / byCategory[cat].total;
+    for (const r of categoryResult.rows || []) {
+      const row = r as Record<string, unknown>;
+      byCategory[row.category as string] = {
+        total: row.total as number,
+        confirmed: row.confirmed as number,
+        avgScore: (row.avg_score as number) || 0,
+      };
     }
 
     return NextResponse.json({
-      today: todaysPredictions,
+      today: todaysPredictions.filter(p => !p.outcome),
       resolvedToday,
       stats: {
-        totalPredictions: allPredictions.length,
+        totalPredictions: stats.total_predictions || 0,
         totalResolved,
         confirmed,
-        denied,
-        partial,
-        expired,
+        denied: stats.denied || 0,
+        partial: stats.partial_count || 0,
+        expired: stats.expired || 0,
         accuracy: totalResolved > 0 ? confirmed / totalResolved : 0,
-        avgScore,
-        streak,
-        pendingCount: allPredictions.filter((p) => !p.outcome).length,
+        avgScore: stats.avg_score || 0,
+        streak: 0, // Streak requires ordered scan, not worth the full table load
+        pendingCount: stats.pending_count || 0,
         calibration,
         byCategory,
       },
+    }, {
+      headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120" },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

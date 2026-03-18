@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 import { requireTier } from "@/lib/auth/require-tier";
 import { db, schema } from "@/lib/db";
-import { sql, isNotNull, ne } from "drizzle-orm";
+import { sql, isNotNull } from "drizzle-orm";
 
 export async function GET() {
   const tierCheck = await requireTier("analyst");
@@ -15,9 +15,19 @@ export async function GET() {
   }
 
   try {
-    // Get all resolved predictions with user attribution
+    // Select only needed columns instead of SELECT * on entire predictions table
     const predictions = await db
-      .select()
+      .select({
+        claim: schema.predictions.claim,
+        confidence: schema.predictions.confidence,
+        outcome: schema.predictions.outcome,
+        score: schema.predictions.score,
+        category: schema.predictions.category,
+        createdAt: schema.predictions.createdAt,
+        createdBy: schema.predictions.createdBy,
+        preEvent: schema.predictions.preEvent,
+        regimeInvalidated: schema.predictions.regimeInvalidated,
+      })
       .from(schema.predictions)
       .where(isNotNull(schema.predictions.createdBy));
 
@@ -73,7 +83,6 @@ export async function GET() {
         else if (p.outcome === "denied") u.denied++;
         else if (p.outcome === "partial") u.partial++;
 
-        // Brier score: only for pre-event, non-invalidated
         if (p.preEvent === 1 && !p.regimeInvalidated) {
           const outcomeVal = p.outcome === "confirmed" ? 1 : p.outcome === "denied" ? 0 : 0.5;
           const brier = Math.pow(p.confidence - outcomeVal, 2);
@@ -81,7 +90,6 @@ export async function GET() {
           u.brierCount++;
         }
 
-        // Category tracking
         const cat = p.category;
         if (!u.categories[cat]) u.categories[cat] = { total: 0, correct: 0 };
         u.categories[cat].total++;
@@ -90,7 +98,6 @@ export async function GET() {
         u.expired++;
       }
 
-      // Keep last 5 predictions for preview
       u.recentPredictions.push({
         claim: p.claim,
         confidence: p.confidence,
@@ -101,24 +108,17 @@ export async function GET() {
       });
     }
 
-    // Build leaderboard entries
     const leaderboard = Array.from(userMap.values())
       .map((u) => {
         const brier = u.brierCount >= 5 ? u.brierSum / u.brierCount : null;
         const accuracy = u.resolved > 0 ? u.confirmed / u.resolved : null;
         const avgConfidence = u.total > 0 ? u.confidenceSum / u.total : 0;
-
-        // Calibration gap: |avgConfidence - accuracy|
         const calibrationGap = accuracy !== null ? Math.abs(avgConfidence - accuracy) : null;
-
-        // Rank score: lower brier is better. If not enough data, use accuracy
         const rankScore = brier !== null ? 1 - brier : accuracy !== null ? accuracy * 0.5 : 0;
 
-        // Sort recent predictions by date desc, take 5
         u.recentPredictions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
         const recent = u.recentPredictions.slice(0, 5);
 
-        // Best category
         let bestCategory: string | null = null;
         let bestCategoryAccuracy = 0;
         for (const [cat, data] of Object.entries(u.categories)) {
@@ -152,7 +152,6 @@ export async function GET() {
       })
       .sort((a, b) => b.rankScore - a.rankScore);
 
-    // Calculate percentiles
     const total = leaderboard.length;
     const ranked = leaderboard.map((entry, i) => ({
       ...entry,
@@ -165,6 +164,8 @@ export async function GET() {
       leaderboard: ranked,
       totalAnalysts: total,
       totalPredictions: predictions.length,
+    }, {
+      headers: { "Cache-Control": "private, s-maxage=120, stale-while-revalidate=300" },
     });
   } catch (err) {
     console.error("[Leaderboard] Error:", err);

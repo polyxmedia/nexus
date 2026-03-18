@@ -241,6 +241,8 @@ export async function GET() {
         predictionAccuracy: Math.round(predictionAccuracy * 10) / 10,
       },
       recentSubscriptions,
+    }, {
+      headers: { "Cache-Control": "private, s-maxage=120, stale-while-revalidate=300" },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
