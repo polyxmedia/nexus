@@ -328,7 +328,8 @@ export default function PredictionsPage() {
   }, [fetchPredictions, fetchFeedback]);
 
   useEffect(() => {
-    if (predictions.length > 0 && !hasAutoResolved.current) autoResolve(predictions);
+    // Auto-resolve disabled: too slow on page load, use the Resolve button instead
+    // if (predictions.length > 0 && !hasAutoResolved.current) autoResolve(predictions);
   }, [predictions, autoResolve]);
 
   useEffect(() => {
