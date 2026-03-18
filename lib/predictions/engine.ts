@@ -2338,30 +2338,39 @@ async function executeResolutionTool(
 }
 
 export async function resolvePredictions(): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
+  console.log("[resolvePredictions] *** FUNCTION CALLED ***");
   const anthropicKey = await getAnthropicKey();
   const alphaVantageKey = await getAlphaVantageKey();
   const today = new Date().toISOString().split("T")[0];
+  console.log(`[resolvePredictions] today="${today}", anthropicKey=${anthropicKey ? "SET" : "MISSING"}`);
 
   // Auto-expire stale predictions first
-  await autoExpirePastDeadline();
+  const expired = await autoExpirePastDeadline();
+  console.log(`[resolvePredictions] autoExpire done, expired=${expired}`);
 
   // Check for regime invalidations
-  await invalidateOnRegimeChange();
+  const invalidated = await invalidateOnRegimeChange();
+  console.log(`[resolvePredictions] regimeInvalidation done, invalidated=${invalidated}`);
 
   const pending = await db
     .select()
     .from(schema.predictions)
     .where(isNull(schema.predictions.outcome));
 
+  console.log(`[resolvePredictions] pending count: ${pending.length}`);
+
   if (pending.length === 0) {
-    console.log("[resolvePredictions] No pending predictions found");
+    console.log("[resolvePredictions] EXITING: No pending predictions found");
     return [];
   }
 
   // Only resolve predictions whose deadline has passed
   const due = pending.filter((p) => p.deadline <= today);
-  console.log(`[resolvePredictions] today=${today}, pending=${pending.length}, due=${due.length}, deadlines=${pending.slice(0, 5).map(p => p.deadline).join(", ")}`);
-  if (due.length === 0) return [];
+  console.log(`[resolvePredictions] due=${due.length}, sample: ${pending.slice(0, 5).map(p => `#${p.id}:deadline="${p.deadline}"${p.deadline <= today ? " DUE" : ""}`).join(", ")}`);
+  if (due.length === 0) {
+    console.log("[resolvePredictions] EXITING: No due predictions (all deadlines in future)");
+    return [];
+  }
 
   // ── Build prediction context for the resolver ──
   const predictionsText = due.map((p) => {

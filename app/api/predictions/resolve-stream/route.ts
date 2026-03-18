@@ -29,11 +29,15 @@ export async function POST(req: NextRequest) {
       try {
         const engine = await import("@/lib/predictions/engine");
 
-        // ── Phase 1: Fast data-driven resolve ──
-        send("step", { id: "fast-init", label: "Starting data-driven resolution (no AI)", status: "running" });
+        // ── Phase 1: Fast data-driven resolve (30s timeout to avoid blocking AI resolver) ──
+        send("step", { id: "fast-init", label: "Starting data-driven resolution (no AI, 30s timeout)", status: "running" });
 
         try {
-          const fastResults = await engine.resolveByData();
+          const fastPromise = engine.resolveByData();
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 30_000)
+          );
+          const fastResults = await Promise.race([fastPromise, timeoutPromise]).catch(() => [] as Awaited<ReturnType<typeof engine.resolveByData>>);
           if (fastResults.length > 0) {
             totalResolved += fastResults.length;
             allResults.push(...fastResults);
@@ -42,11 +46,11 @@ export async function POST(req: NextRequest) {
             }
             send("step", { id: "fast-done", label: `Data resolver: ${fastResults.length} prediction${fastResults.length !== 1 ? "s" : ""} resolved`, status: "done" });
           } else {
-            send("step", { id: "fast-done", label: "Data resolver: no market predictions eligible for data-only resolution", status: "done" });
+            send("step", { id: "fast-done", label: "Data resolver: no predictions resolved (or timed out)", status: "done" });
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Unknown error";
-          send("step", { id: "fast-err", label: `Data resolver failed: ${msg}`, status: "warn" });
+          send("step", { id: "fast-err", label: `Data resolver: ${msg}`, status: "warn" });
         }
 
         // ── Phase 2: Auto-expire stale predictions ──
@@ -66,9 +70,11 @@ export async function POST(req: NextRequest) {
 
         // ── Phase 3: AI-powered resolution for remaining ──
         send("step", { id: "ai-init", label: "Starting AI resolver for remaining overdue predictions", status: "running" });
+        console.log("[resolve-stream] Phase 3: calling resolvePredictions()...");
 
         try {
           const aiResults = await engine.resolvePredictions();
+          console.log(`[resolve-stream] Phase 3 result: ${aiResults.length} resolved`);
           if (aiResults.length > 0) {
             totalResolved += aiResults.length;
             allResults.push(...aiResults);
