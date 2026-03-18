@@ -1664,7 +1664,8 @@ Output a brief devil's advocate summary (max 300 words).`;
     }
 
     // Validate category
-    const category = ["market", "geopolitical", "celestial"].includes(p.category)
+    // Celestial is narrative context only, not a prediction category
+    const category = ["market", "geopolitical"].includes(p.category)
       ? p.category
       : "market";
 

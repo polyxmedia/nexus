@@ -46,6 +46,7 @@ import {
   GraduationCap,
   Lightbulb,
   X,
+  Zap,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -78,6 +79,7 @@ const intelligenceNav: NavItem[] = [
 ];
 
 const toolsNav: NavItem[] = [
+  { name: "Automations", href: "/automations", icon: Zap },
   { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
   { name: "Timeline", href: "/timeline", icon: Clock },
   { name: "Graph", href: "/graph", icon: Network },
