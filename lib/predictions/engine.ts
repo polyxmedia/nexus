@@ -2353,10 +2353,14 @@ export async function resolvePredictions(): Promise<Array<{ id: number; outcome:
     .from(schema.predictions)
     .where(isNull(schema.predictions.outcome));
 
-  if (pending.length === 0) return [];
+  if (pending.length === 0) {
+    console.log("[resolvePredictions] No pending predictions found");
+    return [];
+  }
 
   // Only resolve predictions whose deadline has passed
   const due = pending.filter((p) => p.deadline <= today);
+  console.log(`[resolvePredictions] today=${today}, pending=${pending.length}, due=${due.length}, deadlines=${pending.slice(0, 5).map(p => p.deadline).join(", ")}`);
   if (due.length === 0) return [];
 
   // ── Build prediction context for the resolver ──

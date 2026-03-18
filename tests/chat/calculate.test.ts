@@ -817,5 +817,448 @@ describe("calculate tool", () => {
       const r = result as CalcResponse;
       expect(r.results[0].result).toContain("ERROR:");
     });
+
+    it("blocked functions are inaccessible (derivative)", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "hack", expr: "derivative('x^2', 'x')" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+    });
+
+    it("blocked functions are inaccessible (simplify)", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "hack", expr: "simplify('2x + 3x')" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+    });
+
+    it("blocked functions are inaccessible (compile)", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "hack", expr: "compile('1+1')" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+    });
+
+    it("cannot construct objects", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "hack", expr: "{}['constructor']" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+    });
+  });
+
+  // ── NaN Propagation ──
+
+  describe("NaN propagation through scope", () => {
+    it("failed expression sets NaN in scope so downstream gets NaN not undefined error", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "bad", expr: "2 @@ 3" },
+          { label: "downstream", expr: "bad + 10" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+      // downstream should compute as NaN (not ERROR about undefined symbol)
+      expect(r.results[1].result).toBeNaN();
+    });
+
+    it("NaN propagates through multiple levels", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "broken", expr: "2 @@ 3" },
+          { label: "level2", expr: "broken * 5" },
+          { label: "level3", expr: "level2 + 100" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[1].result).toBeNaN();
+      expect(r.results[2].result).toBeNaN();
+    });
+
+    it("NaN in scope does not affect independent expressions", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "broken", expr: "2 @@ 3" },
+          { label: "independent", expr: "42 + 8" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+      expect(r.results[1].result).toBe(50);
+    });
+  });
+
+  // ── Infinity Arithmetic ──
+
+  describe("infinity handling", () => {
+    it("Infinity + number = Infinity", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "inf", expr: "1 / 0" },
+          { label: "added", expr: "inf + 100" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[1].result).toBe(Infinity);
+    });
+
+    it("negative Infinity from negative division", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "neg_inf", expr: "-1 / 0" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(-Infinity);
+    });
+
+    it("Infinity - Infinity = NaN", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "a", expr: "1 / 0" },
+          { label: "b", expr: "1 / 0" },
+          { label: "diff", expr: "a - b" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBeNaN();
+    });
+  });
+
+  // ── Modulo & Additional Operators ──
+
+  describe("additional operators", () => {
+    it("handles modulo", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "mod", expr: "17 % 5" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(2);
+    });
+
+    it("handles factorial", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "fact", expr: "5!" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(120);
+    });
+
+    it("handles unary minus", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "neg", expr: "-(3 + 4)" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(-7);
+    });
+  });
+
+  // ── Trigonometric Functions ──
+
+  describe("trigonometric functions", () => {
+    it("handles sin", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "s", expr: "sin(0)" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(0);
+    });
+
+    it("handles cos", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "c", expr: "cos(0)" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(1);
+    });
+
+    it("handles sin(pi) is approximately 0", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "s", expr: "sin(pi)" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBeCloseTo(0, 10);
+    });
+
+    it("handles atan2", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "a", expr: "atan2(1, 1)" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBeCloseTo(Math.PI / 4, 10);
+    });
+  });
+
+  // ── Label Edge Cases ──
+
+  describe("label edge cases", () => {
+    it("labels with underscores and numbers", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "price_1", expr: "100" },
+          { label: "price_2", expr: "200" },
+          { label: "avg_price", expr: "(price_1 + price_2) / 2" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBe(150);
+    });
+
+    it("duplicate labels overwrite in scope", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "x", expr: "10" },
+          { label: "x", expr: "20" },
+          { label: "result", expr: "x + 1" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBe(21);
+    });
+
+    it("label can shadow mathjs constants if used deliberately", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "e", expr: "100" },
+          { label: "result", expr: "e + 1" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[1].result).toBe(101);
+    });
+  });
+
+  // ── Malformed Input ──
+
+  describe("malformed input", () => {
+    it("handles empty string expression (returns NaN)", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "empty", expr: "" }],
+      });
+      const r = result as CalcResponse;
+      // mathjs returns undefined for empty string, which converts to NaN
+      expect(r.results[0].result).toBeNaN();
+    });
+
+    it("handles whitespace-only expression (returns NaN)", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "ws", expr: "   " }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBeNaN();
+    });
+
+    it("handles expression with only operators", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "ops", expr: "+" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+    });
+
+    it("handles unbalanced parentheses", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "unbal", expr: "((2 + 3)" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toContain("ERROR:");
+    });
+
+    it("handles non-string expressions array items gracefully", async () => {
+      const result = await executeTool("calculate", {
+        expressions: "not an array",
+      });
+      const r = result as CalcResponse;
+      expect(r.error).toBeTruthy();
+    });
+  });
+
+  // ── Additional Financial Scenarios ──
+
+  describe("advanced financial calculations", () => {
+    it("calculates compound interest", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "principal", expr: "10000" },
+          { label: "rate", expr: "0.07" },
+          { label: "years", expr: "10" },
+          { label: "final_value", expr: "principal * (1 + rate)^years" },
+          { label: "total_interest", expr: "final_value - principal" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[3].result).toBeCloseTo(19671.51, 0);
+      expect(r.results[4].result).toBeCloseTo(9671.51, 0);
+    });
+
+    it("calculates annualized return from total return", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "start_val", expr: "10000" },
+          { label: "end_val", expr: "15000" },
+          { label: "years", expr: "3" },
+          { label: "total_return", expr: "(end_val - start_val) / start_val" },
+          { label: "annualized", expr: "(1 + total_return)^(1/years) - 1" },
+          { label: "annualized_pct", expr: "annualized * 100" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[3].result).toBeCloseTo(0.5, 2);
+      expect(r.results[5].result).toBeCloseTo(14.47, 1);
+    });
+
+    it("calculates Sharpe ratio", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "portfolio_return", expr: "0.12" },
+          { label: "risk_free_rate", expr: "0.04" },
+          { label: "portfolio_std", expr: "0.15" },
+          { label: "sharpe", expr: "(portfolio_return - risk_free_rate) / portfolio_std" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[3].result).toBeCloseTo(0.5333, 3);
+    });
+
+    it("calculates max drawdown percentage", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "peak", expr: "85.50" },
+          { label: "trough", expr: "61.20" },
+          { label: "drawdown_pct", expr: "(peak - trough) / peak * 100" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBeCloseTo(28.42, 1);
+    });
+
+    it("calculates dollar cost averaging", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "invest_per_month", expr: "500" },
+          { label: "months", expr: "4" },
+          { label: "total_invested", expr: "invest_per_month * months" },
+          { label: "units_m1", expr: "500 / 64.55" },
+          { label: "units_m2", expr: "500 / 61.20" },
+          { label: "units_m3", expr: "500 / 66.80" },
+          { label: "units_m4", expr: "500 / 70.10" },
+          { label: "total_units", expr: "units_m1 + units_m2 + units_m3 + units_m4" },
+          { label: "avg_cost", expr: "total_invested / total_units" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBe(2000);
+      expect(r.results[8].result).toBeCloseTo(65.52, 0);
+    });
+
+    it("calculates margin requirement and leverage", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "position_size", expr: "50000" },
+          { label: "margin_pct", expr: "20" },
+          { label: "margin_required", expr: "position_size * margin_pct / 100" },
+          { label: "leverage", expr: "position_size / margin_required" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBe(10000);
+      expect(r.results[3].result).toBe(5);
+    });
+
+    it("calculates position sizing from risk budget", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "portfolio", expr: "50000" },
+          { label: "risk_pct", expr: "2" },
+          { label: "risk_budget", expr: "portfolio * risk_pct / 100" },
+          { label: "entry", expr: "64.55" },
+          { label: "stop", expr: "60.00" },
+          { label: "risk_per_unit", expr: "entry - stop" },
+          { label: "max_units", expr: "floor(risk_budget / risk_per_unit)" },
+          { label: "position_value", expr: "max_units * entry" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBe(1000);
+      expect(r.results[5].result).toBeCloseTo(4.55, 2);
+      expect(r.results[6].result).toBe(219);
+      expect(r.results[7].result).toBeCloseTo(14136.45, 0);
+    });
+
+    it("calculates options breakeven (call)", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "strike", expr: "100" },
+          { label: "premium", expr: "5.50" },
+          { label: "contracts", expr: "10" },
+          { label: "breakeven", expr: "strike + premium" },
+          { label: "total_cost", expr: "premium * contracts * 100" },
+          { label: "profit_at_120", expr: "(120 - breakeven) * contracts * 100" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[3].result).toBe(105.5);
+      expect(r.results[4].result).toBe(5500);
+      expect(r.results[5].result).toBe(14500);
+    });
+  });
+
+  // ── Comparison / Boolean Results ──
+
+  describe("comparison operators", () => {
+    it("handles greater than", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "cmp", expr: "10 > 5" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(1); // mathjs returns 1 for true
+    });
+
+    it("handles less than", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "cmp", expr: "3 < 7" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(1);
+    });
+
+    it("handles equality", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "eq", expr: "5 == 5" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(1);
+    });
+
+    it("false comparison returns 0", async () => {
+      const result = await executeTool("calculate", {
+        expressions: [{ label: "cmp", expr: "10 < 5" }],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[0].result).toBe(0);
+    });
+  });
+
+  // ── Conditional Logic ──
+
+  describe("conditional expressions", () => {
+    it("ternary-style with comparison for stop-loss check", async () => {
+      // mathjs doesn't have ternary, but comparisons return 0/1
+      // which can be used in arithmetic for conditional logic
+      const result = await executeTool("calculate", {
+        expressions: [
+          { label: "price", expr: "58.00" },
+          { label: "stop", expr: "60.00" },
+          { label: "below_stop", expr: "price < stop" },
+          { label: "action_signal", expr: "below_stop * 1" },
+        ],
+      });
+      const r = result as CalcResponse;
+      expect(r.results[2].result).toBe(1); // true: price is below stop
+      expect(r.results[3].result).toBe(1);
+    });
   });
 });
