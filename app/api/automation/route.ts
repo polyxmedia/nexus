@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         triggerConfig: body.triggerConfig || {},
         actions: body.actions,
         cooldownMinutes: body.cooldownMinutes || 30,
-        createdBy: session?.user?.name || null,
+        createdBy: session?.user?.name || undefined,
       });
       return NextResponse.json({ rule });
     }

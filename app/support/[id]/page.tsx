@@ -184,6 +184,16 @@ export default function TicketDetailPage() {
           <div className="flex items-start justify-between mb-3">
             <h2 className="text-base font-medium text-navy-100">{ticket.title}</h2>
             <div className="flex items-center gap-2">
+              {!isClosed && (
+                <button
+                  onClick={closeTicket}
+                  disabled={closing}
+                  className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded border border-navy-700/40 text-navy-400 hover:text-navy-200 hover:border-navy-600 transition-colors disabled:opacity-40"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  {closing ? "Closing..." : "Close Ticket"}
+                </button>
+              )}
               <span className={`text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${statusCfg.bg} ${statusCfg.color}`}>
                 {statusCfg.label}
               </span>

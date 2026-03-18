@@ -18,7 +18,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 export const viewport = {
   viewportFit: 'cover' as const,
   initialScale: 1,
-  userScalable: true,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export const metadata: Metadata = {

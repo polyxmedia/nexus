@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, ArrowRight, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, Target, Shield, Sun, Moon, Send, MessageSquare } from "lucide-react";
+import { X, ArrowRight, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, MinusCircle, Target, Shield, Sun, Moon, Send, MessageSquare } from "lucide-react";
 import { Metric } from "@/components/ui/metric";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
@@ -221,7 +221,9 @@ function PredictionsWidget() {
   const confirmed = resolved.filter((p) => p.outcome === "confirmed").length;
   const denied = resolved.filter((p) => p.outcome === "denied").length;
   const partial = resolved.filter((p) => p.outcome === "partial").length;
-  const avg = resolved.length > 0 ? resolved.reduce((s, p) => s + (p.score || 0), 0) / resolved.length : 0;
+  const expired = resolved.filter((p) => p.outcome === "expired").length;
+  const scored = resolved.filter((p) => p.score != null);
+  const avg = scored.length > 0 ? scored.reduce((s, p) => s + (p.score || 0), 0) / scored.length : 0;
 
   const rows: { icon: ReactNode; label: string; value: string | number; color?: string; separator?: boolean }[] = [
     { icon: <Clock className="h-3.5 w-3.5 text-accent-cyan" />, label: "Pending", value: pending.length },
@@ -230,8 +232,9 @@ function PredictionsWidget() {
     { icon: <CheckCircle2 className="h-3.5 w-3.5 text-accent-emerald" />, label: "Confirmed", value: confirmed, color: "text-accent-emerald" },
     { icon: <XCircle className="h-3.5 w-3.5 text-navy-500" />, label: "Denied", value: denied, color: "text-navy-400" },
     { icon: <Target className="h-3.5 w-3.5 text-accent-amber" />, label: "Partial", value: partial, color: "text-accent-amber" },
+    { icon: <MinusCircle className="h-3.5 w-3.5 text-navy-600" />, label: "Expired", value: expired, color: "text-navy-500" },
     { icon: null, label: "", value: "", separator: true },
-    { icon: <Shield className="h-3.5 w-3.5 text-navy-400" />, label: "Avg Score", value: resolved.length > 0 ? `${(avg * 100).toFixed(0)}%` : "N/A", color: avg >= 0.6 ? "text-accent-emerald" : avg > 0 ? "text-accent-amber" : "text-navy-400" },
+    { icon: <Shield className="h-3.5 w-3.5 text-navy-400" />, label: "Avg Score", value: scored.length > 0 ? `${(avg * 100).toFixed(0)}%` : "N/A", color: avg >= 0.6 ? "text-accent-emerald" : avg > 0 ? "text-accent-amber" : "text-navy-400" },
   ];
 
   return (

@@ -290,7 +290,7 @@ export function ChatInput({
           rows={1}
           className={cn(
             "w-full resize-none bg-transparent px-4 pt-3 pb-2",
-            "text-sm text-navy-100 font-mono placeholder:text-navy-600",
+            "text-[16px] md:text-sm text-navy-100 font-mono placeholder:text-navy-600",
             "focus:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
