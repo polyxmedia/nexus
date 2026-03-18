@@ -499,6 +499,16 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "simulate_scenario_impact",
+    description:
+      "Simulate how geopolitical scenarios would impact the user's portfolio. Runs all 10 game theory scenarios (Iran Nuclear, Taiwan Strait, OPEC, Russia-Ukraine, etc.) against actual portfolio positions and shows estimated P&L impact per scenario. Use when the user asks 'what if', 'how would X affect my portfolio', 'scenario analysis', 'stress test my positions', or 'geopolitical risk to my portfolio'. Zero AI cost, pure computation.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: "extract_osint_entities",
     description:
       "Run entity extraction on recent OSINT news. Returns actors, locations, topics, tickers, and scenario matches from global news monitoring. Automatically links entities to the knowledge graph.",
@@ -1439,6 +1449,9 @@ export async function executeTool(
       return executeGetOptionsFlow(input);
     case "get_portfolio_risk":
       return executeGetPortfolioRisk();
+    case "simulate_scenario_impact":
+      if (!context) return { error: "No user context available" };
+      return executeSimulateScenarioImpact(context);
     case "extract_osint_entities":
       return executeExtractOsintEntities(input);
     case "get_ai_progression":
@@ -2869,6 +2882,72 @@ async function executeGetPortfolioRisk() {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Portfolio risk failed: ${message}` };
+  }
+}
+
+async function executeSimulateScenarioImpact(context: ToolContext) {
+  try {
+    const { simulateScenarioImpacts } = await import("@/lib/portfolio/scenario-impact");
+    // Get user positions from DB
+    const { db: database, schema: dbSchema } = await import("@/lib/db");
+    const { eq: eqOp } = await import("drizzle-orm");
+
+    const positions: Array<{ ticker: string; value: number }> = [];
+
+    // Manual positions
+    const manual = await database.select().from(dbSchema.manualPositions)
+      .where(eqOp(dbSchema.manualPositions.userId, context.username));
+    for (const p of manual) {
+      if (!p.closedAt && p.quantity && p.avgCost) {
+        positions.push({ ticker: p.ticker, value: p.quantity * p.avgCost });
+      }
+    }
+
+    // Unified positions (broker sync)
+    const unified = await database.select().from(dbSchema.unifiedPositions)
+      .where(eqOp(dbSchema.unifiedPositions.userId, context.username));
+    for (const p of unified) {
+      if (p.marketValue && p.marketValue > 0) {
+        positions.push({ ticker: p.normalizedSymbol || p.symbol, value: p.marketValue });
+      }
+    }
+
+    if (positions.length === 0) {
+      return { error: "No portfolio positions found. Add positions to your portfolio first." };
+    }
+
+    const scenarios = simulateScenarioImpacts(positions);
+    const portfolioValue = positions.reduce((s, p) => s + p.value, 0);
+
+    return {
+      portfolioValue: Math.round(portfolioValue),
+      positionCount: positions.length,
+      scenarioCount: scenarios.length,
+      scenarios: scenarios.slice(0, 5).map((s) => ({
+        scenario: s.scenarioTitle,
+        direction: s.direction,
+        confidence: Math.round(s.confidence * 100),
+        impactPercent: Math.round(s.portfolioImpact.totalImpactPercent * 100) / 100,
+        impactDollar: Math.round(s.portfolioImpact.totalImpactDollar),
+        keySectors: s.keySectors,
+        mostLikelyOutcome: s.mostLikelyOutcome,
+        topPositionImpacts: s.portfolioImpact.positionImpacts.slice(0, 5).map((p) => ({
+          ticker: p.ticker,
+          currentValue: Math.round(p.currentValue),
+          shockPercent: Math.round(p.shock * 100),
+          impactDollar: Math.round(p.impactDollar),
+        })),
+        escalationRisk: s.escalationLadder.length > 0 ? s.escalationLadder.map((e) => ({
+          level: e.level,
+          description: e.description,
+          probability: Math.round(e.probability * 100),
+          portfolioImpactPercent: Math.round(e.portfolioImpactPercent * 100) / 100,
+        })) : undefined,
+      })),
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Scenario impact simulation failed: ${message}` };
   }
 }
 

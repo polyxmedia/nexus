@@ -110,6 +110,7 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "monte_carlo_simulation": "operator",
   "get_portfolio": "operator",
   "get_portfolio_risk": "operator",
+  "simulate_scenario_impact": "operator",
   "get_macro_data": "operator",
   "analyze_central_bank_statement": "operator",
   "create_ach_analysis": "operator",

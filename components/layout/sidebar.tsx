@@ -43,6 +43,7 @@ import {
   Users,
   Bug,
   Briefcase,
+  GraduationCap,
   Lightbulb,
   X,
 } from "lucide-react";
@@ -82,6 +83,7 @@ const toolsNav: NavItem[] = [
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Alerts", href: "/alerts", icon: Bell },
   { name: "Jobs", href: "/jobs", icon: Briefcase },
+  { name: "Training", href: "/training", icon: GraduationCap },
   { name: "Support", href: "/support", icon: LifeBuoy },
 ];
 
