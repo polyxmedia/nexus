@@ -426,52 +426,67 @@ export default function PredictionsPage() {
   const aiResolve = async () => {
     setResolving(true);
     setStatusMessage(null);
+    setResolveSteps([]);
+    setResolveError(null);
+    setResolveComplete(false);
+    setResolveResultCount(undefined);
 
-    // Phase 1: Fast data-driven resolve (instant, no AI)
-    let fastCount = 0;
     try {
-      const fastRes = await fetch("/api/predictions/fast-resolve", { method: "POST" });
-      const fastData = await fastRes.json();
-      fastCount = fastData.resolved || 0;
-      if (fastCount > 0) {
-        setStatusMessage({ text: `Resolved ${fastCount} from market data. Running AI resolver for remaining...`, type: "info" });
-        fetchPredictions();
-      } else {
-        setStatusMessage({ text: "Running AI resolver (this can take 1-2 min)...", type: "info" });
+      const res = await fetch("/api/predictions/resolve-stream", { method: "POST" });
+      if (!res.ok) {
+        const text = await res.text();
+        try { const data = JSON.parse(text); setResolveError(data.error || `Resolution failed (${res.status})`); }
+        catch { setResolveError(`Resolution failed (${res.status})`); }
+        setResolving(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) { setResolveError("No response stream"); setResolving(false); return; }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let eventType = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith("data: ") && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (eventType === "step") {
+                setResolveSteps(prev => {
+                  const existing = prev.findIndex(s => s.id === data.id && s.status === "running");
+                  if (existing >= 0 && data.status !== "running") {
+                    const updated = [...prev];
+                    updated[existing] = { ...data, timestamp: updated[existing].timestamp };
+                    return updated;
+                  }
+                  return [...prev, { ...data, timestamp: Date.now() }];
+                });
+              } else if (eventType === "complete") {
+                setResolveComplete(true);
+                setResolveResultCount(data.count);
+                fetchPredictions();
+                fetchFeedback();
+              } else if (eventType === "error") {
+                setResolveError(data.message);
+              }
+            } catch { /* skip malformed JSON */ }
+            eventType = "";
+          }
+        }
       }
     } catch {
-      // Fast resolve failed, continue to AI resolve
-    }
-
-    // Phase 2: AI-driven resolve with timeout
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180_000); // 3 min timeout
-      const res = await fetch("/api/predictions/resolve", { method: "POST", signal: controller.signal });
-      clearTimeout(timeoutId);
-      const data = await res.json();
-      if (data.error) {
-        setStatusMessage({ text: data.error, type: "error" });
-      } else if (data.count === 0 && fastCount === 0) {
-        setStatusMessage({ text: "No predictions past deadline to resolve", type: "info" });
-      } else {
-        const totalResolved = (data.count || 0) + fastCount;
-        setStatusMessage({ text: `Resolved ${totalResolved} prediction${totalResolved > 1 ? "s" : ""} total`, type: "success" });
-        fetchPredictions();
-        fetchFeedback();
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        setStatusMessage({
-          text: fastCount > 0
-            ? `Resolved ${fastCount} from data. AI resolver timed out for remaining -- they'll resolve on next cron run.`
-            : "AI resolver timed out. Predictions will resolve automatically on the next scheduled run.",
-          type: fastCount > 0 ? "info" : "error",
-        });
-        if (fastCount > 0) fetchPredictions();
-      } else {
-        setStatusMessage({ text: "Failed to resolve predictions", type: "error" });
-      }
+      setResolveError("Connection lost during resolution");
     } finally {
       setResolving(false);
     }
@@ -907,7 +922,18 @@ export default function PredictionsPage() {
           resultCount={terminalResultCount}
         />
       )}
-      {statusMessage && terminalSteps.length === 0 && (
+      {(resolveSteps.length > 0 || resolveError) && (
+        <GenerationTerminal
+          steps={resolveSteps}
+          error={resolveError}
+          complete={resolveComplete}
+          resultCount={resolveResultCount}
+          title="Resolution Engine"
+          completeLabel={resolveResultCount !== undefined ? `${resolveResultCount} prediction${resolveResultCount !== 1 ? "s" : ""} resolved` : undefined}
+          emptyLabel="No predictions eligible for resolution"
+        />
+      )}
+      {statusMessage && terminalSteps.length === 0 && resolveSteps.length === 0 && (
         <div className={`mb-4 rounded-md border px-3 py-2 text-xs ${
           statusMessage.type === "error" ? "border-accent-rose/30 bg-accent-rose/5 text-accent-rose"
           : statusMessage.type === "success" ? "border-accent-emerald/30 bg-accent-emerald/5 text-accent-emerald"
