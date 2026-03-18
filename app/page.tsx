@@ -929,7 +929,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
-            {tiers.map((tier) => (
+            {tiers.filter((t) => t.name !== "Institution").map((tier) => (
               <div
                 key={tier.name}
                 className={`relative rounded-lg p-6 transition-all duration-500 ${

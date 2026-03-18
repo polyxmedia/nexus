@@ -151,7 +151,7 @@ function CreditTable() {
     ? dbTiers.map((t) => ({
         name: t.name,
         credits: t.features.find((f: string) => f.toLowerCase().includes("credit"))?.replace(/[^0-9,]+/g, "").trim() || "N/A",
-        price: t.price > 0 ? `$${t.price}/mo` : "Custom",
+        price: t.price > 0 ? `$${(t.price / 100).toFixed(2)}/mo` : "Custom",
         perCredit: "N/A",
         highlight: t.highlighted,
       }))
