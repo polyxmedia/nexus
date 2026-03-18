@@ -19,6 +19,11 @@ const ALLOWED_CONFIG_KEYS = new Set([
   "bottomLeft", "bottomRight",
   "titleSize", "subtitleSize",
   "radarColor", "radarOpacity", "radarSize",
+  "backgroundImage", "backgroundOverlay",
+  "gradientEnabled", "gradientFrom", "gradientTo", "gradientAngle",
+  "labelSize", "topBarColor", "bottomBarColor",
+  "titleWeight", "tagSize",
+  "contentPaddingLeft",
 ]);
 
 function sanitizeConfig(raw: unknown): Record<string, unknown> | null {
@@ -153,9 +158,17 @@ The config schema:
   "tags": [{tag: string, color: string}],  // Signal layer tags
   "accentColor": string,     // Primary accent (hex)
   "backgroundColor": string, // Background (hex)
+  "backgroundImage": string, // Background image URL (empty string for none)
+  "backgroundOverlay": number, // Dark overlay opacity on background image (0-1)
+  "gradientEnabled": boolean,  // Use gradient background instead of solid
+  "gradientFrom": string,     // Gradient start color (hex)
+  "gradientTo": string,       // Gradient end color (hex)
+  "gradientAngle": number,    // Gradient angle in degrees (0-360)
   "titleColor": string,      // Title text color (hex)
   "subtitleColor": string,   // Subtitle text color (hex)
   "labelColor": string,      // Label text color (hex)
+  "topBarColor": string,     // Top bar text color (hex)
+  "bottomBarColor": string,  // Bottom bar text color (hex)
   "showGrid": boolean,       // Show grid overlay
   "showAccentLine": boolean, // Show left accent line
   "showRadar": boolean,      // Show radar graphic
@@ -163,8 +176,12 @@ The config schema:
   "gridOpacity": number,     // Grid line opacity (0-1)
   "bottomLeft": string,      // Bottom left text
   "bottomRight": string,     // Bottom right text
-  "titleSize": number,       // Title font size
-  "subtitleSize": number,    // Subtitle font size
+  "titleSize": number,       // Title font size (28-80)
+  "titleWeight": number,     // Title font weight (400-900)
+  "subtitleSize": number,    // Subtitle font size (10-28)
+  "labelSize": number,       // Label font size (10-20)
+  "tagSize": number,         // Tag font size (9-18)
+  "contentPaddingLeft": number, // Left padding for content area in px (60-200)
   "radarColor": string,      // Radar icon color (hex)
   "radarOpacity": number,    // Radar icon opacity (0-0.4)
   "radarSize": number,       // Radar icon size in px (200-600)

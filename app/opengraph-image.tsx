@@ -15,9 +15,17 @@ interface OGConfig {
   tags: { tag: string; color: string }[];
   accentColor: string;
   backgroundColor: string;
+  backgroundImage: string;
+  backgroundOverlay: number;
+  gradientEnabled: boolean;
+  gradientFrom: string;
+  gradientTo: string;
+  gradientAngle: number;
   titleColor: string;
   subtitleColor: string;
   labelColor: string;
+  topBarColor: string;
+  bottomBarColor: string;
   showGrid: boolean;
   showAccentLine: boolean;
   showRadar: boolean;
@@ -26,7 +34,11 @@ interface OGConfig {
   bottomLeft: string;
   bottomRight: string;
   titleSize: number;
+  titleWeight: number;
   subtitleSize: number;
+  labelSize: number;
+  tagSize: number;
+  contentPaddingLeft: number;
   radarColor: string;
   radarOpacity: number;
   radarSize: number;
@@ -45,9 +57,17 @@ const DEFAULT_CONFIG: OGConfig = {
   ],
   accentColor: "#06b6d4",
   backgroundColor: "#000000",
+  backgroundImage: "",
+  backgroundOverlay: 0.6,
+  gradientEnabled: false,
+  gradientFrom: "#000000",
+  gradientTo: "#0a0a1a",
+  gradientAngle: 135,
   titleColor: "#e8e8e8",
   subtitleColor: "#555555",
   labelColor: "#06b6d4",
+  topBarColor: "#555555",
+  bottomBarColor: "#333333",
   showGrid: true,
   showAccentLine: true,
   showRadar: true,
@@ -56,7 +76,11 @@ const DEFAULT_CONFIG: OGConfig = {
   bottomLeft: "nexushq.xyz",
   bottomRight: "A Polyxmedia Product",
   titleSize: 64,
+  titleWeight: 700,
   subtitleSize: 20,
+  labelSize: 14,
+  tagSize: 13,
+  contentPaddingLeft: 100,
   radarColor: "#06b6d4",
   radarOpacity: 0.08,
   radarSize: 420,

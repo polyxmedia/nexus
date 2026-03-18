@@ -50,6 +50,7 @@ interface TopicSentiment {
     reason: string | null;
   };
   topPosts: Array<{
+    id: string;
     source: string;
     text: string;
     author: string;
@@ -108,6 +109,14 @@ function sourceLabel(source: string): string {
   if (source === "reddit") return "Reddit";
   if (source === "stocktwits") return "ST";
   return source;
+}
+
+function postUrl(post: { id: string; source: string; author: string }): string | null {
+  if (!post.id) return null;
+  if (post.source === "twitter") return `https://x.com/${post.author}/status/${post.id}`;
+  if (post.source === "reddit") return `https://www.reddit.com/comments/${post.id}`;
+  if (post.source === "stocktwits") return `https://stocktwits.com/message/${post.id}`;
+  return null;
 }
 
 // ── Components ──
@@ -272,12 +281,22 @@ function TopicCard({ topic, expanded, onToggle }: { topic: TopicSentiment; expan
             <div>
               <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-2">Top Posts (by engagement x credibility)</div>
               <div className="space-y-1.5">
-                {topic.topPosts.map((post, i) => (
-                  <div key={i} className="flex items-start gap-2 py-1.5 border-b border-navy-800/30 last:border-0">
+                {topic.topPosts.map((post, i) => {
+                  const url = postUrl(post);
+                  return (
+                  <a
+                    key={i}
+                    href={url || "#"}
+                    target={url ? "_blank" : undefined}
+                    rel={url ? "noopener noreferrer" : undefined}
+                    className={cn(
+                      "flex items-start gap-2 py-1.5 border-b border-navy-800/30 last:border-0",
+                      url && "hover:bg-navy-800/30 -mx-2 px-2 rounded transition-colors"
+                    )}
+                    onClick={url ? undefined : (e) => e.preventDefault()}
+                  >
                     <span className={cn(
                       "text-[9px] font-mono px-1 py-0.5 rounded flex-shrink-0 mt-0.5",
-                      post.source === "twitter" ? "bg-navy-800/60 text-navy-400" :
-                      post.source === "reddit" ? "bg-navy-800/60 text-navy-400" :
                       "bg-navy-800/60 text-navy-400"
                     )}>
                       {sourceLabel(post.source)}
@@ -293,10 +312,12 @@ function TopicCard({ topic, expanded, onToggle }: { topic: TopicSentiment; expan
                         <span>cred: {(post.credibility * 100).toFixed(0)}%</span>
                         {post.raw.likes !== undefined && <span>{post.raw.likes} likes</span>}
                         {post.raw.score !== undefined && <span>{post.raw.score} pts</span>}
+                        {url && <ExternalLink className="h-2.5 w-2.5 text-navy-700" />}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  </a>
+                  );
+                })}
               </div>
             </div>
           )}
