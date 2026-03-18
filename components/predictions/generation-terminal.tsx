@@ -15,9 +15,12 @@ interface GenerationTerminalProps {
   error?: string | null;
   complete?: boolean;
   resultCount?: number;
+  title?: string;
+  completeLabel?: string;
+  emptyLabel?: string;
 }
 
-export function GenerationTerminal({ steps, error, complete, resultCount }: GenerationTerminalProps) {
+export function GenerationTerminal({ steps, error, complete, resultCount, title, completeLabel, emptyLabel }: GenerationTerminalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -44,7 +47,7 @@ export function GenerationTerminal({ steps, error, complete, resultCount }: Gene
         <div className="flex items-center gap-2">
           <Terminal className="h-3 w-3 text-accent-cyan" />
           <span className="text-[10px] uppercase tracking-widest text-navy-400">
-            Prediction Engine
+            {title || "Prediction Engine"}
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -110,8 +113,8 @@ export function GenerationTerminal({ steps, error, complete, resultCount }: Gene
           <div className="mt-2 pt-2 border-t border-navy-700/30">
             <span className="text-[11px] text-accent-emerald">
               {resultCount > 0
-                ? `${resultCount} prediction${resultCount !== 1 ? "s" : ""} generated and persisted in ${elapsed}s`
-                : `No new predictions generated (capacity full or all duplicates)`
+                ? (completeLabel || `${resultCount} prediction${resultCount !== 1 ? "s" : ""} generated and persisted in ${elapsed}s`)
+                : (emptyLabel || `No new predictions generated (capacity full or all duplicates)`)
               }
             </span>
           </div>

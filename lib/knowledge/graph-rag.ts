@@ -175,15 +175,16 @@ export async function graphAugmentedSearch(
   if (baseResults.length === 0) return [];
 
   try {
-    // Find knowledge nodes for base results
+    // Find knowledge nodes for base results (scoped by sourceId)
     const knowledgeSourceIds = baseResults.map((r) => `ke:${r.id}`);
     if (knowledgeSourceIds.length === 0) return baseResults;
-    const graphNodes = await db.select().from(schema.entities)
-      .where(eq(schema.entities.sourceType, "knowledge_entry"));
+    const matchedGraphNodes = await db.select().from(schema.entities)
+      .where(and(
+        eq(schema.entities.sourceType, "knowledge_entry"),
+        inArray(schema.entities.sourceId, knowledgeSourceIds),
+      ));
 
-    const matchedNodeIds = graphNodes
-      .filter((n) => knowledgeSourceIds.includes(n.sourceId || ""))
-      .map((n) => n.id);
+    const matchedNodeIds = matchedGraphNodes.map((n) => n.id);
 
     if (matchedNodeIds.length === 0) return baseResults;
 
@@ -199,35 +200,41 @@ export async function graphAugmentedSearch(
       if (matchedNodeIds.includes(rel.toEntityId)) connectedEntityIds.add(rel.fromEntityId);
     }
 
+    // Fetch connected entities for annotation and knowledge discovery
+    const connectedEntities = connectedEntityIds.size > 0
+      ? await db.select().from(schema.entities).where(inArray(schema.entities.id, Array.from(connectedEntityIds)))
+      : [];
+    const allGraphNodes = [...matchedGraphNodes, ...connectedEntities];
+    const nodeMap = new Map(allGraphNodes.map((n) => [n.id, n]));
+
     // Find knowledge entries connected via graph but not in base results
     const baseIds = new Set(baseResults.map((r) => r.id));
-    const connectedKnowledgeNodes = graphNodes
-      .filter((n) => connectedEntityIds.has(n.id) && n.sourceId?.startsWith("ke:"))
+    const connectedKnowledgeIds = connectedEntities
+      .filter((n) => n.sourceId?.startsWith("ke:"))
       .map((n) => parseInt(n.sourceId!.replace("ke:", ""), 10))
       .filter((id) => !isNaN(id) && !baseIds.has(id));
 
-    if (connectedKnowledgeNodes.length === 0) return baseResults;
-
     // Fetch the graph-discovered knowledge entries
-    const discoveryIds = connectedKnowledgeNodes.slice(0, 5);
-    if (discoveryIds.length === 0) return baseResults;
-    const graphDiscovered = await db.select().from(schema.knowledge)
-      .where(and(
-        inArray(schema.knowledge.id, discoveryIds),
-        eq(schema.knowledge.status, "active"),
-      ))
-      .orderBy(desc(schema.knowledge.confidence));
+    const discoveryIds = connectedKnowledgeIds.slice(0, 5);
+    const graphDiscovered = discoveryIds.length > 0
+      ? await db.select().from(schema.knowledge)
+          .where(and(
+            inArray(schema.knowledge.id, discoveryIds),
+            eq(schema.knowledge.status, "active"),
+          ))
+          .orderBy(desc(schema.knowledge.confidence))
+      : [];
 
     // Annotate base results with graph context
     const enriched = baseResults.map((r) => {
-      const nodeId = graphNodes.find((n) => n.sourceId === `ke:${r.id}`)?.id;
+      const nodeId = matchedGraphNodes.find((n) => n.sourceId === `ke:${r.id}`)?.id;
       if (!nodeId) return r;
 
       const connected = scopedRels
         .filter((rel) => rel.fromEntityId === nodeId || rel.toEntityId === nodeId)
         .map((rel) => {
           const otherId = rel.fromEntityId === nodeId ? rel.toEntityId : rel.fromEntityId;
-          const other = graphNodes.find((n) => n.id === otherId);
+          const other = nodeMap.get(otherId);
           return other ? `${other.name} (${other.type}, ${rel.type})` : null;
         })
         .filter(Boolean) as string[];
@@ -279,22 +286,21 @@ export interface EntityNeighborhood {
  */
 export async function exploreEntityNeighborhood(query: string): Promise<EntityNeighborhood | null> {
   type EntityRow = typeof schema.entities.$inferSelect;
-  const allEntities: EntityRow[] = await db.select().from(schema.entities);
-  const q = query.toLowerCase();
 
-  // Find best matching entity
-  const match = allEntities
-    .filter((e) => e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase()))
+  // DB-side fuzzy match first (avoids loading all entities into memory)
+  const candidates: EntityRow[] = await db.select().from(schema.entities)
+    .where(sql`LOWER(name) LIKE ${"%" + query.toLowerCase() + "%"}`);
+
+  if (candidates.length === 0) return null;
+
+  const q = query.toLowerCase();
+  const match = candidates
     .sort((a, b) => {
-      // Prefer exact matches
       const aExact = a.name.toLowerCase() === q ? 0 : 1;
       const bExact = b.name.toLowerCase() === q ? 0 : 1;
       if (aExact !== bExact) return aExact - bExact;
-      // Then prefer shorter names (more specific)
       return a.name.length - b.name.length;
     })[0];
-
-  if (!match) return null;
 
   // Scoped query: only relationships touching this entity
   const matchRels = await db.select().from(schema.relationships)
@@ -302,7 +308,17 @@ export async function exploreEntityNeighborhood(query: string): Promise<EntityNe
       eq(schema.relationships.fromEntityId, match.id),
       eq(schema.relationships.toEntityId, match.id),
     ));
-  const entityMap = new Map<number, EntityRow>(allEntities.map((e) => [e.id, e]));
+
+  // Fetch only the neighbor entities we actually need (not all entities)
+  const neighborEntityIds = new Set<number>();
+  for (const rel of matchRels) {
+    if (rel.fromEntityId !== match.id) neighborEntityIds.add(rel.fromEntityId);
+    if (rel.toEntityId !== match.id) neighborEntityIds.add(rel.toEntityId);
+  }
+  const neighborEntities = neighborEntityIds.size > 0
+    ? await db.select().from(schema.entities).where(inArray(schema.entities.id, Array.from(neighborEntityIds)))
+    : [];
+  const entityMap = new Map<number, EntityRow>([[match.id, match], ...neighborEntities.map((e): [number, EntityRow] => [e.id, e])]);
 
   // Get 1-hop connections from scoped relationships
   const connections: EntityNeighborhood["connections"] = [];
@@ -331,14 +347,10 @@ export async function exploreEntityNeighborhood(query: string): Promise<EntityNe
 
   // Find knowledge entries: check relationships touching match or its neighbors
   const knowledgeNodeIds = new Set<number>();
-  const neighborIds = connections.map((c) => {
-    const e = allEntities.find((ent) => ent.name === c.name);
-    return e?.id;
-  }).filter(Boolean) as number[];
-  const clusterIds = [match.id, ...neighborIds];
+  const clusterIds = [match.id, ...Array.from(neighborEntityIds)];
 
   // Fetch relationships for the neighbor cluster (scoped, not full table)
-  const clusterRels = neighborIds.length > 0
+  const clusterRels = neighborEntityIds.size > 0
     ? await db.select().from(schema.relationships)
         .where(or(
           inArray(schema.relationships.fromEntityId, clusterIds),

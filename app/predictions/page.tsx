@@ -234,6 +234,10 @@ export default function PredictionsPage() {
   const [terminalError, setTerminalError] = useState<string | null>(null);
   const [terminalComplete, setTerminalComplete] = useState(false);
   const [terminalResultCount, setTerminalResultCount] = useState<number | undefined>(undefined);
+  const [resolveSteps, setResolveSteps] = useState<TerminalStep[]>([]);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolveComplete, setResolveComplete] = useState(false);
+  const [resolveResultCount, setResolveResultCount] = useState<number | undefined>(undefined);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoResolved = useRef(false);
 
@@ -280,10 +284,12 @@ export default function PredictionsPage() {
     hasAutoResolved.current = true;
     setResolving(true);
     try {
-      const res = await fetch("/api/predictions/resolve", { method: "POST" });
+      // Use fast-resolve (data-only, no AI) for auto-resolve on page load
+      // This returns in seconds instead of minutes
+      const res = await fetch("/api/predictions/fast-resolve", { method: "POST" });
       const data = await res.json();
-      if (data.count > 0) {
-        setStatusMessage({ text: `Auto-resolved ${data.count} overdue prediction${data.count > 1 ? "s" : ""}`, type: "info" });
+      if (data.resolved > 0) {
+        setStatusMessage({ text: `Auto-resolved ${data.resolved} prediction${data.resolved > 1 ? "s" : ""} from market data`, type: "info" });
         fetchPredictions();
       }
     } catch (err) {
@@ -420,14 +426,55 @@ export default function PredictionsPage() {
   const aiResolve = async () => {
     setResolving(true);
     setStatusMessage(null);
+
+    // Phase 1: Fast data-driven resolve (instant, no AI)
+    let fastCount = 0;
     try {
-      const res = await fetch("/api/predictions/resolve", { method: "POST" });
+      const fastRes = await fetch("/api/predictions/fast-resolve", { method: "POST" });
+      const fastData = await fastRes.json();
+      fastCount = fastData.resolved || 0;
+      if (fastCount > 0) {
+        setStatusMessage({ text: `Resolved ${fastCount} from market data. Running AI resolver for remaining...`, type: "info" });
+        fetchPredictions();
+      } else {
+        setStatusMessage({ text: "Running AI resolver (this can take 1-2 min)...", type: "info" });
+      }
+    } catch {
+      // Fast resolve failed, continue to AI resolve
+    }
+
+    // Phase 2: AI-driven resolve with timeout
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180_000); // 3 min timeout
+      const res = await fetch("/api/predictions/resolve", { method: "POST", signal: controller.signal });
+      clearTimeout(timeoutId);
       const data = await res.json();
-      if (data.error) setStatusMessage({ text: data.error, type: "error" });
-      else if (data.count === 0) setStatusMessage({ text: "No predictions past deadline to resolve", type: "info" });
-      else { setStatusMessage({ text: `Resolved ${data.count} predictions`, type: "success" }); fetchPredictions(); fetchFeedback(); }
-    } catch { setStatusMessage({ text: "Failed to resolve predictions", type: "error" }); }
-    finally { setResolving(false); }
+      if (data.error) {
+        setStatusMessage({ text: data.error, type: "error" });
+      } else if (data.count === 0 && fastCount === 0) {
+        setStatusMessage({ text: "No predictions past deadline to resolve", type: "info" });
+      } else {
+        const totalResolved = (data.count || 0) + fastCount;
+        setStatusMessage({ text: `Resolved ${totalResolved} prediction${totalResolved > 1 ? "s" : ""} total`, type: "success" });
+        fetchPredictions();
+        fetchFeedback();
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setStatusMessage({
+          text: fastCount > 0
+            ? `Resolved ${fastCount} from data. AI resolver timed out for remaining -- they'll resolve on next cron run.`
+            : "AI resolver timed out. Predictions will resolve automatically on the next scheduled run.",
+          type: fastCount > 0 ? "info" : "error",
+        });
+        if (fastCount > 0) fetchPredictions();
+      } else {
+        setStatusMessage({ text: "Failed to resolve predictions", type: "error" });
+      }
+    } finally {
+      setResolving(false);
+    }
   };
 
   const aiRequest = async () => {
@@ -841,7 +888,7 @@ export default function PredictionsPage() {
           {pastDeadline.length > 0 && (
             <Button variant="outline" size="sm" onClick={aiResolve} disabled={resolving}>
               {resolving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Target className="h-3 w-3 mr-1" />}
-              Resolve ({pastDeadline.length})
+              {resolving ? "Resolving..." : `Resolve (${pastDeadline.length})`}
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={() => setShowForm(!showForm)}>
