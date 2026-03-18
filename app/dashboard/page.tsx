@@ -90,6 +90,7 @@ const STORE_ITEMS: StoreItem[] = [
   { type: "macro", name: "Macro Dashboard", description: "Key economic indicators from FRED", category: "markets", defaultWidth: 2, defaultConfig: { series: ["UNRATE", "ICSA", "CPIAUCSL", "VIXCLS", "GOLDAMGBD228NLBM", "DCOILWTICO"] }, accent: "emerald", minTier: "operator" },
   { type: "options", name: "Put/Call Ratio", description: "CBOE equity options sentiment", category: "markets", defaultWidth: 1, defaultConfig: { view: "pcr" }, accent: "amber", minTier: "operator" },
   { type: "currency_stress", name: "Currency Stress", description: "Dollar index, EUR, JPY, CNY trends", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
+  { type: "oil_divergence", name: "Oil-SPX Divergence", description: "Premarket oil-equity divergence signal with regime detection", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "rose", minTier: "operator" },
   { type: "commodities", name: "Commodity Complex", description: "Gold, WTI, Brent, Natural Gas", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "operator" },
   // Analytics
   { type: "metric", name: "Portfolio Value", description: "Live portfolio value with P&L", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "portfolio_value" }, accent: "emerald", minTier: "operator" },

@@ -1,8 +1,13 @@
 "use client";
+import { Skeleton } from "@/components/ui/skeleton";
 
-import { useState, useCallback } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useCallback, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Loader2, FlaskConical, CheckCircle2, BarChart3, RefreshCw } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, FlaskConical, CheckCircle2, BarChart3, RefreshCw, XCircle, X, ArrowDownRight, ArrowUpRight, Zap, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CalibrationReport {
   ready: boolean;

@@ -786,6 +786,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   { name: "get_iw_status", description: "Get Indications & Warnings status across all threat scenarios. Shows escalation levels, active indicators, scores.", input_schema: { type: "object" as const, properties: { scenario_id: { type: "string", description: "Optional scenario ID" } }, required: [] } },
   { name: "get_market_regime", description: "Get current market regime: volatility, growth, monetary, risk appetite, dollar, commodities. Shows regime shifts.", input_schema: { type: "object" as const, properties: {}, required: [] } },
   { name: "get_correlation_monitor", description: "Cross-asset correlation matrix and break detection. SPY-TLT, Gold-Dollar, VIX-SPY pairs.", input_schema: { type: "object" as const, properties: {}, required: [] } },
+  { name: "get_oil_spx_divergence", description: "Oil-SPX premarket divergence detector. Detects when oil futures drop while SPX holds/rises, signaling potential relief rally. Tracks regime (geopolitical proxy vs demand-driven), rolling correlation, win rate, and historical pattern stats.", input_schema: { type: "object" as const, properties: {}, required: [] } },
   { name: "assess_source_reliability", description: "NATO/Admiralty source reliability rating (A-F, 1-6). Returns bias, specialties, track record.", input_schema: { type: "object" as const, properties: { domain: { type: "string", description: "Domain (e.g. reuters.com)" } }, required: ["domain"] } },
   { name: "create_ach_analysis", description: "Create Analysis of Competing Hypotheses (ACH). CIA structured analytic technique.", input_schema: { type: "object" as const, properties: { title: { type: "string" }, question: { type: "string" }, hypotheses: { type: "array", items: { type: "object", properties: { label: { type: "string" }, description: { type: "string" } } } }, evidence: { type: "array", items: { type: "object", properties: { description: { type: "string" }, source: { type: "string" }, credibility: { type: "string" }, relevance: { type: "string" } } } } }, required: ["title", "question", "hypotheses"] } },
   { name: "get_economic_nowcast", description: "Real-time economic nowcast: GDP, inflation, employment, financial conditions, recession probability.", input_schema: { type: "object" as const, properties: {}, required: [] } },
@@ -1506,6 +1507,8 @@ export async function executeTool(
       return executeGetMarketRegime();
     case "get_correlation_monitor":
       return executeGetCorrelationMonitor();
+    case "get_oil_spx_divergence":
+      return executeGetOilSpxDivergence();
     case "assess_source_reliability":
       return executeAssessSourceReliability(input);
     case "create_ach_analysis":
@@ -3393,6 +3396,20 @@ async function executeGetCorrelationMonitor() {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Correlation monitor failed: ${message}` };
+  }
+}
+
+async function executeGetOilSpxDivergence() {
+  try {
+    const { computeOilSpxDivergence, getLatestOilSpxDivergence } = await import("@/lib/signals/oil-spx-divergence");
+    let signal = await getLatestOilSpxDivergence();
+    if (!signal) {
+      signal = await computeOilSpxDivergence();
+    }
+    return signal;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Oil-SPX divergence failed: ${message}` };
   }
 }
 

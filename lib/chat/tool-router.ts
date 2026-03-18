@@ -42,6 +42,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
     "get_order_book",
     "get_market_regime",
     "get_correlation_monitor",
+    "get_oil_spx_divergence",
     "get_social_sentiment",
   ],
   geopolitical: [
@@ -154,7 +155,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
 // Keyword patterns that activate tool groups
 const GROUP_TRIGGERS: Array<{ pattern: RegExp; groups: string[] }> = [
   // Market & trading
-  { pattern: /\b(price|stock|ticker|rsi|macd|bollinger|technical|chart|quote|entry|exit|target|spy|qqq|aapl|nvda|tsla|goog|amzn|msft|amd|buy|sell|trade|position|long|short|options?|gamma|gex|put.?call|order book|flow|imbalance)\b/i, groups: ["market", "trading"] },
+  { pattern: /\b(price|stock|ticker|rsi|macd|bollinger|technical|chart|quote|entry|exit|target|spy|qqq|aapl|nvda|tsla|goog|amzn|msft|amd|buy|sell|trade|position|long|short|options?|gamma|gex|put.?call|order book|flow|imbalance|oil|crude|wti|brent|energy|opec|commodity|commodities|divergence)\b/i, groups: ["market", "trading"] },
   // Geopolitical
   { pattern: /\b(geopolit|war|conflict|iran|china|taiwan|russia|ukraine|nato|military|strike|escala|nuclear|houthi|hezbollah|hamas|sanctions?|territory|actor|nash|game theory|schelling|equilibri)\b/i, groups: ["geopolitical"] },
   // Eschatological convergence

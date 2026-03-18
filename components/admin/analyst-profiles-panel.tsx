@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Save, Trash2, ChevronDown, ChevronRight, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, ChevronDown, ChevronRight, RefreshCw, Sparkles, CheckCircle2, XCircle } from "lucide-react";
 
 interface AnalystProfile {
   id: number;

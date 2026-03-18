@@ -2366,6 +2366,35 @@ async function executeResolutionTool(
     }
   }
 
+  if (toolName === "web_search") {
+    const query = (input.query as string || "").trim();
+    if (!query) return JSON.stringify({ error: "No query provided" });
+
+    try {
+      // Use Google News RSS as a free web search (no API key needed)
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return JSON.stringify({ error: `Search failed: ${res.status}` });
+      const xml = await res.text();
+
+      // Parse RSS items
+      const items: Array<{ title: string; date: string; source: string }> = [];
+      const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+      let match;
+      while ((match = itemRegex.exec(xml)) !== null && items.length < 10) {
+        const itemXml = match[1];
+        const title = itemXml.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1") || "";
+        const pubDate = itemXml.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || "";
+        const source = itemXml.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1") || "";
+        if (title) items.push({ title, date: pubDate, source });
+      }
+
+      return JSON.stringify({ query, results_count: items.length, results: items });
+    } catch {
+      return JSON.stringify({ error: "Web search unavailable" });
+    }
+  }
+
   return JSON.stringify({ error: `Unknown tool: ${toolName}` });
 }
 

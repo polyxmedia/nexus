@@ -1,6 +1,9 @@
 "use client";
 
-import { Monitor, Smartphone, Tablet, Globe, MapPin, LogIn, LogOut, Zap, MousePointer, ArrowUpRight, ArrowDownRight, RefreshCw } from "lucide-react";
+import { useEffect } from "react";
+import dynamic from "next/dynamic";
+const TrafficMap = dynamic(() => import("@/components/admin/traffic-map"), { ssr: false });
+import { Monitor, Smartphone, Tablet, Globe, MapPin, LogIn, LogOut, Zap, MousePointer, ArrowUpRight, ArrowDownRight, RefreshCw } BarChart3, Timer, Users, } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AnalyticsData } from "./types";
 import { formatDuration, DEVICE_ICONS } from "./types";

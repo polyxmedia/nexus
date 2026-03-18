@@ -1,6 +1,8 @@
+import { db, schema } from "@/lib/db";
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://nexushq.xyz";
 
-/** Organization schema — injected in root layout */
+/** Organization schema -- injected in root layout */
 export function OrganizationJsonLd() {
   const schema = {
     "@context": "https://schema.org",
@@ -40,9 +42,35 @@ export function OrganizationJsonLd() {
   );
 }
 
-/** SoftwareApplication schema — for the platform itself */
-export function SoftwareApplicationJsonLd() {
-  const schema = {
+/** SoftwareApplication schema -- pulls pricing from DB instead of hardcoding */
+export async function SoftwareApplicationJsonLd() {
+  let offers: Array<Record<string, unknown>> = [];
+
+  try {
+    const tiers = await db
+      .select({
+        name: schema.subscriptionTiers.name,
+        price: schema.subscriptionTiers.price,
+      })
+      .from(schema.subscriptionTiers)
+      .orderBy(schema.subscriptionTiers.position);
+
+    offers = tiers.map((t) => ({
+      "@type": "Offer",
+      name: t.name,
+      ...(t.price > 0 ? { price: String(t.price), priceCurrency: "USD" } : {}),
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        billingIncrement: 1,
+        unitCode: "MON",
+      },
+      ...(t.price === 0 ? { description: "Custom pricing" } : {}),
+    }));
+  } catch {
+    // Fallback: no offers in schema rather than wrong prices
+  }
+
+  const schemaData = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "NEXUS Intelligence Platform",
@@ -51,41 +79,7 @@ export function SoftwareApplicationJsonLd() {
     url: SITE_URL,
     description:
       "Five-layer geopolitical signal detection platform with AI-driven convergence analysis, intelligence synthesis, and real-time market monitoring for analysts and institutional traders.",
-    offers: [
-      {
-        "@type": "Offer",
-        name: "Analyst",
-        price: "150",
-        priceCurrency: "USD",
-        priceSpecification: {
-          "@type": "UnitPriceSpecification",
-          billingIncrement: 1,
-          unitCode: "MON",
-        },
-      },
-      {
-        "@type": "Offer",
-        name: "Operator",
-        price: "450",
-        priceCurrency: "USD",
-        priceSpecification: {
-          "@type": "UnitPriceSpecification",
-          billingIncrement: 1,
-          unitCode: "MON",
-        },
-      },
-      {
-        "@type": "Offer",
-        name: "Institution",
-        priceCurrency: "USD",
-        priceSpecification: {
-          "@type": "UnitPriceSpecification",
-          billingIncrement: 1,
-          unitCode: "MON",
-        },
-        description: "Custom pricing",
-      },
-    ],
+    ...(offers.length > 0 ? { offers } : {}),
     creator: {
       "@type": "Organization",
       name: "Polyxmedia",
@@ -96,12 +90,12 @@ export function SoftwareApplicationJsonLd() {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
     />
   );
 }
 
-/** WebSite schema with SearchAction — enables sitelinks search box in Google */
+/** WebSite schema with SearchAction -- enables sitelinks search box in Google */
 export function WebSiteJsonLd() {
   const schema = {
     "@context": "https://schema.org",
@@ -132,7 +126,7 @@ export function WebSiteJsonLd() {
   );
 }
 
-/** Article schema — use on research pages */
+/** Article schema -- use on research pages */
 export function ArticleJsonLd({
   title,
   description,
@@ -146,14 +140,14 @@ export function ArticleJsonLd({
   datePublished?: string;
   dateModified?: string;
 }) {
-  const schema = {
+  const schemaData = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: title,
     description,
     url: url.startsWith("http") ? url : `${SITE_URL}${url}`,
     image: `${SITE_URL}/opengraph-image`,
-    datePublished: datePublished || "2025-01-01",
+    datePublished: datePublished || new Date().toISOString().split("T")[0],
     dateModified: dateModified || new Date().toISOString().split("T")[0],
     author: {
       "@type": "Organization",
@@ -177,14 +171,14 @@ export function ArticleJsonLd({
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
     />
   );
 }
 
-/** BreadcrumbList schema — use on research/about pages */
+/** BreadcrumbList schema -- use on research/about pages */
 export function BreadcrumbJsonLd({ items }: { items: { name: string; url: string }[] }) {
-  const schema = {
+  const schemaData = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: items.map((item, i) => ({
@@ -198,7 +192,7 @@ export function BreadcrumbJsonLd({ items }: { items: { name: string; url: string
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
     />
   );
 }

@@ -276,15 +276,3 @@ export const DEVICE_ICONS: Record<string, typeof Monitor> = {
   tablet: Tablet,
 };
 
-export const ADMIN_TABS = [
-  { id: "growth", label: "Growth", icon: "TrendingUp" },
-  { id: "tiers", label: "Tiers", icon: "CreditCard" },
-  { id: "users", label: "Users", icon: "Users" },
-  { id: "prompts", label: "Prompts", icon: "FileText" },
-  { id: "emails", label: "Emails", icon: "Mail" },
-  { id: "support", label: "Support", icon: "MessageSquare" },
-  { id: "analytics", label: "Analytics", icon: "BarChart3" },
-  { id: "scheduler", label: "Automation", icon: "Timer" },
-  { id: "analysts", label: "Analysts", icon: "UserCheck" },
-  { id: "calibration", label: "Calibration", icon: "FlaskConical" },
-  { id: "base-rates", label: "Base Rates", icon: "Activity" },

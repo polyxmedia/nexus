@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 
 import { Gift, TrendingUp, Users, Calendar, Coins, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";

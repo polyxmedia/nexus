@@ -33,6 +33,7 @@ import { PredictionFeedbackWidget } from "./widgets/PredictionFeedbackWidget";
 import { PredictionMarketsWidget } from "./widgets/PredictionMarketsWidget";
 import { CongressionalTradingWidget } from "./widgets/CongressionalTradingWidget";
 import { CorrelationWidget } from "./widgets/CorrelationWidget";
+import { OilDivergenceWidget } from "./widgets/OilDivergenceWidget";
 import { SourceReliabilityWidget } from "./widgets/SourceReliabilityWidget";
 import { ACHWidget } from "./widgets/ACHWidget";
 import { CentralBankWidget } from "./widgets/CentralBankWidget";
@@ -244,6 +245,9 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "get_correlation_monitor":
       widget = <CorrelationWidget data={data} />;
+      break;
+    case "get_oil_spx_divergence":
+      widget = <OilDivergenceWidget data={data} />;
       break;
     case "assess_source_reliability":
       widget = <SourceReliabilityWidget data={data} />;

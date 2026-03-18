@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getLivePredictionStats } from "@/components/public/live-prediction-stats";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -53,7 +54,8 @@ function DiffRow({ label, nexus, rest }: { label: string; nexus: string; rest: s
   );
 }
 
-export default function InvestorsPage() {
+export default async function InvestorsPage() {
+  const predStats = await getLivePredictionStats();
   return (
       <main className="flex-1 pt-14">
         {/* ── Hero ── */}
@@ -333,9 +335,9 @@ export default function InvestorsPage() {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
               <Stat value="4+" label="Signal layers live" sub="GEO, MKT, OSI, SYS + narrative overlay" />
-              <Stat value="20+" label="AI analyst tools" sub="Market regime, on-chain, shipping, game theory..." />
-              <Stat value="73%" label="Prediction accuracy" sub="Backtested with temporal isolation" />
-              <Stat value="3" label="Subscription tiers" sub="Seeded and live in Stripe" />
+              <Stat value={predStats.toolCount} label="AI analyst tools" sub="Market regime, on-chain, shipping, game theory..." />
+              <Stat value={predStats.accuracy} label="Prediction accuracy" sub={predStats.totalResolved >= 5 ? `${predStats.totalResolved} resolved predictions, pre-event only` : "Building track record"} />
+              <Stat value={predStats.tierCount} label="Subscription tiers" sub="Seeded and live in Stripe" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[

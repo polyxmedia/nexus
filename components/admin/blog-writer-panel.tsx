@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Trash2, FileText, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Eye, Send, Save, Clock, XCircle } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { Loader2, Plus, Trash2, FileText, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Eye, Send, Save, Clock, XCircle, Sparkles, RotateCcw } from "lucide-react";
 import { BlogBody } from "@/components/blog/widget-renderer";
 import Link from "next/link";
 

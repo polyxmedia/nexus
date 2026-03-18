@@ -12,6 +12,7 @@ import {
   Target,
   Zap,
 } from "lucide-react";
+import { LiveSignalFeed } from "@/components/public/live-signal-feed";
 
 export const metadata: Metadata = {
   title: "Strategic Intelligence Demo — NEXUS × Emergent Approach",
@@ -235,35 +236,7 @@ export default function DemoPage() {
                 The Emergent Approach already solves the framework problem. The bottleneck is no longer "how do I structure my strategy?" It is "how do I know when my strategic assumptions just changed?"
               </p>
             </div>
-            <div className="space-y-3">
-              {[
-                { label: "Tariff truce expiry", date: "Nov 10, 2026", risk: "HIGH" },
-                { label: "China rare earth FDPR active", date: "Jan 2026", risk: "ACTIVE" },
-                { label: "Hormuz closure · Op Epic Fury", date: "Mar 2, 2026", risk: "CRITICAL" },
-                { label: "BIS semiconductor controls tightening", date: "Feb 2026", risk: "HIGH" },
-                { label: "Taiwan gray-zone escalation", date: "Ongoing", risk: "ELEVATED" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-navy-800/40 last:border-0">
-                  <div className="flex items-center gap-2.5">
-                    <AlertTriangle className="w-3 h-3 text-accent-amber shrink-0" />
-                    <span className="text-[11px] text-navy-300 font-sans">{item.label}</span>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[10px] font-mono text-navy-600">{item.date}</span>
-                    <span
-                      className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                      style={{
-                        background: item.risk === "CRITICAL" ? "#ef444420" : item.risk === "ACTIVE" ? "#f9731620" : "#f59e0b20",
-                        color: item.risk === "CRITICAL" ? "#ef4444" : item.risk === "ACTIVE" ? "#f97316" : "#f59e0b",
-                      }}
-                    >
-                      {item.risk}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              <p className="text-[10px] font-mono text-navy-600 pt-1">None of these appeared in a McKinsey deck. All are live NEXUS signals.</p>
-            </div>
+            <LiveSignalFeed />
           </div>
         </div>
       </section>
