@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useTiers } from "@/lib/hooks/useTiers";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -183,67 +184,7 @@ const features = [
   },
 ];
 
-// ── Pricing tiers ──
-const tiers = [
-  {
-    name: "Observer",
-    price: "$199",
-    priceAnnual: "$169",
-    period: "/mo",
-    description: "Individual intelligence capability",
-    features: [
-      "Signal detection engine",
-      "50,000 AI credits/month",
-      "Daily thesis generation",
-      "Prediction tracking",
-      "Narrative & sentiment tracking",
-      "War Room (view only)",
-      "Email alerts",
-    ],
-    cta: "Start Observing",
-    highlighted: false,
-  },
-  {
-    name: "Operator",
-    price: "$599",
-    priceAnnual: "$499",
-    period: "/mo",
-    description: "Full operational capability",
-    features: [
-      "Everything in Observer",
-      "250,000 AI credits/month",
-      "Portfolio tracking + broker integration (coming soon)",
-      "Real-time War Room + OSINT",
-      "On-chain analytics & GEX",
-      "GPR decomposition & BOCPD",
-      "Short interest & shipping intel",
-      "Custom signal layers",
-      "Portfolio risk analytics",
-      "API access",
-    ],
-    cta: "Go Operational",
-    highlighted: true,
-  },
-  {
-    name: "Institution",
-    price: "Custom",
-    priceAnnual: "Custom",
-    period: "",
-    description: "Multi-seat deployment",
-    features: [
-      "Everything in Operator",
-      "Unlimited seats",
-      "Custom data integrations",
-      "Dedicated infrastructure",
-      "White-label option",
-      "SLA guarantee",
-      "Direct engineering support",
-      "On-premise available",
-    ],
-    cta: "Contact Us",
-    highlighted: false,
-  },
-];
+// Pricing tiers loaded dynamically via useTiers hook (see PricingSection component)
 
 // ── Animated Chat Simulation ──
 function AnimatedChat() {
@@ -716,6 +657,24 @@ function BentoFeatures() {
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [billingAnnual, setBillingAnnual] = useState(false);
+  const { tiers: dbTiers } = useTiers();
+
+  // Map DB tiers to display format, with fallback descriptions and CTAs
+  const tierMeta: Record<string, { description: string; cta: string }> = {
+    Observer: { description: "Individual intelligence capability", cta: "Start Observing" },
+    Operator: { description: "Full operational capability", cta: "Go Operational" },
+    Institution: { description: "Multi-seat deployment", cta: "Contact Us" },
+  };
+  const tiers = dbTiers.map((t) => ({
+    name: t.name,
+    price: t.price > 0 ? `$${t.price}` : "Custom",
+    priceAnnual: t.price > 0 ? `$${Math.round(t.price * 0.85)}` : "Custom",
+    period: t.price > 0 ? "/mo" : "",
+    description: tierMeta[t.name]?.description || t.name,
+    features: t.features,
+    cta: tierMeta[t.name]?.cta || "Get Started",
+    highlighted: t.highlighted,
+  }));
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);

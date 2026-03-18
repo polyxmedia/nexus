@@ -1904,6 +1904,8 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <DailyReportWidget />;
       case "brier_score":
         return <BrierScoreWidget />;
+      case "oil_divergence":
+        return <OilDivergenceDashWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1936,6 +1938,7 @@ export const AVAILABLE_WIDGETS = [
   { type: "vol_term", name: "Volatility Regime", description: "VIX term structure with fear gauge and regime label", defaultWidth: 1, defaultConfig: {} },
   // Tier 2
   { type: "currency_stress", name: "Currency Stress", description: "Dollar index, EUR, JPY, CNY with trend signals", defaultWidth: 1, defaultConfig: {} },
+  { type: "oil_divergence", name: "Oil-SPX Divergence", description: "Premarket oil-equity divergence signal with regime detection", defaultWidth: 1, defaultConfig: {} },
   { type: "labor_market", name: "Labor Market Pulse", description: "Claims, unemployment, payrolls with health status", defaultWidth: 1, defaultConfig: {} },
   { type: "commodities", name: "Commodity Complex", description: "Gold, WTI, Brent, Natural Gas with sparklines", defaultWidth: 1, defaultConfig: {} },
   // Tier 3

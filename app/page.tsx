@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useTiers } from "@/lib/hooks/useTiers";
 import {
   Shield,
   MessageSquare,
@@ -219,48 +220,7 @@ const features = [
   },
 ];
 
-// ── Pricing tiers ──
-const tiers = [
-  {
-    name: "Observer",
-    price: "$199",
-    priceAnnual: "$169",
-    period: "/mo",
-    description: "Serious investor",
-    features: [
-      "Signal detection engine",
-      "Daily thesis generation",
-      "Market sentiment analysis",
-      "Prediction tracking with Brier scores",
-      "War Room with OSINT feeds",
-      "Calendar intelligence",
-      "Email alerts",
-    ],
-    cta: "Start Observing",
-    highlighted: false,
-  },
-  {
-    name: "Operator",
-    price: "$599",
-    priceAnnual: "$499",
-    period: "/mo",
-    description: "Macro trader",
-    features: [
-      "Everything in Observer",
-      "Game theory scenarios",
-      "Vessel tracking & dark fleet intel",
-      "Monte Carlo simulation",
-      "Prediction engine with full calibration",
-      "Portfolio risk analytics",
-      "GEX, BOCPD & regime detection",
-      "Short interest & options flow",
-      "On-chain analytics",
-      "Congressional trading signals",
-    ],
-    cta: "Go Operational",
-    highlighted: true,
-  },
-];
+// Pricing tiers loaded dynamically via useTiers hook
 
 // ── Animated Chat Simulation ──
 function AnimatedChat() {
@@ -724,6 +684,23 @@ export default function LandingPage() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [billingAnnual, setBillingAnnual] = useState(false);
+  const { tiers: dbTiers } = useTiers();
+
+  const tierMeta: Record<string, { description: string; cta: string }> = {
+    Observer: { description: "Serious investor", cta: "Start Observing" },
+    Operator: { description: "Macro trader", cta: "Go Operational" },
+    Institution: { description: "Multi-seat deployment", cta: "Contact Us" },
+  };
+  const tiers = dbTiers.map((t) => ({
+    name: t.name,
+    price: t.price > 0 ? `$${t.price}` : "Custom",
+    priceAnnual: t.price > 0 ? `$${Math.round(t.price * 0.85)}` : "Custom",
+    period: t.price > 0 ? "/mo" : "",
+    description: tierMeta[t.name]?.description || t.name,
+    features: t.features,
+    cta: tierMeta[t.name]?.cta || "Get Started",
+    highlighted: t.highlighted,
+  }));
 
   useEffect(() => {
     fetch("/api/warroom")

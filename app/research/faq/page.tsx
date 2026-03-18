@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useTiers } from "@/lib/hooks/useTiers";
 import {
   HelpCircle,
   ChevronDown,
@@ -144,13 +145,19 @@ function FAQSection({ title, tag, icon: Icon, color, children }: {
 // ── Credit Tier Table ──
 function CreditTable() {
   const { ref, visible } = useReveal(0.08);
+  const { tiers: dbTiers } = useTiers();
 
-  const tiers = [
-    { name: "Free Trial", credits: "5,000", price: "$0", perCredit: "$0.001", highlight: false },
-    { name: "Observer", credits: "50,000", price: "$199/mo", perCredit: "$0.004", highlight: false },
-    { name: "Operator", credits: "250,000", price: "$599/mo", perCredit: "$0.002", highlight: true },
-    { name: "Institution", credits: "Unlimited", price: "Custom", perCredit: "N/A", highlight: false },
-  ];
+  const tiers = dbTiers.length > 0
+    ? dbTiers.map((t) => ({
+        name: t.name,
+        credits: t.features.find((f: string) => f.toLowerCase().includes("credit"))?.replace(/[^0-9,]+/g, "").trim() || "N/A",
+        price: t.price > 0 ? `$${t.price}/mo` : "Custom",
+        perCredit: "N/A",
+        highlight: t.highlighted,
+      }))
+    : [
+        { name: "Free Trial", credits: "5,000", price: "$0", perCredit: "N/A", highlight: false },
+      ];
 
   return (
     <div
