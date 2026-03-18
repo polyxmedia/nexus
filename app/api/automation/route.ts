@@ -39,13 +39,16 @@ export async function POST(req: NextRequest) {
 
     // Create new rule
     if (body.action === "create") {
+      if (!body.name || !body.triggerType || !body.actions) {
+        return NextResponse.json({ error: "name, triggerType, and actions are required" }, { status: 400 });
+      }
       const rule = await createRule({
         name: body.name,
-        description: body.description,
+        description: body.description || undefined,
         triggerType: body.triggerType,
-        triggerConfig: body.triggerConfig,
+        triggerConfig: body.triggerConfig || {},
         actions: body.actions,
-        cooldownMinutes: body.cooldownMinutes,
+        cooldownMinutes: body.cooldownMinutes || 30,
         createdBy: session?.user?.name || null,
       });
       return NextResponse.json({ rule });

@@ -1468,15 +1468,29 @@ FORMAT: SUBJECT + "will" + measurable outcome. No imperatives (execute, monitor,
 
 UNIQUENESS: Avoid duplicating the exact same claim or threshold variant vs pending. But you MUST always generate at least 3 predictions. If major tickers are covered, find new angles: different timeframes, different catalysts, related but uncovered assets, geopolitical outcomes, or cross-asset correlations. NEVER return an empty array.
 
-PREDICTION QUALITY: Your predictions should impress professional forecasters, not just track obvious trends. Mix difficulty levels:
-- At least 1 prediction should be a NON-OBVIOUS cross-asset or second-order effect (e.g. "copper will lead equities lower by 5 days" or "credit spreads will widen before VIX spikes")
-- At least 1 prediction should involve a SPECIFIC geopolitical or macro catalyst with a concrete market consequence
-- Avoid pure trend-continuation calls (e.g. "thing that's going down will keep going down"). If you make one, pair it with a contrarian or reversal call.
-- Predictions that identify DIVERGENCES between related instruments (e.g. "gold/silver ratio will exceed 90" or "TLT and GLD moving in opposite directions") are higher quality than simple directional calls.
+PREDICTION QUALITY: The purpose of NEXUS is to detect where geopolitical and macro signals create market alpha BEFORE it's priced in. Your predictions should demonstrate this edge. A good NEXUS prediction connects intelligence to a specific market outcome that a Bloomberg terminal alone wouldn't flag.
+
+Mix these types:
+- INTELLIGENCE-DRIVEN: A geopolitical or macro catalyst → specific market consequence (e.g. "OPEC emergency meeting signals → WTI above $85 within 7 days"). This is the core value prop.
+- CROSS-ASSET: Second-order effects across asset classes (e.g. "copper/gold ratio decline will precede equity drawdown by 3-5 days"). Shows analytical depth.
+- REGIME TRANSITION: Calls on market regime shifts or reversals, not just trend continuation (e.g. "VIX term structure will invert within 14 days as credit stress surfaces"). Higher difficulty, higher value.
+- RELATIVE VALUE: Divergences between related instruments (e.g. "XLE will decouple from crude as refining margins compress"). Shows sector-level insight.
+
+Avoid:
+- Pure trend-continuation with no catalyst ("thing going down will keep going down")
+- Predictions that are just restating what the thesis already says without adding a specific measurable claim
+- Unfalsifiable or vague outcomes ("tensions will increase", "markets will be volatile")
+
+REALISM: Every prediction must be something that COULD ACTUALLY BE VERIFIED with real market data or news after the deadline. Before generating each prediction, ask yourself:
+- Can this actually be measured? (good: "SPY closes below 650" / bad: "market sentiment shifts")
+- Is the reference symbol real and actively traded? Use major tickers (SPY, QQQ, GLD, TLT, XLE, etc.) not obscure or delisted instruments.
+- Is the timeframe reasonable for the magnitude? A 10% equity index move in 7 days needs extreme conditions, don't predict it at 60% confidence.
+- Is the price target grounded in current levels? Check the reference prices provided above. Don't predict SPY at 800 if it's currently at 660.
+- For geopolitical predictions: is the event specific enough to confirm or deny from news? (good: "OPEC announces production cut" / bad: "tensions rise in Middle East")
 
 CONFIDENCE: Your stated confidence should be your ALL-THINGS-CONSIDERED probability that this exact outcome will occur. Range 0.10-0.90. Do NOT manually compound conditional probabilities -- just state your honest forecast. The system applies its own calibration adjustments downstream. Follow calibration feedback above. Be honest: if evidence is strong, confidence should be strong.
 
-MAGNITUDE: Equity indices 7d typical 1-4% (>8% needs <15% confidence). Sector ETFs 2-5%. Leveraged 8-20%. Prefer price-levels over RSI/MACD. Multi-condition claims max 0.40 confidence. Prefer conservative thresholds.
+MAGNITUDE: Equity indices 7d typical 1-4% (>8% needs <15% confidence). Sector ETFs 2-5%. Leveraged 8-20%. Prefer price-levels over RSI/MACD. Multi-condition claims max 0.40 confidence. Prefer conservative thresholds. Always sanity-check your price target against the current price in the data above.
 DIRECTION: Always specify direction (up/down/flat) + price_target + reference_symbol where possible.
 
 Respond ONLY with JSON array:
