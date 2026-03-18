@@ -20,6 +20,7 @@ import {
   Palette,
   Layout,
   Send,
+  Image as ImageIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { RADAR_PATHS, RADAR_CIRCLE } from "@/lib/icons/radar-paths";
@@ -37,9 +38,17 @@ interface OGConfig {
   tags: TagConfig[];
   accentColor: string;
   backgroundColor: string;
+  backgroundImage: string;
+  backgroundOverlay: number;
+  gradientEnabled: boolean;
+  gradientFrom: string;
+  gradientTo: string;
+  gradientAngle: number;
   titleColor: string;
   subtitleColor: string;
   labelColor: string;
+  topBarColor: string;
+  bottomBarColor: string;
   showGrid: boolean;
   showAccentLine: boolean;
   showRadar: boolean;
@@ -48,7 +57,11 @@ interface OGConfig {
   bottomLeft: string;
   bottomRight: string;
   titleSize: number;
+  titleWeight: number;
   subtitleSize: number;
+  labelSize: number;
+  tagSize: number;
+  contentPaddingLeft: number;
   radarColor: string;
   radarOpacity: number;
   radarSize: number;
@@ -68,9 +81,17 @@ const DEFAULT_CONFIG: OGConfig = {
   ],
   accentColor: "#06b6d4",
   backgroundColor: "#000000",
+  backgroundImage: "",
+  backgroundOverlay: 0.6,
+  gradientEnabled: false,
+  gradientFrom: "#000000",
+  gradientTo: "#0a0a1a",
+  gradientAngle: 135,
   titleColor: "#e8e8e8",
   subtitleColor: "#555555",
   labelColor: "#06b6d4",
+  topBarColor: "#555555",
+  bottomBarColor: "#333333",
   showGrid: true,
   showAccentLine: true,
   showRadar: true,
@@ -79,7 +100,11 @@ const DEFAULT_CONFIG: OGConfig = {
   bottomLeft: "nexushq.xyz",
   bottomRight: "A Polyxmedia Product",
   titleSize: 64,
+  titleWeight: 700,
   subtitleSize: 20,
+  labelSize: 14,
+  tagSize: 13,
+  contentPaddingLeft: 100,
   radarColor: "#06b6d4",
   radarOpacity: 0.08,
   radarSize: 420,
@@ -123,17 +148,38 @@ const RadarSVGSmall = ({ color }: { color: string }) => (
 
 const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
   const c = config;
+  const padPct = (c.contentPaddingLeft / 1200) * 100;
 
   return (
     <div className="relative overflow-hidden w-full rounded-md" style={{ aspectRatio: "1200/630" }}>
       <div
         className="absolute inset-0 flex flex-col"
         style={{
-          background: c.backgroundColor,
+          background: c.gradientEnabled
+            ? `linear-gradient(${c.gradientAngle}deg, ${c.gradientFrom}, ${c.gradientTo})`
+            : c.backgroundColor,
           fontFamily: "'IBM Plex Mono', monospace",
           overflow: "hidden",
         }}
       >
+        {/* Background image */}
+        {c.backgroundImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={c.backgroundImage}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+
+        {/* Dark overlay */}
+        {c.backgroundImage && c.backgroundOverlay > 0 && (
+          <div
+            className="absolute inset-0"
+            style={{ background: `rgba(0,0,0,${c.backgroundOverlay})` }}
+          />
+        )}
+
         {/* Grid overlay */}
         {c.showGrid && (
           <div
@@ -150,7 +196,7 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
           <div
             className="absolute top-0 bottom-0"
             style={{
-              left: "6.67%",
+              left: `${padPct - 1.67}%`,
               width: 1,
               background: `linear-gradient(to bottom, transparent, ${c.accentColor}66, transparent)`,
             }}
@@ -169,7 +215,7 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
           />
         )}
 
-        {/* Radar icon - background watermark */}
+        {/* Radar icon */}
         {c.showRadar && (
           <div
             className="absolute flex items-center justify-center"
@@ -185,11 +231,14 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
         )}
 
         {/* Top bar */}
-        <div className="flex items-center gap-[0.8%] relative" style={{ padding: "7% 6.67% 0" }}>
+        <div
+          className="flex items-center gap-[0.8%] relative"
+          style={{ padding: `7% ${padPct}% 0` }}
+        >
           <RadarSVGSmall color={c.accentColor} />
           <span
             style={{
-              color: "#555555",
+              color: c.topBarColor,
               fontSize: "clamp(8px, 1.08vw, 13px)",
               letterSpacing: "0.25em",
               textTransform: "uppercase",
@@ -202,11 +251,11 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
         {/* Main content */}
         <div
           className="flex flex-col flex-1 justify-center relative"
-          style={{ padding: "0 8.33%" }}
+          style={{ padding: `0 ${padPct}%` }}
         >
           <div
             style={{
-              fontSize: "clamp(8px, 1.17vw, 14px)",
+              fontSize: `clamp(8px, ${c.labelSize / 1200 * 100}vw, ${c.labelSize}px)`,
               letterSpacing: "0.3em",
               color: c.labelColor,
               textTransform: "uppercase",
@@ -219,7 +268,7 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
           <div
             style={{
               fontSize: `clamp(24px, ${c.titleSize / 1200 * 100}vw, ${c.titleSize}px)`,
-              fontWeight: 700,
+              fontWeight: c.titleWeight,
               color: c.titleColor,
               lineHeight: 1.05,
               letterSpacing: "-0.02em",
@@ -253,7 +302,7 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
                   border: `1px solid ${color}40`,
                   background: `${color}15`,
                   color,
-                  fontSize: "clamp(7px, 1.08vw, 13px)",
+                  fontSize: `clamp(7px, ${c.tagSize / 1200 * 100}vw, ${c.tagSize}px)`,
                   letterSpacing: "0.2em",
                   fontWeight: 700,
                 }}
@@ -267,11 +316,11 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
         {/* Bottom bar */}
         <div
           className="flex items-center justify-between relative"
-          style={{ padding: "0 6.67% 5.7%" }}
+          style={{ padding: `0 ${padPct}% 5.7%` }}
         >
           <span
             style={{
-              color: "#333333",
+              color: c.bottomBarColor,
               fontSize: "clamp(7px, 1vw, 12px)",
               letterSpacing: "0.2em",
               textTransform: "uppercase",
@@ -281,7 +330,7 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
           </span>
           <span
             style={{
-              color: "#333333",
+              color: c.bottomBarColor,
               fontSize: "clamp(7px, 1vw, 12px)",
               letterSpacing: "0.2em",
               textTransform: "uppercase",
@@ -295,7 +344,9 @@ const OGPreview = memo(function OGPreview({ config }: { config: OGConfig }) {
   );
 });
 
-function ColorInput({
+// ── Control components ──
+
+function ColorRow({
   label,
   value,
   onChange,
@@ -305,26 +356,106 @@ function ColorInput({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <div
-        className="w-6 h-6 rounded border border-navy-600 cursor-pointer relative overflow-hidden flex-shrink-0"
-        style={{ background: value }}
-      >
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 cursor-pointer"
-        />
-      </div>
-      <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider min-w-[70px]">
+    <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+      <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider truncate">
         {label}
       </span>
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-7 text-xs font-mono w-24"
-      />
+      <div className="flex items-center gap-2">
+        <div
+          className="w-7 h-7 rounded border border-navy-600 cursor-pointer relative overflow-hidden shrink-0"
+          style={{ background: value }}
+        >
+          <input
+            type="color"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 opacity-0 cursor-pointer"
+          />
+        </div>
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-7 text-xs font-mono flex-1"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SliderRow({
+  label,
+  value,
+  min,
+  max,
+  step,
+  suffix,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+      <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider truncate">
+        {label}
+      </span>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step || 1}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1 accent-accent-cyan h-1"
+        />
+        <span className="text-[10px] font-mono text-navy-400 w-12 text-right tabular-nums shrink-0">
+          {typeof step === "number" && step < 1 ? value.toFixed(2) : value}{suffix || ""}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+      <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider truncate">
+        {label}
+      </span>
+      <button
+        onClick={() => onChange(!value)}
+        className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+          value ? "bg-accent-cyan" : "bg-navy-700"
+        }`}
+      >
+        <div
+          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+            value ? "left-[18px]" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 pt-3 pb-1 border-t border-navy-700/30 first:border-0 first:pt-0">
+      {children}
     </div>
   );
 }
@@ -341,9 +472,8 @@ export default function OGDesignerPage() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<"text" | "colors" | "layout" | "tags">("text");
+  const [activeSection, setActiveSection] = useState<"text" | "colors" | "background" | "layout" | "tags">("text");
 
-  // Debounce preview updates to avoid re-rendering the heavy preview on every keystroke
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -461,6 +591,7 @@ export default function OGDesignerPage() {
   const sections = [
     { id: "text" as const, label: "Text", icon: Type },
     { id: "colors" as const, label: "Colors", icon: Palette },
+    { id: "background" as const, label: "Background", icon: ImageIcon },
     { id: "layout" as const, label: "Layout", icon: Layout },
     { id: "tags" as const, label: "Tags", icon: Grid3X3 },
   ];
@@ -530,7 +661,7 @@ export default function OGDesignerPage() {
           <Input
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
-            placeholder="Describe what you want... e.g. 'make it more aggressive with red accents' or 'clean minimal style with just the title'"
+            placeholder="Describe what you want... e.g. 'dark cinematic with red accents' or 'clean minimal with gradient background'"
             className="flex-1 text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -581,375 +712,244 @@ export default function OGDesignerPage() {
         </p>
       </div>
 
+      {/* Controls */}
       <div>
-          {/* Section tabs */}
-          <div className="flex gap-0 border-b border-navy-700 mb-4">
-            {sections.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSection(s.id)}
-                className={`flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium uppercase tracking-wider border-b-2 transition-colors ${
-                  activeSection === s.id
-                    ? "text-navy-100 border-navy-100"
-                    : "text-navy-500 border-transparent hover:text-navy-300"
-                }`}
-              >
-                <s.icon className="h-3.5 w-3.5" />
-                {s.label}
-              </button>
-            ))}
-          </div>
+        {/* Section tabs */}
+        <div className="flex gap-0 border-b border-navy-700 mb-5">
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setActiveSection(s.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium uppercase tracking-wider border-b-2 transition-colors ${
+                activeSection === s.id
+                  ? "text-navy-100 border-navy-100"
+                  : "text-navy-500 border-transparent hover:text-navy-300"
+              }`}
+            >
+              <s.icon className="h-3.5 w-3.5" />
+              {s.label}
+            </button>
+          ))}
+        </div>
 
-          <div className="space-y-4">
-            {/* Text Section */}
-            {activeSection === "text" && (
-              <>
-                <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                    Title
-                  </label>
-                  <Input
-                    value={config.title}
-                    onChange={(e) => updateConfig({ title: e.target.value })}
-                    className="text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                    Subtitle
-                  </label>
-                  <textarea
-                    value={config.subtitle}
-                    onChange={(e) => updateConfig({ subtitle: e.target.value })}
-                    rows={3}
-                    className="w-full rounded-md border border-navy-700 bg-navy-900/60 px-3 py-2 text-sm text-navy-100 placeholder:text-navy-500 focus:outline-none focus:ring-1 focus:ring-navy-500"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Label (above title)
-                    </label>
-                    <Input
-                      value={config.label}
-                      onChange={(e) => updateConfig({ label: e.target.value })}
-                      className="text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Top Bar
-                    </label>
-                    <Input
-                      value={config.topBar}
-                      onChange={(e) => updateConfig({ topBar: e.target.value })}
-                      className="text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Bottom Left
-                    </label>
-                    <Input
-                      value={config.bottomLeft}
-                      onChange={(e) => updateConfig({ bottomLeft: e.target.value })}
-                      className="text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Bottom Right
-                    </label>
-                    <Input
-                      value={config.bottomRight}
-                      onChange={(e) => updateConfig({ bottomRight: e.target.value })}
-                      className="text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Title Size
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={28}
-                        max={80}
-                        value={config.titleSize}
-                        onChange={(e) => updateConfig({ titleSize: Number(e.target.value) })}
-                        className="flex-1 accent-accent-cyan"
-                      />
-                      <span className="text-[10px] font-mono text-navy-400 w-8 text-right">
-                        {config.titleSize}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Subtitle Size
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={10}
-                        max={28}
-                        value={config.subtitleSize}
-                        onChange={(e) => updateConfig({ subtitleSize: Number(e.target.value) })}
-                        className="flex-1 accent-accent-cyan"
-                      />
-                      <span className="text-[10px] font-mono text-navy-400 w-8 text-right">
-                        {config.subtitleSize}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
+        <div className="space-y-3 max-w-2xl">
+          {/* ── Text Section ── */}
+          {activeSection === "text" && (
+            <>
+              <div className="grid grid-cols-[140px_1fr] items-start gap-3">
+                <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider pt-2">Title</span>
+                <Input
+                  value={config.title}
+                  onChange={(e) => updateConfig({ title: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-[140px_1fr] items-start gap-3">
+                <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider pt-2">Subtitle</span>
+                <textarea
+                  value={config.subtitle}
+                  onChange={(e) => updateConfig({ subtitle: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-md border border-navy-700 bg-navy-900/60 px-3 py-2 text-sm text-navy-100 placeholder:text-navy-500 focus:outline-none focus:ring-1 focus:ring-navy-500"
+                />
+              </div>
+              <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Label</span>
+                <Input
+                  value={config.label}
+                  onChange={(e) => updateConfig({ label: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Top Bar</span>
+                <Input
+                  value={config.topBar}
+                  onChange={(e) => updateConfig({ topBar: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Bottom Left</span>
+                <Input
+                  value={config.bottomLeft}
+                  onChange={(e) => updateConfig({ bottomLeft: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Bottom Right</span>
+                <Input
+                  value={config.bottomRight}
+                  onChange={(e) => updateConfig({ bottomRight: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
 
-            {/* Colors Section */}
-            {activeSection === "colors" && (
-              <div className="space-y-3">
-                <ColorInput
-                  label="Background"
-                  value={config.backgroundColor}
-                  onChange={(v) => updateConfig({ backgroundColor: v })}
-                />
-                <ColorInput
-                  label="Accent"
-                  value={config.accentColor}
-                  onChange={(v) => updateConfig({ accentColor: v })}
-                />
-                <ColorInput
-                  label="Title"
-                  value={config.titleColor}
-                  onChange={(v) => updateConfig({ titleColor: v })}
-                />
-                <ColorInput
-                  label="Subtitle"
-                  value={config.subtitleColor}
-                  onChange={(v) => updateConfig({ subtitleColor: v })}
-                />
-                <ColorInput
-                  label="Label"
-                  value={config.labelColor}
-                  onChange={(v) => updateConfig({ labelColor: v })}
-                />
+              <SectionLabel>Typography</SectionLabel>
+              <SliderRow label="Title Size" value={config.titleSize} min={28} max={80} suffix="px" onChange={(v) => updateConfig({ titleSize: v })} />
+              <SliderRow label="Title Weight" value={config.titleWeight} min={400} max={900} step={100} onChange={(v) => updateConfig({ titleWeight: v })} />
+              <SliderRow label="Subtitle Size" value={config.subtitleSize} min={10} max={28} suffix="px" onChange={(v) => updateConfig({ subtitleSize: v })} />
+              <SliderRow label="Label Size" value={config.labelSize} min={10} max={20} suffix="px" onChange={(v) => updateConfig({ labelSize: v })} />
+              <SliderRow label="Tag Size" value={config.tagSize} min={9} max={18} suffix="px" onChange={(v) => updateConfig({ tagSize: v })} />
+            </>
+          )}
 
-                {/* Radar icon controls */}
-                <div className="border-t border-navy-700/40 pt-3 mt-3 space-y-3">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-navy-400 block">
-                    Radar Icon
-                  </span>
-                  <ColorInput
-                    label="Color"
-                    value={config.radarColor}
-                    onChange={(v) => updateConfig({ radarColor: v })}
-                  />
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Opacity
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={1}
-                        max={40}
-                        value={Math.round(config.radarOpacity * 100)}
-                        onChange={(e) =>
-                          updateConfig({ radarOpacity: Number(e.target.value) / 100 })
-                        }
-                        className="flex-1 accent-accent-cyan"
-                      />
-                      <span className="text-[10px] font-mono text-navy-400 w-8 text-right">
-                        {(config.radarOpacity * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                      Size
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={200}
-                        max={600}
-                        value={config.radarSize}
-                        onChange={(e) =>
-                          updateConfig({ radarSize: Number(e.target.value) })
-                        }
-                        className="flex-1 accent-accent-cyan"
-                      />
-                      <span className="text-[10px] font-mono text-navy-400 w-12 text-right">
-                        {config.radarSize}px
-                      </span>
-                    </div>
-                  </div>
-                </div>
+          {/* ── Colors Section ── */}
+          {activeSection === "colors" && (
+            <>
+              <ColorRow label="Accent" value={config.accentColor} onChange={(v) => updateConfig({ accentColor: v })} />
+              <ColorRow label="Title" value={config.titleColor} onChange={(v) => updateConfig({ titleColor: v })} />
+              <ColorRow label="Subtitle" value={config.subtitleColor} onChange={(v) => updateConfig({ subtitleColor: v })} />
+              <ColorRow label="Label" value={config.labelColor} onChange={(v) => updateConfig({ labelColor: v })} />
+              <ColorRow label="Top Bar" value={config.topBarColor} onChange={(v) => updateConfig({ topBarColor: v })} />
+              <ColorRow label="Bottom Bar" value={config.bottomBarColor} onChange={(v) => updateConfig({ bottomBarColor: v })} />
 
-                <div className="border-t border-navy-700/40 pt-3 mt-3">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-navy-400 block mb-3">
-                    Presets
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
+              <SectionLabel>Radar Icon</SectionLabel>
+              <ColorRow label="Radar Color" value={config.radarColor} onChange={(v) => updateConfig({ radarColor: v })} />
+              <SliderRow label="Radar Opacity" value={Math.round(config.radarOpacity * 100)} min={1} max={40} suffix="%" onChange={(v) => updateConfig({ radarOpacity: v / 100 })} />
+              <SliderRow label="Radar Size" value={config.radarSize} min={200} max={600} suffix="px" onChange={(v) => updateConfig({ radarSize: v })} />
+
+              <SectionLabel>Presets</SectionLabel>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { name: "Cyan Intel", accent: "#06b6d4", bg: "#000000", title: "#e8e8e8", label: "#06b6d4" },
+                  { name: "Amber Warning", accent: "#f59e0b", bg: "#0a0a00", title: "#f0e0c0", label: "#f59e0b" },
+                  { name: "Rose Alert", accent: "#f43f5e", bg: "#0a0000", title: "#f0c0c0", label: "#f43f5e" },
+                  { name: "Emerald Ops", accent: "#10b981", bg: "#000a04", title: "#c0f0d8", label: "#10b981" },
+                  { name: "Purple Spec", accent: "#8b5cf6", bg: "#050008", title: "#d8c8f0", label: "#8b5cf6" },
+                  { name: "Ghost", accent: "#444444", bg: "#000000", title: "#888888", label: "#444444" },
+                ].map((preset) => (
+                  <button
+                    key={preset.name}
+                    onClick={() =>
+                      updateConfig({
+                        accentColor: preset.accent,
+                        backgroundColor: preset.bg,
+                        titleColor: preset.title,
+                        labelColor: preset.label,
+                        radarColor: preset.accent,
+                      })
+                    }
+                    className="border border-navy-700/40 rounded px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-navy-400 hover:text-navy-200 hover:border-navy-600/60 transition-colors text-left"
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full mb-1.5"
+                      style={{ background: preset.accent }}
+                    />
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ── Background Section ── */}
+          {activeSection === "background" && (
+            <>
+              <SectionLabel>Solid Background</SectionLabel>
+              <ColorRow label="Color" value={config.backgroundColor} onChange={(v) => updateConfig({ backgroundColor: v })} />
+
+              <SectionLabel>Gradient</SectionLabel>
+              <ToggleRow label="Use Gradient" value={config.gradientEnabled} onChange={(v) => updateConfig({ gradientEnabled: v })} />
+              {config.gradientEnabled && (
+                <>
+                  <ColorRow label="From" value={config.gradientFrom} onChange={(v) => updateConfig({ gradientFrom: v })} />
+                  <ColorRow label="To" value={config.gradientTo} onChange={(v) => updateConfig({ gradientTo: v })} />
+                  <SliderRow label="Angle" value={config.gradientAngle} min={0} max={360} suffix="deg" onChange={(v) => updateConfig({ gradientAngle: v })} />
+
+                  <div className="grid grid-cols-4 gap-2 pt-1">
                     {[
-                      {
-                        name: "Cyan Intel",
-                        accent: "#06b6d4",
-                        bg: "#000000",
-                        title: "#e8e8e8",
-                        label: "#06b6d4",
-                      },
-                      {
-                        name: "Amber Warning",
-                        accent: "#f59e0b",
-                        bg: "#0a0a00",
-                        title: "#f0e0c0",
-                        label: "#f59e0b",
-                      },
-                      {
-                        name: "Rose Alert",
-                        accent: "#f43f5e",
-                        bg: "#0a0000",
-                        title: "#f0c0c0",
-                        label: "#f43f5e",
-                      },
-                      {
-                        name: "Emerald Ops",
-                        accent: "#10b981",
-                        bg: "#000a04",
-                        title: "#c0f0d8",
-                        label: "#10b981",
-                      },
-                      {
-                        name: "Purple Spec",
-                        accent: "#8b5cf6",
-                        bg: "#050008",
-                        title: "#d8c8f0",
-                        label: "#8b5cf6",
-                      },
-                      {
-                        name: "Ghost",
-                        accent: "#444444",
-                        bg: "#000000",
-                        title: "#888888",
-                        label: "#444444",
-                      },
-                    ].map((preset) => (
+                      { name: "Deep Space", from: "#000000", to: "#0a0a2e", angle: 135 },
+                      { name: "Midnight", from: "#0f0c29", to: "#302b63", angle: 135 },
+                      { name: "Dark Ocean", from: "#000000", to: "#003545", angle: 160 },
+                      { name: "Ember", from: "#0a0000", to: "#1a0505", angle: 180 },
+                    ].map((g) => (
                       <button
-                        key={preset.name}
-                        onClick={() =>
-                          updateConfig({
-                            accentColor: preset.accent,
-                            backgroundColor: preset.bg,
-                            titleColor: preset.title,
-                            labelColor: preset.label,
-                          })
-                        }
-                        className="border border-navy-700/40 rounded px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-navy-400 hover:text-navy-200 hover:border-navy-600/60 transition-colors text-left"
+                        key={g.name}
+                        onClick={() => updateConfig({ gradientFrom: g.from, gradientTo: g.to, gradientAngle: g.angle })}
+                        className="border border-navy-700/30 rounded px-2 py-2 text-[9px] font-mono uppercase tracking-wider text-navy-500 hover:text-navy-300 hover:border-navy-600/40 transition-colors"
                       >
                         <div
-                          className="w-3 h-3 rounded-full mb-1.5"
-                          style={{ background: preset.accent }}
+                          className="w-full h-3 rounded mb-1.5"
+                          style={{ background: `linear-gradient(${g.angle}deg, ${g.from}, ${g.to})` }}
                         />
-                        {preset.name}
+                        {g.name}
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
-            )}
+                </>
+              )}
 
-            {/* Layout Section */}
-            {activeSection === "layout" && (
-              <div className="space-y-4">
-                <div className="space-y-3">
-                  {[
-                    { key: "showGrid" as const, label: "Grid overlay" },
-                    { key: "showAccentLine" as const, label: "Left accent line" },
-                    { key: "showRadar" as const, label: "Radar graphic" },
-                  ].map(({ key, label }) => (
-                    <label
-                      key={key}
-                      className="flex items-center justify-between cursor-pointer group"
+              <SectionLabel>Background Image</SectionLabel>
+              <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Image URL</span>
+                <Input
+                  value={config.backgroundImage}
+                  onChange={(e) => updateConfig({ backgroundImage: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                  className="text-sm"
+                />
+              </div>
+              {config.backgroundImage && (
+                <>
+                  <SliderRow
+                    label="Overlay Opacity"
+                    value={Math.round(config.backgroundOverlay * 100)}
+                    min={0}
+                    max={95}
+                    suffix="%"
+                    onChange={(v) => updateConfig({ backgroundOverlay: v / 100 })}
+                  />
+                  <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                    <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">Clear</span>
+                    <button
+                      onClick={() => updateConfig({ backgroundImage: "" })}
+                      className="flex items-center gap-1.5 text-[10px] font-mono text-accent-rose hover:text-accent-rose/80 transition-colors"
                     >
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-navy-400 group-hover:text-navy-200 transition-colors">
-                        {label}
-                      </span>
-                      <button
-                        onClick={() => updateConfig({ [key]: !config[key] })}
-                        className={`relative w-9 h-5 rounded-full transition-colors ${
-                          config[key] ? "bg-accent-cyan" : "bg-navy-700"
-                        }`}
-                      >
-                        <div
-                          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                            config[key] ? "left-[18px]" : "left-0.5"
-                          }`}
-                        />
-                      </button>
-                    </label>
-                  ))}
-                </div>
-
-                {config.showGrid && (
-                  <div className="border-t border-navy-700/40 pt-3 space-y-3">
-                    <div>
-                      <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                        Grid Spacing
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min={20}
-                          max={120}
-                          value={config.gridSpacing}
-                          onChange={(e) =>
-                            updateConfig({ gridSpacing: Number(e.target.value) })
-                          }
-                          className="flex-1 accent-accent-cyan"
-                        />
-                        <span className="text-[10px] font-mono text-navy-400 w-8 text-right">
-                          {config.gridSpacing}px
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-mono uppercase tracking-wider text-navy-400 mb-1.5 block">
-                        Grid Opacity
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min={1}
-                          max={15}
-                          value={Math.round(config.gridOpacity * 100)}
-                          onChange={(e) =>
-                            updateConfig({ gridOpacity: Number(e.target.value) / 100 })
-                          }
-                          className="flex-1 accent-accent-cyan"
-                        />
-                        <span className="text-[10px] font-mono text-navy-400 w-8 text-right">
-                          {(config.gridOpacity * 100).toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
+                      <Trash2 className="h-3 w-3" />
+                      Remove Image
+                    </button>
                   </div>
-                )}
-              </div>
-            )}
+                </>
+              )}
+              <p className="text-[10px] text-navy-500 ml-[152px]">
+                Use a publicly accessible URL. The dark overlay helps text remain readable.
+              </p>
+            </>
+          )}
 
-            {/* Tags Section */}
-            {activeSection === "tags" && (
-              <div className="space-y-3">
-                {config.tags.map((tag, i) => (
-                  <div key={i} className="flex items-center gap-2">
+          {/* ── Layout Section ── */}
+          {activeSection === "layout" && (
+            <>
+              <ToggleRow label="Grid Overlay" value={config.showGrid} onChange={(v) => updateConfig({ showGrid: v })} />
+              <ToggleRow label="Accent Lines" value={config.showAccentLine} onChange={(v) => updateConfig({ showAccentLine: v })} />
+              <ToggleRow label="Radar Graphic" value={config.showRadar} onChange={(v) => updateConfig({ showRadar: v })} />
+
+              <SectionLabel>Spacing</SectionLabel>
+              <SliderRow label="Content Left" value={config.contentPaddingLeft} min={60} max={200} suffix="px" onChange={(v) => updateConfig({ contentPaddingLeft: v })} />
+
+              {config.showGrid && (
+                <>
+                  <SectionLabel>Grid</SectionLabel>
+                  <SliderRow label="Grid Spacing" value={config.gridSpacing} min={20} max={120} suffix="px" onChange={(v) => updateConfig({ gridSpacing: v })} />
+                  <SliderRow label="Grid Opacity" value={Math.round(config.gridOpacity * 100)} min={1} max={15} suffix="%" onChange={(v) => updateConfig({ gridOpacity: v / 100 })} />
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── Tags Section ── */}
+          {activeSection === "tags" && (
+            <>
+              {config.tags.map((tag, i) => (
+                <div key={i} className="grid grid-cols-[140px_1fr] items-center gap-3">
+                  <span className="text-[10px] font-mono text-navy-400 uppercase tracking-wider">
+                    Tag {i + 1}
+                  </span>
+                  <div className="flex items-center gap-2">
                     <div
-                      className="w-6 h-6 rounded border border-navy-600 cursor-pointer relative overflow-hidden flex-shrink-0"
+                      className="w-7 h-7 rounded border border-navy-600 cursor-pointer relative overflow-hidden shrink-0"
                       style={{ background: tag.color }}
                     >
                       <input
@@ -971,12 +971,15 @@ export default function OGDesignerPage() {
                     />
                     <button
                       onClick={() => removeTag(i)}
-                      className="text-navy-500 hover:text-accent-rose transition-colors"
+                      className="text-navy-500 hover:text-accent-rose transition-colors shrink-0"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                ))}
+                </div>
+              ))}
+              <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                <span />
                 <button
                   onClick={addTag}
                   className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-navy-400 hover:text-navy-200 transition-colors"
@@ -985,8 +988,9 @@ export default function OGDesignerPage() {
                   Add tag
                 </button>
               </div>
-            )}
-          </div>
+            </>
+          )}
+        </div>
       </div>
     </PageContainer>
   );

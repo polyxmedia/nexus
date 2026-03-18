@@ -13,7 +13,7 @@
 
 import { searchTweets, type SearchedTweet } from "@/lib/twitter/client";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 // ── Types ──
 
@@ -95,12 +95,9 @@ async function persistToDb(topic: string, data: TopicSentiment): Promise<void> {
   const key = `${DB_KEY_PREFIX}${topic.toLowerCase()}`;
   const value = JSON.stringify(data);
   const now = new Date().toISOString();
-  const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1);
-  if (existing.length > 0) {
-    await db.update(schema.settings).set({ value, updatedAt: now }).where(eq(schema.settings.key, key));
-  } else {
-    await db.insert(schema.settings).values({ key, value, updatedAt: now });
-  }
+  // Single upsert query instead of SELECT + INSERT/UPDATE (halves DB calls)
+  await db.insert(schema.settings).values({ key, value, updatedAt: now })
+    .onConflictDoUpdate({ target: schema.settings.key, set: { value, updatedAt: now } });
 }
 
 async function loadFromDb(topic: string): Promise<TopicSentiment | null> {
@@ -116,12 +113,14 @@ async function loadFromDb(topic: string): Promise<TopicSentiment | null> {
 }
 
 async function loadAllFromDb(): Promise<TopicSentiment[]> {
-  const rows = await db.select().from(schema.settings)
-    .where(eq(schema.settings.key, schema.settings.key)); // get all
+  // Only fetch the 10 sentiment keys, not the entire settings table
+  const keys = TRACKED_TOPICS.map((t) => `${DB_KEY_PREFIX}${t.topic.toLowerCase()}`);
+  const rows = await db.select({ key: schema.settings.key, value: schema.settings.value })
+    .from(schema.settings)
+    .where(inArray(schema.settings.key, keys));
   const results: TopicSentiment[] = [];
   const now = Date.now();
   for (const row of rows) {
-    if (!row.key.startsWith(DB_KEY_PREFIX)) continue;
     try {
       const data = JSON.parse(row.value) as TopicSentiment;
       if (now - new Date(data.lastUpdated).getTime() < CACHE_TTL) {
@@ -221,12 +220,8 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
   lastScanTime = Date.now();
   const now = new Date().toISOString();
   try {
-    const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, DB_META_KEY)).limit(1);
-    if (existing.length > 0) {
-      await db.update(schema.settings).set({ value: String(lastScanTime), updatedAt: now }).where(eq(schema.settings.key, DB_META_KEY));
-    } else {
-      await db.insert(schema.settings).values({ key: DB_META_KEY, value: String(lastScanTime), updatedAt: now });
-    }
+    await db.insert(schema.settings).values({ key: DB_META_KEY, value: String(lastScanTime), updatedAt: now })
+      .onConflictDoUpdate({ target: schema.settings.key, set: { value: String(lastScanTime), updatedAt: now } });
   } catch { /* best effort */ }
 
   return { scanned, errors };
