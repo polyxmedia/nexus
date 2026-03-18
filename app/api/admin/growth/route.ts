@@ -46,7 +46,7 @@ export async function GET() {
         username: s.key.replace("user:", ""),
         role: data.role || "user",
         tier: data.tier || "free",
-        createdAt: data.createdAt || null,
+        createdAt: data.createdAt || s.updatedAt || null,
       };
     });
 

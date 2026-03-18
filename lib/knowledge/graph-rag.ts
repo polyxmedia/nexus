@@ -13,7 +13,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, or, sql, desc, inArray } from "drizzle-orm";
 import { upsertEntity, upsertRelationship } from "@/lib/graph/engine";
 import { getSettingValue } from "@/lib/settings/get-setting";
 import { HAIKU_MODEL } from "@/lib/ai/model";
@@ -187,10 +187,14 @@ export async function graphAugmentedSearch(
 
     if (matchedNodeIds.length === 0) return baseResults;
 
-    // Find connected entities 1 hop away
-    const allRels = await db.select().from(schema.relationships);
+    // Find connected entities 1 hop away (scoped query, not full table scan)
+    const scopedRels = await db.select().from(schema.relationships)
+      .where(or(
+        inArray(schema.relationships.fromEntityId, matchedNodeIds),
+        inArray(schema.relationships.toEntityId, matchedNodeIds),
+      ));
     const connectedEntityIds = new Set<number>();
-    for (const rel of allRels) {
+    for (const rel of scopedRels) {
       if (matchedNodeIds.includes(rel.fromEntityId)) connectedEntityIds.add(rel.toEntityId);
       if (matchedNodeIds.includes(rel.toEntityId)) connectedEntityIds.add(rel.fromEntityId);
     }
@@ -216,11 +220,10 @@ export async function graphAugmentedSearch(
 
     // Annotate base results with graph context
     const enriched = baseResults.map((r) => {
-      // Find entities connected to this knowledge entry
       const nodeId = graphNodes.find((n) => n.sourceId === `ke:${r.id}`)?.id;
       if (!nodeId) return r;
 
-      const connected = allRels
+      const connected = scopedRels
         .filter((rel) => rel.fromEntityId === nodeId || rel.toEntityId === nodeId)
         .map((rel) => {
           const otherId = rel.fromEntityId === nodeId ? rel.toEntityId : rel.fromEntityId;
@@ -293,12 +296,17 @@ export async function exploreEntityNeighborhood(query: string): Promise<EntityNe
 
   if (!match) return null;
 
-  const allRels = await db.select().from(schema.relationships);
+  // Scoped query: only relationships touching this entity
+  const matchRels = await db.select().from(schema.relationships)
+    .where(or(
+      eq(schema.relationships.fromEntityId, match.id),
+      eq(schema.relationships.toEntityId, match.id),
+    ));
   const entityMap = new Map<number, EntityRow>(allEntities.map((e) => [e.id, e]));
 
-  // Get 1-hop connections
+  // Get 1-hop connections from scoped relationships
   const connections: EntityNeighborhood["connections"] = [];
-  for (const rel of allRels) {
+  for (const rel of matchRels) {
     if (rel.fromEntityId === match.id) {
       const target = entityMap.get(rel.toEntityId);
       if (target) connections.push({ name: target.name, type: target.type, relationship: rel.type, weight: rel.weight || 1 });
@@ -321,18 +329,26 @@ export async function exploreEntityNeighborhood(query: string): Promise<EntityNe
     })
     .slice(0, 20);
 
-  // Find knowledge entries linked to this entity or its neighbors
+  // Find knowledge entries: check relationships touching match or its neighbors
   const knowledgeNodeIds = new Set<number>();
-  const connectedIds = new Set([match.id, ...connections.map((c) => {
+  const neighborIds = connections.map((c) => {
     const e = allEntities.find((ent) => ent.name === c.name);
     return e?.id;
-  }).filter(Boolean) as number[]]);
+  }).filter(Boolean) as number[];
+  const clusterIds = [match.id, ...neighborIds];
 
-  // Single pass: check all relationships for knowledge nodes connected to our entity cluster
-  for (const rel of allRels) {
-    const touchesCluster = connectedIds.has(rel.fromEntityId) || connectedIds.has(rel.toEntityId);
-    if (!touchesCluster) continue;
-    // Check both sides for knowledge nodes
+  // Fetch relationships for the neighbor cluster (scoped, not full table)
+  const clusterRels = neighborIds.length > 0
+    ? await db.select().from(schema.relationships)
+        .where(or(
+          inArray(schema.relationships.fromEntityId, clusterIds),
+          inArray(schema.relationships.toEntityId, clusterIds),
+        ))
+    : matchRels;
+
+  const clusterIdSet = new Set(clusterIds);
+  for (const rel of clusterRels) {
+    if (!clusterIdSet.has(rel.fromEntityId) && !clusterIdSet.has(rel.toEntityId)) continue;
     for (const eid of [rel.fromEntityId, rel.toEntityId]) {
       const ent = entityMap.get(eid);
       if (ent?.sourceId?.startsWith("ke:")) {
