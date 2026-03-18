@@ -188,10 +188,25 @@ export async function POST(request: Request) {
         .where(eq(schema.subscriptions.userId, username));
 
       if (existing.length > 0) {
+        // If upgrading an existing Stripe subscription to comped, cancel the Stripe sub
+        // to prevent future charges, then mark as comped
+        const existingSub = existing[0];
+        if (existingSub.stripeSubscriptionId && !existingSub.stripeSubscriptionId.startsWith("comped_")) {
+          try {
+            const { getStripe } = await import("@/lib/stripe");
+            const stripe = getStripe();
+            if (stripe && existingSub.stripeSubscriptionId) {
+              await stripe.subscriptions.cancel(existingSub.stripeSubscriptionId);
+            }
+          } catch (err) {
+            console.error("Failed to cancel Stripe subscription for comped user:", err);
+          }
+        }
         await db
           .update(schema.subscriptions)
           .set({
             tierId: matchingTier?.id || existing[0].tierId,
+            stripeSubscriptionId: `comped_${Date.now()}`,
             status: "active",
             currentPeriodStart: now,
             currentPeriodEnd: periodEnd,

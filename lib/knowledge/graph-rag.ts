@@ -13,7 +13,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { db, schema } from "@/lib/db";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { upsertEntity, upsertRelationship } from "@/lib/graph/engine";
 import { getSettingValue } from "@/lib/settings/get-setting";
 import { HAIKU_MODEL } from "@/lib/ai/model";
@@ -74,7 +74,13 @@ Return ONLY the JSON.`,
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return;
 
-    const result: ExtractionResult = JSON.parse(jsonMatch[0]);
+    let result: ExtractionResult;
+    try {
+      result = JSON.parse(jsonMatch[0]);
+    } catch {
+      console.warn(`[GraphRAG] Failed to parse LLM JSON for knowledge ${knowledgeId}`);
+      return;
+    }
     if (!result.entities || !Array.isArray(result.entities)) return;
 
     // Create entity nodes in graph
@@ -171,10 +177,9 @@ export async function graphAugmentedSearch(
   try {
     // Find knowledge nodes for base results
     const knowledgeSourceIds = baseResults.map((r) => `ke:${r.id}`);
+    if (knowledgeSourceIds.length === 0) return baseResults;
     const graphNodes = await db.select().from(schema.entities)
-      .where(and(
-        eq(schema.entities.sourceType, "knowledge_entry"),
-      ));
+      .where(eq(schema.entities.sourceType, "knowledge_entry"));
 
     const matchedNodeIds = graphNodes
       .filter((n) => knowledgeSourceIds.includes(n.sourceId || ""))
@@ -200,10 +205,13 @@ export async function graphAugmentedSearch(
     if (connectedKnowledgeNodes.length === 0) return baseResults;
 
     // Fetch the graph-discovered knowledge entries
+    const discoveryIds = connectedKnowledgeNodes.slice(0, 5);
+    if (discoveryIds.length === 0) return baseResults;
     const graphDiscovered = await db.select().from(schema.knowledge)
-      .where(
-        sql`id = ANY(${connectedKnowledgeNodes.slice(0, 5)}::int[]) AND status = 'active'`
-      )
+      .where(and(
+        inArray(schema.knowledge.id, discoveryIds),
+        eq(schema.knowledge.status, "active"),
+      ))
       .orderBy(desc(schema.knowledge.confidence));
 
     // Annotate base results with graph context
@@ -316,30 +324,21 @@ export async function exploreEntityNeighborhood(query: string): Promise<EntityNe
   // Find knowledge entries linked to this entity or its neighbors
   const knowledgeNodeIds = new Set<number>();
   const connectedIds = new Set([match.id, ...connections.map((c) => {
-    const e = allEntities.find((e) => e.name === c.name);
+    const e = allEntities.find((ent) => ent.name === c.name);
     return e?.id;
   }).filter(Boolean) as number[]]);
 
+  // Single pass: check all relationships for knowledge nodes connected to our entity cluster
   for (const rel of allRels) {
-    if (connectedIds.has(rel.fromEntityId) || connectedIds.has(rel.toEntityId)) {
-      const otherId = connectedIds.has(rel.fromEntityId) ? rel.toEntityId : rel.fromEntityId;
-      const otherEntity = entityMap.get(otherId);
-      if (otherEntity?.sourceId?.startsWith("ke:")) {
-        knowledgeNodeIds.add(parseInt(otherEntity.sourceId.replace("ke:", ""), 10));
+    const touchesCluster = connectedIds.has(rel.fromEntityId) || connectedIds.has(rel.toEntityId);
+    if (!touchesCluster) continue;
+    // Check both sides for knowledge nodes
+    for (const eid of [rel.fromEntityId, rel.toEntityId]) {
+      const ent = entityMap.get(eid);
+      if (ent?.sourceId?.startsWith("ke:")) {
+        const knId = parseInt(ent.sourceId.replace("ke:", ""), 10);
+        if (!isNaN(knId)) knowledgeNodeIds.add(knId);
       }
-    }
-  }
-
-  // Also check if the matched entity itself is a knowledge node
-  for (const ent of allEntities) {
-    if (ent.sourceType === "knowledge_entry" && ent.sourceId?.startsWith("ke:")) {
-      // Check if this knowledge node is connected to our match
-      const knId = parseInt(ent.sourceId.replace("ke:", ""), 10);
-      const isConnected = allRels.some(
-        (r) => (r.fromEntityId === match.id && r.toEntityId === ent.id) ||
-               (r.toEntityId === match.id && r.fromEntityId === ent.id)
-      );
-      if (isConnected) knowledgeNodeIds.add(knId);
     }
   }
 
@@ -352,7 +351,10 @@ export async function exploreEntityNeighborhood(query: string): Promise<EntityNe
       category: schema.knowledge.category,
       confidence: schema.knowledge.confidence,
     }).from(schema.knowledge)
-      .where(sql`id = ANY(${ids}::int[]) AND status = 'active'`);
+      .where(and(
+        inArray(schema.knowledge.id, ids),
+        eq(schema.knowledge.status, "active"),
+      ));
     relatedKnowledge = rows;
   }
 

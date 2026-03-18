@@ -1605,12 +1605,12 @@ function GrowthPanel({
             sub: `${overview.conversionRate}% conversion`,
           },
           {
-            label: "Active Subscribers",
-            value: String(overview.activeSubscribers),
-            sub: `${overview.pastDueSubscribers} past due`,
+            label: "Paid Subscribers",
+            value: String(overview.paidSubscribers),
+            sub: `${overview.compedSubscribers} comped, ${overview.pastDueSubscribers} past due`,
           },
           {
-            label: "MRR",
+            label: "MRR (paid only)",
             value: `$${overview.mrr.toLocaleString()}`,
             sub: `$${overview.arr.toLocaleString()} ARR`,
           },

@@ -119,18 +119,18 @@ export async function GET() {
         ? (cancelledSubscriptions.length / totalEverSubscribed) * 100
         : 0;
 
-    // Conversion rate (subscribed / total users)
+    // Conversion rate (paid subscribers / total users, excluding comped)
+    const paidActiveCount = activeSubscriptions.length - compedCount;
     const conversionRate =
       totalUsers > 0
-        ? (activeSubscriptions.length / totalUsers) * 100
+        ? (paidActiveCount / totalUsers) * 100
         : 0;
 
     // User growth over time (by createdAt date)
     const userGrowth: Record<string, number> = {};
     for (const u of users) {
-      const date = u.createdAt
-        ? u.createdAt.split("T")[0]
-        : new Date().toISOString().split("T")[0];
+      if (!u.createdAt) continue;
+      const date = u.createdAt.split("T")[0];
       userGrowth[date] = (userGrowth[date] || 0) + 1;
     }
 

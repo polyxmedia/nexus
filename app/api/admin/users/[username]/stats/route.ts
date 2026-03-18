@@ -160,7 +160,7 @@ export async function GET(
     if (userSettings.length > 0) {
       try {
         const data = JSON.parse(userSettings[0].value);
-        accountCreated = data.createdAt || null;
+        accountCreated = data.createdAt || userSettings[0].updatedAt || null;
         lastLogin = data.lastLogin || null;
       } catch {
         // ignore
