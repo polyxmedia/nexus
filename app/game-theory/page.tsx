@@ -2,24 +2,26 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  Loader2,
-  Swords,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Shield,
-  ChevronRight,
-  Target,
-  Zap,
-  Users,
-  BarChart3,
+  ArrowLeft,
   ArrowRight,
+  BarChart3,
+  ChevronRight,
   Globe,
+  Loader2,
+  Minus,
   Plus,
-  X,
+  Shield,
+  Swords,
+  Target,
   Trash2,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  X,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 
 // ── Types ──
@@ -182,7 +184,7 @@ function ScenarioDetail({ item }: { item: ScenarioAnalysis }) {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Scenario header */}
-      <div className="px-6 pt-5 pb-4 border-b border-navy-800/40">
+      <div className="px-4 md:px-6 pt-5 pb-4 border-b border-navy-800/40">
         <div className="flex items-start justify-between gap-4 mb-3">
           <div className="flex-1">
             <h2 className="text-base font-bold text-navy-100 leading-snug mb-1">{scenario.title}</h2>
@@ -218,7 +220,7 @@ function ScenarioDetail({ item }: { item: ScenarioAnalysis }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0 px-6 border-b border-navy-800/40 overflow-x-auto">
+      <div className="flex gap-0 px-4 md:px-6 border-b border-navy-800/40 overflow-x-auto scrollbar-none">
         {tabs.map(t => {
           const Icon = t.icon;
           return (
@@ -243,7 +245,7 @@ function ScenarioDetail({ item }: { item: ScenarioAnalysis }) {
         })}
       </div>
 
-      <div className="px-6 py-5">
+      <div className="px-4 md:px-6 py-5">
         {/* ── Market Assessment ── */}
         {tab === "assessment" && (
           <div className="space-y-5">

@@ -1518,11 +1518,11 @@ Your task:
 
 Output a brief devil's advocate summary (max 300 words).`;
 
-  emit("RED TEAM: Adversarial challenge via Haiku", "running");
+  emit("RED TEAM: Adversarial challenge via Sonnet", "running");
   let redTeamChallenge = "";
   try {
     const redTeamResponse = await client.messages.create({
-      model: HAIKU_MODEL,
+      model: SONNET_MODEL,
       max_tokens: 500,
       system: "You are a RED TEAM adversarial analyst. Your sole purpose is to challenge the prevailing thesis. Find the strongest counterarguments, identify blind spots, and argue why the consensus view might be wrong. Be specific and cite which assumptions are weakest. Output a brief adversarial summary.",
       messages: [{ role: "user", content: redTeamPrompt }],

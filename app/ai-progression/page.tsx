@@ -369,7 +369,7 @@ export default function AIProgressionPage() {
       {/* ── Sector Automation Risk ── */}
       {data.sectors.length > 0 && (
         <div className="mt-8">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <span className="text-[10px] font-mono uppercase tracking-widest text-navy-600">Sector Automation Risk</span>
             <div className="flex items-center gap-4 text-[9px] font-mono text-navy-600">
               <span>Accelerating</span>
