@@ -145,7 +145,7 @@ function ActionNode({ data }: NodeProps) {
         <Icon className={cn("h-4 w-4", cfg.color)} />
         <span className="text-[12px] font-medium text-navy-100">{cfg.label}</span>
       </div>
-      {data.detail && <p className="text-[10px] text-navy-400">{data.detail as string}</p>}
+      {data.detail ? <p className="text-[10px] text-navy-400">{String(data.detail)}</p> : null}
     </div>
   );
 }

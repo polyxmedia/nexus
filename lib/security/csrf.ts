@@ -9,6 +9,8 @@ import { NextResponse } from "next/server";
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:3000",
   "https://localhost:3000",
+  "http://localhost:3001",
+  "https://localhost:3001",
   "https://nexushq.xyz",
   "https://www.nexushq.xyz",
 ]);

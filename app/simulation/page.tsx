@@ -212,9 +212,9 @@ export default function SimulationPage() {
   return (
     <PageContainer title="Monte Carlo Simulation" subtitle="Scenario-weighted probability analysis">
       <UpgradeGate minTier="operator" feature="Monte Carlo simulation" blur>
-      <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Config Panel */}
-        <div className="col-span-3 space-y-4">
+        <div className="lg:col-span-3 space-y-4">
           <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4 space-y-3 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/30 to-transparent" />
             <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Configuration</div>
@@ -345,7 +345,7 @@ export default function SimulationPage() {
         </div>
 
         {/* Results */}
-        <div className="col-span-9 space-y-4">
+        <div className="lg:col-span-9 space-y-4">
           {loading && !result && (
             <div className="space-y-4">
               <Skeleton className="h-64 w-full" />
@@ -398,7 +398,7 @@ export default function SimulationPage() {
               </div>
 
               {/* Scenario Comparison */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="border border-navy-700/40 rounded-lg bg-navy-900/30 p-4">
                   <div className="text-[10px] font-mono uppercase tracking-wider text-navy-500 mb-3">Scenario Breakdown</div>
                   <div className="space-y-2">
@@ -517,7 +517,7 @@ export default function SimulationPage() {
           )}
 
           {!result && !loading && (
-            <div className="border border-navy-700/30 border-dashed rounded-lg p-16 text-center relative overflow-hidden">
+            <div className="border border-navy-700/30 border-dashed rounded-lg p-8 sm:p-16 text-center relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-accent-cyan/[0.02] via-transparent to-accent-amber/[0.02]" />
               <div className="relative">
                 <Sparkles className="h-6 w-6 text-navy-600 mx-auto mb-4" />
@@ -525,14 +525,14 @@ export default function SimulationPage() {
                 <p className="text-[10px] text-navy-500 max-w-sm mx-auto leading-relaxed">
                   Select a scenario preset, configure your parameters, and run the simulation to generate probability distributions across multiple outcome paths.
                 </p>
-                <div className="flex items-center justify-center gap-4 mt-6">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-6">
                   {["Select Symbol", "Choose Scenario", "Run Simulation"].map((step, i) => (
                     <div key={step} className="flex items-center gap-2">
                       <div className="h-5 w-5 rounded-full bg-navy-800/60 border border-navy-700/40 flex items-center justify-center">
                         <span className="text-[8px] font-mono text-navy-500">{i + 1}</span>
                       </div>
                       <span className="text-[9px] font-mono text-navy-600 uppercase tracking-wider">{step}</span>
-                      {i < 2 && <ChevronDown className="h-3 w-3 text-navy-700 -rotate-90" />}
+                      {i < 2 && <ChevronDown className="h-3 w-3 text-navy-700 -rotate-90 sm:rotate-0 hidden sm:block" />}
                     </div>
                   ))}
                 </div>

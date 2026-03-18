@@ -524,33 +524,19 @@ export default function ShippingPage() {
       ) : (
         <>
           {/* ── Global Risk Summary ── */}
-          <div className="flex items-center gap-6 mb-6 px-4 py-3 border border-navy-800/60 rounded bg-navy-950/80">
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-wider text-navy-600 mb-0.5">System Status</p>
-              <p className={`font-mono text-sm font-semibold ${riskColor}`}>{riskLabel}</p>
-            </div>
-            <div className="w-px h-8 bg-navy-800" />
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-wider text-navy-600 mb-0.5">Overall Risk Score</p>
-              <p className={`font-mono text-sm font-semibold tabular-nums ${riskColor}`}>{snapshot.overallRiskScore} / 100</p>
-            </div>
-            <div className="w-px h-8 bg-navy-800" />
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-wider text-navy-600 mb-0.5">Anomalies</p>
-              <p className="font-mono text-sm text-navy-200">{snapshot.anomalies.length}</p>
-            </div>
-            <div className="w-px h-8 bg-navy-800" />
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-wider text-navy-600 mb-0.5">Dark Fleet Alerts</p>
-              <p className="font-mono text-sm text-navy-200">{snapshot.darkFleetAlerts.length}</p>
-            </div>
-            <div className="w-px h-8 bg-navy-800" />
-            <div>
-              <p className="text-[9px] font-mono uppercase tracking-wider text-navy-600 mb-0.5">Disrupted Chokepoints</p>
-              <p className={`font-mono text-sm ${snapshot.chokepoints.filter(c => c.status === "disrupted").length > 0 ? "text-accent-rose" : "text-navy-400"}`}>
-                {snapshot.chokepoints.filter(c => c.status === "disrupted").length} / {snapshot.chokepoints.length}
-              </p>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+            {[
+              { label: "System Status", value: riskLabel, color: riskColor },
+              { label: "Risk Score", value: `${snapshot.overallRiskScore} / 100`, color: riskColor },
+              { label: "Anomalies", value: `${snapshot.anomalies.length}`, color: "text-navy-200" },
+              { label: "Dark Fleet Alerts", value: `${snapshot.darkFleetAlerts.length}`, color: "text-navy-200" },
+              { label: "Disrupted", value: `${snapshot.chokepoints.filter(c => c.status === "disrupted").length} / ${snapshot.chokepoints.length}`, color: snapshot.chokepoints.filter(c => c.status === "disrupted").length > 0 ? "text-accent-rose" : "text-navy-400" },
+            ].map((stat) => (
+              <div key={stat.label} className="border border-navy-800/60 rounded bg-navy-950/80 px-3 py-2.5">
+                <p className="text-[9px] font-mono uppercase tracking-wider text-navy-600 mb-0.5">{stat.label}</p>
+                <p className={`font-mono text-sm font-semibold tabular-nums ${stat.color}`}>{stat.value}</p>
+              </div>
+            ))}
           </div>
 
           {/* ── Chokepoint Cards ── */}
@@ -845,9 +831,9 @@ export default function ShippingPage() {
 function LoadingSkeleton() {
   return (
     <>
-      <div className="flex items-center gap-6 mb-6 px-4 py-3 border border-navy-800/60 rounded bg-navy-950/80">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-1">
+          <div key={i} className="border border-navy-800/60 rounded bg-navy-950/80 px-3 py-2.5 space-y-1">
             <Skeleton className="h-2 w-20" />
             <Skeleton className="h-4 w-14" />
           </div>
