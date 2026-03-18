@@ -53,27 +53,16 @@ export async function POST(req: NextRequest) {
           send("step", { id: "fast-err", label: `Data resolver: ${msg}`, status: "warn" });
         }
 
-        // ── Phase 2: Auto-expire stale predictions ──
-        send("step", { id: "expire-init", label: "Checking for stale predictions (7+ days past deadline)", status: "running" });
-        try {
-          const expiredCount = await engine.autoExpirePastDeadline();
-          if (expiredCount > 0) {
-            totalResolved += expiredCount;
-            send("step", { id: "expire-done", label: `Auto-expired ${expiredCount} stale prediction${expiredCount !== 1 ? "s" : ""}`, status: "done" });
-          } else {
-            send("step", { id: "expire-done", label: "No stale predictions to expire", status: "done" });
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Unknown error";
-          send("step", { id: "expire-err", label: `Auto-expire failed: ${msg}`, status: "warn" });
-        }
+        // Phase 2 (auto-expire) removed from manual resolve flow.
+        // Auto-expire is a housekeeping concern that runs on the daily cron only.
+        // Predictions should never expire just because a data fetch failed.
 
         // ── Phase 3: AI-powered resolution for remaining ──
         send("step", { id: "ai-init", label: "Starting AI resolver for remaining overdue predictions", status: "running" });
         console.log("[resolve-stream] Phase 3: calling resolvePredictions()...");
 
         try {
-          const aiResults = await engine.resolvePredictions();
+          const aiResults = await engine.resolvePredictions({ skipHousekeeping: true });
           console.log(`[resolve-stream] Phase 3 result: ${aiResults.length} resolved`);
           if (aiResults.length > 0) {
             totalResolved += aiResults.length;

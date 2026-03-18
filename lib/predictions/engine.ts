@@ -2337,20 +2337,22 @@ async function executeResolutionTool(
   return JSON.stringify({ error: `Unknown tool: ${toolName}` });
 }
 
-export async function resolvePredictions(): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
+export async function resolvePredictions(options?: { skipHousekeeping?: boolean }): Promise<Array<{ id: number; outcome: string; score: number; notes: string }>> {
   console.log("[resolvePredictions] *** FUNCTION CALLED ***");
   const anthropicKey = await getAnthropicKey();
   const alphaVantageKey = await getAlphaVantageKey();
   const today = new Date().toISOString().split("T")[0];
   console.log(`[resolvePredictions] today="${today}", anthropicKey=${anthropicKey ? "SET" : "MISSING"}`);
 
-  // Auto-expire stale predictions first
-  const expired = await autoExpirePastDeadline();
-  console.log(`[resolvePredictions] autoExpire done, expired=${expired}`);
-
-  // Check for regime invalidations
-  const invalidated = await invalidateOnRegimeChange();
-  console.log(`[resolvePredictions] regimeInvalidation done, invalidated=${invalidated}`);
+  // Housekeeping only runs on cron, not manual resolve
+  if (!options?.skipHousekeeping) {
+    const expired = await autoExpirePastDeadline();
+    console.log(`[resolvePredictions] autoExpire done, expired=${expired}`);
+    const invalidated = await invalidateOnRegimeChange();
+    console.log(`[resolvePredictions] regimeInvalidation done, invalidated=${invalidated}`);
+  } else {
+    console.log("[resolvePredictions] skipping housekeeping (manual resolve)");
+  }
 
   const pending = await db
     .select()
