@@ -12,6 +12,8 @@
  */
 
 import { searchTweets, type SearchedTweet } from "@/lib/twitter/client";
+import { db, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
 
 // ── Types ──
 
@@ -78,30 +80,86 @@ const TRACKED_TOPICS: Array<{ topic: string; twitterQuery: string; redditKeyword
   { topic: "OPEC", twitterQuery: "OPEC OR \"oil production\" OR \"Saudi cuts\" -is:retweet lang:en", redditKeywords: ["opec", "saudi", "oil production"] },
 ];
 
-// ── In-Memory Cache ──
+// ── Cache (in-memory hot layer + DB persistence) ──
+// In-memory cache for instant reads within the same function invocation.
+// DB persistence survives deploys and serverless cold starts.
 
-const sentimentCache = new Map<string, TopicSentiment>();
+const memCache = new Map<string, TopicSentiment>();
 let lastScanTime = 0;
 const SCAN_INTERVAL = 30 * 60 * 1000; // 30 min
 const CACHE_TTL = 45 * 60 * 1000; // 45 min (stale grace)
+const DB_KEY_PREFIX = "sentiment:topic:";
+const DB_META_KEY = "sentiment:last_scan";
+
+async function persistToDb(topic: string, data: TopicSentiment): Promise<void> {
+  const key = `${DB_KEY_PREFIX}${topic.toLowerCase()}`;
+  const value = JSON.stringify(data);
+  const now = new Date().toISOString();
+  const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1);
+  if (existing.length > 0) {
+    await db.update(schema.settings).set({ value, updatedAt: now }).where(eq(schema.settings.key, key));
+  } else {
+    await db.insert(schema.settings).values({ key, value, updatedAt: now });
+  }
+}
+
+async function loadFromDb(topic: string): Promise<TopicSentiment | null> {
+  const key = `${DB_KEY_PREFIX}${topic.toLowerCase()}`;
+  const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1);
+  if (rows.length === 0) return null;
+  try {
+    const data = JSON.parse(rows[0].value) as TopicSentiment;
+    const age = Date.now() - new Date(data.lastUpdated).getTime();
+    if (age > CACHE_TTL) return null;
+    return data;
+  } catch { return null; }
+}
+
+async function loadAllFromDb(): Promise<TopicSentiment[]> {
+  const rows = await db.select().from(schema.settings)
+    .where(eq(schema.settings.key, schema.settings.key)); // get all
+  const results: TopicSentiment[] = [];
+  const now = Date.now();
+  for (const row of rows) {
+    if (!row.key.startsWith(DB_KEY_PREFIX)) continue;
+    try {
+      const data = JSON.parse(row.value) as TopicSentiment;
+      if (now - new Date(data.lastUpdated).getTime() < CACHE_TTL) {
+        results.push(data);
+        memCache.set(data.topic.toLowerCase(), data);
+      }
+    } catch { /* skip bad data */ }
+  }
+  return results;
+}
 
 // ── Public API ──
 
-/** Get cached sentiment for a topic (instant, from background scan). */
-export function getCachedSentiment(topic: string): TopicSentiment | null {
-  const cached = sentimentCache.get(topic.toLowerCase());
-  if (!cached) return null;
-  const age = Date.now() - new Date(cached.lastUpdated).getTime();
-  if (age > CACHE_TTL) return null;
-  return cached;
+/** Get cached sentiment for a topic (checks memory first, then DB). */
+export async function getCachedSentiment(topic: string): Promise<TopicSentiment | null> {
+  const key = topic.toLowerCase();
+  const mem = memCache.get(key);
+  if (mem && Date.now() - new Date(mem.lastUpdated).getTime() < CACHE_TTL) return mem;
+
+  const fromDb = await loadFromDb(topic);
+  if (fromDb) {
+    memCache.set(key, fromDb);
+    return fromDb;
+  }
+  return null;
 }
 
 /** Get all cached sentiments. */
-export function getAllCachedSentiments(): TopicSentiment[] {
+export async function getAllCachedSentiments(): Promise<TopicSentiment[]> {
+  // If memory cache is populated and fresh, use it
   const now = Date.now();
-  return Array.from(sentimentCache.values()).filter(
+  const memValues = Array.from(memCache.values()).filter(
     (s) => now - new Date(s.lastUpdated).getTime() < CACHE_TTL
   );
+  if (memValues.length > 0) return memValues;
+
+  // Otherwise load from DB
+  return loadAllFromDb();
 }
 
 /** Get tracked topic list. */
@@ -110,8 +168,20 @@ export function getTrackedTopics(): string[] {
 }
 
 /** Check if a scan is needed. */
-export function needsScan(): boolean {
-  return Date.now() - lastScanTime > SCAN_INTERVAL;
+export async function needsScan(): Promise<boolean> {
+  if (Date.now() - lastScanTime < SCAN_INTERVAL) return false;
+  // Check DB for last scan time (survives cold starts)
+  try {
+    const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, DB_META_KEY)).limit(1);
+    if (rows.length > 0) {
+      const dbScanTime = Number(rows[0].value);
+      if (Date.now() - dbScanTime < SCAN_INTERVAL) {
+        lastScanTime = dbScanTime;
+        return false;
+      }
+    }
+  } catch { /* proceed with scan */ }
+  return true;
 }
 
 /**
@@ -132,7 +202,9 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
     for (let j = 0; j < results.length; j++) {
       if (results[j].status === "fulfilled") {
         const result = (results[j] as PromiseFulfilledResult<TopicSentiment>).value;
-        sentimentCache.set(batch[j].topic.toLowerCase(), result);
+        memCache.set(batch[j].topic.toLowerCase(), result);
+        // Persist to DB (non-blocking, best-effort)
+        persistToDb(batch[j].topic, result).catch(() => {});
         scanned++;
       } else {
         errors++;
@@ -145,7 +217,18 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
     }
   }
 
+  // Record scan time in DB so other serverless invocations know
   lastScanTime = Date.now();
+  const now = new Date().toISOString();
+  try {
+    const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, DB_META_KEY)).limit(1);
+    if (existing.length > 0) {
+      await db.update(schema.settings).set({ value: String(lastScanTime), updatedAt: now }).where(eq(schema.settings.key, DB_META_KEY));
+    } else {
+      await db.insert(schema.settings).values({ key: DB_META_KEY, value: String(lastScanTime), updatedAt: now });
+    }
+  } catch { /* best effort */ }
+
   return { scanned, errors };
 }
 
@@ -156,9 +239,16 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
  */
 export async function scanCustomTopic(topic: string, twitterQuery: string): Promise<TopicSentiment> {
   const cacheKey = topic.toLowerCase();
-  const cached = sentimentCache.get(cacheKey);
-  if (cached && Date.now() - new Date(cached.lastUpdated).getTime() < SCAN_INTERVAL) {
-    return cached;
+
+  // Check memory cache
+  const mem = memCache.get(cacheKey);
+  if (mem && Date.now() - new Date(mem.lastUpdated).getTime() < SCAN_INTERVAL) return mem;
+
+  // Check DB cache
+  const fromDb = await loadFromDb(topic);
+  if (fromDb) {
+    memCache.set(cacheKey, fromDb);
+    return fromDb;
   }
 
   const result = await scanTopic({
@@ -167,7 +257,8 @@ export async function scanCustomTopic(topic: string, twitterQuery: string): Prom
     redditKeywords: topic.toLowerCase().split(/\s+/).filter((w) => w.length > 2),
   });
 
-  sentimentCache.set(cacheKey, result);
+  memCache.set(cacheKey, result);
+  persistToDb(topic, result).catch(() => {});
   return result;
 }
 

@@ -4706,13 +4706,13 @@ async function executeGetSocialSentiment(input: Record<string, unknown>) {
     const topic = input.topic as string | undefined;
 
     // If cache is empty, trigger a non-blocking scan
-    if (needsScan()) {
+    if (await needsScan()) {
       runSentimentScan().catch(() => {});
     }
 
     if (topic) {
-      // Try cache first
-      const cached = getCachedSentiment(topic);
+      // Try cache first (now async - checks memory then DB)
+      const cached = await getCachedSentiment(topic);
       if (cached) return cached;
 
       // On-demand scan for custom topic
@@ -4723,8 +4723,8 @@ async function executeGetSocialSentiment(input: Record<string, unknown>) {
       return result;
     }
 
-    // Return all tracked sentiments
-    const all = getAllCachedSentiments();
+    // Return all tracked sentiments (now async)
+    const all = await getAllCachedSentiments();
     return {
       trackedTopics: getTrackedTopics(),
       sentiments: all.map((s) => ({

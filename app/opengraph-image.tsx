@@ -112,12 +112,41 @@ export default async function OGImage() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: c.backgroundColor,
+          background: c.gradientEnabled
+            ? `linear-gradient(${c.gradientAngle}deg, ${c.gradientFrom}, ${c.gradientTo})`
+            : c.backgroundColor,
           fontFamily: "monospace",
           position: "relative",
           overflow: "hidden",
         }}
       >
+        {/* Background image */}
+        {c.backgroundImage && (
+          <img
+            src={c.backgroundImage}
+            alt=""
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        )}
+
+        {/* Dark overlay on background image */}
+        {c.backgroundImage && c.backgroundOverlay > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              background: `rgba(0,0,0,${c.backgroundOverlay})`,
+            }}
+          />
+        )}
+
         {/* Grid overlay */}
         {c.showGrid && (
           <div
@@ -136,7 +165,7 @@ export default async function OGImage() {
           <div
             style={{
               position: "absolute",
-              left: 80,
+              left: c.contentPaddingLeft - 20,
               top: 0,
               bottom: 0,
               width: 1,
@@ -161,7 +190,7 @@ export default async function OGImage() {
           />
         )}
 
-        {/* Radar icon - actual Lucide Radar SVG */}
+        {/* Radar icon */}
         {c.showRadar && (
           <div
             style={{
@@ -199,11 +228,10 @@ export default async function OGImage() {
             display: "flex",
             alignItems: "center",
             gap: 12,
-            padding: "44px 80px 0",
+            padding: `44px ${c.contentPaddingLeft}px 0`,
             position: "relative",
           }}
         >
-          {/* Small radar icon in top bar */}
           <svg
             width="16"
             height="16"
@@ -219,7 +247,7 @@ export default async function OGImage() {
             ))}
             <circle cx={RADAR_CIRCLE.cx} cy={RADAR_CIRCLE.cy} r={RADAR_CIRCLE.r} />
           </svg>
-          <span style={{ color: "#555555", fontSize: 13, letterSpacing: "0.25em", textTransform: "uppercase" as const }}>
+          <span style={{ color: c.topBarColor, fontSize: 13, letterSpacing: "0.25em", textTransform: "uppercase" as const }}>
             {c.topBar}
           </span>
         </div>
@@ -231,13 +259,13 @@ export default async function OGImage() {
             flexDirection: "column",
             flex: 1,
             justifyContent: "center",
-            padding: "0 100px",
+            padding: `0 ${c.contentPaddingLeft}px`,
             position: "relative",
           }}
         >
           <div
             style={{
-              fontSize: 14,
+              fontSize: c.labelSize,
               letterSpacing: "0.3em",
               color: c.labelColor,
               textTransform: "uppercase" as const,
@@ -251,7 +279,7 @@ export default async function OGImage() {
           <div
             style={{
               fontSize: c.titleSize,
-              fontWeight: 700,
+              fontWeight: c.titleWeight,
               color: c.titleColor,
               lineHeight: 1.05,
               letterSpacing: "-0.02em",
@@ -287,7 +315,7 @@ export default async function OGImage() {
                   border: `1px solid ${color}40`,
                   background: `${color}15`,
                   color,
-                  fontSize: 13,
+                  fontSize: c.tagSize,
                   letterSpacing: "0.2em",
                   fontWeight: 700,
                   display: "flex",
@@ -305,14 +333,14 @@ export default async function OGImage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 80px 36px",
+            padding: `0 ${c.contentPaddingLeft}px 36px`,
             position: "relative",
           }}
         >
-          <span style={{ color: "#333333", fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase" as const }}>
+          <span style={{ color: c.bottomBarColor, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase" as const }}>
             {c.bottomLeft}
           </span>
-          <span style={{ color: "#333333", fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase" as const }}>
+          <span style={{ color: c.bottomBarColor, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase" as const }}>
             {c.bottomRight}
           </span>
         </div>

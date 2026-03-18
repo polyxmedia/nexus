@@ -424,6 +424,7 @@ export default function PredictionsPage() {
   };
 
   const aiResolve = async () => {
+    console.log("[Predictions] Resolve button clicked, starting resolution...");
     setResolving(true);
     setStatusMessage(null);
     setResolveSteps([]);
@@ -432,11 +433,17 @@ export default function PredictionsPage() {
     setResolveResultCount(undefined);
 
     try {
-      const res = await fetch("/api/predictions/resolve-stream", { method: "POST" });
-      if (!res.ok) {
+      const res = await fetch("/api/predictions/resolve-stream", { method: "POST", credentials: "include" });
+      const contentType = res.headers.get("content-type") || "";
+      if (!res.ok || !contentType.includes("text/event-stream")) {
         const text = await res.text();
-        try { const data = JSON.parse(text); setResolveError(data.error || `Resolution failed (${res.status})`); }
-        catch { setResolveError(`Resolution failed (${res.status})`); }
+        const isRedirect = text.includes("/login") || res.redirected;
+        if (isRedirect) {
+          setResolveError("Session expired. Please refresh the page and try again.");
+        } else {
+          try { const data = JSON.parse(text); setResolveError(data.error || `Resolution failed (${res.status})`); }
+          catch { setResolveError(`Resolution failed (${res.status}): ${text.slice(0, 200)}`); }
+        }
         setResolving(false);
         return;
       }

@@ -15,13 +15,13 @@ export async function GET(req: NextRequest) {
   const topic = searchParams.get("topic");
 
   // If cache is totally empty, trigger a scan (first load only)
-  if (needsScan()) {
+  if (await needsScan()) {
     // Non-blocking: kick off scan but return immediately with whatever we have
     runSentimentScan().catch(() => {});
   }
 
   if (topic) {
-    const cached = getCachedSentiment(topic);
+    const cached = await getCachedSentiment(topic);
     if (cached) {
       return NextResponse.json(cached, {
         headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=300" },
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No data yet for this topic. Background scan in progress." }, { status: 202 });
   }
 
-  const all = getAllCachedSentiments();
+  const all = await getAllCachedSentiments();
   return NextResponse.json({
     topics: all,
     trackedTopics: getTrackedTopics(),
