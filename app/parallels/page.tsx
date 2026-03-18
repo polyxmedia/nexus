@@ -283,7 +283,7 @@ export default function ParallelsPage() {
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                               Time to Resolution
@@ -305,7 +305,7 @@ export default function ParallelsPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                               Similarities
@@ -392,7 +392,7 @@ export default function ParallelsPage() {
                     onClick={() => router.push(`/parallels/${a.uuid}`)}
                     className="w-full rounded-lg border border-navy-700/20 bg-navy-900/40 p-4 text-left hover:bg-navy-900/70 hover:border-navy-600/30 transition-all"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <History className="h-3.5 w-3.5 text-navy-500 shrink-0" />
                         <div className="min-w-0">
@@ -400,7 +400,7 @@ export default function ParallelsPage() {
                           <p className="text-[10px] text-navy-500 mt-0.5 line-clamp-1">{a.synthesis.slice(0, 120)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 ml-4">
+                      <div className="flex items-center gap-3 shrink-0 sm:ml-4 pl-6 sm:pl-0">
                         <span className="text-[10px] font-mono text-navy-400">{(a.probabilityOfRepetition * 100).toFixed(0)}%</span>
                         <span className="text-[10px] font-mono text-navy-600">{a.regime}</span>
                         <span className="text-[9px] font-mono text-navy-700">

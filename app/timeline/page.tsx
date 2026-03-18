@@ -130,7 +130,7 @@ export default function TimelinePage() {
   const [events, setEvents] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"recent" | "upcoming">("recent");
+  const [activeTab, setActiveTab] = useState<"recent" | "upcoming">("upcoming");
   const [filters, setFilters] = useState({
     types: [] as string[],
     categories: [] as string[],
