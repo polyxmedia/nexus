@@ -1391,6 +1391,21 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: ["expressions"],
     },
   },
+  {
+    name: "get_social_sentiment",
+    description:
+      "Get real-time social sentiment from Twitter/X, Reddit, and StockTwits. Returns credibility-weighted sentiment scores, source agreement, and dataset poisoning detection. Tracked topics include major indices (SPY, QQQ), commodities (gold, oil), crypto (BTC), volatility (VIX), and geopolitical themes (Iran, China, OPEC). Pass a custom topic for on-demand scanning. Sentiment runs on a 30-minute background cycle so results are near-instant.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        topic: {
+          type: "string",
+          description: "Topic to check sentiment for (e.g. 'Gold', 'S&P 500', 'Iran', 'Bitcoin'). Omit for all tracked topics.",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -1645,6 +1660,9 @@ export async function executeTool(
 
     case "calculate":
       return executeCalculate(input);
+
+    case "get_social_sentiment":
+      return executeGetSocialSentiment(input);
 
     default:
       return { error: `Unknown tool: ${toolName}` };
@@ -4677,4 +4695,53 @@ function executeCalculate(input: Record<string, unknown>) {
   }
 
   return { results, variables: scope };
+}
+
+async function executeGetSocialSentiment(input: Record<string, unknown>) {
+  try {
+    const { getCachedSentiment, getAllCachedSentiments, getTrackedTopics, scanCustomTopic, needsScan, runSentimentScan } = await import("@/lib/sentiment/aggregator");
+    const topic = input.topic as string | undefined;
+
+    // If cache is empty, trigger a non-blocking scan
+    if (needsScan()) {
+      runSentimentScan().catch(() => {});
+    }
+
+    if (topic) {
+      // Try cache first
+      const cached = getCachedSentiment(topic);
+      if (cached) return cached;
+
+      // On-demand scan for custom topic
+      const result = await scanCustomTopic(
+        topic,
+        `"${topic}" -is:retweet lang:en`
+      );
+      return result;
+    }
+
+    // Return all tracked sentiments
+    const all = getAllCachedSentiments();
+    return {
+      trackedTopics: getTrackedTopics(),
+      sentiments: all.map((s) => ({
+        topic: s.topic,
+        sentiment: s.composite.sentiment,
+        label: s.composite.label,
+        confidence: s.composite.confidence,
+        postCount: s.composite.postCount,
+        poisoning: s.poisoning.detected ? s.poisoning : null,
+        sources: {
+          twitter: s.sources.twitter.available ? { count: s.sources.twitter.count, sentiment: s.sources.twitter.credibilityWeightedSentiment } : null,
+          reddit: s.sources.reddit.available ? { count: s.sources.reddit.count, sentiment: s.sources.reddit.credibilityWeightedSentiment } : null,
+          stocktwits: s.sources.stocktwits.available ? { count: s.sources.stocktwits.count, sentiment: s.sources.stocktwits.credibilityWeightedSentiment } : null,
+        },
+        lastUpdated: s.lastUpdated,
+      })),
+      count: all.length,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Social sentiment failed: ${message}` };
+  }
 }

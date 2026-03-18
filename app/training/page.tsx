@@ -53,7 +53,7 @@ import { useSubscription } from "@/lib/hooks/useSubscription";
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, MessageSquare, Newspaper, Settings, Activity, Crosshair,
   Shield, BookOpen, Swords, Globe, Target, Users, BarChart3, TrendingUp,
-  FileText, Bell,
+  FileText, Bell, History, Trophy,
 };
 
 // ── Tier access ──
@@ -65,8 +65,10 @@ export default function TrainingPage() {
   const [progress, setProgress] = useState<TrainingProgress | null>(null);
   const [levelInfo, setLevelInfo] = useState<ReturnType<typeof getLevelForXp> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"missions" | "playbooks">("missions");
   const [activeTrack, setActiveTrack] = useState<string>("foundations");
   const [expandedMission, setExpandedMission] = useState<string | null>(null);
+  const [expandedPlaybook, setExpandedPlaybook] = useState<string | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
 
   const userLevel = isAdmin ? 3 : (TIER_LEVELS[tier || "free"] ?? 0);

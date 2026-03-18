@@ -263,6 +263,14 @@ registerJob("knowledge-live-ingest", 30 * 60_000, async () => {
   if (!res.ok) throw new Error(`Knowledge live ingest failed: ${res.status}`);
 });
 
+registerJob("social-sentiment-scan", 30 * 60_000, async () => {
+  // Scan social sentiment across Twitter, Reddit, StockTwits every 30 minutes
+  // No AI calls, no API costs beyond free rate limits
+  const { runSentimentScan } = await import("@/lib/sentiment/aggregator");
+  const result = await runSentimentScan();
+  console.log(`[scheduler] Social sentiment scan: ${result.scanned} topics, ${result.errors} errors`);
+});
+
 registerJob("iw-auto-detect", 15 * 60_000, async () => {
   // Auto-detect I&W indicators from OSINT feeds every 15 minutes
   const res = await internalFetch(`${getBaseUrl()}/api/iw/evaluate`, { method: "POST", headers: internalHeaders() });

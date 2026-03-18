@@ -42,6 +42,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
     "get_order_book",
     "get_market_regime",
     "get_correlation_monitor",
+    "get_social_sentiment",
   ],
   geopolitical: [
     "get_signals",
@@ -64,6 +65,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
     "get_actor_profile",
     "get_prediction_markets",
     "get_eschatological_convergence",
+    "get_social_sentiment",
   ],
   macro: [
     "get_macro_data",
