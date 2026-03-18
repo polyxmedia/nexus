@@ -18,6 +18,7 @@ import {
   Pencil,
   Hash,
   GripVertical,
+  Loader2,
 } from "lucide-react";
 
 interface ChatProject {
@@ -583,6 +584,12 @@ export default function ChatPage() {
                   </div>
                 );
               })}
+              {/* Infinite scroll sentinel */}
+              {hasMore && (
+                <div ref={listEndRef} className="flex items-center justify-center py-4">
+                  {loadingMore && <Loader2 className="h-4 w-4 animate-spin text-navy-500" />}
+                </div>
+              )}
             </div>
           )}
         </div>
