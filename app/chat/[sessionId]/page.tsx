@@ -271,7 +271,7 @@ export default function ChatSessionPage() {
   }, [voice.isSpeaking, voice.voiceEnabled, isStreaming, startCallListening]);
 
   return (
-    <div className="ml-0 md:ml-48 flex h-screen flex-col pt-12 md:pt-0">
+    <div className="ml-0 md:ml-48 flex flex-col pt-12 md:pt-0 h-[calc(100dvh-3rem)] md:h-dvh overflow-hidden">
       <Suspense fallback={null}>
         <AutoPrompt sendMessage={sendMessage} historyLoaded={historyLoaded} isStreaming={isStreaming} />
       </Suspense>

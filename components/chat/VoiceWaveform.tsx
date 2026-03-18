@@ -17,7 +17,12 @@ export function VoiceWaveform({ stream }: VoiceWaveformProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const audioCtx = new AudioContext();
+    let audioCtx: AudioContext;
+    try {
+      audioCtx = new AudioContext();
+    } catch {
+      return;
+    }
     const source = audioCtx.createMediaStreamSource(stream);
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 128;

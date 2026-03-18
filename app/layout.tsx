@@ -94,7 +94,7 @@ export default function RootLayout({
         <WebSiteJsonLd />
         <SoftwareApplicationJsonLd />
       </head>
-      <body className="min-h-screen bg-navy-950 text-navy-100 antialiased" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+      <body className="min-h-screen bg-navy-950 text-navy-100 antialiased" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <AuthProvider>
           <Web3Provider>
             <NotificationProvider>
