@@ -340,7 +340,7 @@ export default function ChatSessionPage() {
       {/* Messages */}
       {!upgradeRequired && <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
         {!historyLoaded ? (
-          <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+          <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="space-y-3">
                 {/* User message skeleton */}
@@ -361,7 +361,7 @@ export default function ChatSessionPage() {
             ))}
           </div>
         ) : turns.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-6">
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-6">
             <div className="flex items-center gap-2 mb-1">
               <MessageSquare className="h-4 w-4 text-navy-400" />
               <div className="text-sm font-mono text-navy-300 uppercase tracking-wider">
@@ -393,7 +393,7 @@ export default function ChatSessionPage() {
             </div>
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto px-6 py-6">
+          <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
             {(() => {
               // Precompute last assistant index to avoid O(n^2) .slice().some() per turn
               let lastAssistantIdx = -1;
@@ -430,20 +430,20 @@ export default function ChatSessionPage() {
       {/* Credits exhausted banner — replaces input when out of credits */}
       {!upgradeRequired && creditsExhausted && (
         <div className="border-t border-navy-800/60 bg-navy-950">
-          <div className="max-w-4xl mx-auto w-full px-6 py-5">
-            <div className="flex items-center gap-4 rounded-lg border border-accent-amber/20 bg-accent-amber/5 px-5 py-4">
+          <div className="max-w-4xl mx-auto w-full px-3 sm:px-6 py-4 sm:py-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-lg border border-accent-amber/20 bg-accent-amber/5 px-4 sm:px-5 py-3 sm:py-4">
               <CreditCard className="h-5 w-5 text-accent-amber shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="font-mono text-[11px] uppercase tracking-wider text-navy-200 mb-0.5">
                   Credits exhausted
                 </p>
-                <p className="text-[12px] text-navy-500">
-                  Your monthly credits have been used. Purchase more credits or wait for your next billing cycle to continue.
+                <p className="text-[11px] sm:text-[12px] text-navy-500">
+                  Purchase more credits or wait for your next billing cycle.
                 </p>
               </div>
               <Link
                 href="/settings?tab=subscription"
-                className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 font-mono text-[10px] uppercase tracking-widest text-navy-950 bg-accent-amber hover:bg-accent-amber/90 rounded-lg transition-all"
+                className="shrink-0 inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 font-mono text-[10px] uppercase tracking-widest text-navy-950 bg-accent-amber hover:bg-accent-amber/90 rounded-lg transition-all"
               >
                 Buy credits
                 <ArrowRight className="w-3 h-3" />

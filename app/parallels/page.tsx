@@ -116,7 +116,7 @@ export default function ParallelsPage() {
             knowledge bank, resolved predictions, and signal history for
             structurally similar past situations.
           </p>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -124,7 +124,7 @@ export default function ParallelsPage() {
               className="flex-1"
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
-            <Button onClick={handleSearch} disabled={loading || !query.trim()}>
+            <Button onClick={handleSearch} disabled={loading || !query.trim()} className="shrink-0">
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
@@ -159,7 +159,7 @@ export default function ParallelsPage() {
           <div className="space-y-6">
             {/* Synthesis Header */}
             <div className="rounded-lg border border-navy-700/30 bg-navy-900/20 p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
                   Synthesis
                 </span>
@@ -248,10 +248,10 @@ export default function ParallelsPage() {
                       }
                       className="w-full flex items-center justify-between p-4 hover:bg-navy-800/30 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <History className="w-4 h-4 text-navy-500" />
-                        <div className="text-left">
-                          <div className="text-sm font-medium text-navy-200">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <History className="w-4 h-4 text-navy-500 shrink-0" />
+                        <div className="text-left min-w-0">
+                          <div className="text-sm font-medium text-navy-200 truncate">
                             {parallel.event}
                           </div>
                           <div className="text-xs text-navy-500 mt-0.5">
@@ -259,9 +259,9 @@ export default function ParallelsPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm font-mono text-navy-300">
-                          {(parallel.similarity * 100).toFixed(0)}% match
+                      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                        <span className="text-xs sm:text-sm font-mono text-navy-300">
+                          {(parallel.similarity * 100).toFixed(0)}%
                         </span>
                         {expanded === i ? (
                           <ChevronDown className="w-4 h-4 text-navy-500" />

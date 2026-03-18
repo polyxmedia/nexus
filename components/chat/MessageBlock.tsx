@@ -116,7 +116,7 @@ export function MessageBlock({ turn, isStreaming, onSuggestionClick, cumulativeC
     return (
       <div className="group flex justify-end items-start gap-1.5 mb-4">
         {!turn.pending && <CopyButton text={turn.content} />}
-        <div className="max-w-[70%] flex flex-col gap-2">
+        <div className="max-w-[90%] sm:max-w-[70%] flex flex-col gap-2">
           {/* File attachments */}
           {turn.files && turn.files.length > 0 && (
             <div className="flex flex-wrap gap-1.5 justify-end">

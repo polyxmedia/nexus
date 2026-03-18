@@ -29,7 +29,9 @@ const SIGNAL_BORDER_COLORS: Record<number, string> = {
 export function IntelPanel({ signals, thesis, osintData, onOsintEventClick }: IntelPanelProps) {
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
-    return localStorage.getItem("wr:intel_collapsed") === "1";
+    const stored = localStorage.getItem("wr:intel_collapsed");
+    if (stored !== null) return stored === "1";
+    return window.innerWidth < 768;
   });
 
   useEffect(() => {

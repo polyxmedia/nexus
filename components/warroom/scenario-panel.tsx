@@ -35,7 +35,10 @@ export function ScenarioPanel({
 }: ScenarioPanelProps) {
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
-    return localStorage.getItem("wr:scenario_collapsed") === "1";
+    const stored = localStorage.getItem("wr:scenario_collapsed");
+    if (stored !== null) return stored === "1";
+    // Default collapsed on mobile (< 768px)
+    return window.innerWidth < 768;
   });
 
   useEffect(() => {

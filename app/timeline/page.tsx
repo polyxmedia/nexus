@@ -290,10 +290,11 @@ export default function TimelinePage() {
     return Object.entries(grouped).map(([date, dayEvents]) => (
       <div key={date} className="mb-8">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-[7rem] text-right">
+          <div className="hidden sm:block w-[7rem] text-right">
             <span className="text-xs font-semibold text-navy-300">{date}</span>
           </div>
-          <div className="w-3 h-3 rounded-full border-2 border-accent-cyan bg-navy-950 z-10" />
+          <div className="w-3 h-3 rounded-full border-2 border-accent-cyan bg-navy-950 z-10 hidden sm:block" />
+          <span className="text-xs font-semibold text-navy-300 sm:hidden">{date}</span>
           <span className="text-[10px] text-navy-500">{dayEvents.length} events</span>
         </div>
         <div className="space-y-2">
@@ -330,11 +331,11 @@ export default function TimelinePage() {
             })();
 
             return (
-              <div key={event.id} className="flex items-start gap-3 group">
-                <div className="w-[7rem] text-right pt-2">
+              <div key={event.id} className="flex items-start gap-2 sm:gap-3 group">
+                <div className="hidden sm:block w-[7rem] text-right pt-2">
                   <span className="text-[10px] font-mono text-navy-600">{time}</span>
                 </div>
-                <div className="flex items-center justify-center w-3 pt-2 z-10">
+                <div className="hidden sm:flex items-center justify-center w-3 pt-2 z-10">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.color }} />
                 </div>
                 <div
@@ -343,12 +344,13 @@ export default function TimelinePage() {
                     else if (event.type === "news" && event.metadata?.url) window.open(String(event.metadata.url), "_blank", "noopener");
                     else if (event.type === "economic" && event.metadata?.seriesId) window.open(`https://fred.stlouisfed.org/series/${event.metadata.seriesId}`, "_blank", "noopener");
                   }}
-                  className={`flex-1 bg-navy-900/60 border border-navy-800 rounded-lg px-4 py-3 hover:border-navy-700 transition-colors group-hover:bg-navy-900/80 max-w-2xl ${outcomeBorder} ${clickUrl || event.type === "news" || event.type === "economic" ? "cursor-pointer" : ""}`}>
-                  <div className="flex items-center gap-2 mb-1">
+                  className={`flex-1 bg-navy-900/60 border border-navy-800 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 hover:border-navy-700 transition-colors group-hover:bg-navy-900/80 sm:max-w-2xl ${outcomeBorder} ${clickUrl || event.type === "news" || event.type === "economic" ? "cursor-pointer" : ""}`}>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <Icon className="h-3 w-3" style={{ color: config.color }} />
                     <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: config.color }}>
                       {config.label}
                     </span>
+                    <span className="text-[9px] font-mono text-navy-600 sm:hidden">{time}</span>
                     {event.category && (
                       <span className="text-[9px] text-navy-600 uppercase">{event.category}</span>
                     )}
@@ -380,8 +382,8 @@ export default function TimelinePage() {
                       </span>
                     )}
 
-                    <div className="flex-1" />
-                    <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0" />
+                    <div className="flex items-center gap-2 shrink-0">
                       <div className="flex gap-0.5">
                         {Array.from({ length: 5 }).map((_, i) => (
                           <div
