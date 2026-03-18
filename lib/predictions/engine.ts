@@ -1468,6 +1468,12 @@ FORMAT: SUBJECT + "will" + measurable outcome. No imperatives (execute, monitor,
 
 UNIQUENESS: Avoid duplicating the exact same claim or threshold variant vs pending. But you MUST always generate at least 3 predictions. If major tickers are covered, find new angles: different timeframes, different catalysts, related but uncovered assets, geopolitical outcomes, or cross-asset correlations. NEVER return an empty array.
 
+PREDICTION QUALITY: Your predictions should impress professional forecasters, not just track obvious trends. Mix difficulty levels:
+- At least 1 prediction should be a NON-OBVIOUS cross-asset or second-order effect (e.g. "copper will lead equities lower by 5 days" or "credit spreads will widen before VIX spikes")
+- At least 1 prediction should involve a SPECIFIC geopolitical or macro catalyst with a concrete market consequence
+- Avoid pure trend-continuation calls (e.g. "thing that's going down will keep going down"). If you make one, pair it with a contrarian or reversal call.
+- Predictions that identify DIVERGENCES between related instruments (e.g. "gold/silver ratio will exceed 90" or "TLT and GLD moving in opposite directions") are higher quality than simple directional calls.
+
 CONFIDENCE: Your stated confidence should be your ALL-THINGS-CONSIDERED probability that this exact outcome will occur. Range 0.10-0.90. Do NOT manually compound conditional probabilities -- just state your honest forecast. The system applies its own calibration adjustments downstream. Follow calibration feedback above. Be honest: if evidence is strong, confidence should be strong.
 
 MAGNITUDE: Equity indices 7d typical 1-4% (>8% needs <15% confidence). Sector ETFs 2-5%. Leveraged 8-20%. Prefer price-levels over RSI/MACD. Multi-condition claims max 0.40 confidence. Prefer conservative thresholds.

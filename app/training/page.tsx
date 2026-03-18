@@ -6,12 +6,10 @@ import { PageContainer } from "@/components/layout/page-container";
 import { cn } from "@/lib/utils";
 import {
   Activity,
-  ArrowRight,
   BarChart3,
   Bell,
   BookOpen,
   Check,
-  ChevronDown,
   ChevronRight,
   Clock,
   Crosshair,
@@ -20,7 +18,6 @@ import {
   History,
   LayoutDashboard,
   Lock,
-  Map,
   MessageSquare,
   Newspaper,
   RotateCcw,

@@ -7,6 +7,7 @@ import { Metric } from "@/components/ui/metric";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   Loader2,
   PlusCircle,
@@ -507,7 +508,7 @@ export default function PredictionsPage() {
   const avgScore = resolved.length > 0 ? resolved.reduce((s, p) => s + (p.score || 0), 0) / resolved.length : 0;
 
   // Category stats
-  const categories = ["market", "geopolitical", "celestial"];
+  const categories = ["market", "geopolitical"];
   const categoryStats = categories.map((cat) => {
     const all = predictions.filter((p) => p.category === cat);
     const res = all.filter((p) => p.outcome);
@@ -966,9 +967,13 @@ export default function PredictionsPage() {
       )}
 
       {/* ── Category panels ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Categories</span>
+        <InfoTooltip content="Predictions are split into market (price targets, technical levels, relative performance) and geopolitical (conflicts, policy, diplomacy). Click a category to filter." side="right" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         {loading ? (
-          [...Array(3)].map((_, i) => (
+          [...Array(2)].map((_, i) => (
             <div key={i} className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
               <Skeleton className="h-4 w-24 mb-3" />
               <Skeleton className="h-8 w-16 mb-2" />
@@ -1022,6 +1027,11 @@ export default function PredictionsPage() {
 
       {/* ── Accuracy charts ── */}
       {!loading && resolved.length > 0 && (
+        <>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Performance</span>
+          <InfoTooltip content="Outcome distribution shows hits vs misses. Category accuracy compares performance across market and geopolitical predictions. Accuracy over time shows whether the system is improving." side="right" />
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           {/* Outcome distribution */}
           <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-4">
@@ -1091,6 +1101,7 @@ export default function PredictionsPage() {
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -1107,6 +1118,7 @@ export default function PredictionsPage() {
               <span className="text-[10px] font-medium uppercase tracking-widest text-navy-400">
                 Research Analytics
               </span>
+              <InfoTooltip content="Deep analytics: calibration curve (are stated confidences accurate?), Brier scores by regime, rolling model health, confidence distribution, paper portfolio simulation, and direction vs level accuracy breakdown." side="right" />
               <span className="text-[9px] text-navy-600 font-mono">
                 {resolved.length} resolved / {predictions.length} total
               </span>
@@ -1896,6 +1908,11 @@ export default function PredictionsPage() {
 
       {/* ── Summary metrics ── */}
       {!loading && (
+        <>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Overview</span>
+          <InfoTooltip content="Total predictions generated, how many are pending vs resolved, hit rate, average Brier-style score (100% = perfect), and overdue predictions awaiting resolution." side="right" />
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-6">
           <div className="border border-navy-700/30 rounded-md bg-navy-900/60 p-3">
             <Metric label="Total" value={predictions.length} />
@@ -1916,6 +1933,7 @@ export default function PredictionsPage() {
             <Metric label="Overdue" value={pastDeadline.length} change={pastDeadline.length > 0 ? "needs resolve" : undefined} changeColor={pastDeadline.length > 0 ? "red" : "neutral"} />
           </div>
         </div>
+        </>
       )}
 
       {/* ── Filter bar ── */}
