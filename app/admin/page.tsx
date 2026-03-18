@@ -3,10 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
 import { PageContainer } from "@/components/layout/page-container";
-
-const TrafficMap = dynamic(() => import("@/components/admin/traffic-map"), { ssr: false });
 import { PartnershipsTab } from "@/components/admin/partnerships-tab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

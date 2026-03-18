@@ -917,7 +917,7 @@ export default function CongressionalTradingPage() {
                   <div className="col-span-1 flex items-center justify-end">
                     {trader.bestTrade && (
                       <span className="text-[10px] font-mono text-accent-emerald">
-                        {trader.bestTrade.ticker} +{trader.bestTrade.excessReturn.toFixed(1)}%
+                        {trader.bestTrade.ticker} {trader.bestTrade.excessReturn > 0 ? "+" : ""}{trader.bestTrade.excessReturn.toFixed(1)}%
                       </span>
                     )}
                   </div>
@@ -952,7 +952,7 @@ export default function CongressionalTradingPage() {
                     <span className="text-accent-emerald">{trader.purchases} buys</span>
                     <span className="text-accent-rose">{trader.sales} sells</span>
                     {trader.bestTrade && (
-                      <span className="text-accent-emerald">Best: {trader.bestTrade.ticker} +{trader.bestTrade.excessReturn.toFixed(1)}%</span>
+                      <span className="text-accent-emerald">Best: {trader.bestTrade.ticker} {trader.bestTrade.excessReturn > 0 ? "+" : ""}{trader.bestTrade.excessReturn.toFixed(1)}%</span>
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-wrap">

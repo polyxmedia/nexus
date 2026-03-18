@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { getResolutionLabel } from "@/lib/predictions/resolution-label";
 import {
   Loader2,
   PlusCircle,
@@ -2217,7 +2218,7 @@ export default function PredictionsPage() {
             const Icon = config.icon;
             const grounding = parseGrounding(p.metrics);
             const catConfig = CATEGORY_CONFIG[p.category];
-            const isHit = p.outcome === "confirmed";
+            const resLabel = getResolutionLabel(p.outcome || "expired", p.confidence, p.score);
             return (
               <div
                 key={p.id}
@@ -2225,12 +2226,12 @@ export default function PredictionsPage() {
                 className="group border border-navy-700/20 rounded-lg bg-navy-900/40 cursor-pointer hover:bg-navy-900/70 hover:border-navy-600/30 transition-all duration-200"
               >
                 <div className="px-4 sm:px-5 py-3 sm:py-4">
-                  {/* Header: outcome + claim */}
+                  {/* Header: resolution label + claim */}
                   <div className="flex items-start gap-2 sm:gap-3">
                     <div className="flex items-center gap-1.5 pt-0.5 flex-shrink-0">
-                      <Icon className={`h-3.5 w-3.5 ${isHit ? "text-accent-emerald" : p.outcome === "denied" ? "text-navy-400" : p.outcome === "partial" ? "text-accent-amber" : "text-navy-600"}`} />
-                      <span className={`text-[10px] font-mono font-medium uppercase tracking-wider ${isHit ? "text-accent-emerald" : p.outcome === "denied" ? "text-navy-400" : p.outcome === "partial" ? "text-accent-amber" : "text-navy-600"}`}>
-                        {config.label}
+                      <Icon className={`h-3.5 w-3.5 ${resLabel.color}`} />
+                      <span className={`text-[10px] font-mono font-medium uppercase tracking-wider ${resLabel.color}`}>
+                        {resLabel.label}
                       </span>
                     </div>
                     <p className="text-[13px] text-navy-100 leading-relaxed flex-1">{p.claim}</p>
@@ -2246,12 +2247,17 @@ export default function PredictionsPage() {
 
                   {/* Meta row */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-3 pt-3 border-t border-navy-800/40 sm:ml-[3.25rem]">
-                    {/* Score */}
-                    {p.score != null && (
-                      <span className={`text-[10px] font-mono ${p.score >= 0.7 ? "text-navy-300" : p.score >= 0.4 ? "text-navy-400" : "text-navy-500"}`}>
-                        Score {(p.score * 100).toFixed(0)}%
-                      </span>
-                    )}
+                    {/* Brier score + quality */}
+                    <span className={`text-[10px] font-mono ${resLabel.brierScore <= 0.1 ? "text-accent-emerald" : resLabel.brierScore <= 0.2 ? "text-accent-cyan" : resLabel.brierScore <= 0.3 ? "text-navy-400" : "text-navy-500"}`}>
+                      Brier {resLabel.brierScore.toFixed(3)} ({resLabel.brierQuality})
+                    </span>
+
+                    <span className="text-navy-800">|</span>
+
+                    {/* Calibration note */}
+                    <span className="text-[10px] text-navy-500">
+                      {resLabel.calibrationNote}
+                    </span>
 
                     {/* Confidence */}
                     <div className="flex items-center gap-2">

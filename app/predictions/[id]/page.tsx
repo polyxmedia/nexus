@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PageContainer } from "@/components/layout/page-container";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { getResolutionLabel } from "@/lib/predictions/resolution-label";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -142,6 +143,7 @@ export default function PredictionDetailPage() {
   const isResolved = !!prediction.outcome;
   const outcomeConfig = prediction.outcome ? OUTCOME_CONFIG[prediction.outcome] || OUTCOME_CONFIG.expired : null;
   const OutcomeIcon = outcomeConfig?.icon || Clock;
+  const resLabel = prediction.outcome ? getResolutionLabel(prediction.outcome, prediction.confidence, prediction.score) : null;
 
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = !isResolved && prediction.deadline <= today;
@@ -197,22 +199,20 @@ export default function PredictionDetailPage() {
       }
     >
       {/* Outcome Banner */}
-      {isResolved && outcomeConfig && (
-        <div className={`rounded-lg border ${outcomeConfig.border} ${outcomeConfig.bg} p-5 mb-6`}>
-          <div className="flex items-center gap-4">
-            <OutcomeIcon className={`h-8 w-8 ${outcomeConfig.color}`} />
+      {isResolved && resLabel && outcomeConfig && (
+        <div className={`rounded-lg border ${resLabel.border} ${resLabel.bg} p-5 mb-6`}>
+          <div className="flex items-start gap-4">
+            <OutcomeIcon className={`h-8 w-8 ${resLabel.color} shrink-0`} />
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-1">
-                <span className={`text-lg font-bold font-mono uppercase tracking-wider ${outcomeConfig.color}`}>
-                  {outcomeConfig.label}
+              <div className="flex flex-wrap items-center gap-3 mb-1">
+                <span className={`text-lg font-bold font-mono uppercase tracking-wider ${resLabel.color}`}>
+                  {resLabel.label}
                 </span>
-                {prediction.score != null && (
-                  <span className={`text-lg font-bold font-mono ${prediction.score >= 0.7 ? "text-accent-emerald" : prediction.score >= 0.4 ? "text-accent-amber" : "text-accent-rose"}`}>
-                    {(prediction.score * 100).toFixed(0)}% score
-                  </span>
-                )}
+                <span className={`text-sm font-mono ${resLabel.brierScore <= 0.1 ? "text-accent-emerald" : resLabel.brierScore <= 0.2 ? "text-accent-cyan" : resLabel.brierScore <= 0.3 ? "text-navy-400" : "text-navy-500"}`}>
+                  Brier: {resLabel.brierScore.toFixed(3)} ({resLabel.brierQuality})
+                </span>
               </div>
-              <p className="text-xs text-navy-400 font-sans leading-relaxed">{outcomeConfig.description}</p>
+              <p className="text-xs text-navy-400 font-sans leading-relaxed">{resLabel.calibrationNote}</p>
               {prediction.resolvedAt && (
                 <span className="text-[10px] text-navy-500 font-mono mt-1 block">
                   Resolved {new Date(prediction.resolvedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
