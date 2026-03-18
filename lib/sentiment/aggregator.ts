@@ -252,6 +252,50 @@ function aggregateSource(posts: SentimentPost[]): { count: number; avgSentiment:
   return { count: posts.length, avgSentiment: Math.round(avg * 1000) / 1000, credibilityWeightedSentiment: Math.round(weighted * 1000) / 1000, available: true };
 }
 
+// ── Noise Filter (shitpost / meme / joke / off-topic detection) ──
+// WSB and crypto Twitter are full of satire, memes, and copypasta.
+// Filter these BEFORE sentiment scoring so they don't poison the signal.
+
+const MEME_PATTERNS: RegExp[] = [
+  /\b(meteor|asteroid|alien|zombie|apocalypse|rapture|flat earth)\b/i,
+  /\b(wife'?s boyfriend|boyfriend'?s wife|behind wendy'?s|dumpster)\b/i,
+  /\b(wen lambo|lambo when|to the moon|moon mission|rocket ship)\b/i,
+  /\b(diamond hands?|paper hands?|bag ?holder|hodl|wagmi|ngmi|gm gn)\b/i,
+  /\b(tendies|chicken tender|wife left|lost everything|casino)\b/i,
+  /\b(regarded|smooth ?brain|wrinkle ?brain|crayon|eat crayon)\b/i,
+  /\b(inverse cramer|cramer said|jim cramer)\b/i,
+  /\b(trust me bro|source: trust me|not financial advice but)\b/i,
+  /\b(shitpost|copypasta|meme stock|meme coin)\b/i,
+  /\b(simulation|glitch in the matrix|nothing is real)\b/i,
+  /\b(my dog|my cat|my hamster|coin flip|magic 8.?ball|astrology)\b/i,
+  /(?:[\u{1F600}-\u{1F64F}].*){4,}/u, // 4+ emoji = probably a shitpost
+  /^(lmao|lol|bruh|bro|lmfao|rofl|dead|rip)/i,
+];
+
+const SPAM_PATTERNS: RegExp[] = [
+  /\b(join|subscribe|follow|click|link in bio|check out my)\b.*\b(channel|discord|telegram|group)\b/i,
+  /\b(airdrop|free tokens?|giveaway|whitelist)\b/i,
+  /\b(100x|1000x|guaranteed|risk.?free|passive income)\b/i,
+  /\b(dm me|dm for|send me|cashapp|venmo|paypal)\b/i,
+];
+
+function isNoise(text: string): boolean {
+  const lower = text.toLowerCase();
+  // Too short to be meaningful
+  if (lower.split(/\s+/).length < 4) return true;
+  // Meme/joke content
+  for (const pattern of MEME_PATTERNS) {
+    if (pattern.test(lower)) return true;
+  }
+  // Spam/promotion
+  for (const pattern of SPAM_PATTERNS) {
+    if (pattern.test(lower)) return true;
+  }
+  // All caps screaming (>80% uppercase, 10+ chars)
+  if (text.length > 10 && text.replace(/[^A-Z]/g, "").length / text.replace(/\s/g, "").length > 0.8) return true;
+  return false;
+}
+
 // ── Sentiment Scoring (keyword-based, no AI call = instant) ──
 
 const BULLISH_WORDS = new Set(["bull", "bullish", "buy", "long", "moon", "pump", "rally", "breakout", "surge", "soar", "rocket", "calls", "upside", "green", "rip", "send", "bid", "accumulate", "undervalued", "cheap", "recovery", "bounce"]);
@@ -350,21 +394,23 @@ function detectPoisoning(sources: TopicSentiment["sources"]): TopicSentiment["po
 
 async function fetchTwitterSentiment(query: string): Promise<SentimentPost[]> {
   const tweets = await searchTweets(query, 30);
-  return tweets.map((t) => {
-    const cred = twitterCredibility(t);
-    const totalEng = t.metrics.likes + t.metrics.retweets + t.metrics.replies;
-    return {
-      source: "twitter" as const,
-      id: t.id,
-      text: t.text,
-      author: t.authorUsername,
-      timestamp: t.createdAt,
-      sentiment: scoreSentiment(t.text),
-      credibility: cred,
-      engagement: Math.min(1, totalEng / 100),
-      raw: { likes: t.metrics.likes, retweets: t.metrics.retweets, replies: t.metrics.replies },
-    };
-  });
+  return tweets
+    .filter((t) => !isNoise(t.text))
+    .map((t) => {
+      const cred = twitterCredibility(t);
+      const totalEng = t.metrics.likes + t.metrics.retweets + t.metrics.replies;
+      return {
+        source: "twitter" as const,
+        id: t.id,
+        text: t.text,
+        author: t.authorUsername,
+        timestamp: t.createdAt,
+        sentiment: scoreSentiment(t.text),
+        credibility: cred,
+        engagement: Math.min(1, totalEng / 100),
+        raw: { likes: t.metrics.likes, retweets: t.metrics.retweets, replies: t.metrics.replies },
+      };
+    });
 }
 
 async function fetchRedditSentiment(keywords: string[]): Promise<SentimentPost[]> {
@@ -395,6 +441,13 @@ async function fetchRedditSentiment(keywords: string[]): Promise<SentimentPost[]
       // Only include posts matching keywords
       if (!keywords.some((kw) => text.includes(kw))) continue;
 
+      // Filter noise (memes, shitposts, jokes, spam)
+      if (isNoise(`${title} ${selftext}`)) continue;
+
+      // Skip flaired as Meme/Shitpost/YOLO on WSB
+      const flair = ((d.link_flair_text as string) || "").toLowerCase();
+      if (flair.includes("meme") || flair.includes("shitpost") || flair.includes("yolo") || flair.includes("loss") || flair.includes("gain")) continue;
+
       const score = (d.score as number) || 0;
       const comments = (d.num_comments as number) || 0;
 
@@ -424,7 +477,7 @@ async function fetchStockTwitsSentiment(symbol: string): Promise<SentimentPost[]
     const json = await res.json();
     const messages = (json.messages || []) as Array<Record<string, unknown>>;
 
-    return messages.slice(0, 30).map((m) => {
+    return messages.slice(0, 30).filter((m) => !isNoise((m.body as string) || "")).map((m) => {
       const body = (m.body as string) || "";
       const user = (m.user as Record<string, unknown>) || {};
       const stSentiment = (m.entities as Record<string, unknown>)?.sentiment as Record<string, unknown> | undefined;
