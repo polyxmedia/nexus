@@ -131,9 +131,9 @@ export function ActorDetailModal({ actorId, actors, onClose }: ActorDetailModalP
             Alliances
           </h4>
           <div className="flex flex-wrap gap-1">
-            {actor.alliances.map((id) => (
+            {actor.alliances.map((id, i) => (
               <span
-                key={id}
+                key={`${id}-${i}`}
                 className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20"
               >
                 {getActorName(id)}
@@ -148,9 +148,9 @@ export function ActorDetailModal({ actorId, actors, onClose }: ActorDetailModalP
             Adversaries
           </h4>
           <div className="flex flex-wrap gap-1">
-            {actor.adversaries.map((id) => (
+            {actor.adversaries.map((id, i) => (
               <span
-                key={id}
+                key={`${id}-${i}`}
                 className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-accent-rose/10 text-accent-rose border border-accent-rose/20"
               >
                 {getActorName(id)}

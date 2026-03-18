@@ -2222,6 +2222,17 @@ const RESOLUTION_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "web_search",
+    description: "Search the web for current information. Use this when you need to verify data that isn't available through get_market_price (e.g. RSI values, Fear/Greed index, relative performance, sector rotation data). Also useful for geopolitical event verification.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Search query (e.g. 'SPY RSI today', 'CNN Fear Greed Index March 2026', 'XLD vs SPY performance')" },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "submit_resolution",
     description: "Submit your final resolution for one or more predictions AFTER you have gathered and verified all evidence. You MUST call get_market_price or search_news first before calling this.",
     input_schema: {
@@ -2268,13 +2279,34 @@ async function executeResolutionTool(
       : undefined;
 
     try {
-      const [quote, daily] = await Promise.all([
-        getQuote(corrected, alphaVantageKey).catch(() => null),
-        getDailySeries(corrected, alphaVantageKey).catch(() => []),
-      ]);
+      let quote: { price: number; change?: number; changePercent?: number; volume?: number } | null = null;
+      let daily: Array<{ date: string; open: number; high: number; low: number; close: number; volume: number }> = [];
+
+      // Yahoo Finance first (free, no rate limits, no API key)
+      try {
+        const { getQuoteData, getHistoricalData } = await import("@/lib/market-data/yahoo");
+        const yQuote = await getQuoteData(corrected).catch(() => null);
+        if (yQuote) {
+          quote = { price: yQuote.price, change: yQuote.change, changePercent: yQuote.changePercent, volume: yQuote.volume };
+        }
+        const yBars = await getHistoricalData(corrected, "3mo").catch(() => []);
+        if (yBars.length > 0) {
+          daily = yBars.map((b) => ({ date: b.date, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
+        }
+      } catch {
+        // Yahoo failed, try paid providers
+      }
+
+      // Fallback to Twelve Data → Alpha Vantage if Yahoo failed
+      if (!quote) {
+        [quote, daily] = await Promise.all([
+          getQuote(corrected, alphaVantageKey).catch(() => null),
+          getDailySeries(corrected, alphaVantageKey).catch(() => []),
+        ]) as [typeof quote, typeof daily];
+      }
 
       if (!quote) {
-        return JSON.stringify({ error: `No data available for ${symbol} (tried ${corrected})`, corrected_symbol: corrected });
+        return JSON.stringify({ error: `No data available for ${symbol} from any provider (Yahoo, Twelve Data, Alpha Vantage)`, corrected_symbol: corrected });
       }
 
       // Sanity flag if the corrected symbol differs

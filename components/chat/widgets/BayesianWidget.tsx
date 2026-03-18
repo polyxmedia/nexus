@@ -294,8 +294,8 @@ function BayesianScenarioCard({ data }: { data: ScenarioResult }) {
       <div>
         <div className="text-[9px] uppercase tracking-wider text-navy-500 mb-1">Actor Types</div>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-          {Object.entries(analysis.dominantTypes).map(([actor, info]) => (
-            <span key={actor} className="text-[10px] font-mono">
+          {Object.entries(analysis.dominantTypes).map(([actor, info], i) => (
+            <span key={`${actor}-${i}`} className="text-[10px] font-mono">
               <span className="text-navy-400">{actor}:</span>{" "}
               <span className="text-accent-cyan">{info.type}</span>
               <span className="text-navy-500 ml-0.5">({(info.probability * 100).toFixed(0)}%)</span>
