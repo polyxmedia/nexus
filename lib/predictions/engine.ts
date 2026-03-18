@@ -2597,12 +2597,13 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
   const confirmed = finalResolutions.filter((r) => r.outcome === "confirmed");
   if (confirmed.length > 0 && messages.length > 2) {
     try {
-      const verifyPrompt = `VERIFICATION PASS: You previously confirmed these predictions. Double-check each one. Be SKEPTICAL. Look for:
+      const verifyPrompt = `VERIFICATION PASS: You previously confirmed these predictions. Double-check each one. Be SKEPTICAL but FAIR. Look for:
 1. Was the target ALREADY MET at creation (start price vs target)?
 2. Did you check the CORRECT instrument (not an ETF with the same ticker as an index)?
 3. For "close above" claims, did you check closes or intraday highs?
 4. For "at least N days" claims, did you actually count the days?
 5. Is the base rate for this event so high (>80%) that confirmation is trivially expected?
+6. IMPORTANT: Check the MATH. If a prediction says "outperform by at least 2%" and the actual outperformance is 2.16%, that IS confirmed (2.16 > 2). Do not deny predictions where the threshold was actually met.
 
 For each confirmed prediction, respond with JSON: [{"id": N, "still_confirmed": true/false, "reason": "..."}]
 Only change verdicts if you find a genuine error. Do not second-guess correct confirmations.
@@ -2613,7 +2614,7 @@ ${confirmed.map((r) => `ID ${r.id}: ${r.notes}`).join("\n\n")}`;
       const verifyResponse = await client.messages.create({
         model: SONNET_MODEL,
         max_tokens: 1024,
-        system: "You are a verification auditor. Be skeptical of confirmed predictions. Check for common errors: wrong instruments, inverted FX pairs, targets already met at creation, intraday vs close confusion, and trivial base rates.",
+        system: `You are a verification auditor. Today is ${today}. The current year is ${new Date().getFullYear()}. Be skeptical of confirmed predictions. Check for common errors: wrong instruments, inverted FX pairs, targets already met at creation, intraday vs close confusion, and trivial base rates. Do NOT reject predictions just because the dates seem futuristic to you. The predictions and their data are real and current.`,
         messages: [{ role: "user", content: verifyPrompt }],
       });
 
