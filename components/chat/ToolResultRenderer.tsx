@@ -53,6 +53,7 @@ import { CustomGameTheoryWidget } from "./widgets/CustomGameTheoryWidget";
 import { VesselTrackingWidget } from "./widgets/VesselTrackingWidget";
 import { OpportunityWidget } from "./widgets/OpportunityWidget";
 import { CalculateWidget } from "./widgets/CalculateWidget";
+import { EschatologicalWidget } from "./widgets/EschatologicalWidget";
 import { CollapsibleWrapper } from "./widgets/CollapsibleCard";
 
 interface ToolResultRendererProps {
@@ -135,6 +136,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_scenario_branches: "Scenario Branches",
   analyze_opportunity: "Opportunity Analysis",
   calculate: "Calculator",
+  get_eschatological_convergence: "Eschatological Convergence",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -168,6 +170,9 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
       break;
     case "get_esoteric_reading":
       widget = <EsotericWidget data={data} />;
+      break;
+    case "get_eschatological_convergence":
+      widget = <EschatologicalWidget data={data} />;
       break;
     case "get_live_quote":
       widget = <QuoteWidget data={data} />;
