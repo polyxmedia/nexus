@@ -36,7 +36,7 @@ export function EntityListPanel({
   onSelect,
 }: Props) {
   return (
-    <div className="w-64 shrink-0 border-r border-navy-800/40 flex flex-col h-full">
+    <div className="hidden md:flex w-64 shrink-0 border-r border-navy-800/40 flex-col h-full">
       {/* Search + filter */}
       <div className="p-3 border-b border-navy-800/40 space-y-2">
         <div className="flex items-center gap-2 bg-navy-900/50 border border-navy-800/40 rounded px-2 py-1.5">

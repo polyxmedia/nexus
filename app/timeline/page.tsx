@@ -467,7 +467,7 @@ export default function TimelinePage() {
       <UpgradeGate minTier="analyst" feature="Event timeline">
       {/* Header */}
       <div className="sticky top-0 z-10 border-b border-navy-700 bg-navy-950/95 backdrop-blur-md">
-        <div className="flex items-center justify-between px-6 h-16">
+        <div className="flex items-center justify-between px-4 sm:px-6 h-14 sm:h-16">
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-accent-cyan" />
             <div>
@@ -511,9 +511,9 @@ export default function TimelinePage() {
 
         {/* Filter bar */}
         {showFilters && (
-          <div className="px-6 pb-3 flex items-center gap-4 border-t border-navy-700/50 pt-3">
+          <div className="px-4 sm:px-6 pb-3 flex flex-wrap items-center gap-2 sm:gap-4 border-t border-navy-700/50 pt-3">
             <span className="text-[10px] text-navy-500 uppercase tracking-wider">Type:</span>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 flex-wrap">
               {Object.entries(TYPE_CONFIG).map(([type, config]) => (
                 <button
                   key={type}
@@ -530,7 +530,7 @@ export default function TimelinePage() {
               ))}
             </div>
 
-            <span className="text-[10px] text-navy-500 uppercase tracking-wider ml-4">Min Severity:</span>
+            <span className="text-[10px] text-navy-500 uppercase tracking-wider sm:ml-4">Min Severity:</span>
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map(s => (
                 <button
@@ -551,7 +551,7 @@ export default function TimelinePage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-navy-700/50 px-6">
+      <div className="border-b border-navy-700/50 px-4 sm:px-6">
         <div className="flex gap-0">
           <button
             onClick={() => setActiveTab("recent")}
@@ -589,7 +589,7 @@ export default function TimelinePage() {
       </div>
 
       {/* Timeline */}
-      <div className="px-6 py-6">
+      <div className="px-4 sm:px-6 py-6">
         {loading ? (
           <div className="flex items-center justify-center py-20 gap-2 text-navy-500 text-xs">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -603,8 +603,8 @@ export default function TimelinePage() {
           </div>
         ) : (
           <div className="relative">
-            {/* Vertical line */}
-            <div className="absolute left-[7.5rem] top-0 bottom-0 w-px bg-navy-800" />
+            {/* Vertical line - desktop only */}
+            <div className="absolute left-[7.5rem] top-0 bottom-0 w-px bg-navy-800 hidden sm:block" />
 
             {activeTab === "recent" ? (
               Object.keys(pastGrouped).length > 0 ? (

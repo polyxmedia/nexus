@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("Congressional trading API error:", error);
     return NextResponse.json({
-      congressional: { recent: [], topBuys: [], topSells: [], byParty: {}, byChamber: {} },
+      congressional: { recent: [], topBuys: [], topSells: [], topTraders: [], byParty: {}, byChamber: {} },
       insider: { recent: [], clusterBuys: [], buyRatio: 0.5, topSectors: [] },
     });
   }

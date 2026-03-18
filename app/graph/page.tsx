@@ -375,28 +375,28 @@ export default function GraphPage() {
     <div className="ml-0 md:ml-48 h-screen flex flex-col bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="analyst" feature="Entity relationship graph">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-navy-800/40 px-4 h-12 shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between border-b border-navy-800/40 px-3 md:px-4 h-12 shrink-0 overflow-x-auto gap-2">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
           <Network className="h-4 w-4 text-navy-400" />
           <h1 className="text-xs font-bold text-navy-100 uppercase tracking-widest">Entity Graph</h1>
           {hasData && (
-            <span className="text-[10px] font-mono text-navy-500">
+            <span className="hidden sm:inline text-[10px] font-mono text-navy-500">
               {rawNodes.length} entities / {rawEdges.length} connections
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Path finder indicator */}
           {pathSource != null && pathTarget == null && (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-accent-amber/10 border border-accent-amber/30 text-[9px] font-mono text-accent-amber uppercase tracking-wider animate-pulse">
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded bg-accent-amber/10 border border-accent-amber/30 text-[9px] font-mono text-accent-amber uppercase tracking-wider animate-pulse">
               Select target node...
             </div>
           )}
 
-          {/* Type filter chips */}
+          {/* Type filter chips - hidden on mobile */}
           {hasData && entityTypes.length > 0 && (
-            <div className="flex items-center gap-1 mr-2">
+            <div className="hidden lg:flex items-center gap-1 mr-2">
               {entityTypes.map((type) => {
                 const color = NODE_COLORS[type] || "#64748b";
                 const isHidden = hiddenTypes.has(type);

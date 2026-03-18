@@ -260,7 +260,7 @@ export function EntityDetailPanel({ node, connections, breadcrumbs, onClose, onN
   const color = NODE_COLORS[node.type] || "#64748b";
 
   return (
-    <div className="w-80 shrink-0 border-l border-navy-800/40 bg-navy-950 flex flex-col h-full overflow-hidden">
+    <div className="fixed inset-0 z-40 md:relative md:inset-auto md:z-auto w-full md:w-80 shrink-0 border-l border-navy-800/40 bg-navy-950 flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-navy-800/40">
         <span className="text-[10px] font-mono text-navy-500 uppercase tracking-wider">Entity Detail</span>

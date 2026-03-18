@@ -185,7 +185,7 @@ export default function LongevityPage() {
       <UpgradeGate minTier="analyst" feature="Longevity Risk Analysis">
         {/* Search */}
         <div className="rounded-lg border border-navy-700/50 bg-navy-900/30 p-4 mb-6">
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-navy-600" />
               <input
@@ -193,32 +193,34 @@ export default function LongevityPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter public figure name (e.g. Vladimir Putin, Xi Jinping, Elon Musk)"
+                placeholder="Public figure name (e.g. Putin, Xi Jinping)"
                 className="w-full pl-9 pr-3 py-2 rounded-md border border-navy-700 bg-navy-900 text-sm text-navy-200 placeholder-navy-600 focus:border-accent-cyan/50 focus:outline-none font-mono"
               />
             </div>
-            <select
-              value={years}
-              onChange={(e) => setYears(parseInt(e.target.value))}
-              className="rounded-md border border-navy-700 bg-navy-900 px-3 py-2 text-sm text-navy-300 focus:border-accent-cyan/50 focus:outline-none font-mono"
-            >
-              <option value={1}>1 year</option>
-              <option value={2}>2 years</option>
-              <option value={5}>5 years</option>
-              <option value={10}>10 years</option>
-            </select>
-            <button
-              onClick={analyze}
-              disabled={!name.trim() || loading}
-              className="flex items-center gap-2 rounded-md border border-accent-cyan/30 bg-accent-cyan/10 px-4 py-2 text-sm font-mono text-accent-cyan hover:bg-accent-cyan/20 transition-colors disabled:opacity-30"
-            >
-              {loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Skull className="h-3.5 w-3.5" />
-              )}
-              Analyze
-            </button>
+            <div className="flex gap-2">
+              <select
+                value={years}
+                onChange={(e) => setYears(parseInt(e.target.value))}
+                className="rounded-md border border-navy-700 bg-navy-900 px-3 py-2 text-sm text-navy-300 focus:border-accent-cyan/50 focus:outline-none font-mono"
+              >
+                <option value={1}>1yr</option>
+                <option value={2}>2yr</option>
+                <option value={5}>5yr</option>
+                <option value={10}>10yr</option>
+              </select>
+              <button
+                onClick={analyze}
+                disabled={!name.trim() || loading}
+                className="flex items-center gap-2 rounded-md border border-accent-cyan/30 bg-accent-cyan/10 px-4 py-2 text-sm font-mono text-accent-cyan hover:bg-accent-cyan/20 transition-colors disabled:opacity-30"
+              >
+                {loading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Skull className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">Analyze</span>
+              </button>
+            </div>
           </div>
           {error && (
             <p className="text-xs text-accent-rose mt-2">{error}</p>
@@ -238,21 +240,21 @@ export default function LongevityPage() {
             {/* Subject Header + Composite Score */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {/* Subject Info */}
-              <div className="md:col-span-2 rounded-lg border border-navy-700/50 bg-navy-900/30 p-5">
-                <div className="flex items-start gap-4">
-                  <div className="h-14 w-14 rounded-full bg-navy-800 border border-navy-700 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl font-bold text-navy-300 uppercase">
+              <div className="md:col-span-2 rounded-lg border border-navy-700/50 bg-navy-900/30 p-4 sm:p-5">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-full bg-navy-800 border border-navy-700 flex items-center justify-center flex-shrink-0">
+                    <span className="text-base sm:text-xl font-bold text-navy-300 uppercase">
                       {a.subject.name.charAt(0)}
                     </span>
                   </div>
-                  <div className="flex-1">
-                    <h2 className="text-lg font-bold text-navy-100">{a.subject.name}</h2>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-navy-400 font-mono">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base sm:text-lg font-bold text-navy-100">{a.subject.name}</h2>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-navy-400 font-mono">
                       {a.subject.age && <span>Age {a.subject.age}</span>}
                       <span>{a.subject.nationality}</span>
-                      <span>{a.subject.role}</span>
+                      <span className="hidden sm:inline">{a.subject.role}</span>
                     </div>
-                    <p className="text-xs text-navy-500 mt-2 leading-relaxed">{a.subject.significance}</p>
+                    <p className="text-[11px] sm:text-xs text-navy-500 mt-2 leading-relaxed line-clamp-3 sm:line-clamp-none">{a.subject.significance}</p>
                   </div>
                 </div>
               </div>
@@ -333,10 +335,10 @@ export default function LongevityPage() {
                   const config = RISK_LABELS[key];
                   const Icon = config?.icon || AlertTriangle;
                   return (
-                    <div key={key} className="px-4 py-3 hover:bg-navy-800/20 transition-colors">
-                      <div className="flex items-center gap-3">
+                    <div key={key} className="px-3 sm:px-4 py-3 hover:bg-navy-800/20 transition-colors">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${riskColor(factor.score)}`} />
-                        <span className="text-xs font-mono text-navy-300 w-36 flex-shrink-0">
+                        <span className="text-[11px] sm:text-xs font-mono text-navy-300 w-20 sm:w-36 flex-shrink-0 truncate">
                           {config?.label || key}
                         </span>
                         <div className="flex-1 h-1.5 rounded-full bg-navy-800 overflow-hidden">
@@ -349,7 +351,7 @@ export default function LongevityPage() {
                           {factor.score}
                         </span>
                       </div>
-                      <p className="text-[11px] text-navy-500 mt-1.5 ml-6 leading-relaxed">
+                      <p className="text-[10px] sm:text-[11px] text-navy-500 mt-1.5 ml-6 sm:ml-7 leading-relaxed">
                         {factor.rationale}
                       </p>
                     </div>

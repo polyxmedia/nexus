@@ -641,7 +641,7 @@ export default function CongressionalTradingPage() {
           ))}
         </div>
 
-        {tab !== "clusters" && tab !== "insiders" && (
+        {tab !== "clusters" && tab !== "insiders" && tab !== "leaderboard" && (
           <div className="flex items-center gap-2 flex-wrap">
             {/* Chamber filter */}
             <div className="flex items-center gap-1">
@@ -849,6 +849,127 @@ export default function CongressionalTradingPage() {
             );
           });
           })()}
+        </div>
+      )}
+
+      {/* Leaderboard */}
+      {tab === "leaderboard" && (
+        <div className="border border-navy-700/30 rounded-md overflow-hidden">
+          {/* Desktop header */}
+          <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-2 bg-navy-800/40 border-b border-navy-700/20">
+            <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500">#</span>
+            <span className="col-span-3 text-[9px] font-mono uppercase tracking-wider text-navy-500">Member</span>
+            <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Trades</span>
+            <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Buys</span>
+            <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Sells</span>
+            <span className="col-span-2 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Avg Excess Return</span>
+            <span className="col-span-1 text-[9px] font-mono uppercase tracking-wider text-navy-500 text-right">Best</span>
+            <span className="col-span-2 text-[9px] font-mono uppercase tracking-wider text-navy-500">Recent Tickers</span>
+          </div>
+
+          {(data?.congressional.topTraders || []).length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-navy-500">No trader data available.</div>
+          )}
+
+          {(data?.congressional.topTraders || []).map((trader, i) => {
+            const rank = i + 1;
+            const rankColor = rank === 1 ? "text-accent-amber" : rank === 2 ? "text-navy-300" : rank === 3 ? "text-amber-700" : "text-navy-500";
+            const returnColor = trader.avgExcessReturn > 0 ? "text-accent-emerald" : trader.avgExcessReturn < 0 ? "text-accent-rose" : "text-navy-400";
+            const returnSign = trader.avgExcessReturn > 0 ? "+" : "";
+
+            return (
+              <div key={trader.name}>
+                {/* Desktop row */}
+                <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-navy-700/10 hover:bg-navy-800/20 transition-colors group">
+                  <div className="col-span-1 flex items-center">
+                    <span className={`text-sm font-mono font-bold ${rankColor}`}>
+                      {rank <= 3 ? <Trophy className={`h-3.5 w-3.5 inline ${rankColor}`} /> : rank}
+                    </span>
+                  </div>
+                  <div className="col-span-3 flex items-center gap-2">
+                    <MemberAvatar name={trader.name} bioguideId={trader.bioguideId} party={trader.party} />
+                    <div className="min-w-0">
+                      <button
+                        onClick={() => setConflictMember(conflictMember === trader.name ? null : trader.name)}
+                        className={`text-[11px] transition-colors block truncate text-left ${conflictMember === trader.name ? "text-accent-cyan" : "text-navy-200 hover:text-accent-cyan"}`}
+                      >
+                        {trader.name}
+                      </button>
+                      <span className={`text-[9px] font-mono uppercase ${partyColor(trader.party)}`}>
+                        {partyLabel(trader.party)} / {trader.chamber === "senate" ? "SEN" : "HSE"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="col-span-1 flex items-center justify-end">
+                    <span className="text-[11px] font-mono text-navy-200 font-bold">{trader.totalTrades}</span>
+                  </div>
+                  <div className="col-span-1 flex items-center justify-end">
+                    <span className="text-[11px] font-mono text-accent-emerald">{trader.purchases}</span>
+                  </div>
+                  <div className="col-span-1 flex items-center justify-end">
+                    <span className="text-[11px] font-mono text-accent-rose">{trader.sales}</span>
+                  </div>
+                  <div className="col-span-2 flex items-center justify-end">
+                    <span className={`text-sm font-mono font-bold ${returnColor}`}>
+                      {returnSign}{trader.avgExcessReturn.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="col-span-1 flex items-center justify-end">
+                    {trader.bestTrade && (
+                      <span className="text-[10px] font-mono text-accent-emerald">
+                        {trader.bestTrade.ticker} +{trader.bestTrade.excessReturn.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="col-span-2 flex items-center gap-1 flex-wrap">
+                    {trader.recentTickers.map((ticker) => (
+                      <span key={ticker} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-navy-800/60 text-accent-cyan">
+                        {ticker}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mobile card */}
+                <div className="md:hidden px-4 py-3 border-b border-navy-700/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-sm font-mono font-bold w-6 ${rankColor}`}>
+                      {rank <= 3 ? <Trophy className={`h-3.5 w-3.5 ${rankColor}`} /> : rank}
+                    </span>
+                    <MemberAvatar name={trader.name} bioguideId={trader.bioguideId} party={trader.party} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] text-navy-200 block truncate">{trader.name}</span>
+                      <span className={`text-[9px] font-mono uppercase ${partyColor(trader.party)}`}>
+                        {partyLabel(trader.party)} / {trader.chamber === "senate" ? "SEN" : "HSE"}
+                      </span>
+                    </div>
+                    <span className={`text-base font-mono font-bold ${returnColor}`}>
+                      {returnSign}{trader.avgExcessReturn.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-mono text-navy-400 mb-1.5">
+                    <span>{trader.totalTrades} trades</span>
+                    <span className="text-accent-emerald">{trader.purchases} buys</span>
+                    <span className="text-accent-rose">{trader.sales} sells</span>
+                    {trader.bestTrade && (
+                      <span className="text-accent-emerald">Best: {trader.bestTrade.ticker} +{trader.bestTrade.excessReturn.toFixed(1)}%</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {trader.recentTickers.map((ticker) => (
+                      <span key={ticker} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-navy-800/60 text-accent-cyan">
+                        {ticker}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {conflictMember === trader.name && (
+                  <ConflictPanel memberName={trader.name} onClose={() => setConflictMember(null)} />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
