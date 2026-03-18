@@ -47,26 +47,23 @@ async function ensureCacheLoaded() {
 }
 
 /**
+ * Upsert a setting by key (atomic, no read-then-write).
+ */
+async function upsertSetting(key: string, value: string) {
+  const now = new Date().toISOString();
+  await db.insert(schema.settings)
+    .values({ key, value, updatedAt: now })
+    .onConflictDoUpdate({ target: schema.settings.key, set: { value, updatedAt: now } });
+}
+
+/**
  * Persist current article hash cache to DB.
  */
 async function persistCache() {
   const hashes = [...alertedArticlesCache];
-  // Keep only the most recent entries
   const trimmed = hashes.slice(-MAX_PERSISTED_HASHES);
   try {
-    const existing = await db.select().from(schema.settings)
-      .where(eq(schema.settings.key, ALERTED_KEY))
-      .then(rows => rows[0]);
-    if (existing) {
-      await db.update(schema.settings)
-        .set({ value: JSON.stringify(trimmed) })
-        .where(eq(schema.settings.key, ALERTED_KEY));
-    } else {
-      await db.insert(schema.settings).values({
-        key: ALERTED_KEY,
-        value: JSON.stringify(trimmed),
-      });
-    }
+    await upsertSetting(ALERTED_KEY, JSON.stringify(trimmed));
   } catch { /* silent */ }
 }
 
@@ -85,25 +82,23 @@ async function getDailyAlertCount(): Promise<number> {
 }
 
 /**
- * Increment daily alert count in DB.
+ * Increment daily alert count in DB (atomic via SQL).
  */
 async function incrementDailyAlertCount() {
   const today = new Date().toISOString().split("T")[0];
   const key = `${DAILY_COUNT_KEY_PREFIX}${today}`;
   try {
-    const current = await getDailyAlertCount();
-    const existing = await db.select().from(schema.settings)
+    // Try to increment existing row first
+    const result = await db.update(schema.settings)
+      .set({
+        value: sql`CAST(CAST(${schema.settings.value} AS INTEGER) + 1 AS TEXT)`,
+        updatedAt: new Date().toISOString(),
+      })
       .where(eq(schema.settings.key, key))
-      .then(rows => rows[0]);
-    if (existing) {
-      await db.update(schema.settings)
-        .set({ value: String(current + 1) })
-        .where(eq(schema.settings.key, key));
-    } else {
-      await db.insert(schema.settings).values({
-        key,
-        value: "1",
-      });
+      .returning();
+    // If no row existed, insert with value "1"
+    if (result.length === 0) {
+      await upsertSetting(key, "1");
     }
   } catch { /* silent */ }
 }

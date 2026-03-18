@@ -80,6 +80,47 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     radiusKm: 250,
     escalationLevel: 2,
   },
+  // Additional strategic monitoring zones
+  {
+    id: "south-china-sea",
+    name: "South China Sea",
+    scenarioId: "taiwan-strait",
+    center: { lat: 14.5, lng: 114.0 },
+    radiusKm: 500,
+    escalationLevel: 3,
+  },
+  {
+    id: "baltic-sea",
+    name: "Baltic Sea / Kaliningrad",
+    scenarioId: "taiwan-strait",
+    center: { lat: 55.7, lng: 20.5 },
+    radiusKm: 300,
+    escalationLevel: 3,
+  },
+  {
+    id: "red-sea",
+    name: "Red Sea / Houthi Zone",
+    scenarioId: "iran-nuclear",
+    center: { lat: 15.5, lng: 42.0 },
+    radiusKm: 400,
+    escalationLevel: 5,
+  },
+  {
+    id: "east-med",
+    name: "Eastern Mediterranean",
+    scenarioId: "iran-nuclear",
+    center: { lat: 34.0, lng: 34.0 },
+    radiusKm: 300,
+    escalationLevel: 3,
+  },
+  {
+    id: "arctic",
+    name: "Arctic / Northern Sea Route",
+    scenarioId: "taiwan-strait",
+    center: { lat: 72.0, lng: 40.0 },
+    radiusKm: 500,
+    escalationLevel: 1,
+  },
 ];
 
 // ── Strategic Locations ──

@@ -7,10 +7,6 @@
 import { NextResponse } from "next/server";
 
 const ALLOWED_ORIGINS = new Set([
-  "http://localhost:3000",
-  "https://localhost:3000",
-  "http://localhost:3001",
-  "https://localhost:3001",
   "https://nexushq.xyz",
   "https://www.nexushq.xyz",
 ]);
@@ -52,6 +48,9 @@ export function validateOrigin(request: Request): string | null {
 
   // Internal server-to-server calls (scheduler, etc.) won't have origin
   if (!origin && !referer) return null;
+
+  // Allow any localhost port in development
+  if (origin && /^https?:\/\/localhost(:\d+)?$/.test(origin) && process.env.NODE_ENV !== "production") return null;
 
   if (origin && ALLOWED_ORIGINS.has(origin)) return null;
 

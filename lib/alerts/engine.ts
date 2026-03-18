@@ -12,7 +12,7 @@ const DECAY_TIERS_HOURS = [0, 6, 12, 24];
 /**
  * Calculate effective cooldown using decay suppression.
  * As triggerCount increases, the cooldown multiplier escalates.
- * tierIndex = min(triggerCount, DECAY_TIERS.length - 1)
+ * tierIndex = min(triggerCount, DECAY_TIERS_HOURS.length - 1)
  * effectiveCooldown = max(baseCooldown, decayTierHours * 60)
  */
 function getEffectiveCooldownMs(baseCooldownMinutes: number, triggerCount: number): number {
@@ -196,14 +196,15 @@ export async function evaluateAlerts(): Promise<number> {
 
     switch (alert.type) {
       case "signal_intensity": {
-        const signals = await db.select().from(schema.signals);
+        const signals = await db.select().from(schema.signals)
+          .where(eq(schema.signals.status, "active"));
         const minIntensity = condition.minIntensity || 4;
         const intense = signals.filter(s => s.intensity >= minIntensity);
         if (intense.length > 0) {
           // Delta detection: only trigger if a signal's intensity just crossed
           // the threshold or increased since last check
           const now = Date.now();
-          let deltaSignal = null;
+          let deltaSignal: (typeof intense)[number] | null = null;
           for (const s of intense) {
             const cached = signalIntensityCache.get(s.id);
             if (!cached || cached.intensity < minIntensity || s.intensity > cached.intensity) {
@@ -213,18 +214,10 @@ export async function evaluateAlerts(): Promise<number> {
             }
           }
 
-          // Update cache for all signals
-          for (const s of signals) {
-            signalIntensityCache.set(s.id, { intensity: s.intensity, timestamp: now });
-          }
-          // Prune stale cache entries
-          for (const [id, entry] of signalIntensityCache) {
-            if (now - entry.timestamp > SIGNAL_CACHE_TTL) signalIntensityCache.delete(id);
-          }
-
           if (deltaSignal) {
-            const cached = signalIntensityCache.get(deltaSignal.id);
-            const previousIntensity = cached ? cached.intensity : 0;
+            // Read previous intensity BEFORE updating cache
+            const prevCached = signalIntensityCache.get(deltaSignal.id);
+            const previousIntensity = prevCached ? prevCached.intensity : 0;
             shouldTrigger = true;
             title = `Signal intensity change: ${deltaSignal.title}`;
             message = previousIntensity > 0
@@ -237,6 +230,15 @@ export async function evaluateAlerts(): Promise<number> {
               previousIntensity,
               delta: deltaSignal.intensity - previousIntensity,
             };
+          }
+
+          // Update cache for all signals after reading previous values
+          for (const s of signals) {
+            signalIntensityCache.set(s.id, { intensity: s.intensity, timestamp: now });
+          }
+          // Prune stale cache entries
+          for (const [id, entry] of signalIntensityCache) {
+            if (now - entry.timestamp > SIGNAL_CACHE_TTL) signalIntensityCache.delete(id);
           }
         }
         break;
@@ -354,6 +356,11 @@ export async function evaluateAlerts(): Promise<number> {
         }
         break;
       }
+    }
+
+    // Reset decay when the condition clears so alerts aren't permanently suppressed
+    if (!shouldTrigger && (alert.triggerCount || 0) > 0) {
+      await db.update(schema.alerts).set({ triggerCount: 0 }).where(eq(schema.alerts.id, alert.id));
     }
 
     if (shouldTrigger) {

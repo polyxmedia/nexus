@@ -2485,16 +2485,18 @@ CRITICAL RULES:
 
 SCORING:
 - confirmed (both direction and level correct): score = 1.0
-- partial (direction correct, level wrong): score = 0.5
-- denied (wrong): score = 0.0
-- skip (insufficient data): will retry later
+- partial (direction correct but level wrong, OR data insufficient but evidence suggests the prediction was likely correct): score = 0.5
+- denied (evidence clearly shows the prediction was WRONG): score = 0.0
+- skip (cannot make any assessment at all): will retry later
+
+CRITICAL: "denied" means you have EVIDENCE that the prediction was wrong. If you simply cannot find the data to verify (e.g. no RSI data available, no specific indicator reading), that is NOT a denial. Use "skip" to retry later, or "partial" if circumstantial evidence suggests the direction was correct. NEVER deny a prediction just because you couldn't find the specific data point. Absence of data is not evidence of failure.
 
 After gathering evidence, you MUST call submit_resolution with your final verdicts. Do NOT keep searching endlessly.
 
 CRITICAL WORKFLOW:
 1. Make 2-3 tool calls maximum per prediction to gather data
 2. If data is available: resolve as confirmed/denied/partial based on evidence
-3. If data is unavailable or ambiguous: resolve as "partial" with score 0.3 and notes explaining what data was missing and your best assessment. Only use "skip" if you truly cannot make any judgement at all.
+3. If data is unavailable: use "skip" so it retries later. If data is partial but circumstantial evidence supports the direction: use "partial" with score 0.5. NEVER use "denied" when you simply couldn't find data.
 4. Call submit_resolution within 5 rounds. Every prediction MUST get a verdict.
 
 You MUST call submit_resolution before finishing. Never end without submitting.`;
