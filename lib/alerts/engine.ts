@@ -3,6 +3,31 @@ import { eq, desc, like, and } from "drizzle-orm";
 import { sendMessage } from "@/lib/telegram/bot";
 import { sendSms, getUserPhone } from "@/lib/sms";
 
+// ── Alert Decay Suppression ──
+// Escalating cooldown: first trigger fires immediately, subsequent triggers
+// get progressively longer suppression to prevent alert fatigue.
+// Decay tiers in hours: [0, 6, 12, 24]
+const DECAY_TIERS_HOURS = [0, 6, 12, 24];
+
+/**
+ * Calculate effective cooldown using decay suppression.
+ * As triggerCount increases, the cooldown multiplier escalates.
+ * tierIndex = min(triggerCount, DECAY_TIERS.length - 1)
+ * effectiveCooldown = max(baseCooldown, decayTierHours * 60)
+ */
+function getEffectiveCooldownMs(baseCooldownMinutes: number, triggerCount: number): number {
+  const tierIndex = Math.min(triggerCount, DECAY_TIERS_HOURS.length - 1);
+  const decayMinutes = DECAY_TIERS_HOURS[tierIndex] * 60;
+  const effectiveMinutes = Math.max(baseCooldownMinutes, decayMinutes);
+  return effectiveMinutes * 60 * 1000;
+}
+
+// ── Signal Delta Tracking ──
+// Stores the last known intensity per signal to detect transitions.
+// Key: signalId, Value: { intensity, timestamp }
+const signalIntensityCache = new Map<number, { intensity: number; timestamp: number }>();
+const SIGNAL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
+
 export interface AlertCondition {
   // price_threshold
   ticker?: string;
@@ -152,10 +177,13 @@ export async function evaluateAlerts(): Promise<number> {
   let triggered = 0;
 
   for (const alert of alerts) {
-    // Check cooldown
+    // Check cooldown with decay suppression
     if (alert.lastTriggered) {
       const lastTime = new Date(alert.lastTriggered).getTime();
-      const cooldownMs = (alert.cooldownMinutes || 60) * 60 * 1000;
+      const cooldownMs = getEffectiveCooldownMs(
+        alert.cooldownMinutes || 60,
+        alert.triggerCount || 0
+      );
       if (Date.now() - lastTime < cooldownMs) continue;
     }
 
@@ -169,14 +197,47 @@ export async function evaluateAlerts(): Promise<number> {
     switch (alert.type) {
       case "signal_intensity": {
         const signals = await db.select().from(schema.signals);
-        const intense = signals.filter(s => s.intensity >= (condition.minIntensity || 4));
+        const minIntensity = condition.minIntensity || 4;
+        const intense = signals.filter(s => s.intensity >= minIntensity);
         if (intense.length > 0) {
-          const latest = intense[intense.length - 1];
-          shouldTrigger = true;
-          title = `High-intensity signal: ${latest.title}`;
-          message = `Signal "${latest.title}" has intensity ${latest.intensity}/5 (threshold: ${condition.minIntensity || 4})`;
-          severity = latest.intensity >= 5 ? 5 : 4;
-          data = { signalId: latest.id, intensity: latest.intensity };
+          // Delta detection: only trigger if a signal's intensity just crossed
+          // the threshold or increased since last check
+          const now = Date.now();
+          let deltaSignal = null;
+          for (const s of intense) {
+            const cached = signalIntensityCache.get(s.id);
+            if (!cached || cached.intensity < minIntensity || s.intensity > cached.intensity) {
+              // This signal either: just appeared above threshold, or intensity increased
+              deltaSignal = s;
+              break;
+            }
+          }
+
+          // Update cache for all signals
+          for (const s of signals) {
+            signalIntensityCache.set(s.id, { intensity: s.intensity, timestamp: now });
+          }
+          // Prune stale cache entries
+          for (const [id, entry] of signalIntensityCache) {
+            if (now - entry.timestamp > SIGNAL_CACHE_TTL) signalIntensityCache.delete(id);
+          }
+
+          if (deltaSignal) {
+            const cached = signalIntensityCache.get(deltaSignal.id);
+            const previousIntensity = cached ? cached.intensity : 0;
+            shouldTrigger = true;
+            title = `Signal intensity change: ${deltaSignal.title}`;
+            message = previousIntensity > 0
+              ? `Signal "${deltaSignal.title}" intensity changed ${previousIntensity} -> ${deltaSignal.intensity}/5 (threshold: ${minIntensity})`
+              : `Signal "${deltaSignal.title}" has intensity ${deltaSignal.intensity}/5 (threshold: ${minIntensity})`;
+            severity = deltaSignal.intensity >= 5 ? 5 : 4;
+            data = {
+              signalId: deltaSignal.id,
+              intensity: deltaSignal.intensity,
+              previousIntensity,
+              delta: deltaSignal.intensity - previousIntensity,
+            };
+          }
         }
         break;
       }

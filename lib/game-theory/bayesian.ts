@@ -1415,7 +1415,7 @@ export function runBayesianAnalysis(
   }
 
   // Escalation probability from paths
-  const escalationProbability = sequentialPaths
+  const escalationProbability = Math.min(0.95, sequentialPaths
     .filter(p => {
       const hasEscalation = p.moves.some(m =>
         m.strategy.toLowerCase().includes("escal") ||
@@ -1424,7 +1424,7 @@ export function runBayesianAnalysis(
       );
       return hasEscalation;
     })
-    .reduce((sum, p) => sum + p.probability, 0);
+    .reduce((sum, p) => sum + p.probability, 0));
 
   // Market assessment
   let mostLikelyOutcome: string;

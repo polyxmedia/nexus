@@ -18,15 +18,95 @@ import { getNewsFeed, type NewsArticle } from "../news/feeds";
 import { sendMessage } from "@/lib/telegram/bot";
 import { sendSms } from "@/lib/sms";
 
-// Track which articles we've already alerted on (by normalized title hash)
-// Persists across scan cycles within a server session
-const alertedArticles = new Set<string>();
-const MAX_ALERTED_CACHE = 2000;
+// In-memory cache for fast lookups, backed by DB persistence
+const alertedArticlesCache = new Set<string>();
+let cacheLoaded = false;
 
-// Global daily cap to prevent notification fatigue
-let dailyAlertCount = 0;
-let dailyAlertDate = new Date().toISOString().split("T")[0];
+// Settings key for persisted article hashes
+const ALERTED_KEY = "system:context_scan_alerted";
+const DAILY_COUNT_KEY_PREFIX = "system:context_scan_daily_";
+const MAX_PERSISTED_HASHES = 1000;
 const MAX_DAILY_CONTEXT_ALERTS = 10;
+
+/**
+ * Load persisted article hashes from DB into memory cache.
+ * Only runs once per server session, then stays in sync.
+ */
+async function ensureCacheLoaded() {
+  if (cacheLoaded) return;
+  try {
+    const row = await db.select().from(schema.settings)
+      .where(eq(schema.settings.key, ALERTED_KEY))
+      .then(rows => rows[0]);
+    if (row?.value) {
+      const hashes: string[] = JSON.parse(row.value);
+      for (const h of hashes) alertedArticlesCache.add(h);
+    }
+  } catch { /* table might not exist */ }
+  cacheLoaded = true;
+}
+
+/**
+ * Persist current article hash cache to DB.
+ */
+async function persistCache() {
+  const hashes = [...alertedArticlesCache];
+  // Keep only the most recent entries
+  const trimmed = hashes.slice(-MAX_PERSISTED_HASHES);
+  try {
+    const existing = await db.select().from(schema.settings)
+      .where(eq(schema.settings.key, ALERTED_KEY))
+      .then(rows => rows[0]);
+    if (existing) {
+      await db.update(schema.settings)
+        .set({ value: JSON.stringify(trimmed) })
+        .where(eq(schema.settings.key, ALERTED_KEY));
+    } else {
+      await db.insert(schema.settings).values({
+        key: ALERTED_KEY,
+        value: JSON.stringify(trimmed),
+      });
+    }
+  } catch { /* silent */ }
+}
+
+/**
+ * Get daily alert count from DB (persists across restarts).
+ */
+async function getDailyAlertCount(): Promise<number> {
+  const today = new Date().toISOString().split("T")[0];
+  const key = `${DAILY_COUNT_KEY_PREFIX}${today}`;
+  try {
+    const row = await db.select().from(schema.settings)
+      .where(eq(schema.settings.key, key))
+      .then(rows => rows[0]);
+    return row?.value ? parseInt(row.value, 10) : 0;
+  } catch { return 0; }
+}
+
+/**
+ * Increment daily alert count in DB.
+ */
+async function incrementDailyAlertCount() {
+  const today = new Date().toISOString().split("T")[0];
+  const key = `${DAILY_COUNT_KEY_PREFIX}${today}`;
+  try {
+    const current = await getDailyAlertCount();
+    const existing = await db.select().from(schema.settings)
+      .where(eq(schema.settings.key, key))
+      .then(rows => rows[0]);
+    if (existing) {
+      await db.update(schema.settings)
+        .set({ value: String(current + 1) })
+        .where(eq(schema.settings.key, key));
+    } else {
+      await db.insert(schema.settings).values({
+        key,
+        value: "1",
+      });
+    }
+  } catch { /* silent */ }
+}
 
 // Ticker -> common name / sector mapping for keyword expansion
 const TICKER_KEYWORDS: Record<string, string[]> = {
@@ -393,6 +473,9 @@ export async function runContextScan(): Promise<{
   matchesFound: number;
   alertsFired: number;
 }> {
+  // Load persisted dedup cache
+  await ensureCacheLoaded();
+
   // Build the interest profile
   const profile = await buildInterestProfile();
 
@@ -406,9 +489,9 @@ export async function runContextScan(): Promise<{
   // Score each article
   const matches: ContextMatch[] = [];
   for (const article of articles) {
-    // Skip if we've already alerted on this article
+    // Skip if we've already alerted on this article (persistent dedup)
     const hash = titleHash(article.title);
-    if (alertedArticles.has(hash)) continue;
+    if (alertedArticlesCache.has(hash)) continue;
 
     const match = scoreArticle(article, profile);
     if (match) {
@@ -422,30 +505,17 @@ export async function runContextScan(): Promise<{
   // Only alert on relevance 3+ (skip low-confidence keyword-only matches)
   const highRelevance = matches.filter(m => m.relevanceScore >= 3);
 
-  // Reset daily counter if new day
-  const today = new Date().toISOString().split("T")[0];
-  if (today !== dailyAlertDate) {
-    dailyAlertCount = 0;
-    dailyAlertDate = today;
-  }
-
-  // Enforce daily cap + max 2 per scan to prevent notification fatigue
-  const dailyRemaining = Math.max(0, MAX_DAILY_CONTEXT_ALERTS - dailyAlertCount);
+  // Enforce daily cap (persisted) + max 2 per scan to prevent notification fatigue
+  const dailyCount = await getDailyAlertCount();
+  const dailyRemaining = Math.max(0, MAX_DAILY_CONTEXT_ALERTS - dailyCount);
   const toAlert = highRelevance.slice(0, Math.min(2, dailyRemaining));
   let alertsFired = 0;
 
   for (const match of toAlert) {
     const hash = titleHash(match.article.title);
 
-    // Mark as alerted
-    alertedArticles.add(hash);
-    // Evict old entries if cache is too large
-    if (alertedArticles.size > MAX_ALERTED_CACHE) {
-      const entries = [...alertedArticles];
-      for (let i = 0; i < 500; i++) {
-        alertedArticles.delete(entries[i]);
-      }
-    }
+    // Mark as alerted (persistent)
+    alertedArticlesCache.add(hash);
 
     // Build alert context
     const sourceLabel = match.sources
@@ -544,10 +614,15 @@ export async function runContextScan(): Promise<{
       }
 
       alertsFired++;
-      dailyAlertCount++;
+      await incrementDailyAlertCount();
     } catch (err) {
       console.error("[context-scan] Failed to record alert:", err);
     }
+  }
+
+  // Persist dedup cache to DB so it survives server restarts
+  if (alertsFired > 0) {
+    await persistCache();
   }
 
   console.log(

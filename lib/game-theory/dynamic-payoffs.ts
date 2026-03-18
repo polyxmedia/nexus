@@ -225,8 +225,12 @@ export function computePayoffAdjustment(
     }
   }
 
-  // Clamp multiplier to prevent extreme distortions
+  // Clamp multiplier and shift to prevent extreme distortions.
+  // Uncapped shifts were the root cause of >100% probabilities in wartime:
+  // VIX crisis + wartime regime + recent attacks + oil spike could stack
+  // shifts of +5 or more, producing QRE logit overflow.
   multiplier = Math.max(0.5, Math.min(2.0, multiplier));
+  shift = Math.max(-4, Math.min(4, shift));
 
   return { multiplier, shift };
 }
@@ -244,7 +248,14 @@ export function applyContextToPayoff(
   if (!context || !strategy) return basePayoff;
 
   const adj = computePayoffAdjustment(actorId, strategy, context);
-  return basePayoff * adj.multiplier + adj.shift;
+  const adjusted = basePayoff * adj.multiplier + adj.shift;
+
+  // Clamp final payoff to prevent QRE overflow.
+  // Without this, wartime + crisis conditions stack shifts that produce
+  // payoffs of +7 or higher, which QRE exponentiates into probabilities >1.
+  // Base payoffs in NEXUS scenarios range from -5 to +5, so [-8, +8] gives
+  // generous room for dynamic adjustment without breaking the math.
+  return Math.max(-8, Math.min(8, adjusted));
 }
 
 // ── Context Builder ──
