@@ -4262,10 +4262,10 @@ async function executeAnalyzeOpportunity(input: Record<string, unknown>) {
             return { symbol: sym.toUpperCase(), price: q?.price ?? null, change: q?.changePercent ?? null, rsi: s?.rsi14 ?? null, trend: s?.trend ?? null, volatilityRegime: s?.volatilityRegime ?? null };
           }))
         : Promise.resolve([]),
-      // 4. Game theory
+      // 4. Game theory (analyzeScenario is synchronous, wrap in promise)
       ((type === "geopolitical" || type === "hybrid") && scenarioId)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? analyzeScenario(scenarioId as any).catch(() => null)
+        ? Promise.resolve().then(() => analyzeScenario(scenarioId as any)).catch(() => null)
         : Promise.resolve(null),
       // 5. Actor profiles (skipKnowledge to avoid N vector searches)
       actors.length > 0
