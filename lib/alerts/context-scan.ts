@@ -13,7 +13,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, desc, like, and } from "drizzle-orm";
+import { eq, desc, like, and, sql } from "drizzle-orm";
 import { getNewsFeed, type NewsArticle } from "../news/feeds";
 import { sendMessage } from "@/lib/telegram/bot";
 import { sendSms } from "@/lib/sms";

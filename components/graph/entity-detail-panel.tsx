@@ -374,6 +374,7 @@ export function EntityDetailPanel({ node, connections, breadcrumbs, onClose, onN
           )}
         </div>
       </div>
+      </div>
     </div>
   );
 }
