@@ -955,7 +955,7 @@ export default function GEXPage() {
             </div>
 
             {/* ── Row 2: Ticker Selector ── */}
-            <div className="flex items-center gap-1 border-b border-navy-800 pb-2">
+            <div className="flex items-center gap-1 border-b border-navy-800 pb-2 overflow-x-auto">
               {data.summaries.map((s) => {
                 const isSelected = s.ticker === selectedTicker;
                 const rc = REGIME_COLORS[s.regime];
@@ -977,14 +977,14 @@ export default function GEXPage() {
             </div>
 
             {/* ── Row 3: Key Levels + Trigger Cascade + Gamma Profile ── */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <KeyLevelsLadder summary={selectedSummary} />
               <TriggerCascade triggers={selectedSummary.triggerLevels} />
               <GammaProfile summary={selectedSummary} />
             </div>
 
             {/* ── Row 4: Scenario Modeler + Flow Divergence + OPEX ── */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <ScenarioModeler
                 profile={selectedSummary.scenarioProfile}
                 spotPrice={selectedSummary.spotPrice}
