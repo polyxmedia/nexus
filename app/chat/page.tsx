@@ -46,6 +46,9 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [projects, setProjects] = useState<ChatProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeProject, setActiveProject] = useState<number | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -59,6 +62,7 @@ export default function ChatPage() {
   const [dragOverProject, setDragOverProject] = useState<number | "all" | null>(null);
   const router = useRouter();
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const listEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchAll();
@@ -67,24 +71,49 @@ export default function ChatPage() {
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
-      fetchSessions();
+      fetchSessions(true);
     }, 300);
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
   }, [search, activeProject, activeTag]);
 
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!listEndRef.current || !hasMore) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting && hasMore && !loadingMore) fetchSessions(false); },
+      { threshold: 0.1 }
+    );
+    observer.observe(listEndRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, nextCursor]);
+
   async function fetchAll() {
-    await Promise.all([fetchSessions(), fetchProjects()]);
+    await Promise.all([fetchSessions(true), fetchProjects()]);
     setLoading(false);
   }
 
-  async function fetchSessions() {
+  async function fetchSessions(reset = true) {
+    if (!reset && loadingMore) return;
+    if (!reset) setLoadingMore(true);
+
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (activeProject !== null) params.set("projectId", String(activeProject));
     if (activeTag) params.set("tag", activeTag);
+    if (!reset && nextCursor) params.set("cursor", nextCursor);
+
     const res = await fetch(`/api/chat/sessions?${params}`);
     const data = await res.json();
-    setSessions(data.sessions || []);
+    const newSessions = data.sessions || [];
+
+    if (reset) {
+      setSessions(newSessions);
+    } else {
+      setSessions((prev) => [...prev, ...newSessions]);
+    }
+    setHasMore(data.hasMore || false);
+    setNextCursor(data.nextCursor || null);
+    setLoadingMore(false);
   }
 
   async function fetchProjects() {
@@ -201,9 +230,9 @@ export default function ChatPage() {
         <div className="fixed inset-0 z-40" onClick={() => { setContextMenu(null); setMoveMenu(null); }} />
       )}
 
-      <div className="flex gap-4 h-full">
-        {/* ── Left: Projects & Tags Sidebar ── */}
-        <div className="w-48 shrink-0 space-y-4">
+      <div className="flex flex-col md:flex-row gap-4 h-full">
+        {/* ── Left: Projects & Tags Sidebar (hidden on mobile, shown above on md+) ── */}
+        <div className="hidden md:block md:w-48 shrink-0 space-y-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-navy-500" />
@@ -362,8 +391,26 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* ── Right: Chat List ── */}
+        {/* ── Chat List ── */}
         <div className="flex-1 min-w-0">
+          {/* Mobile search (hidden on md+ where sidebar has it) */}
+          <div className="md:hidden mb-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-navy-500" />
+              <input
+                type="text"
+                placeholder="Search chats..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 text-xs font-mono bg-navy-900/60 border border-navy-700/50 rounded text-navy-200 placeholder:text-navy-600 focus:outline-none focus:border-navy-500"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <X className="h-3 w-3 text-navy-500 hover:text-navy-300" />
+                </button>
+              )}
+            </div>
+          </div>
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
@@ -402,7 +449,7 @@ export default function ChatPage() {
                       dragSessionId === session.id ? "opacity-50" : ""
                     }`}
                   >
-                    <GripVertical className="h-3.5 w-3.5 text-navy-700 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <GripVertical className="h-3.5 w-3.5 text-navy-700 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block" />
                     <button
                       onClick={() => router.push(`/chat/${session.uuid}`)}
                       className="flex-1 flex items-center gap-3 text-left min-w-0"
@@ -415,7 +462,7 @@ export default function ChatPage() {
                           </span>
                           {project && (
                             <span
-                              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono shrink-0"
+                              className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono shrink-0"
                               style={{
                                 backgroundColor: project.color + "18",
                                 color: project.color,
