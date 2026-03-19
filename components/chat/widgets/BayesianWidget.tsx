@@ -290,6 +290,11 @@ function BayesianScenarioCard({ data }: { data: ScenarioResult }) {
         </div>
       </div>
 
+      {/* Methodology note */}
+      <div className="text-[9px] text-navy-600 leading-relaxed bg-navy-800/20 rounded px-2.5 py-1.5">
+        Equilibria computed via Quantal Response (QRE, logit lambda=2.5) with Prospect Theory-transformed payoffs (alpha=0.88, lambda=2.25). Type distributions are posterior beliefs after Bayesian updating from live signal data. Probabilities are normalized to sum to 1.0 across all equilibria.
+      </div>
+
       {/* Dominant types */}
       <div>
         <div className="text-[9px] uppercase tracking-wider text-navy-500 mb-1">Actor Types</div>

@@ -161,6 +161,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchWidgets();
+    // Force show onboarding via ?onboarding=1 (admin testing)
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("onboarding") === "1") {
+      setShowOnboarding(true);
+      return;
+    }
     // Check onboarding state
     fetch("/api/settings")
       .then((r) => r.ok ? r.json() : [])
@@ -516,6 +521,7 @@ export default function DashboardPage() {
       )}
       </UpgradeGate>
     </PageContainer>
+    </>
   );
 }
 

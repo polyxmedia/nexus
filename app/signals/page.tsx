@@ -347,7 +347,7 @@ export default function SignalsPage() {
             <div className="md:col-span-4 border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
               <div className="flex items-center gap-1.5 mb-3">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Signal Layers</span>
-                <InfoTip text="Layers are independent analytical sources: geopolitical (conflicts, elections), economic (FOMC, NFP), celestial (eclipses, retrogrades), hebrew/islamic (religious calendars). When multiple layers fire on the same date, it creates a convergence. Click a layer to filter." />
+                <InfoTip text="Primary layers: geopolitical (conflicts, elections), economic (FOMC, NFP), OSINT, systemic risk. Narrative overlay: calendar events (Hebrew, Islamic) and celestial patterns provide actor-belief context but carry no convergence weight and max 0.5 bonus. They model when actors are more likely to act based on documented behavioral patterns, not standalone predictions." />
               </div>
               <div className="space-y-1.5">
                 {analytics.layers.slice(0, 7).map((l) => (
@@ -478,12 +478,15 @@ export default function SignalsPage() {
             const isHighIntensity = signal.intensity >= 4;
             const intensityColor = INTENSITY_COLORS[signal.intensity - 1] || "#6b7280";
             const descriptionPreview = signal.description?.split(" | ")[0] || "";
+            // Narrative overlay signals: calendar/celestial events provide actor-belief context
+            // but are not standalone intelligence. Visually distinguish from primary signals.
+            const isNarrativeOverlay = ["celestial", "hebrew", "islamic"].includes(signal.category);
 
             return (
               <Link
                 key={signal.id}
                 href={`/signals/${signal.uuid}`}
-                className="block rounded-lg transition-all group border border-navy-700/30 bg-navy-900/20 hover:bg-navy-800/30 hover:border-navy-700/50"
+                className={`block rounded-lg transition-all group border ${isNarrativeOverlay ? "border-navy-800/20 bg-navy-950/30 opacity-70" : "border-navy-700/30 bg-navy-900/20"} hover:bg-navy-800/30 hover:border-navy-700/50 hover:opacity-100`}
               >
                 <div className="flex items-stretch">
                   {/* Intensity bar */}
@@ -496,7 +499,12 @@ export default function SignalsPage() {
                     <div className="flex items-start justify-between mb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[10px] font-mono text-navy-600">#{signal.id}</span>
-                        <span className="text-sm text-navy-200 font-medium truncate">{signal.title}</span>
+                        <span className={`text-sm font-medium truncate ${isNarrativeOverlay ? "text-navy-400" : "text-navy-200"}`}>{signal.title}</span>
+                        {isNarrativeOverlay && (
+                          <span className="text-[8px] font-mono uppercase tracking-wider text-navy-600 bg-navy-800/40 px-1.5 py-0.5 rounded shrink-0">
+                            Context
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-3">
                         <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${statusCfg.bg} ${statusCfg.color}`}>
