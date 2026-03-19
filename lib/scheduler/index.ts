@@ -440,6 +440,12 @@ registerJob("knowledge-hygiene", 24 * 60 * 60_000, async () => {
   await runKnowledgeHygiene();
 });
 
+registerJob("founder-followup", 24 * 60 * 60_000, async () => {
+  const { sendFounderFollowUps } = await import("@/lib/email/founder-followup");
+  const result = await sendFounderFollowUps();
+  if (result.sent > 0) console.log(`[founder-followup] Sent ${result.sent}, skipped ${result.skipped}`);
+});
+
 registerJob("weekly-digest", 7 * 24 * 60 * 60_000, async () => {
   const { generateAndSendDigests } = await import("@/lib/email/digest");
   const result = await generateAndSendDigests();

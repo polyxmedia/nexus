@@ -434,3 +434,17 @@ export function weeklyDigestEmail(username: string, data: WeeklyDigestData) {
     ),
   };
 }
+
+export function founderFollowUpEmail(username: string) {
+  return {
+    subject: "Quick question about NEXUS",
+    html: layout(
+      paragraph(`Hi there,`) +
+        paragraph(`Thanks for signing up to NEXUS. I'm Andre, the founder. Wanted to reach out personally and see if you'd like a quick guided demo of the platform. I can walk you through how the signal convergence engine works and how operators are using it to plan trades.`) +
+        paragraph(`No pressure, just reply to this email if you're interested and we'll set something up.`) +
+        button("Explore NEXUS", `${SITE_URL}/dashboard`) +
+        paragraph(`Andre`) +
+        mutedText(`Founder, NEXUS Intelligence Platform`)
+    ),
+  };
+}

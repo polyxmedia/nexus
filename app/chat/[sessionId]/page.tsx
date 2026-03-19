@@ -156,12 +156,26 @@ export default function ChatSessionPage() {
       .catch((err) => console.error("[Chat] tier data fetch failed:", err));
   }, [upgradeRequired]);
 
+  const [proactiveInsight, setProactiveInsight] = useState<string | null>(null);
+
   useEffect(() => {
     loadHistory().then((session) => {
       if (session) {
         setTitle(session.title);
       }
       setHistoryLoaded(true);
+
+      // If this is a new/empty chat, check for proactive insights
+      if (!session || session.title === "New Chat") {
+        fetch("/api/chat/proactive")
+          .then(r => r.json())
+          .then(data => {
+            if (data?.insight?.message) {
+              setProactiveInsight(data.insight.message);
+            }
+          })
+          .catch(() => {});
+      }
     });
   }, [loadHistory]);
 
@@ -362,16 +376,32 @@ export default function ChatSessionPage() {
           </div>
         ) : turns.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 py-6">
-            <div className="flex items-center gap-2 mb-1">
-              <MessageSquare className="h-4 w-4 text-navy-400" />
-              <div className="text-sm font-mono text-navy-300 uppercase tracking-wider">
-                NEXUS Analyst Ready
+            {proactiveInsight ? (
+              <div className="max-w-lg mb-6 text-left">
+                <div className="flex items-start gap-3 rounded-lg border border-accent-cyan/20 bg-accent-cyan/5 px-4 py-3">
+                  <div className="h-6 w-6 rounded-full bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="h-2 w-2 rounded-full bg-accent-cyan/60" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-mono text-accent-cyan/60 uppercase tracking-wider mb-1">Analyst</div>
+                    <p className="text-xs text-navy-200 leading-relaxed">{proactiveInsight}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="text-xs text-navy-500 max-w-md mb-6">
-              Ask about signals, market data, game theory scenarios, the active
-              thesis, predictions, or your portfolio.
-            </div>
+            ) : (
+              <>
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare className="h-4 w-4 text-navy-400" />
+                <div className="text-sm font-mono text-navy-300 uppercase tracking-wider">
+                  NEXUS Analyst Ready
+                </div>
+              </div>
+              <div className="text-xs text-navy-500 max-w-md mb-6">
+                Ask about signals, market data, game theory scenarios, the active
+                thesis, predictions, or your portfolio.
+              </div>
+              </>
+            )}
             <div className="flex flex-wrap justify-center gap-1.5 max-w-xl">
               {[
                 { label: "Active thesis summary", Icon: FileText },
