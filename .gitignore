@@ -59,3 +59,4 @@ data/*.db-shm
 chrome-extension/dist/
 chrome-extension/node_modules/
 .gitnexus
+test-results/
