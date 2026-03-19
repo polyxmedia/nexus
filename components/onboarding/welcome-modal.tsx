@@ -7,10 +7,12 @@ import {
   Activity,
   BarChart3,
   Globe,
-  MessageSquare,
   ArrowRight,
   Settings,
   Zap,
+  Crosshair,
+  Radio,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 

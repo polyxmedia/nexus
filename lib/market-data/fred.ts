@@ -39,6 +39,21 @@ export const FRED_SERIES = {
   DCOILBRENTEU: { id: "DCOILBRENTEU", name: "Brent Crude Oil", unit: "$/bbl" },
   DHHNGSP: { id: "DHHNGSP", name: "Natural Gas", unit: "$/mmbtu" },
   VIXCLS: { id: "VIXCLS", name: "VIX Close", unit: "index" },
+  // Labor market (JOLTS - leading recession indicator)
+  JTSJOL: { id: "JTSJOL", name: "Job Openings", unit: "thousands" },
+  JTSQUR: { id: "JTSQUR", name: "Quits Rate", unit: "%" },
+  JTSHIR: { id: "JTSHIR", name: "Hires", unit: "thousands" },
+  JTSLDR: { id: "JTSLDR", name: "Layoffs & Discharges Rate", unit: "%" },
+  // Credit conditions (BIS crisis indicators via FRED)
+  DRTSCILM: { id: "DRTSCILM", name: "C&I Loan Tightening (Large)", unit: "% net" },
+  DRTSCLCC: { id: "DRTSCLCC", name: "Credit Card Tightening", unit: "% net" },
+  TOTCI: { id: "TOTCI", name: "Total C&I Loans", unit: "billions $" },
+  BUSLOANS: { id: "BUSLOANS", name: "Business Loans", unit: "billions $" },
+  // Financial stress
+  STLFSI4: { id: "STLFSI4", name: "STL Financial Stress Index", unit: "index" },
+  NFCI: { id: "NFCI", name: "Chicago Financial Conditions", unit: "index" },
+  // Trade
+  BOPGSTB: { id: "BOPGSTB", name: "Trade Balance", unit: "millions $" },
 } as const;
 
 export type FredSeriesId = keyof typeof FRED_SERIES;

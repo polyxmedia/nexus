@@ -921,6 +921,21 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_treasury_auctions",
+    description: "Get US Treasury auction results and health analysis. Shows bid-to-cover ratios (demand indicator), foreign central bank participation trends, and stress levels. A failed or weak auction is a genuine crisis signal. Use when asked about Treasury demand, bond market stress, de-dollarization, or sovereign debt.",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "get_cot_data",
+    description: "Get CFTC Commitment of Traders data showing how commercial hedgers vs speculators are positioned in futures (crude oil, gold, S&P 500, currencies, etc.). Extreme positioning by speculators is a contrarian reversal signal. Use when asked about futures positioning, smart money, contrarian signals, or 'how are traders positioned'.",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "get_natural_threats",
+    description: "Get earthquakes (USGS) and severe weather alerts (NOAA) that threaten strategic infrastructure. Includes Gulf refinery hurricane risk, pipeline earthquake risk, Texas grid freeze risk. Use when asked about natural disasters, infrastructure threats, weather impact on energy, or environmental risks.",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
     name: "generate_narrative_report",
     description: "Generate a long-form intelligence briefing / lecture script pulling all signals, parallels, game theory, predictions, and thesis into a single coherent narrative. 10-15 minute reading time. Includes risk matrix and key takeaways.",
     input_schema: {
@@ -1581,6 +1596,12 @@ export async function executeTool(
       return executeGetCrossStreamAlerts();
     case "search_multilang_intel":
       return executeSearchMultilangIntel(input);
+    case "get_treasury_auctions":
+      return executeGetTreasuryAuctions();
+    case "get_cot_data":
+      return executeGetCOTData();
+    case "get_natural_threats":
+      return executeGetNaturalThreats();
     case "get_actor_profile":
       return executeGetActorProfile(input);
     case "generate_narrative_report":
@@ -2002,6 +2023,77 @@ async function executeGetEschatologicalConvergence(input: Record<string, unknown
     seldonApproachingCount: landscape.seldonApproachingCount,
     calendarEventsChecked: calendarEvents,
   };
+}
+
+async function executeGetTreasuryAuctions() {
+  try {
+    const { analyzeAuctionHealth } = await import("@/lib/market-data/treasury");
+    const health = await analyzeAuctionHealth();
+    return {
+      summary: health.summary,
+      stress: health.stress,
+      avgBidToCover: health.avgBidToCover,
+      weakAuctions: health.weakAuctions,
+      foreignParticipation: { avg: health.avgIndirectPct, trend: health.indirectTrend },
+      recentAuctions: health.recentAuctions.slice(0, 8).map(a => ({
+        type: `${a.securityTerm} ${a.securityType}`,
+        date: a.auctionDate,
+        yield: a.highYield,
+        bidToCover: a.bidToCoverRatio,
+        foreignPct: a.allocationPctIndirect,
+      })),
+    };
+  } catch (err) {
+    return { error: `Treasury auction data failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+}
+
+async function executeGetCOTData() {
+  try {
+    const { getCOTData } = await import("@/lib/market-data/cftc");
+    const cot = await getCOTData();
+    return {
+      summary: cot.summary,
+      reportDate: cot.reportDate,
+      extremePositions: cot.extremePositions,
+      positions: cot.positions.slice(0, 12).map(p => ({
+        contract: p.displayName,
+        specNet: p.specNet,
+        specNetPctOI: p.specNetPctOI,
+        commercialNet: p.commercialNet,
+        commercialNetPctOI: p.commercialNetPctOI,
+        openInterest: p.openInterest,
+      })),
+    };
+  } catch (err) {
+    return { error: `CFTC COT data failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+}
+
+async function executeGetNaturalThreats() {
+  try {
+    const { getInfrastructureThreats } = await import("@/lib/market-data/natural-events");
+    const data = await getInfrastructureThreats();
+    return {
+      threatCount: data.threats.length,
+      threats: data.threats,
+      significantQuakes: data.earthquakes.slice(0, 5).map(q => ({
+        magnitude: q.magnitude,
+        place: q.place,
+        time: q.time,
+        tsunami: q.tsunami,
+        depth: q.depth,
+      })),
+      activeWeatherAlerts: data.weatherAlerts.slice(0, 5).map(w => ({
+        event: w.event,
+        headline: w.headline,
+        severity: w.severity,
+        areas: w.areas.slice(0, 100),
+      })),
+    };
+  } catch (err) {
+    return { error: `Natural threats failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
 }
 
 async function executeGetCountryRisk() {

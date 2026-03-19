@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
@@ -8,10 +8,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronRight,
   Info,
+  Loader2,
   MessageSquare,
   Search,
   Radio,
+  Zap,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   XAxis,
   YAxis,
@@ -93,6 +96,8 @@ export default function SignalsPage() {
   const [sortBy, setSortBy] = useState<"date" | "intensity">("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
+  const [running, setRunning] = useState(false);
+  const [runResult, setRunResult] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/signals")
