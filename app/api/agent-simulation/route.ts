@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many simulations. Max 5 per hour." },
-      { status: 429, headers: { "Retry-After": String(Math.ceil(rl.retryAfter / 1000)) } }
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
     );
   }
 

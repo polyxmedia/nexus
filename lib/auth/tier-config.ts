@@ -129,6 +129,10 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "add_knowledge": "operator",
   "get_operator_context": "operator",
 
+  // Valuation & meta-tools
+  "dcf_valuation": "analyst",
+  "get_financial_intelligence": "analyst",
+
   // Memory & artifacts (all tiers)
   "recall_memory": "analyst",
   "save_memory": "analyst",

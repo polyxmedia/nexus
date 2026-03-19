@@ -52,6 +52,7 @@ import { CostMonitorPanel } from "@/components/admin/cost-monitor-panel";
 import { OutreachPanel } from "@/components/admin/outreach-panel";
 import { IntegrationsPanel } from "@/components/admin/integrations-panel";
 import { TwitterEngagePanel } from "@/components/admin/twitter-engage-panel";
+import { ToolAuditPanel } from "@/components/admin/tool-audit-panel";
 import { UsersTab } from "@/components/admin/users-tab";
 
 const ADMIN_TABS = [
@@ -72,6 +73,7 @@ const ADMIN_TABS = [
   { id: "costs", label: "Costs", icon: Coins },
   { id: "outreach", label: "Outreach", icon: Target },
   { id: "x-engage", label: "X Engage", icon: X },
+  { id: "tool-audit", label: "Tool Audit", icon: Activity },
   { id: "partnerships", label: "Partnerships", icon: Briefcase },
 ];
 
@@ -676,6 +678,10 @@ export default function AdminPage() {
 
         <Tabs.Content value="x-engage">
           <TwitterEngagePanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="tool-audit">
+          <ToolAuditPanel />
         </Tabs.Content>
 
         <Tabs.Content value="partnerships">

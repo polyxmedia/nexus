@@ -153,20 +153,21 @@ function MiniBrierGauge({ active }: { active: boolean }) {
 }
 
 // ── Mini Chokepoints (visual preview for Shipping Intelligence card) ──
+const CHOKEPOINTS = [
+  { name: "HORMUZ", x: 62, y: 42, status: "elevated" },
+  { name: "SUEZ", x: 52, y: 35, status: "normal" },
+  { name: "MALACCA", x: 78, y: 55, status: "normal" },
+  { name: "BOSPORUS", x: 50, y: 28, status: "elevated" },
+  { name: "PANAMA", x: 22, y: 48, status: "normal" },
+];
+
 function MiniChokepoints({ active }: { active: boolean }) {
-  const points = [
-    { name: "HORMUZ", x: 62, y: 42, status: "elevated" },
-    { name: "SUEZ", x: 52, y: 35, status: "normal" },
-    { name: "MALACCA", x: 78, y: 55, status: "normal" },
-    { name: "BOSPORUS", x: 50, y: 28, status: "elevated" },
-    { name: "PANAMA", x: 22, y: 48, status: "normal" },
-  ];
   return (
     <div className="relative h-32 bg-navy-900/80 overflow-hidden">
       <div className="absolute inset-0 opacity-[0.04]" style={{
         backgroundImage: "radial-gradient(circle at 50% 50%, rgba(6,182,212,0.3) 0%, transparent 70%)",
       }} />
-      {points.map((p, i) => (
+      {CHOKEPOINTS.map((p, i) => (
         <div key={p.name} className="absolute" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
           <div
             className={`h-2 w-2 rounded-full transition-all duration-500 ${
@@ -198,26 +199,26 @@ function MiniChokepoints({ active }: { active: boolean }) {
 }
 
 // ── Mini Payoff Matrix (visual preview for Game Theory card) ──
+const PAYOFF_CELLS = [
+  ["-2, -2", "3, -3"],
+  ["-3, 3", "1, 1"],
+];
+const PAYOFF_ROWS = ["Escalate", "De-escalate"];
+const PAYOFF_COLS = ["Escalate", "De-escalate"];
+const PAYOFF_POSITIONS: [number, number][] = [[0, 0], [0, 1], [1, 0], [1, 1]];
+
 function MiniPayoffMatrix({ active }: { active: boolean }) {
   const [highlight, setHighlight] = useState<[number, number]>([1, 0]);
 
   useEffect(() => {
     if (!active) return;
-    const positions: [number, number][] = [[0, 0], [0, 1], [1, 0], [1, 1]];
     let idx = 2;
     const interval = setInterval(() => {
-      idx = (idx + 1) % positions.length;
-      setHighlight(positions[idx]);
+      idx = (idx + 1) % PAYOFF_POSITIONS.length;
+      setHighlight(PAYOFF_POSITIONS[idx]);
     }, 2500);
     return () => clearInterval(interval);
   }, [active]);
-
-  const cells = [
-    ["-2, -2", "3, -3"],
-    ["-3, 3", "1, 1"],
-  ];
-  const rows = ["Escalate", "De-escalate"];
-  const cols = ["Escalate", "De-escalate"];
 
   return (
     <div className="relative h-32 bg-navy-900/80 overflow-hidden p-4 flex flex-col justify-center">
@@ -229,14 +230,14 @@ function MiniPayoffMatrix({ active }: { active: boolean }) {
         <thead>
           <tr>
             <th className="text-left text-navy-700 font-normal pb-1 w-20" />
-            {cols.map((c) => <th key={c} className="text-center text-navy-600 font-normal pb-1 px-1">{c}</th>)}
+            {PAYOFF_COLS.map((c) => <th key={c} className="text-center text-navy-600 font-normal pb-1 px-1">{c}</th>)}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, ri) => (
+          {PAYOFF_ROWS.map((r, ri) => (
             <tr key={r}>
               <td className="text-navy-600 pr-2 py-0.5">{r}</td>
-              {cells[ri].map((cell, ci) => (
+              {PAYOFF_CELLS[ri].map((cell, ci) => (
                 <td
                   key={ci}
                   className={`text-center py-0.5 px-1 rounded transition-all duration-500 ${

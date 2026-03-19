@@ -21,8 +21,27 @@ export async function POST(request: Request) {
     );
   }
 
+  // Pre-parse to get email for email-level rate limit (prevents race condition duplicates)
+  let body: { username?: string; password?: string; email?: string; referralCode?: string };
   try {
-    const { username, password, email, referralCode } = await request.json();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  // Rate limit: 1 registration per email per 5 minutes (closes race condition window)
+  if (body.email) {
+    const emailRl = await rateLimit(`register:email:${body.email.toLowerCase()}`, 1, 5 * 60 * 1000);
+    if (!emailRl.allowed) {
+      return NextResponse.json(
+        { error: "A registration with this email is already being processed. Please wait a moment." },
+        { status: 429 }
+      );
+    }
+  }
+
+  try {
+    const { username, password, email, referralCode } = body;
 
     if (!username || !password || !email) {
       return NextResponse.json(

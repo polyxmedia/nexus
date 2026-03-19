@@ -70,10 +70,10 @@ export function TrialBanner() {
           </span>
         </div>
         <Link
-          href="/settings?tab=subscription"
+          href={isTrial ? "/settings?tab=subscription" : "/subscribe"}
           className="flex items-center gap-1.5 px-3 py-1 rounded border border-navy-600/40 text-[10px] font-mono uppercase tracking-wider text-navy-200 hover:text-white hover:border-navy-500 transition-colors shrink-0"
         >
-          {isTrial ? "Subscribe now" : "Upgrade"}
+          {isTrial ? "Subscribe now" : "Start free trial"}
           <ArrowRight className="h-2.5 w-2.5" />
         </Link>
       </div>

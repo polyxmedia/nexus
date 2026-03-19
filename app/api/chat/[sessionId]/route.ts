@@ -697,6 +697,7 @@ export async function POST(
             const SLOW_TOOLS = new Set([
               "search_historical_parallels", "get_macro_data", "generate_narrative_report",
               "run_bayesian_analysis", "get_gamma_exposure",
+              "dcf_valuation", "get_financial_intelligence",
             ]);
             const toolCtx: ToolContext = { username, sessionId: id, projectId: session.projectId };
             const toolPromises = executableTools.map(async ({ tool, parsedInput }) => {

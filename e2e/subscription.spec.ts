@@ -55,7 +55,7 @@ test.afterAll(async () => {
 // ── Registration → Subscription Redirect ──
 
 test.describe("Registration to subscription redirect", () => {
-  test("new user registration redirects to settings subscription tab", async ({ browser }) => {
+  test("new user registration redirects to subscribe page", async ({ browser }) => {
     test.setTimeout(60000);
     const regUser = `e2e_reg_sub_${Date.now()}`;
     const ctx = await browser.newContext();
@@ -73,11 +73,11 @@ test.describe("Registration to subscription redirect", () => {
 
     await page.getByRole("button", { name: /create account|register|sign up/i }).click();
 
-    // Should redirect to settings with subscription tab
-    await expect(page).toHaveURL(/\/settings\?tab=subscription/, { timeout: 15000 });
+    // Should redirect to subscribe page
+    await expect(page).toHaveURL(/\/subscribe/, { timeout: 15000 });
 
-    // Subscription tab content should be visible
-    await expect(page.getByRole("heading", { name: "Current Plan" })).toBeVisible({ timeout: 8000 });
+    // Subscribe page should show tier options and trial messaging
+    await expect(page.getByText("Start free trial").first()).toBeVisible({ timeout: 8000 });
 
     await page.close();
     await ctx.close();
@@ -111,7 +111,7 @@ test.describe("Subscription tab", () => {
     await expect(tierCards.first()).toBeVisible({ timeout: 5000 });
 
     // At least one upgrade button should be present
-    const upgradeBtn = page.getByRole("button", { name: /upgrade/i }).first();
+    const upgradeBtn = page.getByRole("button", { name: /upgrade|start free trial/i }).first();
     await expect(upgradeBtn).toBeVisible({ timeout: 5000 });
 
     await page.close();
@@ -143,7 +143,7 @@ test.describe("Checkout flow", () => {
     await page.goto("/settings?tab=subscription");
 
     // Wait for upgrade buttons
-    const upgradeBtn = page.getByRole("button", { name: /upgrade/i }).first();
+    const upgradeBtn = page.getByRole("button", { name: /upgrade|start free trial/i }).first();
     await expect(upgradeBtn).toBeVisible({ timeout: 10000 });
 
     // Intercept the checkout API call
@@ -182,8 +182,8 @@ test.describe("Checkout flow", () => {
     // Wait for the Stripe iframe to appear (it takes a moment to load)
     await expect(page.locator('iframe[name*="__privateStripeFrame"]').first()).toBeVisible({ timeout: 15000 });
 
-    // Submit button should show either "Start free trial" or "Pay $X/month"
-    const submitBtn = page.getByRole("button", { name: /start free trial|pay \$/i });
+    // Submit button inside payment form should show "Start free trial" or "Pay $X/month"
+    const submitBtn = page.locator("form").getByRole("button", { name: /start free trial|pay \$/i });
     await expect(submitBtn).toBeVisible({ timeout: 10000 });
 
     console.log("Submit button text:", await submitBtn.textContent());
@@ -195,7 +195,7 @@ test.describe("Checkout flow", () => {
     const page = await authedContext.newPage();
     await page.goto("/settings?tab=subscription");
 
-    const upgradeBtn = page.getByRole("button", { name: /upgrade/i }).first();
+    const upgradeBtn = page.getByRole("button", { name: /upgrade|start free trial/i }).first();
     await expect(upgradeBtn).toBeVisible({ timeout: 10000 });
     await upgradeBtn.click();
 
@@ -514,7 +514,7 @@ test.describe("Free user experience", () => {
     await expect(page.locator("text=Available Plans")).toBeVisible({ timeout: 5000 });
 
     // Should have upgrade buttons
-    const upgradeButtons = page.getByRole("button", { name: /upgrade/i });
+    const upgradeButtons = page.getByRole("button", { name: /upgrade|start free trial/i });
     expect(await upgradeButtons.count()).toBeGreaterThan(0);
 
     // Should NOT show "Manage Billing" (no Stripe customer)

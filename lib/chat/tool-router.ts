@@ -44,6 +44,8 @@ const TOOL_GROUPS: Record<string, string[]> = {
     "get_correlation_monitor",
     "get_oil_spx_divergence",
     "get_social_sentiment",
+    "dcf_valuation",
+    "get_financial_intelligence",
   ],
   geopolitical: [
     "get_signals",
@@ -184,6 +186,8 @@ const GROUP_TRIGGERS: Array<{ pattern: RegExp; groups: string[] }> = [
   { pattern: /\b(satellite|imagery|overhead|visual|sentinel|landsat)\b/i, groups: ["satellite"] },
   // ML
   { pattern: /\b(ml model|machine learn|feature importance|gradient boost|trained model|learned signal)\b/i, groups: ["ml"] },
+  // Valuation / DCF
+  { pattern: /\b(dcf|valuation|fair value|intrinsic|overvalued|undervalued|worth)\b/i, groups: ["market"] },
   // Execution
   { pattern: /\b(execution|kill switch|auto.?trad|execution rule|order count)\b/i, groups: ["trading"] },
   // Congressional

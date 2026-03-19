@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const oembedUrl = url.searchParams.get("url");
 
-  if (!oembedUrl || !oembedUrl.includes("publish.twitter.com/oembed")) {
+  if (!oembedUrl?.startsWith("https://publish.twitter.com/oembed")) {
     return NextResponse.json({ error: "Invalid oembed URL" }, { status: 400 });
   }
 

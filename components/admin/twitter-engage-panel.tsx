@@ -80,6 +80,12 @@ export function TwitterEngagePanel() {
         return;
       }
 
+      if (!data.text) {
+        setInputError("Could not extract tweet text (may be an image/video-only tweet)");
+        setLoading(false);
+        return;
+      }
+
       setTweets((prev) => [
         {
           id: parsed.id,
