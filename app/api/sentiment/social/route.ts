@@ -8,7 +8,7 @@ import { getCachedSentiment, getAllCachedSentiments, getTrackedTopics, scanCusto
  * If cache is empty, triggers a background scan.
  */
 export async function GET(req: NextRequest) {
-  const tierCheck = await requireTier("analyst");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
 
   const { searchParams } = new URL(req.url);

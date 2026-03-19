@@ -16,7 +16,7 @@ import { requireTier } from "@/lib/auth/require-tier";
  *   ?offset=0            - Pagination offset
  */
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("observer");
+  const tierCheck = await requireTier("free");
   if ("response" in tierCheck) return tierCheck.response;
 
   const { searchParams } = new URL(request.url);

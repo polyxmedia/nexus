@@ -21,16 +21,18 @@ interface WelcomeModalProps {
   onComplete: () => void;
 }
 
+const SIGNAL_LAYERS: { icon: LucideIcon; label: string; code: string; desc: string; color: string }[] = [
+  { icon: Crosshair, label: "GEO", code: "Geopolitical", desc: "Actor-belief modeling, escalation tracking, alliance shifts", color: "text-accent-cyan" },
+  { icon: BarChart3, label: "MKT", code: "Market", desc: "Technicals, GEX positioning, options flow, short interest", color: "text-accent-amber" },
+  { icon: Radio, label: "OSI", code: "Open Source", desc: "OSINT feeds, shipping lanes, conflict event density", color: "text-accent-emerald" },
+  { icon: Zap, label: "RISK", code: "Systemic", desc: "Regime detection, change-point analysis, tail risk", color: "text-accent-rose" },
+];
+
 const STEPS = [
   {
-    title: "Welcome to NEXUS",
-    subtitle: "Intelligence platform for geopolitical-market convergence",
-    content: [
-      { icon: Activity, label: "GEO Layer", desc: "Geopolitical event detection and actor-belief modeling" },
-      { icon: BarChart3, label: "MKT Layer", desc: "Market technicals, GEX, short interest, options flow" },
-      { icon: Globe, label: "OSI Layer", desc: "OSINT events, shipping intelligence, conflict data" },
-      { icon: Zap, label: "Risk Layer", desc: "Systemic risk, regime detection, change-point analysis" },
-    ],
+    title: "NEXUS",
+    subtitle: "Four signal layers. One convergence engine.",
+    content: SIGNAL_LAYERS,
   },
   {
     title: "Get Started",
