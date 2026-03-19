@@ -172,6 +172,70 @@ export interface VipAircraftResponse {
   totalCount: number;
 }
 
+// ── Fire Detection (NASA FIRMS) ──
+
+export interface FireDetection {
+  id: string;
+  lat: number;
+  lng: number;
+  brightness: number;
+  confidence: "low" | "nominal" | "high";
+  frp: number; // fire radiative power (MW)
+  satellite: string;
+  acquiredAt: string;
+  dayNight: "D" | "N";
+}
+
+export interface FireResponse {
+  fires: FireDetection[];
+  timestamp: number;
+  totalCount: number;
+  highConfidenceCount: number;
+}
+
+// ── Radiation Monitoring ──
+
+export interface RadiationReading {
+  id: string;
+  lat: number;
+  lng: number;
+  value: number; // CPM (counts per minute)
+  unit: string;
+  deviceId: string;
+  capturedAt: string;
+  locationName: string;
+}
+
+export interface RadiationResponse {
+  readings: RadiationReading[];
+  timestamp: number;
+  totalCount: number;
+  elevatedCount: number;
+}
+
+// ── Sweep Delta ──
+
+export type DeltaChangeType = "new" | "escalated" | "deescalated" | "resolved";
+
+export interface SweepDeltaItem {
+  id: string;
+  layer: "osint" | "fire" | "radiation" | "aircraft" | "vessel";
+  changeType: DeltaChangeType;
+  summary: string;
+  lat: number;
+  lng: number;
+  timestamp: string;
+  severity: "routine" | "priority" | "flash";
+}
+
+export interface SweepDeltaResponse {
+  deltas: SweepDeltaItem[];
+  sweepTime: string;
+  previousSweepTime: string | null;
+  totalChanges: number;
+  flashCount: number;
+}
+
 // ── Layer Visibility ──
 
 export interface WarRoomLayerVisibility {
@@ -181,6 +245,8 @@ export interface WarRoomLayerVisibility {
   conflictHeatmap: boolean;
   satellites: boolean;
   vipAircraft: boolean;
+  fires: boolean;
+  radiation: boolean;
 }
 
 // -- Live Vessel Tracking (AIS) --
