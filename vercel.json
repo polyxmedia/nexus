@@ -7,15 +7,15 @@
     },
     {
       "path": "/api/news/sync",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/30 * * * *"
     },
     {
       "path": "/api/scheduler/cron?jobs=portfolio-snapshot,alert-check,monitor-sweep,macro-cache-refresh",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/30 * * * *"
     },
     {
       "path": "/api/scheduler/cron?jobs=osint-entity-extraction,iw-auto-detect,prediction-fast-resolve",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/scheduler/cron?jobs=signal-refresh,regime-detection,context-alert-scan,ig-token-refresh",

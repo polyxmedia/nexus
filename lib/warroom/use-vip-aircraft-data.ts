@@ -4,7 +4,7 @@ import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
 import { useDocumentVisible } from "@/lib/hooks/use-visibility";
 import type { VipAircraftResponse } from "./types";
 
-const POLL_INTERVAL = 120_000; // 2min - reduced from 60s to cut Vercel invocations
+const POLL_INTERVAL = 300_000; // 5min - reduced from 2min to cut Vercel bandwidth
 
 export function useVipAircraftData(enabled: boolean) {
   const visible = useDocumentVisible();

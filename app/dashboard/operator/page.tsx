@@ -437,7 +437,7 @@ export default function OperatorDashboard() {
     const startPolling = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (document.visibilityState === "visible") {
-        intervalRef.current = setInterval(fetchData, 120_000);
+        intervalRef.current = setInterval(fetchData, 300_000); // 5min
       }
     };
     startPolling();

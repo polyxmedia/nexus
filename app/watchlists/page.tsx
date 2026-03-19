@@ -53,7 +53,7 @@ const POPULAR_SYMBOLS = [
   "VIX", "BTC", "ETH", "XRP", "SOL",
 ];
 
-const POLL_INTERVAL = 120_000; // 2min - reduced from 60s
+const POLL_INTERVAL = 300_000; // 5min - reduced from 2min to cut bandwidth
 
 export default function WatchlistsPage() {
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);

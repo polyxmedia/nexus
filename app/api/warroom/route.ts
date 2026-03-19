@@ -138,7 +138,7 @@ export async function GET() {
     };
 
     return NextResponse.json(data, {
-      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+      headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
     });
   } catch (error) {
     console.error("War room API error:", error);

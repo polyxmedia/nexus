@@ -170,7 +170,7 @@ interface FeedbackReport {
   } | null;
 }
 
-const POLL_INTERVAL = 120_000; // 2min - reduced from 30s
+const POLL_INTERVAL = 300_000; // 5min - reduced from 2min to cut bandwidth
 
 // ---------------------------------------------------------------------------
 // Helper: parse belief history from metrics JSON

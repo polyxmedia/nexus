@@ -4,7 +4,7 @@ import { useSwrFetch } from "@/lib/hooks/use-swr-fetch";
 import { useDocumentVisible } from "@/lib/hooks/use-visibility";
 import type { AircraftResponse } from "./types";
 
-const POLL_INTERVAL = 60_000; // 60s - reduced from 20s to cut Vercel invocations
+const POLL_INTERVAL = 300_000; // 5min - reduced from 60s to cut Vercel bandwidth
 
 export interface AircraftBounds {
   lamin: number;
