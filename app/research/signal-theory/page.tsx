@@ -152,9 +152,9 @@ const intensityLevels = [
 ];
 
 const amplification = [
-  { layers: 2, multiplier: "1.4x", width: 35 },
-  { layers: 3, multiplier: "2.1x", width: 53 },
-  { layers: 4, multiplier: "3.2x", width: 100 },
+  { layers: 2, label: "Noteworthy", width: 35 },
+  { layers: 3, label: "Significant", width: 53 },
+  { layers: 4, label: "Critical", width: 100 },
 ];
 
 // ── Active layer selector for convergence diagram ──
@@ -164,7 +164,7 @@ function ConvergenceDiagram() {
   const primaryActive = Array.from(activeLayers).filter(tag => !narrativeLayers.some(l => l.tag === tag));
   const narrativeActive = Array.from(activeLayers).filter(tag => narrativeLayers.some(l => l.tag === tag));
   const convergenceCount = primaryActive.length;
-  const multiplier = convergenceCount <= 1 ? "1.0x" : amplification.find(a => a.layers === convergenceCount)?.multiplier || "1.0x";
+  const convergenceLabel = convergenceCount <= 1 ? "Baseline" : amplification.find(a => a.layers === convergenceCount)?.label || "Baseline";
 
   const toggle = (tag: string) => {
     setActiveLayers(prev => {
@@ -208,7 +208,7 @@ function ConvergenceDiagram() {
               className="font-mono text-2xl font-bold transition-all duration-500"
               style={{ color: convergenceCount >= 4 ? "#ef4444" : convergenceCount >= 3 ? "#f59e0b" : convergenceCount >= 2 ? "#10b981" : "#5c5c5c" }}
             >
-              {multiplier}
+              {convergenceLabel}
             </span>
             <span className="font-mono text-[9px] uppercase tracking-widest text-navy-400">
               {convergenceCount <= 1 ? "baseline" : `${convergenceCount} primary`}
@@ -251,7 +251,7 @@ function ConvergenceDiagram() {
       </div>
 
       <p className="text-center text-[11px] font-mono text-navy-500 mt-4">
-        Toggle layers to see convergence amplification. Only primary layers (GEO, MKT, OSI) drive the multiplier.
+        Toggle layers to see convergence classification. Only primary layers (GEO, MKT, OSI) drive the convergence level.
       </p>
     </div>
   );
@@ -622,15 +622,13 @@ export default function SignalTheoryPage() {
                 <div className="mt-8 rounded border border-navy-700/20 bg-navy-800/20 overflow-hidden">
                   <div className="grid grid-cols-3 gap-px text-center font-mono text-[10px] uppercase tracking-widest text-navy-500 bg-navy-700/10">
                     <div className="bg-navy-900/60 py-2.5 px-3">Layers</div>
-                    <div className="bg-navy-900/60 py-2.5 px-3">Multiplier</div>
+                    <div className="bg-navy-900/60 py-2.5 px-3">Classification</div>
                     <div className="bg-navy-900/60 py-2.5 px-3">Intensity</div>
                   </div>
                   {amplification.map((row) => (
                     <div key={row.layers} className="grid grid-cols-3 gap-px text-center border-t border-navy-700/10">
                       <div className="bg-navy-900/30 py-3 font-mono text-xs text-navy-300">{row.layers}</div>
-                      <div className="bg-navy-900/30 py-3 font-mono text-xs font-bold" style={{ color: row.layers >= 4 ? "#ef4444" : row.layers >= 3 ? "#f59e0b" : "#10b981" }}>
-                        <AnimNum value={row.multiplier.replace("x", "")} suffix="x" />
-                      </div>
+                      <div className="bg-navy-900/30 py-3 font-mono text-xs font-bold" style={{ color: row.layers >= 4 ? "#ef4444" : row.layers >= 3 ? "#f59e0b" : "#10b981" }}>{row.label}</div>
                       <div className="bg-navy-900/30 py-3 px-4">
                         <div className="w-full h-1.5 rounded-full bg-navy-800 overflow-hidden">
                           <div

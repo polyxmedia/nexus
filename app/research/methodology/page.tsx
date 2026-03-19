@@ -245,7 +245,7 @@ export default function MethodologyPage() {
   const eq1Reveal = useReveal();
   const eq2Reveal = useReveal();
   const eq3Reveal = useReveal();
-  const constantsReveal = useReveal();
+  const calibrationReveal = useReveal();
   const dataReveal = useReveal();
   const riskReveal = useReveal();
   const relatedReveal = useReveal();
@@ -415,10 +415,10 @@ export default function MethodologyPage() {
           <div className={`transition-all duration-700 ${formalReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex items-center gap-3 mb-3">
               <div className="h-px w-8 bg-navy-700" />
-              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Formal Mathematical Specification</h2>
+              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Analytical Framework</h2>
             </div>
             <p className="font-sans text-sm text-navy-400 leading-relaxed mb-10 ml-11 max-w-3xl">
-              The complete system reduces to three equations. Signal detection and Bayesian fusion produce a calibrated posterior. The posterior informs forecast generation. Forecasts are scored against outcomes with a proper scoring rule. Everything below is implemented in production code. The <Link href="/research/prediction-accuracy" className="text-accent-cyan hover:text-accent-cyan/80 transition-colors underline underline-offset-2">live prediction record</Link> shows every forecast, its stated probability, outcome, and Brier score contribution.
+              The system follows a three-step pipeline: Bayesian signal fusion produces a calibrated posterior, the posterior anchors forecast generation, and forecasts are scored against outcomes with a proper scoring rule. The <Link href="/research/prediction-accuracy" className="text-accent-cyan hover:text-accent-cyan/80 transition-colors underline underline-offset-2">live prediction record</Link> shows every forecast, its stated probability, outcome, and score contribution.
             </p>
           </div>
 
@@ -426,50 +426,25 @@ export default function MethodologyPage() {
           <div ref={eq1Reveal.ref} className={`mb-12 transition-all duration-700 ${eq1Reveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex items-center gap-3 mb-4">
               <Sigma className="w-4 h-4 text-accent-cyan/60" />
-              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/80">Equation 1: Signal Fusion</h3>
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/80">Step 1: Signal Fusion</h3>
             </div>
 
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/40 p-6 mb-4">
-              <div className="font-mono text-sm text-navy-100 leading-loose text-center overflow-x-auto">
-                <div className="inline-block text-left">
-                  <span className="text-accent-cyan">P</span><sub className="text-navy-500">n</sub>
-                  <span className="text-navy-500"> = </span>
-                  <span className="text-navy-300">&sigma;</span><span className="text-navy-500">(</span>
-                  <span className="text-navy-500"> ln(</span><span className="text-accent-cyan">P</span><sub className="text-navy-500">0</sub>
-                  <span className="text-navy-500"> / (1 - </span><span className="text-accent-cyan">P</span><sub className="text-navy-500">0</sub><span className="text-navy-500">))</span>
-                  <span className="text-navy-500"> + </span>
-                  <span className="text-accent-amber">ln &mu;(n<sub>P</sub>)</span>
-                  <span className="text-navy-500"> + </span>
-                  <span className="text-accent-emerald">&Sigma;<sub>j</sub> d<sub>j</sub> ln(1 + &rho;<sub>j</sub>(e<sup>k&middot;s<sub>j</sub></sup> - 1))</span>
-                  <span className="text-navy-500"> + </span>
-                  <span className="text-navy-300">&beta;<sub>N</sub></span>
-                  <span className="text-navy-500"> )</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-5 max-w-3xl">
-              All terms are additive in log-odds space. The logistic function &sigma; guarantees the output is a valid probability in (0, 1) regardless of input magnitude. No dimensional mixing, no unbounded outputs.
+            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-4 max-w-3xl">
+              Each signal layer contributes evidence to a Bayesian fusion engine that produces a calibrated posterior probability. The system operates in log-odds space to guarantee valid probability outputs regardless of input magnitude.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Layer Evidence</div>
-                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
-                  Each signal layer contributes a likelihood ratio via the exponential transform. The sensitivity constant <span className="font-mono text-navy-300">k</span> is calibrated so that significance <span className="font-mono text-navy-300">s</span> spans the full intensity scale against operating priors. Layer reliability weights <span className="font-mono text-navy-300">&rho;</span> are assigned per layer based on historical accuracy and recalibrated continuously.
-                </p>
-                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
-                  Low-significance signals produce modest probability shifts. High-significance signals from reliable layers can move the posterior substantially. The exact constants are proprietary and continuously recalibrated against resolved predictions.
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+                  Each layer contributes a likelihood ratio weighted by its historical reliability. Low-significance signals produce modest shifts. High-significance signals from reliable layers move the posterior substantially. Reliability weights are recalibrated continuously against resolved predictions.
                 </p>
               </div>
 
               <div>
-                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Independence Discount</div>
-                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
-                  The discount factor <span className="font-mono text-navy-300">d<sub>j</sub></span> prevents double-counting correlated evidence. It uses an evidence-weighted harmonic mean of pairwise independence factors, so layers that barely moved the posterior have negligible influence on the discount.
-                </p>
-                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
-                  Pairwise independence scores range from fully correlated to fully independent. The discount reduces to direct pairwise independence when one prior layer dominates the evidence.
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Correlation Handling</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+                  A proprietary discount mechanism prevents double-counting when signal layers carry correlated evidence. The system distinguishes genuinely independent signals from those that share upstream causes.
                 </p>
               </div>
             </div>
@@ -477,23 +452,15 @@ export default function MethodologyPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div>
                 <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Convergence Amplification</div>
-                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
-                  Applied as <span className="font-mono text-navy-300">ln &mu;</span> in log-odds. Only primary layers (GEO, MKT, OSI, SYS) count. Narrative overlays contribute zero convergence weight. The amplification curve steepens non-linearly as more independent layers align, reflecting the decreasing probability of coincidental overlap.
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+                  Only primary layers (GEO, MKT, OSI, SYS) contribute convergence weight. The amplification curve is non-linear, reflecting the decreasing probability of coincidental overlap as more independent layers align. Narrative overlays contribute zero convergence weight.
                 </p>
-                <div className="space-y-1.5 text-[11px] font-mono">
-                  <div className="flex justify-between text-navy-500"><span>2 primary layers</span><span className="text-navy-300">Noteworthy</span></div>
-                  <div className="flex justify-between text-navy-500"><span>3 primary layers</span><span className="text-navy-300">Significant</span></div>
-                  <div className="flex justify-between text-navy-500"><span>4 primary layers</span><span className="text-accent-rose">Critical (rare)</span></div>
-                </div>
               </div>
 
               <div>
-                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Narrative Bonus</div>
-                <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
-                  Calendar and celestial signals are actor-belief context. They tell you what market participants think matters, not what objectively matters. The narrative bonus is hard-capped to prevent it from dominating the posterior.
-                </p>
-                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
-                  The maximum probability shift is deliberately small. Removing the narrative overlay entirely does not materially change system accuracy. It exists to capture a real behavioural signal, not to drive outcomes.
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Narrative Context</div>
+                <p className="font-sans text-[12px] text-navy-400 leading-relaxed">
+                  Calendar and celestial signals are actor-belief context. They capture what market participants think matters. The narrative contribution is hard-capped at a deliberately small level. Removing it entirely does not materially change system accuracy.
                 </p>
               </div>
             </div>
@@ -503,66 +470,25 @@ export default function MethodologyPage() {
           <div ref={eq2Reveal.ref} className={`mb-12 transition-all duration-700 ${eq2Reveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex items-center gap-3 mb-4">
               <Brain className="w-4 h-4 text-accent-amber/60" />
-              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-amber/80">Equation 2: Forecast Generation</h3>
-            </div>
-
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/40 p-6 mb-4">
-              <div className="font-mono text-sm text-navy-100 text-center">
-                <span className="text-accent-amber">c</span><sub className="text-navy-500">i</sub>
-                <span className="text-navy-500"> = </span>
-                <span className="text-navy-300">F</span><span className="text-navy-500">(</span>
-                <span className="text-accent-cyan">P<sub>n</sub></span>
-                <span className="text-navy-500">, </span>
-                <span className="text-navy-300">R</span>
-                <span className="text-navy-500">, </span>
-                <span className="text-navy-300">&Gamma;</span>
-                <span className="text-navy-500">, </span>
-                <span className="text-navy-300">K</span>
-                <span className="text-navy-500">)</span>
-                <span className="text-navy-500"> &isin; [0, 1]</span>
-              </div>
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-amber/80">Step 2: Forecast Generation</h3>
             </div>
 
             <p className="font-sans text-sm text-navy-400 leading-relaxed mb-3 max-w-3xl">
-              This is the step most systems hide. The posterior probability from Equation 1 is the quantitative anchor, but the final forecast confidence incorporates regime context, game-theoretic structure, and historical precedent. This function is not closed-form because it includes structured analytic tradecraft that resists reduction to algebra. We state this explicitly rather than hiding it behind an arrow.
+              This is the step most systems hide. The posterior probability from Step 1 is the quantitative anchor, but the final forecast confidence incorporates regime context, game-theoretic structure, and historical precedent. This function includes structured analytic tradecraft that resists reduction to algebra. We state this explicitly rather than hiding it behind an arrow.
             </p>
             <p className="font-sans text-sm text-navy-500 leading-relaxed mb-5 max-w-3xl">
-              Crucially, this step is constrained: the forecast confidence is bounded within a tight range of the Equation 1 posterior. The AI does not override the quantitative signal; it provides contextual adjustment within strict limits. Every forecast is then scored by Equation 3 against actual outcomes, so any systematic bias introduced here is caught and penalised in the Brier decomposition.
+              The forecast confidence is tightly bounded around the quantitative posterior. The AI does not override the signal; it provides contextual adjustment within strict limits. Every forecast is scored against actual outcomes, so any systematic bias is caught and penalised.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                {
-                  symbol: "P\u2099",
-                  label: "Posterior Probability",
-                  desc: "Output of Equation 1. The quantitative anchor that constrains the forecast within strict bounds.",
-                  type: "(0, 1)",
-                },
-                {
-                  symbol: "\u211B",
-                  label: "Regime State",
-                  desc: "Tuple of volatility regime (calm/elevated/crisis), risk appetite (risk-on/neutral/risk-off/panic), and commodity regime (normal/tight/supply-shock). Wartime classification invalidates active predictions.",
-                  type: "Tuple",
-                },
-                {
-                  symbol: "\u0393",
-                  label: "Game-Theoretic Structure",
-                  desc: "Harsanyi incomplete-information game: actors, type spaces, strategy sets, belief distributions, and audience costs (Fearon 1995). Identifies conditions under which conflict becomes structurally likely.",
-                  type: "Game",
-                },
-                {
-                  symbol: "\uD835\uDCA6",
-                  label: "Knowledge Base",
-                  desc: "Vector store of documents with high-dimensional embeddings. Retrieved via semantic similarity. Contains historical precedents, resolved predictions, analyst notes, and ingested intelligence.",
-                  type: "Vector store",
-                },
+                { label: "Quantitative Posterior", desc: "The signal fusion output anchors the forecast. The AI cannot deviate beyond strict bounds." },
+                { label: "Regime Awareness", desc: "Volatility regime, risk appetite, and commodity conditions shape how the posterior is interpreted. Wartime classification invalidates active predictions." },
+                { label: "Game-Theoretic Structure", desc: "Incomplete-information game modelling identifies conditions under which conflict or cooperation becomes structurally likely." },
+                { label: "Knowledge Base", desc: "A proprietary intelligence store of historical precedents, resolved predictions, and analyst notes retrieved via semantic similarity." },
               ].map((input) => (
-                <div key={input.symbol} className="border border-navy-800/40 rounded px-4 py-3">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-mono text-sm text-accent-amber">{input.symbol}</span>
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-navy-400">{input.label}</span>
-                    <span className="ml-auto font-mono text-[9px] text-navy-600">{input.type}</span>
-                  </div>
+                <div key={input.label} className="border border-navy-800/40 rounded px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-navy-400 mb-1.5">{input.label}</div>
                   <p className="font-sans text-[11px] text-navy-500 leading-relaxed">{input.desc}</p>
                 </div>
               ))}
@@ -573,58 +499,37 @@ export default function MethodologyPage() {
           <div ref={eq3Reveal.ref} className={`mb-12 transition-all duration-700 ${eq3Reveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex items-center gap-3 mb-4">
               <Target className="w-4 h-4 text-accent-rose/60" />
-              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-rose/80">Equation 3: Scored Accountability</h3>
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-rose/80">Step 3: Scored Accountability</h3>
             </div>
 
-            <div className="border border-navy-700/30 rounded-md bg-navy-900/40 p-6 mb-4">
-              <div className="font-mono text-sm text-navy-100 text-center">
-                <span className="text-accent-rose">BS</span><sub className="text-navy-500">w</sub>
-                <span className="text-navy-500"> = </span>
-                <span className="text-navy-500">&Sigma;<sub>i</sub></span>
-                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/&tau;</sup>
-                <span className="text-navy-500"> (</span>
-                <span className="text-accent-amber">c<sub>i</sub></span>
-                <span className="text-navy-500"> - </span>
-                <span className="text-navy-300">o<sub>i</sub></span>
-                <span className="text-navy-500">)</span><sup className="text-navy-400">2</sup>
-                <span className="text-navy-500"> / </span>
-                <span className="text-navy-500">&Sigma;<sub>i</sub></span>
-                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/&tau;</sup>
-              </div>
-            </div>
-
-            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-5 max-w-3xl">
-              Decay-weighted Brier score. Penalises overconfidence, rewards calibration. Recent predictions count more than older ones. The decay half-life is calibrated to the typical prediction horizon. This is a proper scoring rule: the only way to optimise it is to state your true beliefs.
+            <p className="font-sans text-sm text-navy-400 leading-relaxed mb-4 max-w-3xl">
+              Every forecast is scored against actual outcomes using a proper scoring rule with time-decay weighting. Recent predictions count more than older ones. This is the mechanism that keeps the system honest: the only way to optimise the score is to state your true beliefs. Overconfidence is penalised. Calibration is rewarded.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">Outcome Encoding</div>
-                <div className="space-y-1 text-[11px] font-mono">
-                  <div className="flex justify-between text-navy-500"><span>Confirmed</span><span className="text-accent-emerald">o = 1.0</span></div>
-                  <div className="flex justify-between text-navy-500"><span>Partial</span><span className="text-accent-amber">o = 0.5</span></div>
-                  <div className="flex justify-between text-navy-500"><span>Denied</span><span className="text-accent-rose">o = 0.0</span></div>
-                </div>
-              </div>
-              <div>
-                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">Interpretation</div>
-                <div className="space-y-1 text-[11px] font-mono">
-                  <div className="flex justify-between text-navy-500"><span>BS = 0.00</span><span className="text-accent-emerald">Perfect</span></div>
-                  <div className="flex justify-between text-navy-500"><span>BS = 0.25</span><span className="text-navy-400">Coin flip</span></div>
-                  <div className="flex justify-between text-navy-500"><span>BS = 1.00</span><span className="text-accent-rose">Maximally wrong</span></div>
-                </div>
-              </div>
-              <div>
-                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">BIN Decomposition</div>
                 <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
-                  Brier decomposes into Bias (systematic calibration error), Noise (confidence scatter), and Information (discrimination power). Positive Information means the signal framework has predictive value.
+                  Predictions are resolved as confirmed, partial, or denied. Each resolution feeds back into every upstream component to recalibrate weights, thresholds, and detection parameters.
+                </p>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">Proper Scoring</div>
+                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
+                  The scoring rule is strictly proper: it cannot be gamed by hedging, and it penalises both overconfidence and underconfidence symmetrically. Every score is published on the live prediction record.
+                </p>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-2">Decomposition</div>
+                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
+                  Scores decompose into calibration error, confidence scatter, and discrimination power. Positive discrimination means the signal framework has genuine predictive value beyond chance.
                 </p>
               </div>
             </div>
           </div>
 
           {/* Calibration Note */}
-          <div ref={constantsReveal.ref} className={`transition-all duration-700 ${constantsReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <div ref={calibrationReveal.ref} className={`transition-all duration-700 ${calibrationReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex items-center gap-3 mb-4">
               <Lock className="w-4 h-4 text-navy-500" />
               <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-400">Calibration</h3>
