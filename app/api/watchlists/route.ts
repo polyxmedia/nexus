@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
 import { eq, asc, and } from "drizzle-orm";
+import { validateOrigin } from "@/lib/security/csrf";
 import { getQuoteData } from "@/lib/market-data/yahoo";
 
 // GET - list all watchlists with items and live quotes
@@ -103,6 +104,8 @@ export async function GET(req: NextRequest) {
 
 // POST - create watchlist or add item
 export async function POST(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -183,6 +186,8 @@ export async function POST(req: NextRequest) {
 
 // PATCH - rename watchlist or reorder items
 export async function PATCH(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -229,6 +234,8 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE - delete watchlist or remove item
 export async function DELETE(req: NextRequest) {
+  const csrfError = validateOrigin(req);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
   const session = await getServerSession(authOptions);
   if (!session?.user?.name) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

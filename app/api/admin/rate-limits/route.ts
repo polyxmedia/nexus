@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireTier } from "@/lib/auth/require-tier";
+import { validateOrigin } from "@/lib/security/csrf";
 import { db, schema } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 
@@ -25,7 +26,9 @@ export async function GET() {
   return NextResponse.json(configs);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
   const check = await requireTier("institution");
   if ("response" in check) return check.response;
 
