@@ -456,13 +456,11 @@ export default function MethodologyPage() {
               <div>
                 <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Layer Evidence</div>
                 <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
-                  Each signal layer contributes a likelihood ratio via the exponential transform. The sensitivity constant <span className="font-mono text-navy-300">k = 0.45</span> is calibrated so that significance <span className="font-mono text-navy-300">s &isin; [0, 9]</span> spans the full intensity scale against operating priors of 5-10%.
+                  Each signal layer contributes a likelihood ratio via the exponential transform. The sensitivity constant <span className="font-mono text-navy-300">k</span> is calibrated so that significance <span className="font-mono text-navy-300">s</span> spans the full intensity scale against operating priors. Layer reliability weights <span className="font-mono text-navy-300">&rho;</span> are assigned per layer based on historical accuracy and recalibrated continuously.
                 </p>
-                <div className="space-y-1.5 text-[11px] font-mono">
-                  <div className="flex justify-between text-navy-500"><span>s = 1, GEO (&rho; = 0.85)</span><span className="text-navy-300">+0.37 log-odds, 10% &rarr; 14%</span></div>
-                  <div className="flex justify-between text-navy-500"><span>s = 5, GEO (&rho; = 0.85)</span><span className="text-navy-300">+1.98 log-odds, 10% &rarr; 45%</span></div>
-                  <div className="flex justify-between text-navy-500"><span>s = 9, GEO (&rho; = 0.85)</span><span className="text-navy-300">+3.87 log-odds, 10% &rarr; 84%</span></div>
-                </div>
+                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
+                  Low-significance signals produce modest probability shifts. High-significance signals from reliable layers can move the posterior substantially. The exact constants are proprietary and continuously recalibrated against resolved predictions.
+                </p>
               </div>
 
               <div>
@@ -470,11 +468,8 @@ export default function MethodologyPage() {
                 <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
                   The discount factor <span className="font-mono text-navy-300">d<sub>j</sub></span> prevents double-counting correlated evidence. It uses an evidence-weighted harmonic mean of pairwise independence factors, so layers that barely moved the posterior have negligible influence on the discount.
                 </p>
-                <div className="border border-navy-800/40 rounded px-3 py-2 font-mono text-[11px] text-navy-400">
-                  d<sub>j</sub> = &Sigma;<sub>i&lt;j</sub> ln&Lambda;<sub>i</sub> / &Sigma;<sub>i&lt;j</sub> (ln&Lambda;<sub>i</sub> / D<sub>i,j</sub>)
-                </div>
-                <p className="font-sans text-[11px] text-navy-500 mt-2 leading-relaxed">
-                  D<sub>i,j</sub> &isin; [0, 1] is pairwise independence (1 = fully independent). Reduces to direct pairwise independence when one prior layer dominates the evidence.
+                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
+                  Pairwise independence scores range from fully correlated to fully independent. The discount reduces to direct pairwise independence when one prior layer dominates the evidence.
                 </p>
               </div>
             </div>
@@ -483,25 +478,22 @@ export default function MethodologyPage() {
               <div>
                 <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Convergence Amplification</div>
                 <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
-                  Applied as <span className="font-mono text-navy-300">ln &mu;</span> in log-odds. Only primary layers (GEO, MKT, OSI, SYS) count. Narrative overlays contribute zero convergence weight.
+                  Applied as <span className="font-mono text-navy-300">ln &mu;</span> in log-odds. Only primary layers (GEO, MKT, OSI, SYS) count. Narrative overlays contribute zero convergence weight. The amplification curve steepens non-linearly as more independent layers align, reflecting the decreasing probability of coincidental overlap.
                 </p>
                 <div className="space-y-1.5 text-[11px] font-mono">
-                  <div className="flex justify-between text-navy-500"><span>2 primary layers</span><span className="text-navy-300">&mu; = 1.4, +8% at P = 0.5</span></div>
-                  <div className="flex justify-between text-navy-500"><span>3 primary layers</span><span className="text-navy-300">&mu; = 2.1, +17% at P = 0.5</span></div>
-                  <div className="flex justify-between text-navy-500"><span>4 primary layers</span><span className="text-accent-rose">&mu; = 3.2, +25% at P = 0.5 (rare)</span></div>
+                  <div className="flex justify-between text-navy-500"><span>2 primary layers</span><span className="text-navy-300">Noteworthy</span></div>
+                  <div className="flex justify-between text-navy-500"><span>3 primary layers</span><span className="text-navy-300">Significant</span></div>
+                  <div className="flex justify-between text-navy-500"><span>4 primary layers</span><span className="text-accent-rose">Critical (rare)</span></div>
                 </div>
               </div>
 
               <div>
                 <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-3">Narrative Bonus</div>
                 <p className="font-sans text-[12px] text-navy-400 leading-relaxed mb-3">
-                  Calendar and celestial signals are actor-belief context. They tell you what market participants think matters, not what objectively matters. Capped at <span className="font-mono text-navy-300">&beta;<sub>max</sub> = 0.40</span> log-odds.
+                  Calendar and celestial signals are actor-belief context. They tell you what market participants think matters, not what objectively matters. The narrative bonus is hard-capped to prevent it from dominating the posterior.
                 </p>
-                <div className="border border-navy-800/40 rounded px-3 py-2 font-mono text-[11px] text-navy-400">
-                  &beta;<sub>N</sub> = min(0.40, &Sigma;<sub>&ell; &isin; L<sub>N</sub></sub> &rho;<sub>&ell;</sub> &middot; s<sub>&ell;</sub>)
-                </div>
-                <p className="font-sans text-[11px] text-navy-500 mt-2 leading-relaxed">
-                  Maximum probability shift: ~10% at the midpoint, ~6% at extremes. Deliberately small. Removing the narrative overlay entirely does not materially change system accuracy. It exists to capture a real behavioural signal, not to drive outcomes.
+                <p className="font-sans text-[11px] text-navy-500 leading-relaxed">
+                  The maximum probability shift is deliberately small. Removing the narrative overlay entirely does not materially change system accuracy. It exists to capture a real behavioural signal, not to drive outcomes.
                 </p>
               </div>
             </div>
@@ -535,7 +527,7 @@ export default function MethodologyPage() {
               This is the step most systems hide. The posterior probability from Equation 1 is the quantitative anchor, but the final forecast confidence incorporates regime context, game-theoretic structure, and historical precedent. This function is not closed-form because it includes structured analytic tradecraft that resists reduction to algebra. We state this explicitly rather than hiding it behind an arrow.
             </p>
             <p className="font-sans text-sm text-navy-500 leading-relaxed mb-5 max-w-3xl">
-              Crucially, this step is constrained: the forecast confidence cannot deviate more than 15 percentage points from the Equation 1 posterior. The AI does not override the quantitative signal; it provides contextual adjustment within bounded limits. Every forecast is then scored by Equation 3 against actual outcomes, so any systematic bias introduced here is caught and penalised in the Brier decomposition.
+              Crucially, this step is constrained: the forecast confidence is bounded within a tight range of the Equation 1 posterior. The AI does not override the quantitative signal; it provides contextual adjustment within strict limits. Every forecast is then scored by Equation 3 against actual outcomes, so any systematic bias introduced here is caught and penalised in the Brier decomposition.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -543,7 +535,7 @@ export default function MethodologyPage() {
                 {
                   symbol: "P\u2099",
                   label: "Posterior Probability",
-                  desc: "Output of Equation 1. The quantitative anchor that constrains how far the forecast can deviate.",
+                  desc: "Output of Equation 1. The quantitative anchor that constrains the forecast within strict bounds.",
                   type: "(0, 1)",
                 },
                 {
@@ -555,13 +547,13 @@ export default function MethodologyPage() {
                 {
                   symbol: "\u0393",
                   label: "Game-Theoretic Structure",
-                  desc: "Harsanyi incomplete-information game: actors, type spaces, strategy sets, belief distributions, audience costs (Fearon 1995), and bargaining range. Conflict structurally likely when bargaining range \u2264 0.1.",
+                  desc: "Harsanyi incomplete-information game: actors, type spaces, strategy sets, belief distributions, and audience costs (Fearon 1995). Identifies conditions under which conflict becomes structurally likely.",
                   type: "Game",
                 },
                 {
                   symbol: "\uD835\uDCA6",
                   label: "Knowledge Base",
-                  desc: "Vector store of documents with 1024-dim embeddings (Voyage AI). Retrieved via cosine similarity \u2265 0.7. Contains historical precedents, resolved predictions, analyst notes, and ingested intelligence.",
+                  desc: "Vector store of documents with high-dimensional embeddings. Retrieved via semantic similarity. Contains historical precedents, resolved predictions, analyst notes, and ingested intelligence.",
                   type: "Vector store",
                 },
               ].map((input) => (
@@ -589,7 +581,7 @@ export default function MethodologyPage() {
                 <span className="text-accent-rose">BS</span><sub className="text-navy-500">w</sub>
                 <span className="text-navy-500"> = </span>
                 <span className="text-navy-500">&Sigma;<sub>i</sub></span>
-                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/60</sup>
+                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/&tau;</sup>
                 <span className="text-navy-500"> (</span>
                 <span className="text-accent-amber">c<sub>i</sub></span>
                 <span className="text-navy-500"> - </span>
@@ -597,12 +589,12 @@ export default function MethodologyPage() {
                 <span className="text-navy-500">)</span><sup className="text-navy-400">2</sup>
                 <span className="text-navy-500"> / </span>
                 <span className="text-navy-500">&Sigma;<sub>i</sub></span>
-                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/60</sup>
+                <span className="text-navy-300"> 2</span><sup className="text-navy-400">-&Delta;t<sub>i</sub>/&tau;</sup>
               </div>
             </div>
 
             <p className="font-sans text-sm text-navy-400 leading-relaxed mb-5 max-w-3xl">
-              Decay-weighted Brier score with a 60-day half-life. Penalises overconfidence, rewards calibration. Recent predictions count more than older ones. This is a proper scoring rule: the only way to optimise it is to state your true beliefs.
+              Decay-weighted Brier score. Penalises overconfidence, rewards calibration. Recent predictions count more than older ones. The decay half-life is calibrated to the typical prediction horizon. This is a proper scoring rule: the only way to optimise it is to state your true beliefs.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -631,41 +623,19 @@ export default function MethodologyPage() {
             </div>
           </div>
 
-          {/* Constants Table */}
+          {/* Calibration Note */}
           <div ref={constantsReveal.ref} className={`transition-all duration-700 ${constantsReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex items-center gap-3 mb-4">
               <Lock className="w-4 h-4 text-navy-500" />
-              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-400">System Constants</h3>
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-400">Calibration</h3>
             </div>
 
-            <div className="border border-navy-700/30 rounded-md overflow-hidden">
-              <div className="grid grid-cols-12 gap-4 px-4 py-2.5 bg-navy-800/30 border-b border-navy-700/20">
-                <div className="col-span-2 font-mono text-[9px] uppercase tracking-wider text-navy-500">Symbol</div>
-                <div className="col-span-2 font-mono text-[9px] uppercase tracking-wider text-navy-500">Value</div>
-                <div className="col-span-8 font-mono text-[9px] uppercase tracking-wider text-navy-500">Definition</div>
-              </div>
-              {[
-                { symbol: "k", value: "0.45", def: "LR sensitivity. Calibrated so s \u2208 [0, 9] spans full posterior range against 5-10% priors." },
-                { symbol: "\u03C1\u2097", value: "0.35 - 0.85", def: "Layer reliability. GEO: 0.85, OSI: 0.80, MKT: 0.75, CAL: 0.45, CEL: 0.35." },
-                { symbol: "D\u1D62,\u2C7C", value: "[0, 1]", def: "Pairwise independence matrix. Symmetric. 1 = fully independent, 0 = fully correlated." },
-                { symbol: "\u03BC(n\u209A)", value: "{1.0, 1.4, 2.1, 3.2}", def: "Convergence amplifier by distinct primary layer count within 3-day window." },
-                { symbol: "\u03B2\u2098\u2090\u2093", value: "0.40 log-odds", def: "Narrative overlay cap. Max ~10% probability shift at midpoint." },
-                { symbol: "P\u2080", value: "0.03 - 0.12", def: "Scenario base rates. Military escalation: 0.05, market disruption: 0.12, regime change: 0.03." },
-                { symbol: "\u03C4", value: "60 days", def: "Brier score decay half-life. Recent predictions weighted more heavily." },
-                { symbol: "s\u2C7C", value: "[0, 9]", def: "Event significance. Confirming evidence only. Disconfirmation via decay to prior." },
-              ].map((row, i) => (
-                <div key={row.symbol} className={`grid grid-cols-12 gap-4 px-4 py-2.5 ${i % 2 === 0 ? "bg-navy-900/20" : ""}`}>
-                  <div className="col-span-2 font-mono text-[11px] text-accent-cyan">{row.symbol}</div>
-                  <div className="col-span-2 font-mono text-[11px] text-navy-200">{row.value}</div>
-                  <div className="col-span-8 font-sans text-[11px] text-navy-400 leading-relaxed">{row.def}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 flex items-start gap-3">
-              <AlertTriangle className="w-3.5 h-3.5 text-navy-600 flex-shrink-0 mt-0.5" />
-              <p className="font-sans text-xs text-navy-500 leading-relaxed">
-                All constants are implemented in production code. Initial values were set from domain knowledge and calibrated against the first cohort of resolved predictions. They are living values: as the prediction record grows, k and layer reliabilities are recalibrated against out-of-sample outcomes. Current performance against these constants is visible on the <Link href="/research/prediction-accuracy" className="text-accent-cyan hover:text-accent-cyan/80 transition-colors underline underline-offset-2">live prediction record</Link>. Signal decay models disconfirmation as reversion to prior rather than negative evidence, a deliberate design choice that bounds the likelihood ratio to [1, &infin;) for the current signal space.
+            <div className="border border-navy-700/30 rounded-md bg-navy-900/20 p-5">
+              <p className="font-sans text-sm text-navy-400 leading-relaxed mb-3">
+                The system operates on a set of calibrated constants: layer reliability weights, a sensitivity parameter, convergence amplifiers, narrative caps, scenario base rates, and a decay half-life. Initial values were set from domain knowledge and calibrated against the first cohort of resolved predictions.
+              </p>
+              <p className="font-sans text-sm text-navy-500 leading-relaxed">
+                These are living values: as the prediction record grows, they are recalibrated against out-of-sample outcomes. The specific constants are proprietary. Current performance is visible on the <Link href="/research/prediction-accuracy" className="text-accent-cyan hover:text-accent-cyan/80 transition-colors underline underline-offset-2">live prediction record</Link>. Signal decay models disconfirmation as reversion to prior rather than negative evidence, a deliberate design choice that bounds the likelihood ratio for the current signal space.
               </p>
             </div>
           </div>
