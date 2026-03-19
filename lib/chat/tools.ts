@@ -887,6 +887,40 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_country_risk",
+    description: "Get the Country Intelligence Index: composite risk scores for all tracked countries. Aggregates OSINT event density, signal intensity, game theory escalation probability, chokepoint exposure, and military power into a 0-100 risk score per country. Use when asked about country risk, geopolitical hotspots, which countries are most dangerous, or regional stability.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "get_cross_stream_alerts",
+    description: "Detect cross-stream convergences: when multiple independent data streams (signals, predictions, OSINT, market data) show correlated movement within 48 hours. Use when asked about convergence patterns, whether something unusual is happening, or when multiple indicators seem to be moving together.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "search_multilang_intel",
+    description: "Search GDELT across 12 intelligence languages (Arabic, Mandarin, Russian, Farsi, Turkish, Hebrew, Hindi, Japanese, Korean, Spanish, French, Portuguese) to find regional news before it hits English wire services. Use when asked about regional intelligence, non-English sources, or when you need ground-level reporting from a specific region.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Search query (GDELT translates automatically)" },
+        region: {
+          type: "string",
+          enum: ["middle_east", "east_asia", "europe", "south_asia", "americas"],
+          description: "Optional: focus on a specific region's languages. Omit to search all 12 languages.",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "generate_narrative_report",
     description: "Generate a long-form intelligence briefing / lecture script pulling all signals, parallels, game theory, predictions, and thesis into a single coherent narrative. 10-15 minute reading time. Includes risk matrix and key takeaways.",
     input_schema: {
@@ -1541,6 +1575,12 @@ export async function executeTool(
       return executeSearchParallels(input);
     case "get_eschatological_convergence":
       return executeGetEschatologicalConvergence(input);
+    case "get_country_risk":
+      return executeGetCountryRisk();
+    case "get_cross_stream_alerts":
+      return executeGetCrossStreamAlerts();
+    case "search_multilang_intel":
+      return executeSearchMultilangIntel(input);
     case "get_actor_profile":
       return executeGetActorProfile(input);
     case "generate_narrative_report":
@@ -1962,6 +2002,104 @@ async function executeGetEschatologicalConvergence(input: Record<string, unknown
     seldonApproachingCount: landscape.seldonApproachingCount,
     calendarEventsChecked: calendarEvents,
   };
+}
+
+async function executeGetCountryRisk() {
+  try {
+    const { computeCountryRiskIndex } = await import("@/lib/warroom/country-risk");
+    const risks = await computeCountryRiskIndex();
+    return {
+      totalCountries: risks.length,
+      critical: risks.filter(r => r.riskLevel === "critical").length,
+      high: risks.filter(r => r.riskLevel === "high").length,
+      elevated: risks.filter(r => r.riskLevel === "elevated").length,
+      topRisks: risks.slice(0, 10).map(r => ({
+        country: r.name,
+        code: r.code,
+        region: r.region,
+        riskScore: r.riskScore,
+        riskLevel: r.riskLevel,
+        components: r.components,
+        activeScenarios: r.activeScenarios,
+        recentEvents: r.recentEvents,
+      })),
+    };
+  } catch (err) {
+    return { error: `Country risk failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+}
+
+async function executeGetCrossStreamAlerts() {
+  try {
+    const { detectCrossStreamConvergences } = await import("@/lib/signals/cross-stream");
+    const alerts = await detectCrossStreamConvergences();
+    return {
+      alertCount: alerts.length,
+      alerts: alerts.slice(0, 5).map(a => ({
+        severity: a.severity,
+        title: a.title,
+        description: a.description,
+        convergenceScore: Math.round(a.convergenceScore * 100),
+        affectedSectors: a.affectedSectors,
+        streamCount: a.streams.length,
+        streams: a.streams.slice(0, 5).map(s => ({
+          source: s.source,
+          detail: s.detail.slice(0, 100),
+          magnitude: Math.round(s.magnitude * 100),
+        })),
+      })),
+    };
+  } catch (err) {
+    return { error: `Cross-stream detection failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+}
+
+async function executeSearchMultilangIntel(input: Record<string, unknown>) {
+  const query = input.query as string;
+  if (!query) return { error: "Query required" };
+  try {
+    const region = input.region as string | undefined;
+    if (region) {
+      const { getRegionalIntelligence } = await import("@/lib/gdelt/multilang");
+      const result = await getRegionalIntelligence(
+        region as "middle_east" | "east_asia" | "europe" | "south_asia" | "americas",
+        query
+      );
+      return {
+        query,
+        region,
+        totalArticles: result.totalArticles,
+        languagesQueried: result.languagesQueried,
+        languageBreakdown: result.languageBreakdown,
+        articles: result.articles.slice(0, 15).map(a => ({
+          title: a.title,
+          source: a.domain || a.sourceLanguage,
+          language: a.sourceLanguage,
+          region: a.sourceRegion,
+          date: a.seendate?.slice(0, 8),
+          url: a.url,
+        })),
+      };
+    }
+    const { multiLanguageSearch } = await import("@/lib/gdelt/multilang");
+    const result = await multiLanguageSearch(query, { priorityOnly: true });
+    return {
+      query,
+      totalArticles: result.totalArticles,
+      languagesQueried: result.languagesQueried,
+      languageBreakdown: result.languageBreakdown,
+      articles: result.articles.slice(0, 15).map(a => ({
+        title: a.title,
+        source: a.domain || a.sourceLanguage,
+        language: a.sourceLanguage,
+        region: a.sourceRegion,
+        date: a.seendate?.slice(0, 8),
+        url: a.url,
+      })),
+    };
+  } catch (err) {
+    return { error: `Multi-language search failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
 }
 
 async function executeGetActiveThesis() {

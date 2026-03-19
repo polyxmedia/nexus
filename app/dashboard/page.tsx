@@ -161,6 +161,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchWidgets();
+    // Check onboarding state
+    fetch("/api/settings")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const done = data.find((s: { key: string }) => s.key === "onboarding_completed");
+          if (!done) setShowOnboarding(true);
+        }
+      })
+      .catch(() => {});
   }, [fetchWidgets]);
 
   // ── API helpers ──
@@ -324,6 +334,8 @@ export default function DashboardPage() {
   // ── Render ──
 
   return (
+    <>
+    <WelcomeModal open={showOnboarding} onComplete={() => setShowOnboarding(false)} />
     <PageContainer
       title="Dashboard"
       subtitle="Intelligence overview"
