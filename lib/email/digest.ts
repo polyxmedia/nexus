@@ -1,5 +1,5 @@
 import { db, schema } from "@/lib/db";
-import { gte, like, desc, eq, and, isNotNull } from "drizzle-orm";
+import { gte, like, desc, eq } from "drizzle-orm";
 import { sendEmail } from "@/lib/email";
 import { weeklyDigestEmail, type WeeklyDigestData } from "@/lib/email/templates";
 

@@ -363,7 +363,7 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled />
+      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── THE PROBLEM ── */}
       <section className="px-6 py-20">
@@ -402,7 +402,7 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled />
+      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── WHAT NEXUS DOES ── */}
       <section className="px-6 py-20">
@@ -419,7 +419,7 @@ export default function WhyNexusPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {capabilities.map((cap, i) => {
               const Icon = cap.icon;
-              const isVisible = true; // all capabilities visible
+              const isVisible = i <= activeCapabilityIndex;
               return (
                 <div
                   key={cap.title}
@@ -439,7 +439,7 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled />
+      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── COMPETITIVE COMPARISON ── */}
       <section className="px-6 py-20">
@@ -560,7 +560,7 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled />
+      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── PRICING ── */}
       <section className="px-6 py-20">
@@ -629,7 +629,7 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled />
+      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── CTA ── */}
       <section className="px-6 py-24">

@@ -29,7 +29,9 @@ const signalIntensityCache = new Map<number, { intensity: number; timestamp: num
 const SIGNAL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
 
 // GEX regime tracking - detect flips between dampening/amplifying
-let lastGexRegime: string | null = null;
+// Includes timestamp so stale readings (>30min) are ignored after gaps
+let lastGexRegime: { regime: string; timestamp: number } | null = null;
+const GEX_REGIME_TTL = 30 * 60 * 1000; // 30 minutes
 
 // BOCPD change points already triggered - avoid duplicates
 const bocpdSeenPoints = new Set<string>();

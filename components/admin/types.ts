@@ -261,6 +261,7 @@ export const PROMPT_CATEGORIES = [
   { id: "operator", label: "Operator Context" },
   { id: "analysis", label: "Analysis" },
   { id: "predictions", label: "Predictions" },
+  { id: "outreach", label: "Outreach" },
 ];
 
 export function formatDuration(seconds: number): string {
