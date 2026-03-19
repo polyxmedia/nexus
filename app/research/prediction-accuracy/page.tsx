@@ -354,7 +354,6 @@ export default function PredictionAccuracyPage() {
             </div>
           </section>
 
-          <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
 
           {/* ── Brier Score ── */}
           <section className="px-6 py-16">
@@ -458,8 +457,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Difficulty Tiers ── */}
           {report.difficultyTiers && (
             <>
-              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-              <section className="px-6 py-16">
+                  <section className="px-6 py-16">
                 <div className="max-w-5xl mx-auto">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="h-px w-8 bg-navy-700" />
@@ -501,8 +499,7 @@ export default function PredictionAccuracyPage() {
                 </div>
               </section>
 
-              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-            </>
+                </>
           )}
 
           {/* ── Rolling Brier Trend ── */}
@@ -540,8 +537,7 @@ export default function PredictionAccuracyPage() {
                 </div>
               </section>
 
-              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-            </>
+                </>
           )}
 
           {/* ── Calibration ── */}
@@ -644,7 +640,6 @@ export default function PredictionAccuracyPage() {
           {/* ── Category Breakdown ── */}
           {(report.byCategory.length > 0 || report.directionLevel) && (
           <>
-          <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
           <section className="px-6 py-16">
             <div ref={categoryReveal.ref} className="max-w-5xl mx-auto">
               <div className={`transition-all duration-700 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
@@ -730,8 +725,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Trend ── */}
           {report.recentTrend && (
             <>
-              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-              <section className="px-6 py-16">
+                  <section className="px-6 py-16">
                 <div ref={trendReveal.ref} className="max-w-5xl mx-auto">
                   <div className={`transition-all duration-700 ${trendReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                     <div className="flex items-center gap-3 mb-2">
@@ -815,8 +809,7 @@ export default function PredictionAccuracyPage() {
                 </div>
               </section>
 
-              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-            </>
+                </>
           )}
 
           {/* ── Recent Predictions Scorecard ── */}
@@ -893,8 +886,7 @@ export default function PredictionAccuracyPage() {
                 </div>
               </section>
 
-              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-            </>
+                </>
           )}
 
           {/* ── Transparency ── */}
@@ -928,7 +920,6 @@ export default function PredictionAccuracyPage() {
             </div>
           </section>
 
-          <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
         </>
       )}
 
