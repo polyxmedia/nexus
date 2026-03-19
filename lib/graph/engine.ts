@@ -38,8 +38,8 @@ export async function syncEntityGraph(): Promise<{ entities: number; relationshi
   let entityCount = 0;
   let relCount = 0;
 
-  // 1. Signals -> entities
-  const signals = await db.select().from(schema.signals);
+  // 1. Signals -> entities (limit to recent 500 to avoid OOM)
+  const signals = await db.select().from(schema.signals).orderBy(desc(schema.signals.id)).limit(500);
   for (const s of signals) {
     const ent = await upsertEntity("signal", s.title, {
       intensity: s.intensity,
@@ -62,8 +62,8 @@ export async function syncEntityGraph(): Promise<{ entities: number; relationshi
     }
   }
 
-  // 2. Predictions -> entities
-  const predictions = await db.select().from(schema.predictions);
+  // 2. Predictions -> entities (limit to recent 500)
+  const predictions = await db.select().from(schema.predictions).orderBy(desc(schema.predictions.id)).limit(500);
   for (const p of predictions) {
     const ent = await upsertEntity("prediction", p.claim.slice(0, 80), {
       confidence: p.confidence,
@@ -161,15 +161,25 @@ export async function syncEntityGraph(): Promise<{ entities: number; relationshi
 // ── Query helpers ──
 
 export async function getEntityGraph(centerEntityId?: number, depth: number = 2): Promise<GraphData> {
-  const allEntities = await db.select().from(schema.entities);
-  const allRelationships = await db.select().from(schema.relationships);
-
   if (!centerEntityId) {
+    // Without a center, return most recent entities (capped at 500 to avoid OOM)
+    const allEntities = await db.select().from(schema.entities).orderBy(desc(schema.entities.id)).limit(500);
+    const entityIds = allEntities.map(e => e.id);
+    const allRelationships = entityIds.length > 0
+      ? await db.select().from(schema.relationships).where(
+          and(inArray(schema.relationships.fromEntityId, entityIds), inArray(schema.relationships.toEntityId, entityIds))
+        ).catch(() => []) as typeof schema.relationships.$inferSelect[]
+      : [];
     return {
       nodes: allEntities.map(toGraphNode),
-      edges: allRelationships.map(toGraphEdge),
+      edges: (allRelationships as typeof schema.relationships.$inferSelect[]).map(toGraphEdge),
     };
   }
+
+  // With a center, load relationships touching the center, then expand
+  // This avoids loading ALL entities/relationships into memory
+  const allRelationships = await db.select().from(schema.relationships);
+  const allEntities = await db.select().from(schema.entities);
 
   // BFS from center entity
   const visited = new Set<number>([centerEntityId]);

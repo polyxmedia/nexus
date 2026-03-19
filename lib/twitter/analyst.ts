@@ -235,6 +235,16 @@ export async function runAnalystTweet(): Promise<string | null> {
     messages: [{ role: "user", content: prompt }],
   });
 
+  // Track background AI usage for cost monitoring
+  import("@/lib/ai/usage-tracker").then(({ trackBackgroundAIUsage }) =>
+    trackBackgroundAIUsage({
+      inputTokens: response.usage?.input_tokens || 0,
+      outputTokens: response.usage?.output_tokens || 0,
+      model: "claude-sonnet-4-20250514",
+      source: "twitter-analyst",
+    })
+  ).catch(() => {});
+
   const text = response.content[0].type === "text" ? response.content[0].text : "";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {

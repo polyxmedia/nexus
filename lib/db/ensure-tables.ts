@@ -183,6 +183,20 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts (status)`,
   `CREATE INDEX IF NOT EXISTS idx_blog_posts_published_at ON blog_posts (published_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_blog_posts_category ON blog_posts (category)`,
+  // Graph performance indexes (GraphRAG, entity traversal)
+  `CREATE INDEX IF NOT EXISTS idx_entities_source ON entities (source_type, source_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_entities_type ON entities (type)`,
+  `CREATE INDEX IF NOT EXISTS idx_relationships_from ON relationships (from_entity_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_relationships_to ON relationships (to_entity_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships (type)`,
+  // Signal query indexes (filtered by status/date constantly)
+  `CREATE INDEX IF NOT EXISTS idx_signals_status ON signals (status)`,
+  `CREATE INDEX IF NOT EXISTS idx_signals_created_at ON signals (created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_signals_date ON signals (date DESC)`,
+  // Knowledge query indexes
+  `CREATE INDEX IF NOT EXISTS idx_knowledge_status ON knowledge (status)`,
+  `CREATE INDEX IF NOT EXISTS idx_knowledge_source ON knowledge (source)`,
+  `CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge (category)`,
 ];
 
 export async function ensureTables() {
