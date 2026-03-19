@@ -68,7 +68,17 @@ async function gatherBriefingData(): Promise<BriefingData> {
 
   // Regime from latest thesis
   const regime = theses[0]?.marketRegime || null;
-  const thesis = theses[0]?.executiveSummary?.slice(0, 200) || null;
+  // Strip markdown from thesis summary for email
+  const rawThesis = theses[0]?.executiveSummary || "";
+  const thesis = rawThesis
+    .replace(/#{1,6}\s+/g, "")          // remove headings
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1") // remove bold/italic
+    .replace(/---+/g, "")               // remove hr
+    .replace(/\n{2,}/g, " ")            // collapse newlines
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // links to text
+    .trim()
+    .split(/[.!?]\s/)[0]               // take first sentence only
+    ?.slice(0, 200) || null;
 
   return {
     regime,
@@ -90,7 +100,13 @@ async function gatherBriefingData(): Promise<BriefingData> {
 
 function buildBriefingHtml(data: BriefingData, username: string): { subject: string; html: string } {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const regimeColor = data.regime === "risk_off" ? D.rose : data.regime === "risk_on" ? D.green : D.amber;
+  const regimeLabels: Record<string, string> = {
+    risk_off: "Risk Off", risk_on: "Risk On", transitioning: "Transitioning",
+    peacetime: "Peacetime", wartime: "Wartime", crisis: "Crisis",
+  };
+  const regimeLabel = regimeLabels[data.regime || ""] || (data.regime || "Unknown").replace(/_/g, " ");
+  const regimeColor = ["risk_off", "wartime", "crisis"].includes(data.regime || "") ? D.rose :
+    ["risk_on", "peacetime"].includes(data.regime || "") ? D.green : D.amber;
 
   let body = "";
 
@@ -103,7 +119,7 @@ function buildBriefingHtml(data: BriefingData, username: string): { subject: str
   if (data.regime) {
     body += `<div style="background:${D.card};border:1px solid ${D.border};border-radius:6px;padding:12px 16px;margin-bottom:16px;">`;
     body += `<span style="font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:${D.muted};">Market Regime</span>`;
-    body += `<div style="margin-top:6px;font-size:16px;font-weight:600;color:${regimeColor};">${data.regime.replace(/_/g, " ").toUpperCase()}</div>`;
+    body += `<div style="margin-top:6px;font-size:16px;font-weight:600;color:${regimeColor};">${regimeLabel}</div>`;
     if (data.thesis) {
       body += `<p style="font-size:12px;color:${D.muted};margin:8px 0 0;line-height:1.5;">${data.thesis}...</p>`;
     }
@@ -185,7 +201,7 @@ function buildBriefingHtml(data: BriefingData, username: string): { subject: str
 </body></html>`;
 
   const subject = data.regime
-    ? `NEXUS Briefing: ${data.regime.replace(/_/g, " ")} regime, ${data.signals.length} active signals`
+    ? `NEXUS Briefing: ${regimeLabel} regime, ${data.signals.length} active signals`
     : `NEXUS Briefing: ${data.signals.length} signals, ${data.predictions.pending} predictions pending`;
 
   return { subject, html };
