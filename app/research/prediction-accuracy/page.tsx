@@ -313,19 +313,25 @@ export default function PredictionAccuracyPage() {
       {/* ── Live data sections ── */}
       {report && report.sampleSufficient && (
         <>
-          {/* ── Sample warning ── */}
-          {report.totalResolved < 50 && (
-            <section className="px-6 pb-6">
-              <div className="max-w-5xl mx-auto">
-                <div className="flex items-center gap-3 px-4 py-3 border border-accent-amber/20 rounded-lg bg-accent-amber/[0.04]">
-                  <AlertTriangle className="w-4 h-4 text-accent-amber flex-shrink-0" />
-                  <p className="font-mono text-[10px] text-accent-amber/80">
-                    Metrics are not yet statistically meaningful (n={report.totalResolved}, need 50+). Treat all figures as preliminary estimates.
+          {/* ── Calibration notice ── */}
+          <section className="px-6 pb-6">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-start gap-3 px-4 py-3 border border-accent-cyan/20 rounded-lg bg-accent-cyan/[0.03]">
+                <AlertTriangle className="w-4 h-4 text-accent-cyan flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-mono text-[10px] text-accent-cyan/90 mb-1">
+                    Early calibration phase (n={report.totalResolved}{report.totalResolved < 50 ? ", need 50+" : ""})
+                  </p>
+                  <p className="font-sans text-[11px] text-navy-400 leading-relaxed">
+                    NEXUS is a new system. The prediction engine is actively calibrating, adjusting confidence
+                    modifiers and base rates with every resolved prediction. Brier scores will improve as the
+                    sample grows and the feedback loop tightens. Treat current metrics as a baseline the system
+                    is working to beat, not a finished result.
                   </p>
                 </div>
               </div>
-            </section>
-          )}
+            </div>
+          </section>
 
           {/* ── Stats ── */}
           <section className="px-6 pb-8">
