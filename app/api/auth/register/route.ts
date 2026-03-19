@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hashPassword } from "@/lib/auth/auth";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { sendEmail, notifyAdmin } from "@/lib/email";
 import { welcomeEmail, adminNewUserEmail } from "@/lib/email/templates";
@@ -62,6 +62,28 @@ export async function POST(request: Request) {
     if (existing.length > 0) {
       return NextResponse.json(
         { error: "Username already taken" },
+        { status: 409 }
+      );
+    }
+
+    // Check if email is already registered
+    const allUsers = await db
+      .select()
+      .from(schema.settings)
+      .where(like(schema.settings.key, "user:%"));
+
+    const emailTaken = allUsers.some((row) => {
+      try {
+        const data = JSON.parse(row.value);
+        return data.email?.toLowerCase() === email.toLowerCase();
+      } catch {
+        return false;
+      }
+    });
+
+    if (emailTaken) {
+      return NextResponse.json(
+        { error: "Email already registered" },
         { status: 409 }
       );
     }
