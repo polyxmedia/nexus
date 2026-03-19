@@ -48,7 +48,6 @@ export async function GET() {
     try {
       const account = await stripe.accounts.retrieve(userData.stripeConnectId);
       const payoutsEnabled = account.payouts_enabled ?? false;
-      const chargesEnabled = account.charges_enabled ?? false;
       const detailsSubmitted = account.details_submitted ?? false;
 
       // Update cached status if it changed
@@ -60,9 +59,7 @@ export async function GET() {
       return NextResponse.json({
         connected: true,
         payoutsEnabled,
-        chargesEnabled,
         detailsSubmitted,
-        accountId: userData.stripeConnectId,
       });
     } catch {
       // Account doesn't exist anymore, clean up
@@ -160,10 +157,11 @@ export async function DELETE(request: Request) {
       // Account may already be deleted, continue cleanup
     }
 
-    // Remove from user data
+    // Remove from user data + unsync referral code
     delete userData.stripeConnectId;
     delete userData.payoutsEnabled;
     await updateUserData(session.user.name, userData);
+    await syncReferralCode(session.user.name, null);
 
     return NextResponse.json({ disconnected: true });
   } catch (error) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -8,14 +8,310 @@ import {
   Brain,
   Target,
   Shield,
-  Ship,
   Crosshair,
   Zap,
   Check,
   Loader2,
+  Anchor,
 } from "lucide-react";
-import { useReveal, anim, hidden, shown, SectionHead, Ruled } from "@/components/public/reveal";
+import { useReveal, anim, hidden, shown, SectionHead } from "@/components/public/reveal";
 import { CompetitorComparison } from "@/components/public/competitor-comparison";
+
+// ── Mini Signal Bars (visual preview for Signal Detection card) ──
+function MiniSignalBars({ active }: { active: boolean }) {
+  const [bars, setBars] = useState([3, 5, 2, 4, 5, 3, 1, 4, 5, 2, 3, 4, 5, 3, 2, 4]);
+
+  useEffect(() => {
+    if (!active) return;
+    const interval = setInterval(() => {
+      setBars((prev) =>
+        prev.map((v) => {
+          const delta = Math.random() > 0.5 ? 1 : -1;
+          return Math.max(1, Math.min(5, v + delta));
+        })
+      );
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  return (
+    <div className="relative h-32 bg-navy-900/80 overflow-hidden p-4">
+      <div className="flex items-end gap-1 h-full pb-3">
+        {bars.map((v, i) => (
+          <div
+            key={i}
+            className="flex-1 rounded-t transition-all duration-1000 ease-out"
+            style={{
+              height: active ? `${v * 18}%` : "0%",
+              transitionDelay: active ? `${i * 40}ms` : "0ms",
+              backgroundColor: v >= 4
+                ? `rgba(245,158,11,${0.2 + v * 0.1})`
+                : `rgba(245,158,11,${0.05 + v * 0.04})`,
+            }}
+          />
+        ))}
+      </div>
+      <div className="absolute left-4 right-4 bottom-[calc(0.75rem+72%)] border-t border-dashed border-accent-rose/20">
+        <span className="absolute -top-2.5 right-0 text-[7px] text-accent-rose/40 font-mono">THRESHOLD</span>
+      </div>
+      <div className="absolute bottom-2 left-3">
+        <span className="text-[8px] text-accent-amber/50 tracking-[0.12em] font-mono">SIGNAL INTENSITY</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Mini Chat (visual preview for AI Analysis card) ──
+function MiniChat({ active }: { active: boolean }) {
+  const messages = [
+    { role: "user", text: "Iran escalation risk?" },
+    { role: "ai", text: "Hormuz closure probability 73%. Energy correlation spiking." },
+    { role: "user", text: "Best hedge?" },
+    { role: "ai", text: "Long XLE, short transport. Confidence 81%." },
+  ];
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const interval = setInterval(() => {
+      setCount((c) => (c >= messages.length ? 0 : c + 1));
+    }, 1800);
+    return () => clearInterval(interval);
+  }, [active, messages.length]);
+
+  return (
+    <div className="relative h-32 bg-navy-900/80 overflow-hidden p-3">
+      <div className="space-y-1.5 h-full overflow-hidden">
+        {messages.slice(0, count).map((msg, i) => (
+          <div key={i} className={`flex gap-1.5 items-start ${msg.role === "user" ? "justify-end" : ""}`}>
+            {msg.role === "ai" && (
+              <div className="h-3.5 w-3.5 rounded-full bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="h-1 w-1 rounded-full bg-accent-cyan/60" />
+              </div>
+            )}
+            <div className={`rounded px-2 py-1 text-[8px] font-mono leading-relaxed max-w-[80%] ${
+              msg.role === "user"
+                ? "bg-accent-cyan/[0.06] border border-accent-cyan/10 text-navy-300"
+                : "bg-navy-800/60 text-navy-300"
+            }`}>
+              {msg.text}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-navy-900/80 to-transparent pointer-events-none" />
+    </div>
+  );
+}
+
+// ── Mini Brier Gauge (visual preview for Prediction Engine card) ──
+function MiniBrierGauge({ active }: { active: boolean }) {
+  const [score, setScore] = useState(0.18);
+
+  useEffect(() => {
+    if (!active) return;
+    const interval = setInterval(() => {
+      setScore((s) => {
+        const delta = (Math.random() - 0.5) * 0.04;
+        return Math.max(0.05, Math.min(0.35, s + delta));
+      });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  const pct = Math.max(0, Math.min(100, (1 - score) * 100));
+
+  return (
+    <div className="relative h-32 bg-navy-900/80 overflow-hidden p-4 flex flex-col justify-center">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[8px] font-mono text-navy-600 tracking-wider">BRIER SCORE</span>
+        <span className={`text-[14px] font-mono tabular-nums ${score < 0.2 ? "text-accent-emerald" : score < 0.3 ? "text-accent-amber" : "text-accent-rose"}`}>
+          {score.toFixed(3)}
+        </span>
+      </div>
+      <div className="w-full h-2 bg-navy-800/60 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-1000"
+          style={{
+            width: active ? `${pct}%` : "0%",
+            background: score < 0.2 ? "rgba(16,185,129,0.6)" : score < 0.3 ? "rgba(245,158,11,0.6)" : "rgba(244,63,94,0.6)",
+          }}
+        />
+      </div>
+      <div className="flex justify-between mt-1.5">
+        <span className="text-[7px] font-mono text-navy-700">0 (perfect)</span>
+        <span className="text-[7px] font-mono text-navy-700">1 (worst)</span>
+      </div>
+      <div className="mt-3 flex gap-3">
+        {["72% hit rate", "Auto-resolve", "Regime-aware"].map((t) => (
+          <span key={t} className="text-[7px] font-mono text-navy-600 bg-navy-800/40 rounded px-1.5 py-0.5">{t}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Mini Chokepoints (visual preview for Shipping Intelligence card) ──
+function MiniChokepoints({ active }: { active: boolean }) {
+  const points = [
+    { name: "HORMUZ", x: 62, y: 42, status: "elevated" },
+    { name: "SUEZ", x: 52, y: 35, status: "normal" },
+    { name: "MALACCA", x: 78, y: 55, status: "normal" },
+    { name: "BOSPORUS", x: 50, y: 28, status: "elevated" },
+    { name: "PANAMA", x: 22, y: 48, status: "normal" },
+  ];
+  const [pulse, setPulse] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const interval = setInterval(() => setPulse((p) => p + 1), 2000);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  return (
+    <div className="relative h-32 bg-navy-900/80 overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.04]" style={{
+        backgroundImage: "radial-gradient(circle at 50% 50%, rgba(6,182,212,0.3) 0%, transparent 70%)",
+      }} />
+      {points.map((p, i) => (
+        <div key={p.name} className="absolute" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
+          <div
+            className={`h-2 w-2 rounded-full transition-all duration-500 ${
+              p.status === "elevated" ? "bg-accent-amber" : "bg-accent-cyan/40"
+            }`}
+            style={{
+              transform: active ? "scale(1)" : "scale(0)",
+              transitionDelay: `${i * 100}ms`,
+              animation: p.status === "elevated" && active ? "pulse 2s infinite" : "none",
+            }}
+          />
+          <span className="absolute top-3 left-1/2 -translate-x-1/2 text-[6px] font-mono text-navy-600 whitespace-nowrap">
+            {p.name}
+          </span>
+        </div>
+      ))}
+      <div className="absolute bottom-2 left-3 flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          <div className="h-1.5 w-1.5 rounded-full bg-accent-amber" />
+          <span className="text-[7px] font-mono text-navy-600">ELEVATED</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="h-1.5 w-1.5 rounded-full bg-accent-cyan/40" />
+          <span className="text-[7px] font-mono text-navy-600">NORMAL</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Mini Payoff Matrix (visual preview for Game Theory card) ──
+function MiniPayoffMatrix({ active }: { active: boolean }) {
+  const [highlight, setHighlight] = useState<[number, number]>([1, 0]);
+
+  useEffect(() => {
+    if (!active) return;
+    const positions: [number, number][] = [[0, 0], [0, 1], [1, 0], [1, 1]];
+    let idx = 2;
+    const interval = setInterval(() => {
+      idx = (idx + 1) % positions.length;
+      setHighlight(positions[idx]);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  const cells = [
+    ["-2, -2", "3, -3"],
+    ["-3, 3", "1, 1"],
+  ];
+  const rows = ["Escalate", "De-escalate"];
+  const cols = ["Escalate", "De-escalate"];
+
+  return (
+    <div className="relative h-32 bg-navy-900/80 overflow-hidden p-4 flex flex-col justify-center">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[8px] font-mono text-navy-600 tracking-wider">PAYOFF MATRIX</span>
+        <span className="text-[7px] font-mono text-accent-rose/50 bg-accent-rose/[0.06] rounded px-1.5 py-0.5">NASH: (De-esc, De-esc)</span>
+      </div>
+      <table className="w-full text-[8px] font-mono">
+        <thead>
+          <tr>
+            <th className="text-left text-navy-700 font-normal pb-1 w-20" />
+            {cols.map((c) => <th key={c} className="text-center text-navy-600 font-normal pb-1 px-1">{c}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, ri) => (
+            <tr key={r}>
+              <td className="text-navy-600 pr-2 py-0.5">{r}</td>
+              {cells[ri].map((cell, ci) => (
+                <td
+                  key={ci}
+                  className={`text-center py-0.5 px-1 rounded transition-all duration-500 ${
+                    highlight[0] === ri && highlight[1] === ci
+                      ? "bg-accent-rose/10 text-navy-200"
+                      : "text-navy-500"
+                  }`}
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Mini Monte Carlo (visual preview for Trade Lab card) ──
+function MiniMonteCarlo({ active }: { active: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const paths = 12;
+    const steps = 40;
+
+    function draw() {
+      ctx!.clearRect(0, 0, w, h);
+      for (let p = 0; p < paths; p++) {
+        ctx!.beginPath();
+        ctx!.strokeStyle = `rgba(16,185,129,${0.08 + Math.random() * 0.12})`;
+        ctx!.lineWidth = 0.8;
+        let y = h / 2;
+        for (let s = 0; s <= steps; s++) {
+          const x = (s / steps) * w;
+          if (s === 0) ctx!.moveTo(x, y);
+          else ctx!.lineTo(x, y);
+          y += (Math.random() - 0.48) * 6;
+          y = Math.max(8, Math.min(h - 8, y));
+        }
+        ctx!.stroke();
+      }
+    }
+
+    draw();
+    const interval = setInterval(draw, 3000);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  return (
+    <div className="relative h-32 bg-navy-900/80 overflow-hidden">
+      <canvas ref={canvasRef} width={300} height={128} className="w-full h-full" />
+      <div className="absolute bottom-2 left-3 flex items-center gap-3">
+        <span className="text-[8px] font-mono text-accent-emerald/50 tracking-wider">MONTE CARLO</span>
+        <span className="text-[7px] font-mono text-navy-600">12 paths / 10k iterations</span>
+      </div>
+    </div>
+  );
+}
 
 // ── Live Stats ──
 
@@ -27,47 +323,6 @@ interface LiveStats {
   signalsProcessed: number;
   avgConfidence: number;
 }
-
-// ── Capabilities ──
-
-const capabilities = [
-  {
-    icon: Activity,
-    title: "Multi-Layer Signal Detection",
-    body: "Four primary signal layers run continuously. Geopolitical escalation, market microstructure, open-source intelligence, and systemic risk. When multiple layers converge, the system flags it before the headline drops.",
-    color: "#f59e0b",
-  },
-  {
-    icon: Brain,
-    title: "AI-Powered Analysis",
-    body: "Claude synthesises converged signals into structured theses. Every conclusion traces back to the data that triggered it. No black boxes, no vibes. Grounded intelligence with citation trails.",
-    color: "#06b6d4",
-  },
-  {
-    icon: Target,
-    title: "Prediction Engine",
-    body: "Every thesis generates falsifiable predictions with defined timeframes and probabilities. Auto-resolution against market data. Brier scoring for calibration feedback. The system learns from every call it makes.",
-    color: "#8b5cf6",
-  },
-  {
-    icon: Crosshair,
-    title: "Trade Lab",
-    body: "Scenario-weighted position simulator enriched with live intelligence. Monte Carlo distributions, gamma exposure, regime detection, and systemic risk overlays. Kelly sizing and ATR-based position recommendations.",
-    color: "#10b981",
-  },
-  {
-    icon: Ship,
-    title: "Shipping Intelligence",
-    body: "Five chokepoint monitors tracking transit volumes, anomalies, and dark fleet activity. Freight market proxies, vessel watchlists, and maritime OSINT. The kind of visibility that used to require a dedicated analyst team.",
-    color: "#f97316",
-  },
-  {
-    icon: Shield,
-    title: "Game Theory Engine",
-    body: "Formal scenario modelling with payoff matrices, Nash equilibria, and escalation trajectories. Wartime threshold detection that automatically invalidates outdated predictions when the regime shifts.",
-    color: "#f43f5e",
-  },
-];
 
 // ── Tiers ──
 
@@ -126,7 +381,7 @@ export default function WhyNexusPage() {
   const pricingReveal = useReveal();
   const ctaReveal = useReveal(0.2);
 
-  const [activeCapabilityIndex, setActiveCapabilityIndex] = useState(-1);
+  const [activeCapIdx, setActiveCapIdx] = useState(-1);
   const [stats, setStats] = useState<LiveStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -164,9 +419,9 @@ export default function WhyNexusPage() {
   useEffect(() => {
     if (!capReveal.visible) return;
     const timers: NodeJS.Timeout[] = [];
-    capabilities.forEach((_, i) => {
-      timers.push(setTimeout(() => setActiveCapabilityIndex(i), 200 + i * 150));
-    });
+    for (let i = 0; i < 6; i++) {
+      timers.push(setTimeout(() => setActiveCapIdx(i), 200 + i * 150));
+    }
     return () => timers.forEach(clearTimeout);
   }, [capReveal.visible]);
 
@@ -227,60 +482,65 @@ export default function WhyNexusPage() {
       </section>
 
       {/* ── THE PROBLEM ── */}
-      <section className="px-6 py-20">
-        <div ref={problemReveal.ref} className="max-w-5xl mx-auto">
+      <section className="px-6 py-24">
+        <div ref={problemReveal.ref} className="max-w-6xl mx-auto">
           <SectionHead number="01" label="The Problem" visible={problemReveal.visible} />
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Wide card */}
+            {/* Wide card - siloed */}
             <div
-              className={`md:col-span-2 md:row-span-2 border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 flex flex-col justify-between ${anim} ${problemReveal.visible ? shown : hidden}`}
+              className={`md:col-span-2 md:row-span-2 rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm p-6 flex flex-col justify-between hover:border-accent-rose/20 transition-all duration-500 lg:rounded-tl-[2rem] ${anim} ${problemReveal.visible ? shown : hidden}`}
               style={{ transitionDelay: "200ms" }}
             >
               <div>
-                <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">Intelligence is siloed</h3>
-                <p className="text-[13px] text-navy-500 leading-relaxed">
+                <h3 className="text-base font-bold text-navy-100 font-sans mb-3">Intelligence is siloed</h3>
+                <p className="text-xs text-navy-400 leading-relaxed font-sans">
                   Geopolitical analysts don&apos;t see market data. Traders don&apos;t see OSINT feeds. Risk managers don&apos;t see shipping disruptions in real time. The information exists, but it lives in different platforms with different logins and no connection between them.
                 </p>
               </div>
-              <div className="mt-6 flex items-center gap-3">
+              <div className="mt-6 pt-4 border-t border-navy-800/40 flex items-center gap-3">
                 <div className="flex -space-x-1">
                   {["bg-accent-amber", "bg-accent-cyan", "bg-accent-emerald", "bg-accent-rose"].map((c) => (
-                    <div key={c} className={`h-2 w-2 rounded-full ${c} ring-1 ring-navy-950`} />
+                    <div key={c} className={`h-2.5 w-2.5 rounded-full ${c} ring-1 ring-navy-950`} />
                   ))}
                 </div>
                 <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600">4 layers, 0 connections</span>
               </div>
             </div>
 
-            {/* Top-right */}
+            {/* Top-right - pricing */}
             <div
-              className={`md:col-span-2 border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 ${anim} ${problemReveal.visible ? shown : hidden}`}
+              className={`md:col-span-2 rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm p-6 hover:border-accent-amber/20 transition-all duration-500 lg:rounded-tr-[2rem] ${anim} ${problemReveal.visible ? shown : hidden}`}
               style={{ transitionDelay: "300ms" }}
             >
-              <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">Enterprise pricing locks out everyone else</h3>
-              <p className="text-[13px] text-navy-500 leading-relaxed">
+              <h3 className="text-base font-bold text-navy-100 font-sans mb-3">Enterprise pricing locks out everyone else</h3>
+              <p className="text-xs text-navy-400 leading-relaxed font-sans">
                 Bloomberg costs $32K a year. Recorded Future starts at $60K. Palantir requires a sales call and a six-figure contract. The intelligence infrastructure that moves markets is available to institutions and nobody else.
               </p>
+              <div className="mt-4 flex gap-2">
+                {["$32K/yr", "$60K/yr", "$100K+"].map((p) => (
+                  <span key={p} className="text-[9px] font-mono text-accent-rose/60 bg-accent-rose/[0.06] rounded px-2 py-0.5">{p}</span>
+                ))}
+              </div>
             </div>
 
             {/* Bottom-right pair */}
             <div
-              className={`border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 ${anim} ${problemReveal.visible ? shown : hidden}`}
+              className={`rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm p-6 hover:border-accent-cyan/20 transition-all duration-500 lg:rounded-bl-[2rem] ${anim} ${problemReveal.visible ? shown : hidden}`}
               style={{ transitionDelay: "400ms" }}
             >
-              <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">AI trading tools are shallow</h3>
-              <p className="text-[13px] text-navy-500 leading-relaxed">
-                Most AI trading platforms scan price patterns and call it intelligence. They have no geopolitical context, no regime awareness, no understanding of why markets move. They see the chart. They miss the world.
+              <h3 className="text-base font-bold text-navy-100 font-sans mb-3">AI trading tools are shallow</h3>
+              <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                Most AI trading platforms scan price patterns and call it intelligence. They have no geopolitical context, no regime awareness, no understanding of why markets move.
               </p>
             </div>
             <div
-              className={`border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 ${anim} ${problemReveal.visible ? shown : hidden}`}
+              className={`rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm p-6 hover:border-accent-emerald/20 transition-all duration-500 lg:rounded-br-[2rem] ${anim} ${problemReveal.visible ? shown : hidden}`}
               style={{ transitionDelay: "500ms" }}
             >
-              <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">No accountability</h3>
-              <p className="text-[13px] text-navy-500 leading-relaxed">
-                Analyst reports make claims that are never tracked. Trading signals come with no historical accuracy data. Nobody scores their predictions because scoring means admitting when you were wrong. Without calibration feedback, there is no improvement.
+              <h3 className="text-base font-bold text-navy-100 font-sans mb-3">No accountability</h3>
+              <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                Nobody scores their predictions because scoring means admitting when you were wrong. Without calibration feedback, there is no improvement.
               </p>
             </div>
           </div>
@@ -288,38 +548,131 @@ export default function WhyNexusPage() {
       </section>
 
       {/* ── WHAT NEXUS DOES ── */}
-      <section className="px-6 py-20">
-        <div ref={capReveal.ref} className="max-w-5xl mx-auto">
+      <section className="px-6 py-24">
+        <div ref={capReveal.ref} className="max-w-6xl mx-auto">
           <SectionHead number="02" label="What NEXUS Does" visible={capReveal.visible} />
 
           <p
-            className={`text-base text-navy-400 leading-relaxed max-w-2xl mb-12 ${anim} ${capReveal.visible ? shown : hidden}`}
+            className={`text-base text-navy-400 leading-relaxed max-w-2xl mb-14 ${anim} ${capReveal.visible ? shown : hidden}`}
             style={{ transitionDelay: "100ms" }}
           >
             One platform. Every layer of intelligence. From signal detection through to execution.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {capabilities.map((cap, i) => {
-              const Icon = cap.icon;
-              const isVisible = i <= activeCapabilityIndex;
-              // First two cards span 2 cols each (full width row), rest are single col
-              const span = i < 2 ? "lg:col-span-2" : "";
-              return (
-                <div
-                  key={cap.title}
-                  className={`${span} border border-navy-800/60 rounded-lg bg-navy-900/30 p-5 ${anim} ${isVisible ? shown : hidden}`}
-                >
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <Icon className="h-4 w-4" style={{ color: cap.color }} />
-                    <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-navy-300">
-                      {cap.title}
-                    </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-2 gap-4">
+            {/* Signal Detection - wide */}
+            <div className={`lg:col-span-4 ${anim} ${0 <= activeCapIdx ? shown : hidden}`}>
+              <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-amber/30 hover:shadow-[0_0_40px_rgba(245,158,11,0.06)] transition-all duration-500 lg:rounded-tl-[2rem]">
+                <MiniSignalBars active={capReveal.visible} />
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <Activity className="h-4 w-4 text-accent-amber" />
+                      <h3 className="text-base font-bold text-navy-100 font-sans">Signal Detection</h3>
+                    </div>
+                    <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">SIGINT</span>
                   </div>
-                  <p className="text-[12px] text-navy-500 leading-relaxed">{cap.body}</p>
+                  <p className="text-xs text-navy-400 leading-relaxed font-sans max-w-md">
+                    Four primary signal layers run continuously. Geopolitical escalation, market microstructure, open-source intelligence, and systemic risk. When multiple layers converge, the system flags it before the headline drops.
+                  </p>
                 </div>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* AI Analysis - narrow */}
+            <div className={`lg:col-span-2 ${anim} ${1 <= activeCapIdx ? shown : hidden}`}>
+              <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-cyan/30 hover:shadow-[0_0_40px_rgba(6,182,212,0.06)] transition-all duration-500 lg:rounded-tr-[2rem]">
+                <MiniChat active={capReveal.visible} />
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <Brain className="h-4 w-4 text-accent-cyan" />
+                      <h3 className="text-base font-bold text-navy-100 font-sans">AI Analysis</h3>
+                    </div>
+                    <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">HUMINT</span>
+                  </div>
+                  <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                    Claude synthesises converged signals into structured theses. Every conclusion traces back to the data that triggered it. No black boxes, no vibes.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Prediction Engine */}
+            <div className={`lg:col-span-2 ${anim} ${2 <= activeCapIdx ? shown : hidden}`}>
+              <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-purple-400/30 hover:shadow-[0_0_40px_rgba(139,92,246,0.06)] transition-all duration-500 lg:rounded-bl-[2rem]">
+                <MiniBrierGauge active={capReveal.visible} />
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <Target className="h-4 w-4 text-purple-400" />
+                      <h3 className="text-base font-bold text-navy-100 font-sans">Prediction Engine</h3>
+                    </div>
+                    <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">ASSESS</span>
+                  </div>
+                  <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                    Every thesis generates falsifiable predictions with defined timeframes and probabilities. Auto-resolution against market data. Brier scoring for calibration feedback.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trade Lab */}
+            <div className={`lg:col-span-2 ${anim} ${3 <= activeCapIdx ? shown : hidden}`}>
+              <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-emerald/30 hover:shadow-[0_0_40px_rgba(16,185,129,0.06)] transition-all duration-500">
+                <MiniMonteCarlo active={capReveal.visible} />
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <Crosshair className="h-4 w-4 text-accent-emerald" />
+                      <h3 className="text-base font-bold text-navy-100 font-sans">Trade Lab</h3>
+                    </div>
+                    <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">EXECUTE</span>
+                  </div>
+                  <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                    Monte Carlo distributions, gamma exposure, regime detection, and systemic risk overlays. Kelly sizing and ATR-based position recommendations.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Shipping Intelligence */}
+            <div className={`lg:col-span-2 ${anim} ${4 <= activeCapIdx ? shown : hidden}`}>
+              <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-orange-400/30 hover:shadow-[0_0_40px_rgba(249,115,22,0.06)] transition-all duration-500">
+                <MiniChokepoints active={capReveal.visible} />
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <Anchor className="h-4 w-4 text-orange-400" />
+                      <h3 className="text-base font-bold text-navy-100 font-sans">Shipping Intel</h3>
+                    </div>
+                    <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">MARINT</span>
+                  </div>
+                  <p className="text-xs text-navy-400 leading-relaxed font-sans">
+                    Five chokepoint monitors tracking transit volumes, anomalies, and dark fleet activity. Freight market proxies and maritime OSINT.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Game Theory - wide bottom-right */}
+            <div className={`lg:col-span-4 ${anim} ${5 <= activeCapIdx ? shown : hidden}`}>
+              <div className="group h-full rounded-2xl border border-navy-700/40 bg-navy-900/60 backdrop-blur-sm overflow-hidden hover:border-accent-rose/30 hover:shadow-[0_0_40px_rgba(244,63,94,0.06)] transition-all duration-500 lg:rounded-br-[2rem]">
+                <MiniPayoffMatrix active={capReveal.visible} />
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <Shield className="h-4 w-4 text-accent-rose" />
+                      <h3 className="text-base font-bold text-navy-100 font-sans">Game Theory Engine</h3>
+                    </div>
+                    <span className="text-[9px] font-mono text-navy-500 tracking-[0.2em] border border-navy-700/30 rounded px-2 py-0.5">WARGAME</span>
+                  </div>
+                  <p className="text-xs text-navy-400 leading-relaxed font-sans max-w-lg">
+                    Formal scenario modelling with payoff matrices, Nash equilibria, and escalation trajectories. Wartime threshold detection that automatically invalidates outdated predictions when the regime shifts.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -542,8 +895,6 @@ export default function WhyNexusPage() {
           </div>
         </div>
       </section>
-
-      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── CTA ── */}
       <section className="px-6 py-24">

@@ -56,6 +56,8 @@ interface WarRoomMapProps {
   vesselTrails?: Map<string, VesselTrailPoint[]>;
   vipAircraft?: VipAircraftState[];
   onVipAircraftClick?: (aircraft: VipAircraftState) => void;
+  fires?: FireDetection[];
+  radiation?: RadiationReading[];
 }
 
 const ESCALATION_COLORS: Record<number, string> = {
@@ -157,6 +159,8 @@ export default function WarRoomMap({
   vesselTrails,
   vipAircraft,
   onVipAircraftClick,
+  fires,
+  radiation,
 }: WarRoomMapProps) {
   const activeActorId = hoveredActorId || selectedActorId;
 
@@ -392,6 +396,16 @@ export default function WarRoomMap({
       {/* OSINT Markers Layer */}
       {layerVisibility.osintMarkers && osintEvents.length > 0 && (
         <OsintMarkersLayer events={osintEvents} onEventClick={onOsintEventClick} />
+      )}
+
+      {/* Fire Detection Layer */}
+      {layerVisibility.fires && fires && fires.length > 0 && (
+        <FireLayer fires={fires} />
+      )}
+
+      {/* Radiation Monitoring Layer */}
+      {layerVisibility.radiation && radiation && radiation.length > 0 && (
+        <RadiationLayer readings={radiation} />
       )}
     </MapContainer>
   );

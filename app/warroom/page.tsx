@@ -28,6 +28,10 @@ import { useVesselData } from "@/lib/warroom/use-vessel-data";
 import { useOsintData } from "@/lib/warroom/use-osint-data";
 import { useSatelliteData } from "@/lib/warroom/use-satellite-data";
 import { useVipAircraftData } from "@/lib/warroom/use-vip-aircraft-data";
+import { useFireData } from "@/lib/warroom/use-fire-data";
+import { useRadiationData } from "@/lib/warroom/use-radiation-data";
+import { useSweepDelta } from "@/lib/warroom/use-sweep-delta";
+import { SweepDeltaPanel } from "@/components/warroom/sweep-delta-panel";
 import type { WarRoomData, WarRoomLayerVisibility, OsintEvent, AircraftState, VesselState, VipAircraftState } from "@/lib/warroom/types";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { useVesselTracker } from "@/lib/warroom/use-vessel-tracker";
@@ -130,6 +134,8 @@ export default function WarRoomPage() {
     conflictHeatmap: false,
     satellites: false,
     vipAircraft: false,
+    fires: false,
+    radiation: false,
   });
 
   const { data: aircraftData } = useAircraftData(layerVisibility.aircraft);
@@ -137,6 +143,9 @@ export default function WarRoomPage() {
   const { data: osintData } = useOsintData();
   const { data: satelliteData } = useSatelliteData(layerVisibility.satellites);
   const { data: vipAircraftData } = useVipAircraftData(layerVisibility.vipAircraft);
+  const { data: fireData } = useFireData(layerVisibility.fires);
+  const { data: radiationData } = useRadiationData(layerVisibility.radiation);
+  const { data: sweepDeltaData, loading: sweepDeltaLoading } = useSweepDelta();
 
   useEffect(() => {
     fetch("/api/warroom")
@@ -512,6 +521,8 @@ export default function WarRoomPage() {
               vesselTrails={snapshot}
               vipAircraft={vipAircraftData?.aircraft ?? []}
               onVipAircraftClick={handleVipAircraftClick}
+              fires={fireData?.fires ?? []}
+              radiation={radiationData?.readings ?? []}
             />
           ) : (
             <GlobeView
@@ -555,6 +566,10 @@ export default function WarRoomPage() {
           satelliteCount={satelliteData?.totalCount ?? 0}
           satelliteMilitaryCount={satelliteData?.militaryCount ?? 0}
           vipCount={vipAircraftData?.totalCount ?? 0}
+          fireCount={fireData?.totalCount ?? 0}
+          fireHighCount={fireData?.highConfidenceCount ?? 0}
+          radiationCount={radiationData?.totalCount ?? 0}
+          radiationElevatedCount={radiationData?.elevatedCount ?? 0}
         />
 
         {/* Intel Panel (right) */}
@@ -631,6 +646,9 @@ export default function WarRoomPage() {
           onSelectAircraft={handleAircraftClick}
           onSelectVessel={handleVesselClick}
         />
+
+        {/* Sweep Delta Panel */}
+        <SweepDeltaPanel data={sweepDeltaData} loading={sweepDeltaLoading} />
 
         {/* Sources Panel (bottom) */}
         <SourcesPanel />

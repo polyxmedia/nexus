@@ -439,6 +439,24 @@ export default function SettingsPage() {
   const [connectAccount, setConnectAccount] = useState<{ connected: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean } | null>(null);
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectDisconnecting, setConnectDisconnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
+  const handleConnectBank = useCallback(async () => {
+    setConnectLoading(true);
+    setConnectError(null);
+    try {
+      const res = await fetch("/api/stripe/connect", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setConnectError(data.error || "Failed to start onboarding");
+    } catch {
+      setConnectError("Failed to connect to payment service");
+    }
+    setConnectLoading(false);
+  }, []);
 
   // AI Model
   const [aiModel, setAiModel] = useState("claude-sonnet-4-6");
@@ -1439,15 +1457,7 @@ export default function SettingsPage() {
                               variant="outline"
                               size="sm"
                               disabled={connectLoading}
-                              onClick={async () => {
-                                setConnectLoading(true);
-                                try {
-                                  const res = await fetch("/api/stripe/connect", { method: "POST" });
-                                  const data = await res.json();
-                                  if (data.url) window.location.href = data.url;
-                                } catch {}
-                                setConnectLoading(false);
-                              }}
+                              onClick={handleConnectBank}
                             >
                               {connectLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <ExternalLink className="h-3 w-3 mr-1.5" />}
                               Complete Setup
@@ -1460,10 +1470,18 @@ export default function SettingsPage() {
                             onClick={async () => {
                               if (!confirm("Disconnect your payout account? You will stop receiving automatic payouts.")) return;
                               setConnectDisconnecting(true);
+                              setConnectError(null);
                               try {
-                                await fetch("/api/stripe/connect", { method: "DELETE" });
-                                setConnectAccount({ connected: false, payoutsEnabled: false, detailsSubmitted: false });
-                              } catch {}
+                                const res = await fetch("/api/stripe/connect", { method: "DELETE" });
+                                if (res.ok) {
+                                  setConnectAccount({ connected: false, payoutsEnabled: false, detailsSubmitted: false });
+                                } else {
+                                  const data = await res.json();
+                                  setConnectError(data.error || "Failed to disconnect");
+                                }
+                              } catch {
+                                setConnectError("Failed to disconnect payout account");
+                              }
                               setConnectDisconnecting(false);
                             }}
                             className="text-accent-rose/70 hover:text-accent-rose border-accent-rose/20 hover:border-accent-rose/40"
@@ -1478,15 +1496,7 @@ export default function SettingsPage() {
                       variant="outline"
                       size="sm"
                       disabled={connectLoading}
-                      onClick={async () => {
-                        setConnectLoading(true);
-                        try {
-                          const res = await fetch("/api/stripe/connect", { method: "POST" });
-                          const data = await res.json();
-                          if (data.url) window.location.href = data.url;
-                        } catch {}
-                        setConnectLoading(false);
-                      }}
+                      onClick={handleConnectBank}
                     >
                       {connectLoading ? (
                         <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
@@ -1495,6 +1505,13 @@ export default function SettingsPage() {
                       )}
                       Connect Bank Account
                     </Button>
+                  )}
+
+                  {connectError && (
+                    <div className="mt-3 border border-accent-rose/30 bg-accent-rose/5 rounded p-3">
+                      <AlertCircle className="h-4 w-4 text-accent-rose inline mr-2" />
+                      <span className="text-xs text-accent-rose">{connectError}</span>
+                    </div>
                   )}
                 </div>
 

@@ -51,6 +51,7 @@ import { BlogWriterPanel } from "@/components/admin/blog-writer-panel";
 import { CostMonitorPanel } from "@/components/admin/cost-monitor-panel";
 import { OutreachPanel } from "@/components/admin/outreach-panel";
 import { IntegrationsPanel } from "@/components/admin/integrations-panel";
+import { TwitterEngagePanel } from "@/components/admin/twitter-engage-panel";
 import { UsersTab } from "@/components/admin/users-tab";
 
 const ADMIN_TABS = [
@@ -70,6 +71,7 @@ const ADMIN_TABS = [
   { id: "blog", label: "Blog Writer", icon: FileText },
   { id: "costs", label: "Costs", icon: Coins },
   { id: "outreach", label: "Outreach", icon: Target },
+  { id: "x-engage", label: "X Engage", icon: X },
   { id: "partnerships", label: "Partnerships", icon: Briefcase },
 ];
 
@@ -670,6 +672,10 @@ export default function AdminPage() {
 
         <Tabs.Content value="outreach">
           <OutreachPanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="x-engage">
+          <TwitterEngagePanel />
         </Tabs.Content>
 
         <Tabs.Content value="partnerships">

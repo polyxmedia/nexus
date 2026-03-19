@@ -669,7 +669,24 @@ export const analystFollows = pgTable("analyst_follows", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Agent Simulations ──
+
+export const agentSimulations = pgTable("agent_simulations", {
+  id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().defaultRandom().unique(),
+  context: text("context").notNull(),
+  status: text("status").notNull().default("running"),
+  convergenceScore: doublePrecision("convergence_score"),
+  convergenceLabel: text("convergence_label"),
+  dominantStance: text("dominant_stance"),
+  agentResults: text("agent_results"), // JSON array of per-agent results
+  summary: text("summary"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // Type exports
+export type AgentSimulation = typeof agentSimulations.$inferSelect;
+export type NewAgentSimulation = typeof agentSimulations.$inferInsert;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 export type Signal = typeof signals.$inferSelect;
