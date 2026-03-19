@@ -35,7 +35,7 @@ export interface NarrativeSnapshot {
 // ── Cache ────────────────────────────────────────────────────────────────
 
 let snapshotCache: { data: NarrativeSnapshot; expiry: number } | null = null;
-const CACHE_TTL_MS = 600_000; // 10 minutes
+const CACHE_TTL_MS = 1_800_000; // 30 minutes (GDELT rate limits make frequent refreshes impractical)
 
 // ── Theme Definitions ────────────────────────────────────────────────────
 
@@ -172,11 +172,15 @@ interface GdeltArticle {
 
 async function fetchGdeltTheme(topic: string): Promise<GdeltArticle[]> {
   try {
-    const query = encodeURIComponent(topic);
+    // GDELT requires OR'd terms wrapped in parentheses
+    const query = encodeURIComponent(`(${topic})`);
     const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=20&format=json&sort=DateDesc`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return [];
-    const json = await res.json();
+    const text = await res.text();
+    // GDELT returns plain text errors, not JSON, on invalid queries
+    if (!text.startsWith("{") && !text.startsWith("[")) return [];
+    const json = JSON.parse(text);
     return (json?.articles || []) as GdeltArticle[];
   } catch {
     return [];
@@ -270,22 +274,44 @@ export async function getNarrativeSnapshot(themeFilter?: string): Promise<Narrat
     ? Object.keys(THEMES).filter(k => k === themeFilter)
     : Object.keys(THEMES);
 
-  // Fetch all data sources in parallel
-  const [gdeltResults, redditResults] = await Promise.all([
-    // GDELT: one query per theme
-    Promise.all(themeKeys.map(async (key) => {
-      const cfg = THEMES[key];
-      // Use first 3 keywords as query
-      const queryTerms = cfg.keywords.slice(0, 3).join(" OR ");
-      const articles = await fetchGdeltTheme(queryTerms);
-      return { key, articles };
-    })),
-    // Reddit: one query per subreddit
+  // GDELT rate limits to 1 request/5s. Batch themes into 3 groups to stay under.
+  // Each batch combines keywords from multiple themes into one query.
+  const BATCH_SIZE = Math.ceil(themeKeys.length / 3);
+  const themeBatches: string[][] = [];
+  for (let i = 0; i < themeKeys.length; i += BATCH_SIZE) {
+    themeBatches.push(themeKeys.slice(i, i + BATCH_SIZE));
+  }
+
+  const [gdeltBatchResults, redditResults] = await Promise.all([
+    // GDELT: 3 batched queries with 5.5s delay
+    (async () => {
+      const allArticles: GdeltArticle[] = [];
+      for (let i = 0; i < themeBatches.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 5500));
+        const batchKeywords = themeBatches[i]
+          .flatMap(key => THEMES[key].keywords.slice(0, 2))
+          .join(" OR ");
+        const articles = await fetchGdeltTheme(batchKeywords);
+        allArticles.push(...articles);
+      }
+      return allArticles;
+    })(),
+    // Reddit: parallel
     Promise.all(SUBREDDITS.map(async (sub) => {
       const posts = await fetchRedditHot(sub);
       return { subreddit: sub, posts };
     })),
   ]);
+
+  // Match GDELT articles back to themes by keyword
+  const gdeltResults: { key: string; articles: GdeltArticle[] }[] = themeKeys.map(key => {
+    const cfg = THEMES[key];
+    const matched = gdeltBatchResults.filter(article => {
+      const title = (article.title || "").toLowerCase();
+      return cfg.keywords.some(kw => title.includes(kw));
+    });
+    return { key, articles: matched };
+  });
 
   // Flatten Reddit posts for theme matching
   const allRedditPosts = redditResults.flatMap(r => r.posts);

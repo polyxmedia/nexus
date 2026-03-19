@@ -2252,7 +2252,7 @@ export default function PredictionsPage() {
                       Brier {resLabel.brierScore.toFixed(3)} ({resLabel.brierQuality})
                     </span>
 
-                    <span className="text-navy-800">|</span>
+                    <span className="text-navy-800 hidden sm:inline">|</span>
 
                     {/* Calibration note */}
                     <span className="text-[10px] text-navy-500">

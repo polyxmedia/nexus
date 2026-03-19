@@ -29,6 +29,10 @@ vi.mock("@/lib/regime/store", () => ({
   loadRegimeState: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/lib/security/csrf", () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 vi.mock("@/lib/gpr", () => ({
   getGPRSnapshot: vi.fn().mockResolvedValue({
     current: { composite: 100, threats: 120, acts: 80 },
@@ -91,7 +95,8 @@ describe("GET /api/regime", () => {
 describe("POST /api/regime", () => {
   it("detects current regime", async () => {
     const { POST } = await import("@/app/api/regime/route");
-    const res = await POST();
+    const req = createRequest("/api/regime", { method: "POST" });
+    const res = await POST(req);
     const { status, data } = await parseResponse<{ regime: unknown }>(res);
     expect(status).toBe(200);
     expect(data.regime).toBeDefined();
@@ -102,7 +107,8 @@ describe("POST /api/regime", () => {
     (detectCurrentRegime as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Detection failed"));
 
     const { POST } = await import("@/app/api/regime/route");
-    const res = await POST();
+    const req = createRequest("/api/regime", { method: "POST" });
+    const res = await POST(req);
     expect(res.status).toBe(500);
   });
 });

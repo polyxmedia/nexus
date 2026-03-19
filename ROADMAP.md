@@ -119,13 +119,13 @@
 
 ### v3.2 Congressional & Insider Trading Tracker
 - [ ] SEC Form 4 filings feed (corporate insider buys/sells)
-- [ ] Congressional STOCK Act disclosure tracking (House + Senate)
+- [x] Congressional STOCK Act disclosure tracking (House + Senate)
 - [ ] Cluster buy detection (multiple insiders buying same stock within window)
 - [ ] Insider buy/sell ratio by sector with historical signal accuracy
-- [ ] Congressional trading by committee (Armed Services, Finance, Intelligence)
+- [x] Congressional trading by committee (Armed Services, Finance, Intelligence)
 - [ ] Cross-reference insider trades with upcoming signals and catalysts
-- [ ] Dashboard widget with latest filings and cluster alerts
-- [ ] Chat tool for querying insider/congressional activity
+- [x] Dashboard widget with latest filings and cluster alerts
+- [x] Chat tool for querying insider/congressional activity
 
 ### v3.3 Sanctions & Export Controls Tracker
 - [ ] OFAC SDN list monitoring with change detection
@@ -216,7 +216,7 @@
 - [x] Signal intensity 4+ auto-generates prediction; intensity 5 triggers thesis + trade recommendations
 - [x] Alert chains: detect signal -> auto-create prediction -> thesis generation -> email notification
 - [x] Multi-channel delivery: in-app, push, email (Telegram not yet)
-- [ ] Configurable chain rules UI (user-editable action chains)
+- [x] Configurable chain rules UI (user-editable action chains)
 - [ ] Escalation levels based on convergence density
 - [ ] Close the loop from signal detection to position management
 
@@ -488,15 +488,25 @@
 
 ### Core Platform
 - [x] War Room geopolitical map with conflict zones, aircraft tracking, OSINT
-- [x] AI Chat analyst with 20+ intelligence tools
+- [x] AI Chat analyst with 60+ intelligence tools (including calculate, sentiment, supply chain, satellite, ML)
 - [x] Signal detection engine (multi-layer convergence, intensity 1-5)
 - [x] Prediction engine with accuracy tracking and Brier scoring
-- [x] Trading integration (Trading212)
+- [x] Trading integration (Trading212 + Coinbase + Polymarket)
 - [x] Thesis generation engine
-- [x] Knowledge bank
+- [x] Knowledge bank with GraphRAG
 - [x] Timeline event stream
-- [x] Entity relationship graph
-- [x] Alert system
+- [x] Entity relationship graph with path finder
+- [x] Alert system with email delivery
+- [x] Congressional trading tracker
+- [x] Social sentiment analysis (Twitter, Reddit, StockTwits)
+- [x] Supply chain graph analysis
+- [x] Satellite imagery analysis (Copernicus, VIIRS)
+- [x] ML models with feature importance
+- [x] Order book depth and microstructure
+- [x] Flow imbalance detection
+- [x] Unified portfolio aggregation across brokers
+- [x] Automation rules engine with visual editor
+- [x] Calculator tool for accurate financial math in chat
 
 ### Dashboard & Widgets
 - [x] Configurable dashboard with drag-and-drop reordering
@@ -524,6 +534,12 @@
 - [x] Search across chat titles and message content
 - [x] Move chats between projects
 - [x] Context menu (tag, move, delete)
+- [x] Cursor-based pagination with infinite scroll
+- [x] Mobile-responsive layout
+- [x] Model selector (Sonnet/Opus/Haiku)
+- [x] Voice input and voice calls
+- [x] File attachments (images, text, code)
+- [x] Rich tool result widgets (60+ tools with dedicated cards)
 
 ### Marketing
 - [x] Landing page with animated bento grid
@@ -608,10 +624,16 @@ The ingest UI is functional but rough.
 ### P3 — Lower Priority
 
 #### Mobile / Responsive Layout
-Entire app uses `ml-48` fixed sidebar. Nothing works below ~1200px.
-- [ ] Hamburger menu for sidebar on mobile
-- [ ] Responsive page containers
-- [ ] Priority: dashboard, signals list, thesis list
+- [x] Hamburger menu for sidebar on mobile
+- [x] Responsive page containers (ml-0 md:ml-48, responsive padding)
+- [x] Priority: dashboard, signals list, thesis list
+- [x] Chat mobile-responsive (wider bubbles, tighter padding, 16px input)
+- [x] GEX page responsive grids
+- [x] Parallels page responsive layout
+- [x] Graph page mobile overlay detail panel
+- [x] Game theory mobile list/detail toggle
+- [x] War room panels collapsed by default on mobile
+- [x] iOS zoom prevention (viewport maximumScale, 16px inputs)
 
 #### ACLED Conflict Data
 Mentioned in system design but not implemented.

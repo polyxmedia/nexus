@@ -15,15 +15,16 @@ function meetsMinTier(userTier: string, requiredTier: MinTier): boolean {
 // ── ROUTE_TIERS ──
 
 describe("ROUTE_TIERS", () => {
-  it("has all analyst routes at analyst level", () => {
-    const analystRoutes = ["chat", "signals", "predictions", "thesis", "news", "dashboard", "calendar", "timeline", "alerts"];
+  it("has core analyst routes at analyst level", () => {
+    const analystRoutes = ["chat", "signals", "predictions", "news", "calendar", "timeline", "alerts"];
     for (const route of analystRoutes) {
-      expect(ROUTE_TIERS[route]).toBe("analyst");
+      expect(ROUTE_TIERS[route], `Route "${route}" should be analyst`).toBe("analyst");
     }
   });
 
-  it("has war room at operator level", () => {
-    expect(ROUTE_TIERS["warroom"]).toBe("operator");
+  it("has dashboard and warroom accessible to free tier", () => {
+    expect(ROUTE_TIERS["dashboard"]).toBe("free");
+    expect(ROUTE_TIERS["warroom"]).toBe("free");
   });
 
   it("has trading at operator level", () => {
@@ -36,7 +37,7 @@ describe("ROUTE_TIERS", () => {
   });
 
   it("only contains valid tier values", () => {
-    const validTiers = new Set(["analyst", "operator", "institution"]);
+    const validTiers = new Set(["free", "analyst", "operator", "institution"]);
     for (const [route, tier] of Object.entries(ROUTE_TIERS)) {
       expect(validTiers.has(tier), `Route "${route}" has invalid tier "${tier}"`).toBe(true);
     }
@@ -53,23 +54,28 @@ describe("TOOL_TIERS", () => {
       "web_search", "search_knowledge",
     ];
     for (const tool of analystTools) {
-      expect(TOOL_TIERS[tool]).toBe("analyst");
+      expect(TOOL_TIERS[tool], `Tool "${tool}" should be analyst`).toBe("analyst");
     }
   });
 
   it("has advanced tools gated at operator tier", () => {
     const operatorTools = [
-      "get_game_theory", "get_iw_status", "get_market_regime",
-      "get_systemic_risk", "monte_carlo_simulation", "get_portfolio",
+      "get_market_regime", "get_systemic_risk",
+      "monte_carlo_simulation", "get_portfolio",
       "get_osint_events", "get_options_flow",
     ];
     for (const tool of operatorTools) {
-      expect(TOOL_TIERS[tool]).toBe("operator");
+      expect(TOOL_TIERS[tool], `Tool "${tool}" should be operator`).toBe("operator");
     }
   });
 
+  it("has game theory and IW at analyst tier", () => {
+    expect(TOOL_TIERS["get_game_theory"]).toBe("analyst");
+    expect(TOOL_TIERS["get_iw_status"]).toBe("analyst");
+  });
+
   it("only contains valid tier values", () => {
-    const validTiers = new Set(["analyst", "operator", "institution"]);
+    const validTiers = new Set(["free", "analyst", "operator", "institution"]);
     for (const [tool, tier] of Object.entries(TOOL_TIERS)) {
       expect(validTiers.has(tier), `Tool "${tool}" has invalid tier "${tier}"`).toBe(true);
     }
@@ -84,9 +90,12 @@ describe("PAGE_TIERS", () => {
     expect(PAGE_TIERS["/signals"]).toBe("analyst");
   });
 
-  it("maps warroom and trading to operator", () => {
-    expect(PAGE_TIERS["/warroom"]).toBe("operator");
+  it("maps trading to operator", () => {
     expect(PAGE_TIERS["/trading"]).toBe("operator");
+  });
+
+  it("maps warroom to free", () => {
+    expect(PAGE_TIERS["/warroom"]).toBe("free");
   });
 });
 
@@ -152,7 +161,6 @@ describe("tool filtering by tier", () => {
     const tools = filterTools("operator");
     const analystTools = filterTools("analyst");
     expect(tools.length).toBeGreaterThan(analystTools.length);
-    // All analyst tools should be included
     for (const t of analystTools) {
       expect(tools).toContain(t);
     }

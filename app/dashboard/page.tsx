@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { useSubscription } from "@/lib/hooks/useSubscription";
+import { WelcomeModal } from "@/components/onboarding/welcome-modal";
 
 // ── Types ──
 
@@ -132,6 +133,7 @@ const SIZE_LABELS: Record<number, string> = { 1: "sm", 2: "md", 3: "lg" };
 export default function DashboardPage() {
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   const [chartSymbol, setChartSymbol] = useState("SPY");

@@ -94,8 +94,8 @@ describe("GET /api/signals", () => {
 
   it("filters by intensity", async () => {
     const { db } = await import("@/lib/db");
+    // Filtering now happens at DB level, so mock returns only matching results
     const signals = [
-      { id: 1, title: "Signal 1", intensity: 3, status: "active" },
       { id: 2, title: "Signal 2", intensity: 5, status: "active" },
     ];
     const chain = (db.select as ReturnType<typeof vi.fn>)();
@@ -110,15 +110,14 @@ describe("GET /api/signals", () => {
     const res = await GET(req);
     const { status, data } = await parseResponse<Array<{ intensity: number }>>(res);
     expect(status).toBe(200);
-    // Filtering happens in-memory after fetch
     expect(data.every((s) => s.intensity === 5)).toBe(true);
   });
 
   it("filters by status", async () => {
     const { db } = await import("@/lib/db");
+    // Filtering now happens at DB level, so mock returns only matching results
     const signals = [
       { id: 1, title: "Signal 1", intensity: 3, status: "active" },
-      { id: 2, title: "Signal 2", intensity: 5, status: "expired" },
     ];
     const chain = (db.select as ReturnType<typeof vi.fn>)();
     Object.defineProperty(chain, "then", {

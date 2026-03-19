@@ -17,12 +17,17 @@ vi.mock("@/lib/graph/traversal", () => ({
   buildContextGraph: vi.fn().mockResolvedValue({ entities: [], relationships: [] }),
 }));
 
+vi.mock("drizzle-orm", () => ({
+  eq: vi.fn((...args: unknown[]) => ({ type: "eq", args })),
+  sql: vi.fn(),
+}));
+
 vi.mock("@/lib/db", () => {
   const mockChain: Record<string, unknown> = {};
   const methods = ["from", "where", "orderBy", "limit", "values", "returning", "set"];
   methods.forEach((m) => { mockChain[m] = vi.fn().mockReturnValue(mockChain); });
   Object.defineProperty(mockChain, "then", {
-    value: (resolve: (v: unknown) => void) => resolve([]),
+    value: (resolve: (v: unknown) => void) => resolve([{ count: 0 }]),
     writable: true, configurable: true,
   });
   return {

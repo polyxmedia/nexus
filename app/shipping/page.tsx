@@ -488,6 +488,10 @@ export default function ShippingPage() {
     ? overallLabel(snapshot.overallRiskScore)
     : { label: "—", color: "text-navy-500" };
 
+  const disruptedCount = snapshot
+    ? snapshot.chokepoints.filter(c => c.status === "disrupted").length
+    : 0;
+
   return (
     <PageContainer
       title="Shipping Intelligence"
@@ -530,7 +534,7 @@ export default function ShippingPage() {
               { label: "Risk Score", value: `${snapshot.overallRiskScore} / 100`, color: riskColor },
               { label: "Anomalies", value: `${snapshot.anomalies.length}`, color: "text-navy-200" },
               { label: "Dark Fleet Alerts", value: `${snapshot.darkFleetAlerts.length}`, color: "text-navy-200" },
-              { label: "Disrupted", value: `${snapshot.chokepoints.filter(c => c.status === "disrupted").length} / ${snapshot.chokepoints.length}`, color: snapshot.chokepoints.filter(c => c.status === "disrupted").length > 0 ? "text-accent-rose" : "text-navy-400" },
+              { label: "Disrupted", value: `${disruptedCount} / ${snapshot.chokepoints.length}`, color: disruptedCount > 0 ? "text-accent-rose" : "text-navy-400" },
             ].map((stat) => (
               <div key={stat.label} className="border border-navy-800/60 rounded bg-navy-950/80 px-3 py-2.5">
                 <p className="text-[9px] font-mono uppercase tracking-wider text-navy-600 mb-0.5">{stat.label}</p>

@@ -188,11 +188,13 @@ vi.mock("@/lib/encryption", () => ({
 vi.mock("@/lib/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(undefined),
   getUserEmail: vi.fn().mockResolvedValue("test@example.com"),
+  notifyAdmin: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/email/templates", () => ({
   welcomeEmail: vi.fn(() => ({ subject: "Welcome", html: "<p>Welcome</p>" })),
   ticketOpenedEmail: vi.fn(() => ({ subject: "Ticket", html: "<p>Ticket</p>" })),
+  adminNewUserEmail: vi.fn(() => ({ subject: "New User", html: "<p>New User</p>" })),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -240,6 +242,32 @@ vi.mock("@/lib/analysis/red-team", () => ({
 
 vi.mock("@/lib/stripe", () => ({
   getStripe: vi.fn(() => ({
+    customers: {
+      create: vi.fn().mockResolvedValue({ id: "cus_test123" }),
+      retrieve: vi.fn().mockResolvedValue({ id: "cus_test123" }),
+    },
+    subscriptions: {
+      create: vi.fn().mockResolvedValue({
+        id: "sub_test123",
+        pending_setup_intent: { client_secret: "seti_test_secret" },
+        latest_invoice: null,
+        items: { data: [{ current_period_start: 1700000000, current_period_end: 1702592000 }] },
+      }),
+      list: vi.fn().mockResolvedValue({ data: [] }),
+      cancel: vi.fn().mockResolvedValue({}),
+    },
+    prices: {
+      create: vi.fn().mockResolvedValue({ id: "price_test123" }),
+    },
+    products: {
+      create: vi.fn().mockResolvedValue({ id: "prod_test123" }),
+    },
+    setupIntents: {
+      create: vi.fn().mockResolvedValue({ client_secret: "seti_test_secret" }),
+    },
+    invoices: {
+      retrieve: vi.fn().mockResolvedValue({ payment_intent: null }),
+    },
     checkout: {
       sessions: {
         create: vi.fn().mockResolvedValue({
@@ -276,6 +304,7 @@ vi.mock("drizzle-orm", () => ({
   asc: vi.fn((...args: unknown[]) => ({ type: "asc", args })),
   gte: vi.fn((...args: unknown[]) => ({ type: "gte", args })),
   and: vi.fn((...args: unknown[]) => ({ type: "and", args })),
+  isNull: vi.fn((...args: unknown[]) => ({ type: "isNull", args })),
   isNotNull: vi.fn((...args: unknown[]) => ({ type: "isNotNull", args })),
   sql: vi.fn(),
 }));
@@ -1120,18 +1149,18 @@ describe("POST /api/stripe/checkout", () => {
 
   it("creates checkout session for valid tier", async () => {
     asAnalyst("alice");
-    setDbRows("subscriptionTiers", [{ id: 1, name: "analyst", stripePriceId: "price_test123" }]);
+    setDbRows("subscriptionTiers", [{ id: 1, name: "analyst", stripePriceId: "price_test123", price: 2900, features: "[]", interval: "month" }]);
     setDbRows("settings", [{ key: "user:alice", value: JSON.stringify({ email: "alice@test.com" }) }]);
     setDbRows("subscriptions", []);
     const res = await POST(makeRequest("/api/stripe/checkout", jsonBody({ tierId: 1 })));
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.url).toBeDefined();
+    expect(data.clientSecret).toBeDefined();
   });
 
   it("returns clientSecret for embedded mode", async () => {
     asAnalyst("alice");
-    setDbRows("subscriptionTiers", [{ id: 1, name: "analyst", stripePriceId: "price_test123" }]);
+    setDbRows("subscriptionTiers", [{ id: 1, name: "analyst", stripePriceId: "price_test123", price: 2900, features: "[]", interval: "month" }]);
     setDbRows("settings", [{ key: "user:alice", value: JSON.stringify({ email: "alice@test.com" }) }]);
     setDbRows("subscriptions", []);
     const res = await POST(makeRequest("/api/stripe/checkout", jsonBody({ tierId: 1, embedded: true })));

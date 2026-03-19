@@ -97,9 +97,9 @@ describe("GET /api/predictions", () => {
 
   it("filters by status=pending", async () => {
     const { db } = await import("@/lib/db");
+    // Filtering now happens at DB level with isNull(), so mock returns only pending
     const preds = [
       { id: 1, claim: "Pending", confidence: 0.7, outcome: null },
-      { id: 2, claim: "Resolved", confidence: 0.8, outcome: "correct" },
     ];
     const chain = (db.select as ReturnType<typeof vi.fn>)();
     Object.defineProperty(chain, "then", {
@@ -118,8 +118,8 @@ describe("GET /api/predictions", () => {
 
   it("filters by status=resolved", async () => {
     const { db } = await import("@/lib/db");
+    // Filtering now happens at DB level with not(isNull()), so mock returns only resolved
     const preds = [
-      { id: 1, outcome: null },
       { id: 2, outcome: "correct" },
     ];
     const chain = (db.select as ReturnType<typeof vi.fn>)();

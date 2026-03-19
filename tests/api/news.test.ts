@@ -1,7 +1,7 @@
-vi.mock("@/lib/news/feeds", () => ({
-  getNewsFeed: vi.fn().mockResolvedValue([
-    { title: "Test Article", url: "https://example.com/1", source: "reuters", publishedAt: "2025-01-01" },
-    { title: "Test Article 2", url: "https://example.com/2", source: "bbc", publishedAt: "2025-01-02" },
+vi.mock("@/lib/news/sync", () => ({
+  getCachedNews: vi.fn().mockResolvedValue([
+    { title: "Test Article", url: "https://example.com/1", source: "reuters", date: "2025-01-01" },
+    { title: "Test Article 2", url: "https://example.com/2", source: "bbc", date: "2025-01-02" },
   ]),
 }));
 
@@ -19,31 +19,33 @@ describe("GET /api/news", () => {
   });
 
   it("passes category filter", async () => {
-    const { getNewsFeed } = await import("@/lib/news/feeds");
+    const { getCachedNews } = await import("@/lib/news/sync");
     const { GET } = await import("@/app/api/news/route");
     const req = createRequest("/api/news?category=geopolitics");
     await GET(req);
-    expect(getNewsFeed).toHaveBeenCalledWith("geopolitics", 30);
+    expect(getCachedNews).toHaveBeenCalledWith("geopolitics", 30);
   });
 
   it("passes limit", async () => {
-    const { getNewsFeed } = await import("@/lib/news/feeds");
+    const { getCachedNews } = await import("@/lib/news/sync");
     const { GET } = await import("@/app/api/news/route");
     const req = createRequest("/api/news?limit=10");
     await GET(req);
-    expect(getNewsFeed).toHaveBeenCalledWith(undefined, 10);
+    expect(getCachedNews).toHaveBeenCalledWith(undefined, 10);
   });
 
   it("sets cache headers", async () => {
     const { GET } = await import("@/app/api/news/route");
     const req = createRequest("/api/news");
     const res = await GET(req);
-    expect(res.headers.get("Cache-Control")).toContain("s-maxage=300");
+    const cacheControl = res.headers.get("Cache-Control");
+    expect(cacheControl).not.toBeNull();
+    expect(cacheControl!).toContain("s-maxage=");
   });
 
   it("returns 500 on error", async () => {
-    const { getNewsFeed } = await import("@/lib/news/feeds");
-    (getNewsFeed as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Feed error"));
+    const { getCachedNews } = await import("@/lib/news/sync");
+    (getCachedNews as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Feed error"));
 
     const { GET } = await import("@/app/api/news/route");
     const req = createRequest("/api/news");

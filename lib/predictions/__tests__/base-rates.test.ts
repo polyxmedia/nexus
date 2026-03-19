@@ -143,7 +143,7 @@ describe("getBaseRate", () => {
   it("returns default when no rates match category", async () => {
     mockExecute.mockResolvedValueOnce({ rows: [makeRate({ category: "market" })] });
     const result = await getBaseRate("geopolitical", "oil prices rising");
-    expect(result).toEqual({ rate: 0.10, pattern: "default", sampleCount: 0 });
+    expect(result).toEqual({ rate: 0.30, pattern: "default", sampleCount: 0 });
   });
 
   it("returns default when no keywords match the claim", async () => {
@@ -151,7 +151,7 @@ describe("getBaseRate", () => {
       rows: [makeRate({ category: "geopolitical", keywords: "nuclear,missile" })],
     });
     const result = await getBaseRate("geopolitical", "oil prices rising");
-    expect(result).toEqual({ rate: 0.10, pattern: "default", sampleCount: 0 });
+    expect(result).toEqual({ rate: 0.30, pattern: "default", sampleCount: 0 });
   });
 
   it("matches by keyword and returns base_rate when sample_count < 5", async () => {
@@ -256,7 +256,7 @@ describe("getBaseRate", () => {
   it("returns default fallback when DB empty", async () => {
     mockExecute.mockResolvedValueOnce({ rows: [] });
     const result = await getBaseRate("anything", "some claim");
-    expect(result).toEqual({ rate: 0.10, pattern: "default", sampleCount: 0 });
+    expect(result).toEqual({ rate: 0.30, pattern: "default", sampleCount: 0 });
   });
 });
 

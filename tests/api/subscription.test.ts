@@ -23,6 +23,9 @@ vi.mock("@/lib/db", () => {
 });
 
 vi.mock("@/lib/auth/auth", () => ({ authOptions: {} }));
+vi.mock("@/lib/auth/effective-user", () => ({
+  getEffectiveUsername: vi.fn().mockResolvedValue("testuser"),
+}));
 vi.mock("next-auth/next", () => ({
   getServerSession: vi.fn().mockResolvedValue({ user: { name: "testuser" } }),
 }));
@@ -44,8 +47,8 @@ describe("GET /api/subscription", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    const nextAuth = await import("next-auth");
-    (nextAuth.getServerSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    const effectiveUser = await import("@/lib/auth/effective-user");
+    (effectiveUser.getEffectiveUsername as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
 
     const { GET } = await import("@/app/api/subscription/route");
     const res = await GET();

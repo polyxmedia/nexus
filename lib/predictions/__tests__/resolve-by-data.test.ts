@@ -48,6 +48,11 @@ vi.mock("@/lib/market-data/alpha-vantage", () => ({
   getDailySeries: vi.fn(),
 }));
 
+vi.mock("@/lib/market-data/provider", () => ({
+  getQuote: vi.fn(),
+  getDailySeries: vi.fn(),
+}));
+
 vi.mock("@/lib/knowledge/engine", () => ({
   getActiveKnowledge: vi.fn().mockResolvedValue([]),
 }));
