@@ -394,6 +394,13 @@ registerJob("ig-token-refresh", 45 * 60_000, async () => {
   }
 });
 
+registerJob("morning-briefing", 24 * 60 * 60_000, async () => {
+  // Daily morning briefing email to all subscribed users
+  const { sendMorningBriefings } = await import("@/lib/email/morning-briefing");
+  const result = await sendMorningBriefings();
+  console.log(`[morning-briefing] Sent: ${result.sent}, Failed: ${result.failed}`);
+});
+
 registerJob("twitter-analyst", 4 * 60 * 60_000, async () => {
   if (!aiEnabled()) return; // AI kill switch
   // Generate and post analyst commentary tweet every 4 hours
