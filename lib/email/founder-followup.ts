@@ -1,5 +1,5 @@
 import { db, schema } from "@/lib/db";
-import { like, eq } from "drizzle-orm";
+import { like, inArray } from "drizzle-orm";
 import { sendEmail } from "@/lib/email";
 import { founderFollowUpEmail } from "@/lib/email/templates";
 

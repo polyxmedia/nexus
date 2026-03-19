@@ -38,6 +38,24 @@ function parseOS(ua: string): string {
   return "Other";
 }
 
+// ── Bot Detection ──
+
+const BOT_UA_PATTERNS = /bot|crawl|spider|scrape|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|bingpreview|googlebot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12bot|dotbot|petalbot|bytespider|gptbot|claude|amazonbot|ia_archiver|mediapartners|adsbot|apis-google|feedfetcher|headlesschrome|phantomjs|prerender|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|site24x7|monitor|check_http|curl\/|wget\/|python-requests|httpx|go-http-client|java\/|libwww|apache-httpclient|okhttp/i;
+
+const BOT_REFERRER_PATTERNS = /storage\.googleapis\.com|amazon-adsystem\.com|themediatrust\.com|doubleverify\.com|moatads\.com|adsafeprotected\.com|integralads\.com/i;
+
+function detectBot(ua: string, referrer: string | null, screenWidth: number | null): boolean {
+  // UA pattern match
+  if (BOT_UA_PATTERNS.test(ua)) return true;
+  // Empty or missing UA
+  if (!ua || ua.length < 10) return true;
+  // Known bot referrers (ad verification, crawlers)
+  if (referrer && BOT_REFERRER_PATTERNS.test(referrer)) return true;
+  // No screen dimensions (headless browsers, bots don't send these)
+  if (!screenWidth || screenWidth === 0) return true;
+  return false;
+}
+
 const EXCLUDED_IPS_KEY = "analytics:excluded_ips";
 
 let _excludedCache: { ips: string[]; fetchedAt: number } | null = null;
@@ -109,6 +127,7 @@ export async function POST(req: NextRequest) {
     const deviceType = detectDevice(ua);
     const browser = parseBrowser(ua);
     const os = parseOS(ua);
+    const isBot = detectBot(ua, referrer || null, screenWidth);
 
     await db.insert(schema.analyticsEvents).values({
       eventType: "pageview",
@@ -125,6 +144,7 @@ export async function POST(req: NextRequest) {
       os,
       screenWidth: screenWidth && typeof screenWidth === "number" ? screenWidth : null,
       screenHeight: screenHeight && typeof screenHeight === "number" ? screenHeight : null,
+      isBot,
       createdAt: new Date().toISOString(),
     });
 

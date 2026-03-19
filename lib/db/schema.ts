@@ -1,4 +1,4 @@
-import { pgTable, text, integer, serial, doublePrecision, uuid, real } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, doublePrecision, uuid, real, boolean } from "drizzle-orm/pg-core";
 
 export const signals = pgTable("signals", {
   id: serial("id").primaryKey(),
@@ -491,6 +491,7 @@ export const analyticsEvents = pgTable("analytics_events", {
   screenWidth: integer("screen_width"),
   screenHeight: integer("screen_height"),
   duration: integer("duration"), // seconds on page (sent on next navigation)
+  isBot: boolean("is_bot").default(false),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
