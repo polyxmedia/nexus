@@ -1911,8 +1911,10 @@ async function executeCreateCustomGameTheory(input: Record<string, unknown>) {
   const description = (input.description as string)?.trim() || "";
   const actor1Name = (input.actor1_name as string)?.trim();
   const actor2Name = (input.actor2_name as string)?.trim();
-  const strategies1 = input.strategies1 as string[];
-  const strategies2 = input.strategies2 as string[];
+  const raw1 = input.strategies1;
+  const raw2 = input.strategies2;
+  const strategies1 = Array.isArray(raw1) ? raw1.map(String) : typeof raw1 === "string" ? raw1.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+  const strategies2 = Array.isArray(raw2) ? raw2.map(String) : typeof raw2 === "string" ? raw2.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
   const marketSectors = (input.market_sectors as string[]) || ["geopolitics"];
   const timeHorizon = (input.time_horizon as string) || "medium_term";
 

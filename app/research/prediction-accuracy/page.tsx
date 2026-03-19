@@ -545,6 +545,7 @@ export default function PredictionAccuracyPage() {
           )}
 
           {/* ── Calibration ── */}
+          {report.calibration.length > 0 && (
           <section className="px-6 py-16">
             <div ref={calibrationReveal.ref} className="max-w-5xl mx-auto">
               <div className={`transition-all duration-700 ${calibrationReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
@@ -638,10 +639,12 @@ export default function PredictionAccuracyPage() {
               )}
             </div>
           </section>
-
-          <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
+          )}
 
           {/* ── Category Breakdown ── */}
+          {(report.byCategory.length > 0 || report.directionLevel) && (
+          <>
+          <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
           <section className="px-6 py-16">
             <div ref={categoryReveal.ref} className="max-w-5xl mx-auto">
               <div className={`transition-all duration-700 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
@@ -721,6 +724,8 @@ export default function PredictionAccuracyPage() {
               )}
             </div>
           </section>
+          </>
+          )}
 
           {/* ── Trend ── */}
           {report.recentTrend && (

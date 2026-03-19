@@ -310,9 +310,9 @@ export async function POST(
   // Route tools by message intent (reduces ~37K tool tokens to ~8-15K)
   const filteredTools = selectTools(tierFilteredTools, userMessage);
 
-  // Input validation: max message length (16K chars)
-  if (userMessage.length > 16_000) {
-    return NextResponse.json({ error: "Message too long. Maximum 16,000 characters." }, { status: 400 });
+  // Input validation: max message length (100K chars — allows large pastes/documents)
+  if (userMessage.length > 100_000) {
+    return NextResponse.json({ error: "Message too long. Maximum 100,000 characters." }, { status: 400 });
   }
   // Input validation: max 5 file attachments, 10MB each
   if (attachedFiles && attachedFiles.length > 5) {
