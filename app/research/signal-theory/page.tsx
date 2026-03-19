@@ -19,37 +19,6 @@ function useReveal(threshold = 0.12) {
   return { ref, visible };
 }
 
-// ── Animated number ──
-function AnimNum({ value, suffix = "" }: { value: string; suffix?: string }) {
-  const [display, setDisplay] = useState(value);
-  const [scrambling, setScrambling] = useState(true);
-  const chars = "0123456789.x";
-
-  useEffect(() => {
-    if (!scrambling) return;
-    let frame = 0;
-    const maxFrames = 12;
-    const interval = setInterval(() => {
-      frame++;
-      if (frame >= maxFrames) {
-        setDisplay(value);
-        setScrambling(false);
-        clearInterval(interval);
-        return;
-      }
-      setDisplay(
-        value
-          .split("")
-          .map((ch, i) => (i < Math.floor((frame / maxFrames) * value.length) ? ch : chars[Math.floor(Math.random() * chars.length)]))
-          .join("")
-      );
-    }, 40);
-    return () => clearInterval(interval);
-  }, [value, scrambling, chars]);
-
-  return <span>{display}{suffix}</span>;
-}
-
 // ── Pulse ring SVG ──
 function PulseRing({ color, size = 120, delay = 0 }: { color: string; size?: number; delay?: number }) {
   return (

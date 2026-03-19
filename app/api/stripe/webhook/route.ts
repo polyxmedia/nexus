@@ -913,6 +913,29 @@ export async function POST(request: Request) {
         console.log(`Invoice event ${event.type}:`, (event.data.object as Stripe.Invoice).id);
         break;
       }
+
+      // ── Stripe Connect events ──
+
+      case "account.updated": {
+        const account = event.data.object as Stripe.Account;
+        const nexusUserId = account.metadata?.nexusUserId;
+        if (nexusUserId) {
+          const key = nexusUserId.startsWith("user:") ? nexusUserId : `user:${nexusUserId}`;
+          const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
+          if (rows.length > 0) {
+            try {
+              const data = JSON.parse(rows[0].value);
+              if (data.stripeConnectId === account.id) {
+                data.payoutsEnabled = account.payouts_enabled ?? false;
+                await db.update(schema.settings).set({ value: JSON.stringify(data) }).where(eq(schema.settings.key, key));
+              }
+            } catch {
+              // ignore parse errors
+            }
+          }
+        }
+        break;
+      }
     }
   } catch (error) {
     console.error("Webhook processing error:", error);

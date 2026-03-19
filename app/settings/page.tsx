@@ -435,6 +435,11 @@ export default function SettingsPage() {
   const [checkoutResult, setCheckoutResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
 
+  // Stripe Connect (payouts)
+  const [connectAccount, setConnectAccount] = useState<{ connected: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean } | null>(null);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectDisconnecting, setConnectDisconnecting] = useState(false);
+
   // AI Model
   const [aiModel, setAiModel] = useState("claude-sonnet-4-6");
   const [aiModelSaved, setAiModelSaved] = useState("claude-sonnet-4-6");

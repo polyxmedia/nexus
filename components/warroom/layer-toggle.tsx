@@ -6,7 +6,7 @@ import {
   GlobeAltIcon,
   FireIcon,
 } from "@heroicons/react/24/solid";
-import { Plane, Ship, Satellite, Crown } from "lucide-react";
+import { Plane, Ship, Satellite, Crown, Flame, Radiation } from "lucide-react";
 import type { WarRoomLayerVisibility } from "@/lib/warroom/types";
 
 interface LayerToggleProps {
@@ -20,6 +20,10 @@ interface LayerToggleProps {
   satelliteCount: number;
   satelliteMilitaryCount: number;
   vipCount: number;
+  fireCount: number;
+  fireHighCount: number;
+  radiationCount: number;
+  radiationElevatedCount: number;
 }
 
 const LAYERS = [
@@ -82,6 +86,26 @@ const LAYERS = [
     activeBg: "bg-amber-500/8",
     activeBorder: "border-amber-500/25",
     dotColor: "bg-amber-400",
+  },
+  {
+    key: "fires" as const,
+    label: "FIRE",
+    Icon: Flame,
+    heroIcon: null,
+    activeColor: "text-orange-400",
+    activeBg: "bg-orange-500/8",
+    activeBorder: "border-orange-500/25",
+    dotColor: "bg-orange-400",
+  },
+  {
+    key: "radiation" as const,
+    label: "RAD",
+    Icon: Radiation,
+    heroIcon: null,
+    activeColor: "text-lime-400",
+    activeBg: "bg-lime-500/8",
+    activeBorder: "border-lime-500/25",
+    dotColor: "bg-lime-400",
   },
 ];
 

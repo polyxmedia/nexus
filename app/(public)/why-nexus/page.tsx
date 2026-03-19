@@ -233,34 +233,58 @@ export default function WhyNexusPage() {
         <div ref={problemReveal.ref} className="max-w-5xl mx-auto">
           <SectionHead number="01" label="The Problem" visible={problemReveal.visible} />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {[
-              {
-                title: "Intelligence is siloed",
-                body: "Geopolitical analysts don't see market data. Traders don't see OSINT feeds. Risk managers don't see shipping disruptions in real time. The information exists, but it lives in different platforms with different logins and no connection between them.",
-              },
-              {
-                title: "Enterprise pricing locks out everyone else",
-                body: "Bloomberg costs $32K a year. Recorded Future starts at $60K. Palantir requires a sales call and a six-figure contract. The intelligence infrastructure that moves markets is available to institutions and nobody else.",
-              },
-              {
-                title: "AI trading tools are shallow",
-                body: "Most AI trading platforms scan price patterns and call it intelligence. They have no geopolitical context, no regime awareness, no understanding of why markets move. They see the chart. They miss the world.",
-              },
-              {
-                title: "No accountability",
-                body: "Analyst reports make claims that are never tracked. Trading signals come with no historical accuracy data. Nobody scores their predictions because scoring means admitting when you were wrong. Without calibration feedback, there is no improvement.",
-              },
-            ].map((card, i) => (
-              <div
-                key={card.title}
-                className={`border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 ${anim} ${problemReveal.visible ? shown : hidden}`}
-                style={{ transitionDelay: `${200 + i * 100}ms` }}
-              >
-                <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">{card.title}</h3>
-                <p className="text-[13px] text-navy-500 leading-relaxed">{card.body}</p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Wide card */}
+            <div
+              className={`md:col-span-2 md:row-span-2 border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 flex flex-col justify-between ${anim} ${problemReveal.visible ? shown : hidden}`}
+              style={{ transitionDelay: "200ms" }}
+            >
+              <div>
+                <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">Intelligence is siloed</h3>
+                <p className="text-[13px] text-navy-500 leading-relaxed">
+                  Geopolitical analysts don&apos;t see market data. Traders don&apos;t see OSINT feeds. Risk managers don&apos;t see shipping disruptions in real time. The information exists, but it lives in different platforms with different logins and no connection between them.
+                </p>
               </div>
-            ))}
+              <div className="mt-6 flex items-center gap-3">
+                <div className="flex -space-x-1">
+                  {["bg-accent-amber", "bg-accent-cyan", "bg-accent-emerald", "bg-accent-rose"].map((c) => (
+                    <div key={c} className={`h-2 w-2 rounded-full ${c} ring-1 ring-navy-950`} />
+                  ))}
+                </div>
+                <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600">4 layers, 0 connections</span>
+              </div>
+            </div>
+
+            {/* Top-right */}
+            <div
+              className={`md:col-span-2 border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 ${anim} ${problemReveal.visible ? shown : hidden}`}
+              style={{ transitionDelay: "300ms" }}
+            >
+              <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">Enterprise pricing locks out everyone else</h3>
+              <p className="text-[13px] text-navy-500 leading-relaxed">
+                Bloomberg costs $32K a year. Recorded Future starts at $60K. Palantir requires a sales call and a six-figure contract. The intelligence infrastructure that moves markets is available to institutions and nobody else.
+              </p>
+            </div>
+
+            {/* Bottom-right pair */}
+            <div
+              className={`border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 ${anim} ${problemReveal.visible ? shown : hidden}`}
+              style={{ transitionDelay: "400ms" }}
+            >
+              <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">AI trading tools are shallow</h3>
+              <p className="text-[13px] text-navy-500 leading-relaxed">
+                Most AI trading platforms scan price patterns and call it intelligence. They have no geopolitical context, no regime awareness, no understanding of why markets move. They see the chart. They miss the world.
+              </p>
+            </div>
+            <div
+              className={`border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 ${anim} ${problemReveal.visible ? shown : hidden}`}
+              style={{ transitionDelay: "500ms" }}
+            >
+              <h3 className="font-sans text-sm font-medium text-navy-200 mb-3">No accountability</h3>
+              <p className="text-[13px] text-navy-500 leading-relaxed">
+                Analyst reports make claims that are never tracked. Trading signals come with no historical accuracy data. Nobody scores their predictions because scoring means admitting when you were wrong. Without calibration feedback, there is no improvement.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -279,14 +303,16 @@ export default function WhyNexusPage() {
             One platform. Every layer of intelligence. From signal detection through to execution.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {capabilities.map((cap, i) => {
               const Icon = cap.icon;
               const isVisible = i <= activeCapabilityIndex;
+              // First two cards span 2 cols each (full width row), rest are single col
+              const span = i < 2 ? "lg:col-span-2" : "";
               return (
                 <div
                   key={cap.title}
-                  className={`border border-navy-800/60 rounded-lg bg-navy-900/30 p-5 ${anim} ${isVisible ? shown : hidden}`}
+                  className={`${span} border border-navy-800/60 rounded-lg bg-navy-900/30 p-5 ${anim} ${isVisible ? shown : hidden}`}
                 >
                   <div className="flex items-center gap-2.5 mb-3">
                     <Icon className="h-4 w-4" style={{ color: cap.color }} />
@@ -415,18 +441,23 @@ export default function WhyNexusPage() {
           )}
 
           <div
-            className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${anim} ${proofReveal.visible ? shown : hidden}`}
+            className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${anim} ${proofReveal.visible ? shown : hidden}`}
             style={{ transitionDelay: "350ms" }}
           >
-            <div className="border border-navy-800/60 rounded-lg bg-navy-900/30 p-5">
-              <h4 className="text-[10px] font-mono uppercase tracking-widest text-accent-cyan mb-3">
-                Scored, Not Curated
-              </h4>
-              <p className="text-[12px] text-navy-500 leading-relaxed">
-                Every prediction the system makes is tracked and scored using
-                Brier proper scoring rules. Misses are recorded the same as
-                hits. You see the real accuracy, not a highlight reel.
-              </p>
+            <div className="md:row-span-2 border border-navy-800/60 rounded-lg bg-navy-900/30 p-6 flex flex-col justify-between">
+              <div>
+                <h4 className="text-[10px] font-mono uppercase tracking-widest text-accent-cyan mb-3">
+                  Scored, Not Curated
+                </h4>
+                <p className="text-[12px] text-navy-500 leading-relaxed">
+                  Every prediction the system makes is tracked and scored using
+                  Brier proper scoring rules. Misses are recorded the same as
+                  hits. You see the real accuracy, not a highlight reel.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-navy-800/40">
+                <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600">Brier score range: 0 (perfect) to 1 (worst)</span>
+              </div>
             </div>
             <div className="border border-navy-800/60 rounded-lg bg-navy-900/30 p-5">
               <h4 className="text-[10px] font-mono uppercase tracking-widest text-accent-amber mb-3">
