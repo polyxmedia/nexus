@@ -433,6 +433,12 @@ registerJob("knowledge-hygiene", 24 * 60 * 60_000, async () => {
   await runKnowledgeHygiene();
 });
 
+registerJob("weekly-digest", 7 * 24 * 60 * 60_000, async () => {
+  const { generateAndSendDigests } = await import("@/lib/email/digest");
+  const result = await generateAndSendDigests();
+  console.log(`[weekly-digest] Sent ${result.sent}, failed ${result.failed}`);
+});
+
 function getBaseUrl() {
   return process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 }

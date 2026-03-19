@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -13,72 +13,7 @@ import {
   Crosshair,
   TrendingUp,
 } from "lucide-react";
-
-// ── Scroll Reveal ──
-
-function useReveal(threshold = 0.12) {
-  const [visible, setVisible] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { threshold }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return { ref, visible };
-}
-
-const anim = "transition-all duration-700 ease-out";
-const hidden = "opacity-0 translate-y-6";
-const shown = "opacity-100 translate-y-0";
-
-// ── Section Divider ──
-
-function Ruled() {
-  return (
-    <div className="max-w-4xl mx-auto px-6">
-      <div className="h-px bg-navy-700/40" />
-    </div>
-  );
-}
-
-// ── Section Header ──
-
-function SectionHead({
-  number,
-  label,
-  visible,
-  delay = 0,
-}: {
-  number: string;
-  label: string;
-  visible: boolean;
-  delay?: number;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-4 mb-10 ${anim} ${visible ? shown : hidden}`}
-      style={{ transitionDelay: `${delay}ms` }}
-    >
-      <span className="font-mono text-[10px] text-navy-600 tabular-nums">
-        {number}
-      </span>
-      <div className="h-px w-8 bg-navy-600/50" />
-      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-navy-500">
-        {label}
-      </span>
-    </div>
-  );
-}
+import { useReveal, anim, hidden, shown, Ruled, SectionHead } from "@/components/public/reveal";
 
 // ── Pipeline Step ──
 

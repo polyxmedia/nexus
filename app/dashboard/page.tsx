@@ -20,6 +20,7 @@ import {
   Search,
   X,
   Zap,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
@@ -346,6 +347,14 @@ export default function DashboardPage() {
       subtitle="Intelligence overview"
       actions={
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowOnboarding(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded border border-navy-700/40 text-navy-400 hover:text-navy-200 hover:border-navy-600/40 transition-colors"
+            title="Replay welcome tour"
+          >
+            <Eye className="h-3 w-3" />
+            Tour
+          </button>
           {editMode && (
             <button
               onClick={resetWidgets}

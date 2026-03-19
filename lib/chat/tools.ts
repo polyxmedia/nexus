@@ -936,6 +936,22 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     input_schema: { type: "object" as const, properties: {}, required: [] },
   },
   {
+    name: "draft_outreach_email",
+    description: "Draft a personalized outreach email to a prospect using the configured voice substrate. Provide the prospect's name, company, role, and what they care about. The system will craft a concise, authentic email that sounds like you, not like AI. Use when you want to reach out to potential customers, partners, or investors.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        prospect_name: { type: "string", description: "Person's name" },
+        company: { type: "string", description: "Company or firm name" },
+        role: { type: "string", description: "Their role (CIO, Head of Trading, Managing Partner, etc.)" },
+        prospect_type: { type: "string", enum: ["family_office", "commodity_desk", "ria_firm", "defense_intel", "crypto_fund", "investor", "other"], description: "Type of prospect for tailored messaging" },
+        context: { type: "string", description: "Any specific context about them (what they focus on, recent news, mutual connections)" },
+        goal: { type: "string", enum: ["demo", "call", "intro", "investment"], description: "What you want from this outreach (default: demo)" },
+      },
+      required: ["prospect_name", "company", "prospect_type"],
+    },
+  },
+  {
     name: "generate_narrative_report",
     description: "Generate a long-form intelligence briefing / lecture script pulling all signals, parallels, game theory, predictions, and thesis into a single coherent narrative. 10-15 minute reading time. Includes risk matrix and key takeaways.",
     input_schema: {
@@ -1596,6 +1612,8 @@ export async function executeTool(
       return executeGetCrossStreamAlerts();
     case "search_multilang_intel":
       return executeSearchMultilangIntel(input);
+    case "draft_outreach_email":
+      return executeDraftOutreachEmail(input);
     case "get_treasury_auctions":
       return executeGetTreasuryAuctions();
     case "get_cot_data":
@@ -2023,6 +2041,56 @@ async function executeGetEschatologicalConvergence(input: Record<string, unknown
     seldonApproachingCount: landscape.seldonApproachingCount,
     calendarEventsChecked: calendarEvents,
   };
+}
+
+async function executeDraftOutreachEmail(input: Record<string, unknown>) {
+  try {
+    const { loadPrompt } = await import("@/lib/prompts/loader");
+    const voice = await loadPrompt("outreach_voice");
+    const system = await loadPrompt("outreach_system");
+
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { getSettingValue } = await import("@/lib/settings/get-setting");
+    const apiKey = await getSettingValue("anthropic_api_key", process.env.ANTHROPIC_API_KEY);
+    if (!apiKey) return { error: "No API key configured" };
+
+    const client = new Anthropic({ apiKey });
+    const { HAIKU_MODEL } = await import("@/lib/ai/model");
+
+    const prospectName = input.prospect_name as string;
+    const company = input.company as string;
+    const role = (input.role as string) || "";
+    const prospectType = (input.prospect_type as string) || "other";
+    const context = (input.context as string) || "";
+    const goal = (input.goal as string) || "demo";
+
+    const prompt = `Draft an outreach email.
+
+Prospect: ${prospectName}${role ? `, ${role}` : ""} at ${company}
+Type: ${prospectType}
+Goal: ${goal === "investment" ? "Explore investment (equity for growth capital)" : goal === "demo" ? "Book a demo" : goal === "call" ? "Get on a 15-minute call" : "Make an introduction"}
+${context ? `Context: ${context}` : ""}
+
+Write the email subject line and body. Keep it under 150 words. Be specific to their world.`;
+
+    const res = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 500,
+      system: `${system}\n\nVOICE SUBSTRATE (follow exactly):\n${voice}`,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = res.content[0].type === "text" ? res.content[0].text : "";
+
+    return {
+      email: text,
+      prospect: { name: prospectName, company, role, type: prospectType },
+      goal,
+      note: "Review and personalize before sending. The voice substrate shapes the tone but you know the relationship best.",
+    };
+  } catch (err) {
+    return { error: `Email draft failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
 }
 
 async function executeGetTreasuryAuctions() {

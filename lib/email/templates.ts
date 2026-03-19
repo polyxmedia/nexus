@@ -385,3 +385,52 @@ export function invoiceOverdueEmail(username: string, settingsUrl: string) {
     ),
   };
 }
+
+export interface WeeklyDigestData {
+  dateRange: string;
+  signalsCount: number;
+  highestIntensity: number;
+  predictionsCreated: number;
+  predictionsResolved: number;
+  avgBrier: number | null;
+  activeTheses: number;
+  regime: string | null;
+}
+
+function sectionLabel(text: string) {
+  return `<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:${DARK.label};margin-top:24px;margin-bottom:8px;border-bottom:1px solid ${DARK.border};padding-bottom:6px;">${text}</div>`;
+}
+
+export function weeklyDigestEmail(username: string, data: WeeklyDigestData) {
+  const sections: string[] = [];
+
+  sections.push(sectionLabel("Signal Activity"));
+  sections.push(metricRow([
+    { label: "Signals This Week", value: String(data.signalsCount) },
+    { label: "Highest Intensity", value: `${data.highestIntensity}/5` },
+  ]));
+
+  sections.push(sectionLabel("Predictions"));
+  sections.push(metricRow([
+    { label: "Created", value: String(data.predictionsCreated) },
+    { label: "Resolved", value: String(data.predictionsResolved) },
+    ...(data.avgBrier != null ? [{ label: "Avg Brier", value: data.avgBrier.toFixed(3) }] : []),
+  ]));
+
+  sections.push(sectionLabel("Theses & Regime"));
+  sections.push(metricRow([
+    { label: "Active Theses", value: String(data.activeTheses) },
+    ...(data.regime ? [{ label: "Current Regime", value: data.regime }] : []),
+  ]));
+
+  return {
+    subject: `NEXUS Weekly Brief - ${data.dateRange}`,
+    html: layout(
+      heading("Weekly Intelligence Brief") +
+        mutedText(`${data.dateRange} / ${username}`) +
+        sections.join("") +
+        button("View Dashboard", `${SITE_URL}/dashboard`) +
+        mutedText(`<a href="${SITE_URL}/settings?tab=notifications" style="color:${DARK.muted};font-size:11px;">Unsubscribe from weekly digests</a>`)
+    ),
+  };
+}

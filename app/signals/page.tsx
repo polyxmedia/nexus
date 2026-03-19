@@ -99,24 +99,46 @@ export default function SignalsPage() {
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetch("/api/signals")
-      .then((r) => r.json())
-      .then((data) => {
-        const sigs = Array.isArray(data) ? data : data.signals || [];
-        setSignals(sigs);
-        setLoading(false);
-        // Fetch comment counts
-        if (sigs.length > 0) {
-          const ids = sigs.map((s: Signal) => s.id).join(",");
-          fetch(`/api/comments?view=counts&targetType=signal&ids=${ids}`)
-            .then((r) => r.ok ? r.json() : { counts: {} })
-            .then((d) => setCommentCounts(d.counts || {}))
-            .catch((err) => console.error("[Signals] comment counts fetch failed:", err));
-        }
-      })
-      .catch(() => setLoading(false));
+  const fetchSignals = useCallback(async () => {
+    try {
+      const res = await fetch("/api/signals");
+      const data = await res.json();
+      const sigs = Array.isArray(data) ? data : data.signals || [];
+      setSignals(sigs);
+      if (sigs.length > 0) {
+        const ids = sigs.map((s: Signal) => s.id).join(",");
+        fetch(`/api/comments?view=counts&targetType=signal&ids=${ids}`)
+          .then((r) => r.ok ? r.json() : { counts: {} })
+          .then((d) => setCommentCounts(d.counts || {}))
+          .catch(() => {});
+      }
+    } catch { /* silent */ }
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchSignals();
+  }, [fetchSignals]);
+
+  const handleRunNow = async () => {
+    setRunning(true);
+    setRunResult(null);
+    try {
+      const res = await fetch("/api/signals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: new Date().getFullYear() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const count = data.inserted ?? data.signals?.length ?? 0;
+        setRunResult(count);
+        await fetchSignals();
+        setTimeout(() => setRunResult(null), 4000);
+      }
+    } catch { /* silent */ }
+    setRunning(false);
+  };
 
   // Derived analytics
   const analytics = useMemo(() => {
@@ -452,6 +474,18 @@ export default function SignalsPage() {
             Clear
           </button>
         )}
+
+        <div className="ml-auto flex items-center gap-2">
+          {runResult !== null && (
+            <span className="text-[10px] font-mono text-accent-emerald animate-pulse">
+              +{runResult} signals
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={handleRunNow} disabled={running}>
+            {running ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
+            Run Now
+          </Button>
+        </div>
       </div>
 
       {/* Results count */}

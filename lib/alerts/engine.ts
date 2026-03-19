@@ -28,6 +28,12 @@ function getEffectiveCooldownMs(baseCooldownMinutes: number, triggerCount: numbe
 const signalIntensityCache = new Map<number, { intensity: number; timestamp: number }>();
 const SIGNAL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
 
+// GEX regime tracking - detect flips between dampening/amplifying
+let lastGexRegime: string | null = null;
+
+// BOCPD change points already triggered - avoid duplicates
+const bocpdSeenPoints = new Set<string>();
+
 export interface AlertCondition {
   // price_threshold
   ticker?: string;
@@ -47,6 +53,11 @@ export interface AlertCondition {
   radiusKm?: number;
   // custom
   expression?: string;
+  // gex_flip
+  gexTickers?: string[];
+  // change_point
+  streams?: string[];
+  minProbability?: number;
 }
 
 export async function getAlerts(userId?: string) {
@@ -354,6 +365,55 @@ export async function evaluateAlerts(): Promise<number> {
         } catch {
           // unavailable
         }
+        break;
+      }
+
+      case "gex_flip": {
+        try {
+          const { getGEXSnapshot } = await import("@/lib/gex");
+          const ticker = Array.isArray(condition.gexTickers) ? condition.gexTickers[0] : condition.gexTickers;
+          const snapshot = await getGEXSnapshot(ticker || "SPY");
+          if (snapshot && snapshot.aggregateRegime) {
+            const currentRegime = snapshot.aggregateRegime;
+            if (lastGexRegime && currentRegime !== lastGexRegime) {
+              shouldTrigger = true;
+              title = `Gamma regime flipped to ${currentRegime.toUpperCase()}`;
+              message = currentRegime === "amplifying"
+                ? "Dealers now net short gamma. Moves will be amplified by hedging flows. Expect increased volatility."
+                : "Dealers now net long gamma. Expect range compression and mean reversion.";
+              severity = currentRegime === "amplifying" ? 4 : 3;
+              data = { previousRegime: lastGexRegime, currentRegime, tickers: condition.gexTickers || ["SPY", "QQQ", "IWM"] };
+            }
+            lastGexRegime = currentRegime;
+          }
+        } catch { /* GEX unavailable */ }
+        break;
+      }
+
+      case "change_point": {
+        try {
+          const { getBOCPDSnapshot } = await import("@/lib/bocpd");
+          const targetStreams = condition.streams || ["vix", "gold", "oil", "us10y", "dxy"];
+          const minProb = condition.minProbability || 0.7;
+          for (const stream of targetStreams) {
+            const snapshot = await getBOCPDSnapshot(stream);
+            if (!snapshot?.recentChangePoints) continue;
+            for (const cp of snapshot.recentChangePoints) {
+              if (cp.probability < minProb) continue;
+              const key = `${stream}:${cp.date}`;
+              if (bocpdSeenPoints.has(key)) continue;
+              bocpdSeenPoints.add(key);
+              shouldTrigger = true;
+              const isHighPriority = ["vix", "oil"].includes(stream);
+              title = `Structural break detected in ${stream.toUpperCase()}`;
+              message = `Change-point probability: ${(cp.probability * 100).toFixed(0)}%. Run length: ${cp.runLength ?? "unknown"} days.`;
+              severity = isHighPriority ? 4 : 3;
+              data = { stream, probability: cp.probability, runLength: cp.runLength, date: cp.date };
+              break; // one trigger per evaluation cycle
+            }
+            if (shouldTrigger) break;
+          }
+        } catch { /* BOCPD unavailable */ }
         break;
       }
     }
