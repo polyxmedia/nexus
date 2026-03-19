@@ -71,7 +71,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ tweets });
   } catch (err) {
     console.error("[admin/twitter-engage] Search error:", err);
-    return NextResponse.json({ tweets: [] });
+    const message = err instanceof Error ? err.message : "Search failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

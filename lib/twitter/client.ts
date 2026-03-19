@@ -255,7 +255,7 @@ export interface SearchedTweet {
  */
 export async function searchTweets(query: string, maxResults: number = 10): Promise<SearchedTweet[]> {
   const token = await getAccessToken();
-  if (!token) return [];
+  if (!token) throw new Error("Twitter not authenticated. Reconnect in Admin > Integrations.");
 
   const params = new URLSearchParams({
     query,
@@ -273,7 +273,13 @@ export async function searchTweets(query: string, maxResults: number = 10): Prom
   if (!res.ok) {
     const body = await res.text();
     console.error(`[twitter] Search failed (${res.status}): ${body}`);
-    return [];
+    if (res.status === 401 || res.status === 403) {
+      throw new Error("Twitter auth expired or insufficient permissions. Reconnect in Admin > Integrations.");
+    }
+    if (res.status === 429) {
+      throw new Error("Twitter rate limit hit. Try again in a few minutes.");
+    }
+    throw new Error(`Twitter search failed (${res.status})`);
   }
 
   const json = await res.json();

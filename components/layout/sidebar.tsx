@@ -110,6 +110,7 @@ const analyticsNav: NavItem[] = [
   { name: "Change-Points", href: "/bocpd", icon: Activity },
   { name: "Shipping", href: "/shipping", icon: Anchor },
   { name: "Simulation", href: "/simulation", icon: Dice5 },
+  { name: "Agent Sim", href: "/agent-simulation", icon: Users },
 ];
 
 function NavSection({ label, items, pathname, checkAccess }: { label: string; items: NavItem[]; pathname: string; checkAccess?: (tier: "free" | "analyst" | "observer" | "operator" | "institution") => boolean }) {

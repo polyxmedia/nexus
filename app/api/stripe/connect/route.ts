@@ -66,6 +66,7 @@ export async function GET() {
       delete userData.stripeConnectId;
       delete userData.payoutsEnabled;
       await updateUserData(session.user.name, userData);
+      await syncReferralCode(session.user.name, null);
       return NextResponse.json({ connected: false, payoutsEnabled: false });
     }
   } catch (error) {

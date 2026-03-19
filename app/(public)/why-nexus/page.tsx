@@ -62,27 +62,28 @@ function MiniSignalBars({ active }: { active: boolean }) {
 }
 
 // ── Mini Chat (visual preview for AI Analysis card) ──
+const CHAT_MESSAGES = [
+  { role: "user", text: "Iran escalation risk?" },
+  { role: "ai", text: "Hormuz closure probability 73%. Energy correlation spiking." },
+  { role: "user", text: "Best hedge?" },
+  { role: "ai", text: "Long XLE, short transport. Confidence 81%." },
+];
+
 function MiniChat({ active }: { active: boolean }) {
-  const messages = [
-    { role: "user", text: "Iran escalation risk?" },
-    { role: "ai", text: "Hormuz closure probability 73%. Energy correlation spiking." },
-    { role: "user", text: "Best hedge?" },
-    { role: "ai", text: "Long XLE, short transport. Confidence 81%." },
-  ];
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     if (!active) return;
     const interval = setInterval(() => {
-      setCount((c) => (c >= messages.length ? 0 : c + 1));
+      setCount((c) => (c >= CHAT_MESSAGES.length ? 0 : c + 1));
     }, 1800);
     return () => clearInterval(interval);
-  }, [active, messages.length]);
+  }, [active]);
 
   return (
     <div className="relative h-32 bg-navy-900/80 overflow-hidden p-3">
       <div className="space-y-1.5 h-full overflow-hidden">
-        {messages.slice(0, count).map((msg, i) => (
+        {CHAT_MESSAGES.slice(0, count).map((msg, i) => (
           <div key={i} className={`flex gap-1.5 items-start ${msg.role === "user" ? "justify-end" : ""}`}>
             {msg.role === "ai" && (
               <div className="h-3.5 w-3.5 rounded-full bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -160,14 +161,6 @@ function MiniChokepoints({ active }: { active: boolean }) {
     { name: "BOSPORUS", x: 50, y: 28, status: "elevated" },
     { name: "PANAMA", x: 22, y: 48, status: "normal" },
   ];
-  const [pulse, setPulse] = useState(0);
-
-  useEffect(() => {
-    if (!active) return;
-    const interval = setInterval(() => setPulse((p) => p + 1), 2000);
-    return () => clearInterval(interval);
-  }, [active]);
-
   return (
     <div className="relative h-32 bg-navy-900/80 overflow-hidden">
       <div className="absolute inset-0 opacity-[0.04]" style={{

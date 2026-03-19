@@ -719,7 +719,7 @@ export default function SettingsPage() {
       fetch("/api/stripe/connect")
         .then((r) => r.json())
         .then((data) => setConnectAccount(data))
-        .catch(() => {});
+        .catch(() => setConnectError("Could not verify account status. Please refresh the page."));
       window.history.replaceState({}, "", window.location.pathname + "?tab=subscription");
     }
     if (callbackParams.get("connect") === "refresh") {
