@@ -9,6 +9,7 @@ import {
   BarChart3,
   Bell,
   BookOpen,
+  Brain,
   Check,
   ChevronRight,
   Clock,
@@ -19,6 +20,7 @@ import {
   LayoutDashboard,
   Lock,
   MessageSquare,
+  Network,
   Newspaper,
   RotateCcw,
   Route,
@@ -50,7 +52,7 @@ import { useSubscription } from "@/lib/hooks/useSubscription";
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, MessageSquare, Newspaper, Settings, Activity, Crosshair,
   Shield, BookOpen, Swords, Globe, Target, Users, BarChart3, TrendingUp,
-  FileText, Bell, History, Trophy,
+  FileText, Bell, History, Trophy, Brain, Network,
 };
 
 // ── Tier access ──

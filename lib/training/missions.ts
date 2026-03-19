@@ -245,6 +245,58 @@ export const MISSIONS: Mission[] = [
     ],
   },
 
+  // ── Analysis: Deep Theory ──
+  {
+    id: "game-theory-foundations",
+    title: "Game Theory: How Nations Think",
+    description: "Understand Nash equilibria, Schelling focal points, and why rational actors still go to war. This is the analytical framework behind NEXUS scenario modeling.",
+    track: "analysis",
+    xp: 150,
+    icon: "Swords",
+    minTier: "free",
+    order: 5,
+    steps: [
+      { id: "gt-nash", title: "Nash Equilibria", description: "A Nash equilibrium is when no player can improve their outcome by changing strategy alone. In geopolitics, these are the stable configurations where nobody has incentive to move first.", route: "/game-theory", action: "Open any scenario and find the Nash equilibria. Notice how 'stable' equilibria have positive total payoffs while 'unstable' ones are lose-lose." },
+      { id: "gt-schelling", title: "Schelling Focal Points", description: "When actors can't communicate, they gravitate toward 'obvious' outcomes. The status quo, mutual de-escalation, or historically precedented outcomes are focal points. They're not always optimal, just mutually expected.", route: "/game-theory", action: "Look at the Schelling points in a scenario. These are what happens when both sides play it safe without coordination." },
+      { id: "gt-escalation", title: "Escalation Ladders", description: "Escalation is rarely a single decision. It's a sequence of steps where each one makes the next more likely. The escalation ladder shows the probability and market impact at each level.", route: "/game-theory", action: "Read an escalation ladder from level 1 to 5. Notice how market impact compounds at each step." },
+      { id: "gt-fearon", title: "Why Wars Happen (Fearon)", description: "James Fearon showed that rational actors should always negotiate because war is costly. Wars happen when: the bargaining range collapses (no zone of agreement), actors can't commit to deals, or private information creates miscalculation. NEXUS measures the bargaining range for each scenario.", route: "/chat", action: "Ask the analyst: 'What is the Fearon bargaining range for the Iran-Israel scenario and what does it mean?'" },
+      { id: "gt-market", title: "Game Theory → Market Impact", description: "Every equilibrium has market consequences. The most likely outcome tells you which sectors benefit or suffer. The escalation probability tells you how to weight hedges.", route: "/game-theory", action: "Find the market assessment for any scenario. Note the direction (bullish/bearish), confidence, and key sectors affected." },
+    ],
+  },
+  {
+    id: "bayesian-thinking",
+    title: "Bayesian Analysis: Updating Beliefs",
+    description: "Learn how NEXUS uses Bayes' theorem to update actor type probabilities from observed signals. This is the mathematical backbone of the intelligence system.",
+    track: "analysis",
+    xp: 150,
+    icon: "Brain",
+    minTier: "free",
+    order: 6,
+    steps: [
+      { id: "bay-prior", title: "Prior Probabilities", description: "Every actor starts with a distribution of 'types' (cooperative, hawkish, desperate, calculating, escalatory, defensive). These priors come from historical behavior and structural analysis. They're what we believe before seeing new data.", route: "/game-theory", action: "Open the Bayesian N-player analysis and look at actor type distributions. Notice how each actor has a different probability spread across types." },
+      { id: "bay-update", title: "Bayesian Updating", description: "When a signal fires (military exercise, diplomatic statement, sanctions), NEXUS updates the actor type probabilities using Bayes' rule. A hawkish signal increases P(hawkish) and decreases P(cooperative). The magnitude depends on how surprising the signal is.", route: "/chat", action: "Ask the analyst: 'Run a Bayesian analysis on the Taiwan scenario with the signal that China conducted military exercises near Taiwan.'" },
+      { id: "bay-prospect", title: "Prospect Theory", description: "Kahneman and Tversky showed that actors feel losses 2.25x more than equivalent gains. Cornered actors fight harder than payoffs suggest because losing hurts more than winning helps. NEXUS applies this to actor decision modeling.", route: "/chat", action: "Ask the analyst: 'How does prospect theory affect Iran's strategy in the nuclear scenario?'" },
+      { id: "bay-audience", title: "Audience Costs", description: "Democratic leaders who publicly commit to a position face domestic punishment if they back down. This makes some strategies unavailable after public statements. Authoritarian leaders have lower audience costs. NEXUS models this asymmetry.", route: "/chat", action: "Ask: 'Which actors in the current scenarios face the highest audience costs and what strategies does that eliminate?'" },
+      { id: "bay-calibration", title: "Calibration: Are We Right?", description: "Bayesian analysis is only useful if it's calibrated. NEXUS tracks every prediction with Brier scores. A Brier score of 0 is perfect, 0.25 is a coin flip. The system automatically adjusts confidence based on past accuracy.", route: "/predictions", action: "Open the Research Analytics section and study the calibration curve. Points on the diagonal mean stated confidence matches reality." },
+    ],
+  },
+  {
+    id: "cross-domain-analysis",
+    title: "Cross-Domain Intelligence",
+    description: "Learn to connect signals across geopolitical, market, OSINT, and alternative data streams. This is where NEXUS creates alpha that single-domain tools miss.",
+    track: "analysis",
+    xp: 125,
+    icon: "Network",
+    minTier: "free",
+    order: 7,
+    steps: [
+      { id: "cd-convergence", title: "Signal Convergence", description: "When military flights spike near a chokepoint, oil futures rise, and shipping insurance rates jump within 48 hours, that's convergence. Individual signals are noise. Convergence is signal.", route: "/chat", action: "Ask: 'Are any data streams converging right now?' to see cross-stream correlation alerts." },
+      { id: "cd-country-risk", title: "Country Risk Index", description: "NEXUS aggregates OSINT events, signal intensity, game theory scenarios, chokepoint exposure, and military power into a 0-100 risk score per country. This is the intelligence equivalent of a credit score.", route: "/chat", action: "Ask: 'Show me the riskiest countries right now' to see the country intelligence index." },
+      { id: "cd-scenario-impact", title: "Scenario → Portfolio", description: "The position impact simulator maps geopolitical scenarios to your actual portfolio. 'What happens to my positions if Iran closes Hormuz?' This bridges intelligence and money.", route: "/chat", action: "Ask: 'Simulate scenario impacts on my portfolio' or go to the game theory page and look at sector impacts." },
+      { id: "cd-multilang", title: "Multi-Language Intelligence", description: "Regional news in Arabic, Mandarin, Russian, or Farsi often surfaces hours before English wire services. NEXUS queries GDELT in 12 languages to catch signals early.", route: "/chat", action: "Ask: 'Search Arabic sources for Iran nuclear activity' to see multi-language intelligence in action." },
+    ],
+  },
+
   // ── Operations ──
   {
     id: "market-data",

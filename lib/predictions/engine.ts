@@ -1703,6 +1703,18 @@ Output a brief devil's advocate summary (max 300 words).`;
     let priceTarget = llmPriceTarget || parsed_dl.priceTarget;
     let referenceSymbol = llmRefSymbol || parsed_dl.referenceSymbol;
 
+    // ── GUARD 0: Reject imperative/operational claims ──
+    // These are action items, not falsifiable predictions. They damage calibration
+    // because they resolve as "partial" (unfalsifiable) at high confidence.
+    // Examples: "Deploy VIX monitoring", "Upgrade regime to pre-crisis", "Establish alerts"
+    const imperativePatterns = /^(deploy|establish|upgrade|activate|execute|implement|initiate|configure|monitor|track|set up|create|build|install|launch|enable)\b/i;
+    const operationalPatterns = /\b(monitoring infrastructure|monitoring system|alert system|immediately|urgently|right now)\b/i;
+    if (imperativePatterns.test(p.claim) || operationalPatterns.test(p.claim)) {
+      console.warn(`[predictions] REJECTED imperative claim: ${p.claim.slice(0, 80)}...`);
+      emit(`Rejected (imperative, not falsifiable): ${p.claim.slice(0, 60)}...`, "done");
+      continue;
+    }
+
     // ── GUARD 1: Detect unresolvable claim types ──
     // Relative performance, new-high/low, and percentage-move claims cannot be resolved
     // by single-instrument threshold checks. Clear the price target so they route to AI resolution.
