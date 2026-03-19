@@ -561,7 +561,7 @@ export async function POST(request: Request) {
           .from(schema.subscriptions)
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
 
-        if (subRows.length > 0 && subRows[0].status === "active") {
+        if (subRows.length > 0 && (subRows[0].status === "active" || subRows[0].status === "trialing")) {
           const username = subRows[0].userId.replace("user:", "");
           const amountPaid = invoice.amount_paid; // in cents
           // Only create commission if actual money was paid (skip $0 trial invoices)

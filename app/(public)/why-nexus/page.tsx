@@ -14,7 +14,7 @@ import {
   Check,
   Loader2,
 } from "lucide-react";
-import { useReveal, anim, hidden, shown, Ruled, SectionHead } from "@/components/public/reveal";
+import { useReveal, anim, hidden, shown, SectionHead, Ruled } from "@/components/public/reveal";
 import { CompetitorComparison } from "@/components/public/competitor-comparison";
 
 // ── Live Stats ──
@@ -226,8 +226,6 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled maxWidth="max-w-5xl" />
-
       {/* ── THE PROBLEM ── */}
       <section className="px-6 py-20">
         <div ref={problemReveal.ref} className="max-w-5xl mx-auto">
@@ -289,8 +287,6 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled maxWidth="max-w-5xl" />
-
       {/* ── WHAT NEXUS DOES ── */}
       <section className="px-6 py-20">
         <div ref={capReveal.ref} className="max-w-5xl mx-auto">
@@ -328,8 +324,6 @@ export default function WhyNexusPage() {
         </div>
       </section>
 
-      <Ruled maxWidth="max-w-5xl" />
-
       {/* ── COMPETITIVE COMPARISON ── */}
       <section className="px-6 py-20">
         <div ref={compReveal.ref} className="max-w-5xl mx-auto">
@@ -350,8 +344,6 @@ export default function WhyNexusPage() {
           </div>
         </div>
       </section>
-
-      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── LIVE PROOF ── */}
       <section className="px-6 py-20">
@@ -483,8 +475,6 @@ export default function WhyNexusPage() {
           </div>
         </div>
       </section>
-
-      <Ruled maxWidth="max-w-5xl" />
 
       {/* ── PRICING ── */}
       <section className="px-6 py-20">

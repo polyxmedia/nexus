@@ -6,6 +6,15 @@ import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { validateOrigin } from "@/lib/security/csrf";
 
+/** Sync Connect account ID to user's referral code (if they have one) */
+async function syncReferralCode(userId: string, stripeConnectId: string | null) {
+  const fullId = userId.startsWith("user:") ? userId : `user:${userId}`;
+  await db
+    .update(schema.referralCodes)
+    .set({ stripeConnectId })
+    .where(eq(schema.referralCodes.userId, fullId));
+}
+
 async function getUserData(userId: string) {
   const key = `user:${userId}`;
   const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, key));
@@ -105,9 +114,10 @@ export async function POST(request: Request) {
       });
       accountId = account.id;
 
-      // Save Connect account ID to user data
+      // Save Connect account ID to user data + sync to referral code
       userData.stripeConnectId = accountId;
       await updateUserData(session.user.name, userData);
+      await syncReferralCode(session.user.name, accountId);
     }
 
     // Create account link for onboarding (or re-onboarding if incomplete)

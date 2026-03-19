@@ -120,6 +120,10 @@ export function LayerToggle({
   satelliteCount,
   satelliteMilitaryCount,
   vipCount,
+  fireCount,
+  fireHighCount,
+  radiationCount,
+  radiationElevatedCount,
 }: LayerToggleProps) {
   function getCount(key: string): string | null {
     if (key === "aircraft" && visibility.aircraft && aircraftCount > 0) {
@@ -136,6 +140,12 @@ export function LayerToggle({
     }
     if (key === "vipAircraft" && visibility.vipAircraft && vipCount > 0) {
       return `${vipCount}`;
+    }
+    if (key === "fires" && visibility.fires && fireCount > 0) {
+      return fireHighCount > 0 ? `${fireCount} / ${fireHighCount}H` : `${fireCount}`;
+    }
+    if (key === "radiation" && visibility.radiation && radiationCount > 0) {
+      return radiationElevatedCount > 0 ? `${radiationCount} / ${radiationElevatedCount}!` : `${radiationCount}`;
     }
     return null;
   }

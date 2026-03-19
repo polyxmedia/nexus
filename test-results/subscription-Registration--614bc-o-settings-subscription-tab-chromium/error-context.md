@@ -1,5 +1,165 @@
 # Page snapshot
 
 ```yaml
-- generic [ref=e2]: Internal Server Error
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "NEXUS Intelligence" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img [ref=e6]
+          - generic [ref=e13]: NEXUS Intelligence
+        - generic [ref=e14]:
+          - link "RESEARCH" [ref=e15] [cursor=pointer]:
+            - /url: /research/signal-theory
+          - link "BLOG" [ref=e16] [cursor=pointer]:
+            - /url: /blog
+          - link "ABOUT" [ref=e17] [cursor=pointer]:
+            - /url: /about
+          - link "FAQ" [ref=e18] [cursor=pointer]:
+            - /url: /research/faq
+          - link "SIGN IN" [ref=e19] [cursor=pointer]:
+            - /url: /login
+          - button "Change theme" [ref=e21]:
+            - img [ref=e22]
+          - link "Request Access" [ref=e28] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e30]:
+      - generic [ref=e32]:
+        - link "NEXUS Intelligence" [ref=e33] [cursor=pointer]:
+          - /url: /
+          - img [ref=e34]
+          - generic [ref=e41]: NEXUS Intelligence
+        - link "Sign In" [ref=e42] [cursor=pointer]:
+          - /url: /login
+          - text: Sign In
+          - img [ref=e43]
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - generic [ref=e49]: Request Access
+          - heading "Create your account" [level=1] [ref=e50]
+          - paragraph [ref=e51]: Free access to Dashboard, Signals, News, and War Room. Upgrade anytime for AI analyst, predictions, and full platform.
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e56]: Email Address
+            - textbox "you@domain.com" [active] [ref=e57]: e2e_reg_sub_1773947876069@e2etest.local
+          - generic [ref=e58]:
+            - generic [ref=e60]: Username
+            - textbox "3-32 characters" [ref=e61]
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - generic [ref=e64]: Password
+              - img [ref=e65]
+            - textbox "Min 10 characters" [ref=e68]
+          - generic [ref=e69]:
+            - generic [ref=e71]: Confirm Password
+            - textbox "Repeat password" [ref=e72]
+          - button "Create Account" [ref=e73]:
+            - generic [ref=e74]: Create Account
+            - img [ref=e75]
+        - paragraph [ref=e78]:
+          - text: Already have access?
+          - link "Sign in" [ref=e79] [cursor=pointer]:
+            - /url: /login
+        - generic [ref=e80]:
+          - generic [ref=e83]: System Online
+          - generic [ref=e84]: "|"
+          - generic [ref=e85]: 2-Day Free Trial
+          - generic [ref=e86]: "|"
+          - generic [ref=e87]: Encrypted
+    - contentinfo [ref=e88]:
+      - generic [ref=e89]:
+        - generic [ref=e90]:
+          - generic [ref=e91]:
+            - generic [ref=e92]:
+              - img [ref=e93]
+              - generic [ref=e100]: NEXUS Intelligence
+            - paragraph [ref=e101]: Signal intelligence platform for geopolitical-market convergence analysis.
+            - generic [ref=e104]: All systems online
+          - generic [ref=e105]:
+            - heading "Platform" [level=4] [ref=e106]
+            - generic [ref=e107]:
+              - link "Dashboard" [ref=e108] [cursor=pointer]:
+                - /url: /dashboard
+              - link "AI Analyst" [ref=e109] [cursor=pointer]:
+                - /url: /chat
+              - link "War Room" [ref=e110] [cursor=pointer]:
+                - /url: /warroom
+              - link "Signals" [ref=e111] [cursor=pointer]:
+                - /url: /signals
+              - link "Predictions" [ref=e112] [cursor=pointer]:
+                - /url: /predictions
+              - link "Trading" [ref=e113] [cursor=pointer]:
+                - /url: /trading
+          - generic [ref=e114]:
+            - heading "Intelligence" [level=4] [ref=e115]
+            - generic [ref=e116]:
+              - link "Daily Thesis" [ref=e117] [cursor=pointer]:
+                - /url: /thesis
+              - link "Knowledge Bank" [ref=e118] [cursor=pointer]:
+                - /url: /knowledge
+              - link "Entity Graph" [ref=e119] [cursor=pointer]:
+                - /url: /graph
+              - link "Timeline" [ref=e120] [cursor=pointer]:
+                - /url: /timeline
+              - link "Calendar" [ref=e121] [cursor=pointer]:
+                - /url: /calendar
+              - link "Alerts" [ref=e122] [cursor=pointer]:
+                - /url: /alerts
+          - generic [ref=e123]:
+            - heading "Research" [level=4] [ref=e124]
+            - generic [ref=e125]:
+              - link "Methodology" [ref=e126] [cursor=pointer]:
+                - /url: /research/methodology
+              - link "Signal Theory" [ref=e127] [cursor=pointer]:
+                - /url: /research/signal-theory
+              - link "Prediction Accuracy" [ref=e128] [cursor=pointer]:
+                - /url: /research/prediction-accuracy
+              - link "Calendar Correlations" [ref=e129] [cursor=pointer]:
+                - /url: /research/calendar-correlations
+              - link "Foundation" [ref=e130] [cursor=pointer]:
+                - /url: /research/foundation
+              - link "Blog" [ref=e131] [cursor=pointer]:
+                - /url: /blog
+              - link "FAQ" [ref=e132] [cursor=pointer]:
+                - /url: /research/faq
+          - generic [ref=e133]:
+            - heading "Company" [level=4] [ref=e134]
+            - generic [ref=e135]:
+              - link "About" [ref=e136] [cursor=pointer]:
+                - /url: /about
+              - link "Investors" [ref=e137] [cursor=pointer]:
+                - /url: /investors
+              - link "Media" [ref=e138] [cursor=pointer]:
+                - /url: /media
+              - link "Careers" [ref=e139] [cursor=pointer]:
+                - /url: /careers
+              - link "Contact" [ref=e140] [cursor=pointer]:
+                - /url: /contact
+              - link "API" [ref=e141] [cursor=pointer]:
+                - /url: /research/api
+        - generic [ref=e142]:
+          - generic [ref=e143]:
+            - link "Terms of Service" [ref=e144] [cursor=pointer]:
+              - /url: /terms
+            - link "Privacy Policy" [ref=e145] [cursor=pointer]:
+              - /url: /privacy
+            - link "Cookie Policy" [ref=e146] [cursor=pointer]:
+              - /url: /cookies
+            - link "Security" [ref=e147] [cursor=pointer]:
+              - /url: /security
+          - generic [ref=e148]:
+            - generic [ref=e149]: NEXUS v1.0
+            - generic [ref=e150]: 2026 NEXUS INTEL. All rights reserved.
+        - link "A polyxmedia product" [ref=e152] [cursor=pointer]:
+          - /url: https://polyxmedia.com
+  - button "Open Next.js Dev Tools" [ref=e158] [cursor=pointer]:
+    - img [ref=e159]
+  - alert [ref=e162]
+  - generic [ref=e164]:
+    - paragraph [ref=e165]: This site uses essential cookies for authentication and security. No tracking cookies are used.
+    - generic [ref=e166]:
+      - link "Manage" [ref=e167] [cursor=pointer]:
+        - /url: /cookies
+      - button "Accept" [ref=e168]
 ```

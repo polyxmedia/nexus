@@ -61,15 +61,12 @@ test.describe("Registration to subscription redirect", () => {
     await page.goto("/register");
     await expect(page.locator("form")).toBeVisible({ timeout: 8000 });
 
-    await page.locator('input[name="email"], input[type="email"]').fill(`${regUser}@e2etest.local`);
-    await page.locator('input[name="username"], input[id="username"]').fill(regUser);
-    await page.locator('input[name="password"], input[type="password"]').first().fill("E2eTestPass!99");
-
-    // Fill confirm password if present
-    const confirmField = page.locator('input[name="confirmPassword"], input[name="confirm"]');
-    if (await confirmField.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await confirmField.fill("E2eTestPass!99");
-    }
+    // Fill email, username, password, confirm password (in order)
+    await page.locator('input[type="email"]').fill(`${regUser}@e2etest.local`);
+    await page.locator('input[type="text"]').fill(regUser);
+    const passwordFields = page.locator('input[type="password"]');
+    await passwordFields.nth(0).fill("E2eTestPass!99");
+    await passwordFields.nth(1).fill("E2eTestPass!99");
 
     await page.getByRole("button", { name: /create account|register|sign up/i }).click();
 
@@ -360,11 +357,11 @@ test.describe("Subscription status handling", () => {
 
     const tierId = rows[0].id;
 
-    // Insert incomplete subscription
+    // Insert incomplete subscription (clean up first to avoid duplicates)
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
     await dbQuery(
-      `INSERT INTO subscriptions ("userId", "tierId", "stripeCustomerId", "stripeSubscriptionId", status, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, 'incomplete', NOW(), NOW())
-       ON CONFLICT ("userId") DO UPDATE SET status = 'incomplete', "tierId" = $2, "updatedAt" = NOW()`,
+      `INSERT INTO subscriptions (user_id, tier_id, stripe_customer_id, stripe_subscription_id, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'incomplete', NOW()::text, NOW()::text)`,
       [TEST_USER, tierId, `cus_test_${Date.now()}`, `sub_test_${Date.now()}`]
     );
 
@@ -380,9 +377,7 @@ test.describe("Subscription status handling", () => {
     console.log("Incomplete sub correctly returns null tier");
 
     await page.close();
-
-    // Clean up
-    await dbQuery(`DELETE FROM subscriptions WHERE "userId" = $1`, [TEST_USER]);
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
   });
 
   test("active subscription returns tier data", async () => {
@@ -396,10 +391,10 @@ test.describe("Subscription status handling", () => {
 
     const tierId = rows[0].id;
 
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
     await dbQuery(
-      `INSERT INTO subscriptions ("userId", "tierId", "stripeCustomerId", "stripeSubscriptionId", status, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
-       ON CONFLICT ("userId") DO UPDATE SET status = 'active', "tierId" = $2, "updatedAt" = NOW()`,
+      `INSERT INTO subscriptions (user_id, tier_id, stripe_customer_id, stripe_subscription_id, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'active', NOW()::text, NOW()::text)`,
       [TEST_USER, tierId, `cus_test_${Date.now()}`, `sub_test_${Date.now()}`]
     );
 
@@ -414,9 +409,7 @@ test.describe("Subscription status handling", () => {
     console.log("Active sub correctly returns tier:", body.tier.name);
 
     await page.close();
-
-    // Clean up
-    await dbQuery(`DELETE FROM subscriptions WHERE "userId" = $1`, [TEST_USER]);
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
   });
 
   test("trialing subscription returns tier data", async () => {
@@ -427,10 +420,10 @@ test.describe("Subscription status handling", () => {
 
     const tierId = rows[0].id;
 
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
     await dbQuery(
-      `INSERT INTO subscriptions ("userId", "tierId", "stripeCustomerId", "stripeSubscriptionId", status, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, 'trialing', NOW(), NOW())
-       ON CONFLICT ("userId") DO UPDATE SET status = 'trialing', "tierId" = $2, "updatedAt" = NOW()`,
+      `INSERT INTO subscriptions (user_id, tier_id, stripe_customer_id, stripe_subscription_id, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'trialing', NOW()::text, NOW()::text)`,
       [TEST_USER, tierId, `cus_test_${Date.now()}`, `sub_test_${Date.now()}`]
     );
 
@@ -442,7 +435,7 @@ test.describe("Subscription status handling", () => {
     expect(body.subscription.status).toBe("trialing");
 
     await page.close();
-    await dbQuery(`DELETE FROM subscriptions WHERE "userId" = $1`, [TEST_USER]);
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
   });
 });
 
@@ -461,29 +454,27 @@ test.describe("Stripe portal", () => {
   });
 
   test("Manage Billing button appears for subscribed users", async () => {
-    // Set up an active subscription
     const rows = await dbQuery(
       `SELECT id FROM subscription_tiers WHERE active = 1 ORDER BY position LIMIT 1`
     );
     if (rows.length === 0) return;
 
     const tierId = rows[0].id;
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
     await dbQuery(
-      `INSERT INTO subscriptions ("userId", "tierId", "stripeCustomerId", "stripeSubscriptionId", status, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
-       ON CONFLICT ("userId") DO UPDATE SET status = 'active', "tierId" = $2, "stripeCustomerId" = $3, "updatedAt" = NOW()`,
+      `INSERT INTO subscriptions (user_id, tier_id, stripe_customer_id, stripe_subscription_id, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'active', NOW()::text, NOW()::text)`,
       [TEST_USER, tierId, `cus_test_${Date.now()}`, `sub_test_${Date.now()}`]
     );
 
     const page = await authedContext.newPage();
     await page.goto("/settings?tab=subscription");
 
-    // With an active subscription, "Manage Billing" should appear
     const manageBillingBtn = page.getByRole("button", { name: /manage billing/i });
     await expect(manageBillingBtn).toBeVisible({ timeout: 10000 });
 
     await page.close();
-    await dbQuery(`DELETE FROM subscriptions WHERE "userId" = $1`, [TEST_USER]);
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
   });
 });
 
@@ -491,8 +482,7 @@ test.describe("Stripe portal", () => {
 
 test.describe("Free user experience", () => {
   test("user with no subscription sees Free plan and upgrade options", async () => {
-    // Ensure no subscription exists for test user
-    await dbQuery(`DELETE FROM subscriptions WHERE "userId" = $1`, [TEST_USER]);
+    await dbQuery(`DELETE FROM subscriptions WHERE user_id = $1`, [TEST_USER]);
 
     const page = await authedContext.newPage();
     await page.goto("/settings?tab=subscription");

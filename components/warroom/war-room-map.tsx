@@ -15,7 +15,7 @@ import {
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
-import type { ActorWithGeo, ScenarioWithAnalysis, AircraftState, VesselState, VipAircraftState, OsintEvent, WarRoomLayerVisibility } from "@/lib/warroom/types";
+import type { ActorWithGeo, ScenarioWithAnalysis, AircraftState, VesselState, VipAircraftState, OsintEvent, WarRoomLayerVisibility, FireDetection, RadiationReading } from "@/lib/warroom/types";
 import type { AllianceLink, ConflictZone, StrategicLocation } from "@/lib/warroom/geo-constants";
 import { ACTOR_COORDS } from "@/lib/warroom/geo-constants";
 import { AircraftLayer } from "./aircraft-layer";
@@ -26,6 +26,8 @@ import { MapTileUpdater } from "./map-tile-updater";
 import { CountryClickLayer } from "./country-click-layer";
 import { VesselTrailLayer } from "./vessel-trail-layer";
 import { VipAircraftLayer } from "./vip-aircraft-layer";
+import { FireLayer } from "./fire-layer";
+import { RadiationLayer } from "./radiation-layer";
 import type { VesselTrailPoint } from "@/lib/warroom/use-vessel-tracker";
 
 interface WarRoomMapProps {

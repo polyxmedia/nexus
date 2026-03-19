@@ -658,6 +658,12 @@ export default function SettingsPage() {
       })
       .catch(() => setSubLoading(false));
 
+    // Check Stripe Connect status
+    fetch("/api/stripe/connect")
+      .then((r) => r.json())
+      .then((data) => setConnectAccount(data))
+      .catch(() => setConnectAccount({ connected: false, payoutsEnabled: false, detailsSubmitted: false }));
+
     // Check Coinbase OAuth status
     fetch("/api/coinbase/oauth/status")
       .then((r) => r.json())
@@ -687,6 +693,20 @@ export default function SettingsPage() {
           } catch { /* retry */ }
         }
       })();
+    }
+
+    // Handle Stripe Connect return
+    if (callbackParams.get("connect") === "complete") {
+      // Re-fetch connect status after onboarding
+      fetch("/api/stripe/connect")
+        .then((r) => r.json())
+        .then((data) => setConnectAccount(data))
+        .catch(() => {});
+      window.history.replaceState({}, "", window.location.pathname + "?tab=subscription");
+    }
+    if (callbackParams.get("connect") === "refresh") {
+      // Link expired, user needs to re-initiate
+      window.history.replaceState({}, "", window.location.pathname + "?tab=subscription");
     }
 
     // Handle OAuth callback params
@@ -1389,6 +1409,95 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
+                {/* Payouts - Stripe Connect */}
+                <div className="border border-navy-700 rounded p-5">
+                  <h3 className="text-[10px] font-medium uppercase tracking-widest text-navy-500 mb-1">
+                    Payouts
+                  </h3>
+                  <p className="text-[11px] text-navy-500 mb-4">
+                    Connect your bank account to receive referral commissions and other payouts.
+                  </p>
+
+                  {!connectAccount ? (
+                    <Skeleton className="h-12 w-full" />
+                  ) : connectAccount.connected ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`h-1.5 w-1.5 rounded-full ${connectAccount.payoutsEnabled ? "bg-accent-emerald" : "bg-accent-amber"}`} />
+                          <span className="text-xs text-navy-300">
+                            {connectAccount.payoutsEnabled
+                              ? "Bank connected, payouts enabled"
+                              : connectAccount.detailsSubmitted
+                              ? "Under review by Stripe"
+                              : "Onboarding incomplete"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!connectAccount.payoutsEnabled && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={connectLoading}
+                              onClick={async () => {
+                                setConnectLoading(true);
+                                try {
+                                  const res = await fetch("/api/stripe/connect", { method: "POST" });
+                                  const data = await res.json();
+                                  if (data.url) window.location.href = data.url;
+                                } catch {}
+                                setConnectLoading(false);
+                              }}
+                            >
+                              {connectLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <ExternalLink className="h-3 w-3 mr-1.5" />}
+                              Complete Setup
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={connectDisconnecting}
+                            onClick={async () => {
+                              if (!confirm("Disconnect your payout account? You will stop receiving automatic payouts.")) return;
+                              setConnectDisconnecting(true);
+                              try {
+                                await fetch("/api/stripe/connect", { method: "DELETE" });
+                                setConnectAccount({ connected: false, payoutsEnabled: false, detailsSubmitted: false });
+                              } catch {}
+                              setConnectDisconnecting(false);
+                            }}
+                            className="text-accent-rose/70 hover:text-accent-rose border-accent-rose/20 hover:border-accent-rose/40"
+                          >
+                            {connectDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Disconnect"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={connectLoading}
+                      onClick={async () => {
+                        setConnectLoading(true);
+                        try {
+                          const res = await fetch("/api/stripe/connect", { method: "POST" });
+                          const data = await res.json();
+                          if (data.url) window.location.href = data.url;
+                        } catch {}
+                        setConnectLoading(false);
+                      }}
+                    >
+                      {connectLoading ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                      ) : (
+                        <Wallet className="h-3 w-3 mr-1.5" />
+                      )}
+                      Connect Bank Account
+                    </Button>
+                  )}
+                </div>
+
               </>
             )}
           </div>
