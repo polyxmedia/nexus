@@ -266,6 +266,7 @@ function MiniMonteCarlo({ active }: { active: boolean }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const c = ctx;
 
     const w = canvas.width;
     const h = canvas.height;
@@ -273,20 +274,20 @@ function MiniMonteCarlo({ active }: { active: boolean }) {
     const steps = 40;
 
     function draw() {
-      ctx!.clearRect(0, 0, w, h);
+      c.clearRect(0, 0, w, h);
       for (let p = 0; p < paths; p++) {
-        ctx!.beginPath();
-        ctx!.strokeStyle = `rgba(16,185,129,${0.08 + Math.random() * 0.12})`;
-        ctx!.lineWidth = 0.8;
+        c.beginPath();
+        c.strokeStyle = `rgba(16,185,129,${0.08 + Math.random() * 0.12})`;
+        c.lineWidth = 0.8;
         let y = h / 2;
         for (let s = 0; s <= steps; s++) {
           const x = (s / steps) * w;
-          if (s === 0) ctx!.moveTo(x, y);
-          else ctx!.lineTo(x, y);
+          if (s === 0) c.moveTo(x, y);
+          else c.lineTo(x, y);
           y += (Math.random() - 0.48) * 6;
           y = Math.max(8, Math.min(h - 8, y));
         }
-        ctx!.stroke();
+        c.stroke();
       }
     }
 
@@ -409,10 +410,11 @@ export default function WhyNexusPage() {
     fetchStats();
   }, [fetchStats]);
 
+  const CAP_COUNT = 6;
   useEffect(() => {
     if (!capReveal.visible) return;
     const timers: NodeJS.Timeout[] = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < CAP_COUNT; i++) {
       timers.push(setTimeout(() => setActiveCapIdx(i), 200 + i * 150));
     }
     return () => timers.forEach(clearTimeout);

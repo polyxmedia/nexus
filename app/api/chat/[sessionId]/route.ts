@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { and, eq, gt, sql as drizzleSql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS, executeTool, type ToolContext } from "@/lib/chat/tools";
+import { logToolExecution } from "@/lib/chat/tool-audit";
 import { TOOL_TIERS } from "@/lib/auth/tier-config";
 import { selectTools, FORECASTING_PATTERN } from "@/lib/chat/tool-router";
 import { loadPrompt } from "@/lib/prompts/loader";
@@ -700,12 +701,31 @@ export async function POST(
             const toolCtx: ToolContext = { username, sessionId: id, projectId: session.projectId };
             const toolPromises = executableTools.map(async ({ tool, parsedInput }) => {
               const timeoutMs = SLOW_TOOLS.has(tool.name) ? 45_000 : 20_000;
+              const startTime = Date.now();
+              let success = true;
+              let errorMessage: string | undefined;
               const toolResult = await Promise.race([
                 executeTool(tool.name, parsedInput, toolCtx),
                 new Promise<{ error: string }>((resolve) =>
                   setTimeout(() => resolve({ error: `Tool ${tool.name} timed out after ${timeoutMs / 1000}s` }), timeoutMs)
                 ),
               ]);
+              const durationMs = Date.now() - startTime;
+              if (toolResult && typeof toolResult === "object" && "error" in toolResult) {
+                success = false;
+                errorMessage = String((toolResult as Record<string, unknown>).error);
+              }
+              const outputSizeBytes = JSON.stringify(toolResult).length;
+              logToolExecution({
+                sessionId: id,
+                toolName: tool.name,
+                input: parsedInput,
+                outputSizeBytes,
+                durationMs,
+                success,
+                errorMessage,
+                username,
+              });
               return { tool, toolResult };
             });
             const toolOutputs = await Promise.allSettled(toolPromises);

@@ -245,9 +245,9 @@ function RegisterForm() {
         setError("Account created. Please sign in.");
         window.location.href = "/login";
       } else {
-        // Send new users to choose a subscription plan (free trial)
+        // Send new users to the subscribe page (dedicated conversion flow)
         // Full navigation ensures the session cookie is sent with the request
-        window.location.href = "/settings?tab=subscription";
+        window.location.href = "/subscribe";
       }
     } catch {
       setError("Registration failed");

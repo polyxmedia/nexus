@@ -32,6 +32,8 @@ import { getShippingSnapshot } from "@/lib/shipping";
 import { getNarrativeSnapshot } from "@/lib/narrative";
 import { getBOCPDSnapshot } from "@/lib/bocpd";
 import { getShortInterestSnapshot } from "@/lib/short-interest";
+import { runDCF } from "@/lib/valuation/dcf";
+import { routeFinancialQuery } from "@/lib/market-data/financial-router";
 import { getGPRSnapshot } from "@/lib/gpr";
 import { getGEXSnapshot } from "@/lib/gex";
 import { findHistoricalParallels } from "@/lib/parallels/engine";
@@ -1475,6 +1477,48 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "dcf_valuation",
+    description:
+      "Run a Discounted Cash Flow (DCF) valuation on a stock. Returns fair value per share, upside/downside vs current price, a 5-year FCF projection, terminal value, enterprise value breakdown, and a 3x3 sensitivity matrix (WACC +/-1%, terminal growth +/-0.5%). Includes auto-generated caveats for negative FCF, insufficient history, or extreme growth rates. Only works for stocks with fundamental data (NOT ETFs, crypto, or forex). Use this when users ask about fair value, intrinsic value, whether a stock is overvalued/undervalued, or DCF analysis.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        symbol: {
+          type: "string",
+          description: "Stock ticker symbol (e.g. AAPL, NVDA, MSFT). Must be an individual stock, not an ETF or index.",
+        },
+        wacc_override: {
+          type: "number",
+          description: "Optional WACC override (e.g. 0.10 for 10%). Default is sector-based lookup or 10%.",
+        },
+        terminal_growth_override: {
+          type: "number",
+          description: "Optional terminal growth rate override (e.g. 0.025 for 2.5%). Default is 2.5%.",
+        },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "get_financial_intelligence",
+    description:
+      "Comprehensive financial intelligence meta-tool. Analyzes your query, determines which financial tools are needed (quotes, technicals, options, macro, DCF, sentiment, etc.), runs them in parallel, and returns a combined result. Use this instead of calling individual market tools when the user wants a broad financial analysis or when you're unsure which specific tools to use. Pass the user's natural language query and optionally a symbol.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "The user's financial query in natural language (e.g. 'AAPL technicals and options flow', 'macro outlook', 'is TSLA overvalued').",
+        },
+        symbol: {
+          type: "string",
+          description: "Optional explicit ticker symbol. If present, always includes a live quote.",
+        },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -1748,6 +1792,12 @@ export async function executeTool(
 
     case "get_social_sentiment":
       return executeGetSocialSentiment(input);
+
+    case "dcf_valuation":
+      return executeDCFValuation(input);
+
+    case "get_financial_intelligence":
+      return executeFinancialIntelligence(input, context);
 
     default:
       return { error: `Unknown tool: ${toolName}` };
@@ -5063,5 +5113,76 @@ async function executeGetSocialSentiment(input: Record<string, unknown>) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { error: `Social sentiment failed: ${message}` };
+  }
+}
+
+// ── DCF Valuation ──
+
+async function executeDCFValuation(input: Record<string, unknown>) {
+  const symbol = (input.symbol as string)?.toUpperCase();
+  if (!symbol) return { error: "Symbol is required" };
+
+  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+  if (!apiKey) return { error: "Alpha Vantage API key not configured" };
+
+  try {
+    const result = await runDCF({
+      symbol,
+      apiKey,
+      waccOverride: input.wacc_override as number | undefined,
+      terminalGrowthOverride: input.terminal_growth_override as number | undefined,
+    });
+    return result;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `DCF valuation failed for ${symbol}: ${message}` };
+  }
+}
+
+// ── Financial Intelligence Meta-Tool ──
+
+async function executeFinancialIntelligence(input: Record<string, unknown>, context?: ToolContext) {
+  const query = input.query as string;
+  const symbol = input.symbol as string | undefined;
+  if (!query) return { error: "Query is required" };
+
+  try {
+    const toolsToRun = routeFinancialQuery(query, symbol);
+    if (toolsToRun.length === 0) {
+      return { error: "Could not determine which financial tools to run for this query." };
+    }
+
+    // Execute all routed tools in parallel with 20s timeout each
+    const results: Record<string, unknown> = {};
+    const toolPromises = toolsToRun.map(async ({ toolName, toolInput }) => {
+      try {
+        const result = await Promise.race([
+          executeTool(toolName, toolInput, context),
+          new Promise<{ error: string }>((resolve) =>
+            setTimeout(() => resolve({ error: `${toolName} timed out` }), 20_000)
+          ),
+        ]);
+        return { toolName, result };
+      } catch (err: unknown) {
+        return { toolName, result: { error: err instanceof Error ? err.message : "Unknown error" } };
+      }
+    });
+
+    const outputs = await Promise.allSettled(toolPromises);
+    for (const output of outputs) {
+      if (output.status === "fulfilled") {
+        results[output.value.toolName] = output.value.result;
+      }
+    }
+
+    return {
+      query,
+      symbol: symbol || null,
+      toolsExecuted: toolsToRun.map((t) => t.toolName),
+      results,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Financial intelligence failed: ${message}` };
   }
 }

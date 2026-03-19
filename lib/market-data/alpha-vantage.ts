@@ -360,6 +360,120 @@ export async function getForexDailySeries(
   return bars;
 }
 
+// ---------------------------------------------------------------------------
+// Fundamental Data (cached 24h - fundamentals change quarterly)
+// ---------------------------------------------------------------------------
+
+const fundamentalCache = new Map<string, { data: unknown; expiry: number }>();
+const FUNDAMENTAL_CACHE_TTL_MS = 86_400_000; // 24 hours
+
+export interface CashFlowStatement {
+  fiscalDateEnding: string;
+  operatingCashflow: number;
+  capitalExpenditures: number;
+  freeCashFlow: number;
+}
+
+export interface BalanceSheetEntry {
+  fiscalDateEnding: string;
+  totalDebt: number;
+  cashAndEquivalents: number;
+  commonSharesOutstanding: number;
+}
+
+export interface IncomeStatementEntry {
+  fiscalDateEnding: string;
+  totalRevenue: number;
+  netIncome: number;
+}
+
+export async function getCashFlowStatement(
+  symbol: string,
+  apiKey: string
+): Promise<CashFlowStatement[]> {
+  const cacheKey = `fundamental:cashflow:${symbol}`;
+  const cached = fundamentalCache.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) return cached.data as CashFlowStatement[];
+
+  const url = `${BASE_URL}?function=CASH_FLOW&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
+  const json = await throttledFetch(url);
+  checkRateLimit(json, symbol);
+
+  const annualReports = json["annualReports"] as Array<Record<string, string>> | undefined;
+  if (!annualReports || annualReports.length === 0) {
+    throw new Error(`No cash flow data for ${symbol}. This may be an ETF, crypto, or unsupported symbol.`);
+  }
+
+  const results: CashFlowStatement[] = annualReports.map((r) => {
+    const opCash = parseFloat(r["operatingCashflow"] || "0");
+    const capex = parseFloat(r["capitalExpenditures"] || "0");
+    return {
+      fiscalDateEnding: r["fiscalDateEnding"],
+      operatingCashflow: opCash,
+      capitalExpenditures: capex,
+      freeCashFlow: opCash - Math.abs(capex),
+    };
+  });
+
+  fundamentalCache.set(cacheKey, { data: results, expiry: Date.now() + FUNDAMENTAL_CACHE_TTL_MS });
+  return results;
+}
+
+export async function getBalanceSheet(
+  symbol: string,
+  apiKey: string
+): Promise<BalanceSheetEntry[]> {
+  const cacheKey = `fundamental:balance:${symbol}`;
+  const cached = fundamentalCache.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) return cached.data as BalanceSheetEntry[];
+
+  const url = `${BASE_URL}?function=BALANCE_SHEET&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
+  const json = await throttledFetch(url);
+  checkRateLimit(json, symbol);
+
+  const annualReports = json["annualReports"] as Array<Record<string, string>> | undefined;
+  if (!annualReports || annualReports.length === 0) {
+    throw new Error(`No balance sheet data for ${symbol}.`);
+  }
+
+  const results: BalanceSheetEntry[] = annualReports.map((r) => ({
+    fiscalDateEnding: r["fiscalDateEnding"],
+    totalDebt: parseFloat(r["shortLongTermDebtTotal"] || r["longTermDebt"] || "0"),
+    cashAndEquivalents: parseFloat(r["cashAndCashEquivalentsAtCarryingValue"] || r["cashAndShortTermInvestments"] || "0"),
+    commonSharesOutstanding: parseFloat(r["commonStockSharesOutstanding"] || "0"),
+  }));
+
+  fundamentalCache.set(cacheKey, { data: results, expiry: Date.now() + FUNDAMENTAL_CACHE_TTL_MS });
+  return results;
+}
+
+export async function getIncomeStatement(
+  symbol: string,
+  apiKey: string
+): Promise<IncomeStatementEntry[]> {
+  const cacheKey = `fundamental:income:${symbol}`;
+  const cached = fundamentalCache.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) return cached.data as IncomeStatementEntry[];
+
+  const url = `${BASE_URL}?function=INCOME_STATEMENT&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
+  const json = await throttledFetch(url);
+  checkRateLimit(json, symbol);
+
+  const annualReports = json["annualReports"] as Array<Record<string, string>> | undefined;
+  if (!annualReports || annualReports.length === 0) {
+    throw new Error(`No income statement data for ${symbol}.`);
+  }
+
+  const results: IncomeStatementEntry[] = annualReports.map((r) => ({
+    fiscalDateEnding: r["fiscalDateEnding"],
+    totalRevenue: parseFloat(r["totalRevenue"] || "0"),
+    netIncome: parseFloat(r["netIncome"] || "0"),
+  }));
+
+  fundamentalCache.set(cacheKey, { data: results, expiry: Date.now() + FUNDAMENTAL_CACHE_TTL_MS });
+  return results;
+}
+
 export async function searchSymbol(
   query: string,
   apiKey: string

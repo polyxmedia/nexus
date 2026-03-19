@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { Clock, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-const HIDDEN_PATHS = ["/", "/landing", "/login", "/register", "/forgot-password", "/reset-password"];
+const HIDDEN_PATHS = ["/", "/landing", "/login", "/register", "/forgot-password", "/reset-password", "/subscribe"];
 
 function useCountdown(endDate: string | null) {
   const [remaining, setRemaining] = useState("");
@@ -66,7 +66,7 @@ export function TrialBanner() {
               </>
             )}
             {isExpired && "Your trial has expired. Subscribe to continue using NEXUS."}
-            {isFree && "You're on the free plan. Subscribe to unlock full intelligence access."}
+            {isFree && "Intelligence is running. Start your free trial to see it."}
           </span>
         </div>
         <Link

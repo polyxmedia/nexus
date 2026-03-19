@@ -1252,7 +1252,11 @@ export default function SettingsPage() {
                   ) : (
                     <div>
                       <span className="text-lg font-bold text-navy-100 font-mono">Free</span>
-                      <p className="text-xs text-navy-400 mt-1">Dashboard, Signals, News, and War Room included. Choose a plan below for AI analyst, predictions, and full access.</p>
+                      <p className="text-xs text-navy-400 mt-1">You have limited access. Start a free trial below to unlock signal detection, AI analyst, predictions, and full intelligence access.</p>
+                      <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded border border-accent-cyan/20 bg-accent-cyan/5">
+                        <Zap className="h-3 w-3 text-accent-cyan" />
+                        <span className="font-mono text-[10px] text-accent-cyan tracking-wider">2-day free trial on all plans</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1343,6 +1347,8 @@ export default function SettingsPage() {
                                     <Loader2 className="h-3 w-3 animate-spin" />
                                   ) : price === 0 ? (
                                     "Contact Us"
+                                  ) : !subscription.subscription ? (
+                                    "Start free trial"
                                   ) : (
                                     "Upgrade"
                                   )}

@@ -1,4 +1,4 @@
-import { pgTable, text, integer, serial, doublePrecision, uuid, real, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, doublePrecision, uuid, real, boolean, jsonb } from "drizzle-orm/pg-core";
 
 export const signals = pgTable("signals", {
   id: serial("id").primaryKey(),
@@ -1230,3 +1230,20 @@ export const parallelAnalyses = pgTable("parallel_analyses", {
 
 export type ParallelAnalysis = typeof parallelAnalyses.$inferSelect;
 export type NewParallelAnalysis = typeof parallelAnalyses.$inferInsert;
+
+// ── Tool Audit Log ──
+
+export const toolAuditLog = pgTable("tool_audit_log", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id"),
+  toolName: text("tool_name").notNull(),
+  input: jsonb("input"),
+  outputSizeBytes: integer("output_size_bytes"),
+  durationMs: integer("duration_ms").notNull(),
+  success: boolean("success").notNull().default(true),
+  errorMessage: text("error_message"),
+  username: text("username"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export type ToolAuditLogEntry = typeof toolAuditLog.$inferSelect;

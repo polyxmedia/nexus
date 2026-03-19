@@ -103,6 +103,12 @@
     },
     "app/api/predictions/generate-stream/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/admin/blog/generate/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/admin/blog/route.ts": {
+      "maxDuration": 60
     }
   }
 }

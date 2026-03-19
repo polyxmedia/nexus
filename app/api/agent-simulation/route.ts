@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   if ("response" in tierCheck) return tierCheck.response;
 
   const { result: tierResult } = tierCheck;
-  const username = tierResult.session.user?.name;
+  const username = tierResult.username;
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Rate limit: max 5 simulations per hour

@@ -321,7 +321,7 @@ export function Sidebar() {
     return () => clearInterval(interval);
   }, []);
 
-  const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media", "/why-nexus", "/track-record"];
+  const publicPages = ["/", "/landing", "/register", "/login", "/forgot-password", "/reset-password", "/about", "/careers", "/contact", "/docs", "/status", "/terms", "/privacy", "/cookies", "/security", "/demo", "/investors", "/media", "/why-nexus", "/track-record", "/subscribe"];
   if (publicPages.includes(pathname) || pathname.startsWith("/research") || pathname.startsWith("/blog") || pathname.startsWith("/public-predictions")) return null;
 
   const toolsNavWithBadges = toolsNav.map((item) =>

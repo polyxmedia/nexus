@@ -2,7 +2,6 @@
 
 import { cn } from "@/lib/utils";
 import {
-  SignalIcon,
   GlobeAltIcon,
   FireIcon,
 } from "@heroicons/react/24/solid";

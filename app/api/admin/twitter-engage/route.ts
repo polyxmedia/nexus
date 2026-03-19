@@ -140,7 +140,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
       }
 
-      const result = JSON.parse(jsonMatch[0]);
+      let result: { reply: string | null; reason?: string };
+      try {
+        result = JSON.parse(jsonMatch[0]);
+      } catch {
+        return NextResponse.json({ error: "AI returned malformed JSON" }, { status: 500 });
+      }
       return NextResponse.json({ reply: result.reply, reason: result.reason || null });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
