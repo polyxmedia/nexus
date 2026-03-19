@@ -633,8 +633,8 @@ export default function CalendarCorrelationsPage() {
               <p className="font-sans text-sm text-navy-400 mb-8 text-center max-w-xl mx-auto">
                 The most actionable signals emerge when multiple calendar systems
                 overlap within a narrow window. Three-system convergence
-                (Hebrew + Islamic + Economic within 5 days) shows a mean VIX
-                elevation of 18% above the trailing 30-day average.
+                (Hebrew + Islamic + Economic within a tight window) shows
+                measurably elevated volatility above the trailing average.
               </p>
             </div>
 

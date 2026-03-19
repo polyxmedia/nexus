@@ -920,16 +920,16 @@ export default function WhitepaperPage() {
             </div>
             <div className="space-y-3">
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Scenario prior</span> selects a base-rate probability for the inferred scenario type. Each scenario class has a calibrated prior reflecting historical frequencies, anchoring the posterior against overconfidence on rare events (Tetlock&apos;s &quot;Fermi-ize&quot; principle).
+                <span className="font-mono text-accent-cyan">Scenario prior</span> selects a base-rate probability for the inferred scenario type. Military escalation starts at 5%, economic crisis at 8%, market disruption at 12%. These reflect historical frequencies and anchor the posterior against overconfidence on rare events (Tetlock&apos;s &quot;Fermi-ize&quot; principle).
               </p>
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Likelihood ratio</span> for each layer is computed from aggregate event significance using a proprietary exponential model. At zero significance, the ratio equals unity (no evidence). Each layer carries a reliability coefficient calibrated against historical predictive value and recalibrated continuously against resolved outcomes.
+                <span className="font-mono text-accent-cyan">Likelihood ratio</span> for each layer is computed from aggregate event significance using an exponential model: LR = 1 + reliability &times; (e<sup>k&middot;sig</sup> - 1). At zero significance, LR=1 (no evidence). Layer reliability coefficients range from 0.85 (geopolitical) to 0.35 (celestial), reflecting each layer&apos;s historical predictive value.
               </p>
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Dependency discounting</span> adjusts each layer&apos;s likelihood ratio based on its correlation with previously processed layers. A proprietary dependency matrix captures pairwise independence between layers. Highly correlated layers are aggressively discounted to prevent double-counting. Near-independent layers retain their full evidence contribution.
+                <span className="font-mono text-accent-cyan">Dependency discounting</span> adjusts each layer&apos;s likelihood ratio based on its correlation with previously processed layers. The deviation from LR=1 is scaled by the minimum independence factor from the dependency matrix. Geopolitical-OSINT correlation (0.50) produces aggressive discounting. Celestial-geopolitical near-independence (0.95) produces minimal discounting.
               </p>
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
-                <span className="font-mono text-accent-cyan">Sequential Bayesian update</span> applies each adjusted likelihood ratio to the running posterior using Bayes&apos; theorem. Layers are processed in a proprietary order that maximises evidence integrity.
+                <span className="font-mono text-accent-cyan">Sequential Bayesian update</span> applies each adjusted likelihood ratio to the running posterior using Bayes&apos; theorem in odds form: P(H|E) = P(H)&middot;LR / (P(H)&middot;LR + (1-P(H))). Layers are processed in decreasing reliability order so the strongest evidence enters unpenalised.
               </p>
               <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
                 <span className="font-mono text-accent-cyan">Posterior to intensity</span> maps the final posterior to a 1-5 scale: below 0.15 = intensity 1, 0.15-0.25 = 2, 0.25-0.40 = 3, 0.40-0.60 = 4, above 0.60 = 5. These thresholds are calibrated so that a single moderate geopolitical signal produces intensity 2, while intensity 5 requires strong multi-layer evidence.
@@ -1697,7 +1697,7 @@ export default function WhitepaperPage() {
 
           <div className={`max-w-3xl ${anim} ${knowledgeReveal.visible ? shown : hidden}`} style={{ transitionDelay: "100ms" }}>
             <p className="font-sans text-[15px] text-navy-300 leading-[1.85] mb-5">
-              The knowledge bank is a semantic store containing structured intelligence entries. Each entry is embedded into a high-dimensional vector space, enabling semantic search that finds relevant knowledge based on meaning rather than keyword matching.
+              The knowledge bank is a pgvector-backed semantic store containing structured intelligence entries. Each entry is embedded into a 1024-dimensional vector space using Voyage AI embeddings, enabling semantic search that finds relevant knowledge based on meaning rather than keyword matching.
             </p>
             <p className="font-sans text-[15px] text-navy-400 leading-[1.85] mb-5">
               Multiple ingestion pipelines feed the knowledge bank: deterministic (curated facts and relationships), advanced (multi-document synthesis), live (real-time OSINT-to-knowledge), deep thematic (geopolitical relationship mapping), and structural (entity relationship extraction). Active knowledge filtering applies confidence thresholds and recency weighting to ensure that stale or low-confidence entries do not contaminate current analysis.
@@ -2125,7 +2125,7 @@ export default function WhitepaperPage() {
             </p>
             <ExpandableSection title="Technical Implementation">
               <p className="font-sans text-[13px] text-navy-300 leading-[1.8]">
-                The engine uses high-dimensional embeddings for semantic search across the knowledge bank. Query text is matched against stored document embeddings via cosine similarity. Resolved predictions and signal history are retrieved as additional context. All data is passed through an AI synthesis pipeline that outputs structured parallel objects, composite probability, and regime classification.
+                The engine uses Voyage AI v3 (1024-dimensional) embeddings for semantic search across the knowledge bank. Query text is embedded with <code className="text-accent-cyan/80">input_type: &quot;query&quot;</code> and matched against stored document embeddings via pgvector cosine similarity. Resolved predictions and signal history are retrieved as additional context. All data is passed to Claude for structured synthesis, which outputs JSON with typed parallel objects, composite probability, and regime classification.
               </p>
             </ExpandableSection>
           </div>
