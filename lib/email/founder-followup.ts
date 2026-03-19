@@ -23,13 +23,10 @@ export async function sendFounderFollowUps(): Promise<{ sent: number; skipped: n
     .where(like(schema.settings.key, "%:founder_followup_sent"));
   const alreadySent = new Set(sentRows.map((r) => r.key.replace(":founder_followup_sent", "")));
 
-  // Get all active subscriptions
-  const subscriptions = await db.select().from(schema.subscriptions);
-  const subscribedUsers = new Set(
-    subscriptions
-      .filter((s) => s.status === "active" || s.status === "trialing")
-      .map((s) => s.userId)
-  );
+  // Get active/trialing subscriptions only
+  const subscriptions = await db.select().from(schema.subscriptions)
+    .where(inArray(schema.subscriptions.status, ["active", "trialing"]));
+  const subscribedUsers = new Set(subscriptions.map((s) => s.userId));
 
   let sent = 0;
   let skipped = 0;
