@@ -280,7 +280,7 @@ export default function PredictionAccuracyPage() {
 
       {/* ── Loading state ── */}
       {loading && (
-        <section className="px-6 pb-16">
+        <section className="px-6 pb-8">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center gap-3">
               <RefreshCw className="w-4 h-4 text-navy-500 animate-spin" />
@@ -292,7 +292,7 @@ export default function PredictionAccuracyPage() {
 
       {/* ── Insufficient data state ── */}
       {insufficient && !loading && (
-        <section className="px-6 pb-16">
+        <section className="px-6 pb-8">
           <div className="max-w-5xl mx-auto">
             <div className="border border-navy-800/60 rounded-lg p-8 text-center">
               <AlertTriangle className="w-6 h-6 text-navy-500 mx-auto mb-3" />
@@ -328,7 +328,7 @@ export default function PredictionAccuracyPage() {
           )}
 
           {/* ── Stats ── */}
-          <section className="px-6 pb-16">
+          <section className="px-6 pb-8">
             <div ref={statsReveal.ref} className="max-w-5xl mx-auto">
               <div className={`grid grid-cols-2 lg:grid-cols-5 gap-x-8 gap-y-6 transition-all duration-700 ${statsReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                 {([
@@ -356,7 +356,7 @@ export default function PredictionAccuracyPage() {
 
 
           {/* ── Brier Score ── */}
-          <section className="px-6 py-16">
+          <section className="px-6 py-8">
             <div ref={brierReveal.ref} className="max-w-5xl mx-auto">
               <div className={`transition-all duration-700 ${brierReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                 <div className="flex items-center gap-3 mb-2">
@@ -457,7 +457,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Difficulty Tiers ── */}
           {report.difficultyTiers && (
             <>
-                  <section className="px-6 py-16">
+                  <section className="px-6 py-8">
                 <div className="max-w-5xl mx-auto">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="h-px w-8 bg-navy-700" />
@@ -505,7 +505,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Rolling Brier Trend ── */}
           {report.rollingBrier && (
             <>
-              <section className="px-6 py-16">
+              <section className="px-6 py-8">
                 <div className="max-w-5xl mx-auto">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="h-px w-8 bg-navy-700" />
@@ -542,7 +542,7 @@ export default function PredictionAccuracyPage() {
 
           {/* ── Calibration ── */}
           {report.calibration.length > 0 && (
-          <section className="px-6 py-16">
+          <section className="px-6 py-8">
             <div ref={calibrationReveal.ref} className="max-w-5xl mx-auto">
               <div className={`transition-all duration-700 ${calibrationReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                 <div className="flex items-center gap-3 mb-2">
@@ -640,7 +640,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Category Breakdown ── */}
           {(report.byCategory.length > 0 || report.directionLevel) && (
           <>
-          <section className="px-6 py-16">
+          <section className="px-6 py-8">
             <div ref={categoryReveal.ref} className="max-w-5xl mx-auto">
               <div className={`transition-all duration-700 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                 <div className="flex items-center gap-3 mb-2">
@@ -725,7 +725,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Trend ── */}
           {report.recentTrend && (
             <>
-                  <section className="px-6 py-16">
+                  <section className="px-6 py-8">
                 <div ref={trendReveal.ref} className="max-w-5xl mx-auto">
                   <div className={`transition-all duration-700 ${trendReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                     <div className="flex items-center gap-3 mb-2">
@@ -815,7 +815,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Recent Predictions Scorecard ── */}
           {predictions.length > 0 && (
             <>
-              <section className="px-6 py-16">
+              <section className="px-6 py-8">
                 <div ref={scorecardReveal.ref} className="max-w-5xl mx-auto">
                   <div className={`transition-all duration-700 ${scorecardReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                     <div className="flex items-center gap-3 mb-2">
@@ -890,7 +890,7 @@ export default function PredictionAccuracyPage() {
           )}
 
           {/* ── Transparency ── */}
-          <section className="px-6 py-16">
+          <section className="px-6 py-8">
             <div ref={transparencyReveal.ref} className="max-w-5xl mx-auto">
               <div className={`transition-all duration-700 ${transparencyReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
                 <div className="flex items-center gap-3 mb-2">
@@ -924,7 +924,7 @@ export default function PredictionAccuracyPage() {
       )}
 
       {/* ── Related Research (always show) ── */}
-      <section className="px-6 py-16">
+      <section className="px-6 py-8">
         <div ref={relatedReveal.ref} className="max-w-5xl mx-auto">
           <div className={`transition-all duration-700 ${relatedReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex items-center gap-3 mb-8">
@@ -952,7 +952,7 @@ export default function PredictionAccuracyPage() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="px-6 pb-20">
+      <section className="px-6 pb-10">
         <div className="max-w-5xl mx-auto text-center py-12">
           <h3 className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-navy-200 mb-3">Query the full prediction log</h3>
           <p className="font-sans text-sm text-navy-400 mb-6 max-w-lg mx-auto">
