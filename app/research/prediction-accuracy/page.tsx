@@ -330,7 +330,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Stats ── */}
           <section className="px-6 pb-8">
             <div ref={statsReveal.ref} className="max-w-5xl mx-auto">
-              <div className={`grid grid-cols-2 lg:grid-cols-5 gap-x-8 gap-y-6 transition-all duration-700 ${statsReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`grid grid-cols-2 lg:grid-cols-5 gap-x-8 gap-y-6 transition-all duration-700 opacity-100 translate-y-0`}>
                 {([
                   { label: "Brier Skill Score", value: report.brierSkillScore != null ? report.brierSkillScore.toFixed(3) : "N/A", color: bssColor(report.brierSkillScore), sub: report.brierSkillScore != null ? bssLabel(report.brierSkillScore) : undefined },
                   { label: "Brier Score", value: report.brierScore.toFixed(3), color: brierColor(report.brierScore), sub: brierLabel(report.brierScore) },
@@ -358,7 +358,7 @@ export default function PredictionAccuracyPage() {
           {/* ── Brier Score ── */}
           <section className="px-6 py-8">
             <div ref={brierReveal.ref} className="max-w-5xl mx-auto">
-              <div className={`transition-all duration-700 ${brierReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`transition-all duration-700 opacity-100 translate-y-0`}>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="h-px w-8 bg-navy-700" />
                   <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">01 / Brier Score</h2>
@@ -366,7 +366,7 @@ export default function PredictionAccuracyPage() {
                 </div>
               </div>
 
-              <div className={`mt-6 grid grid-cols-1 md:grid-cols-12 gap-8 transition-all duration-700 delay-100 ${brierReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`mt-6 grid grid-cols-1 md:grid-cols-12 gap-8 transition-all duration-700 delay-100 opacity-100 translate-y-0`}>
                 <div className="md:col-span-7 space-y-3 font-sans text-sm leading-relaxed text-navy-400">
                   <p>
                     The Brier score is the primary metric NEXUS uses to evaluate
@@ -544,7 +544,7 @@ export default function PredictionAccuracyPage() {
           {report.calibration.length > 0 && (
           <section className="px-6 py-8">
             <div ref={calibrationReveal.ref} className="max-w-5xl mx-auto">
-              <div className={`transition-all duration-700 ${calibrationReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`transition-all duration-700 opacity-100 translate-y-0`}>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="h-px w-8 bg-navy-700" />
                   <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">02 / Calibration</h2>
@@ -552,7 +552,7 @@ export default function PredictionAccuracyPage() {
                 </div>
               </div>
 
-              <div className={`mt-6 space-y-3 font-sans text-sm leading-relaxed text-navy-400 max-w-3xl transition-all duration-700 delay-100 ${calibrationReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`mt-6 space-y-3 font-sans text-sm leading-relaxed text-navy-400 max-w-3xl transition-all duration-700 delay-100 opacity-100 translate-y-0`}>
                 <p>
                   A well-calibrated prediction system produces forecasts whose
                   stated probabilities match observed frequencies. When NEXUS
@@ -569,7 +569,7 @@ export default function PredictionAccuracyPage() {
 
               {/* Live calibration bins */}
               {report.calibration.length > 0 && (
-                <div className={`mt-8 transition-all duration-700 delay-200 ${calibrationReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                <div className={`mt-8 transition-all duration-700 delay-200 opacity-100 translate-y-0`}>
                   <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-4">Calibration by Probability Bin (Live Data)</div>
                   <div className="space-y-2">
                     {report.calibration.map((bucket) => {
@@ -642,7 +642,7 @@ export default function PredictionAccuracyPage() {
           <>
           <section className="px-6 py-8">
             <div ref={categoryReveal.ref} className="max-w-5xl mx-auto">
-              <div className={`transition-all duration-700 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`transition-all duration-700 opacity-100 translate-y-0`}>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="h-px w-8 bg-navy-700" />
                   <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">03 / Category Breakdown</h2>
@@ -650,7 +650,7 @@ export default function PredictionAccuracyPage() {
                 </div>
               </div>
 
-              <p className={`mt-6 font-sans text-sm leading-relaxed text-navy-400 max-w-3xl transition-all duration-700 delay-100 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <p className={`mt-6 font-sans text-sm leading-relaxed text-navy-400 max-w-3xl transition-all duration-700 delay-100 opacity-100 translate-y-0`}>
                 Prediction accuracy varies by domain. Market signals benefit from
                 higher data density and faster feedback loops. Geopolitical
                 predictions operate on longer timelines with more confounding
@@ -658,7 +658,7 @@ export default function PredictionAccuracyPage() {
               </p>
 
               {report.byCategory.length > 0 && (
-                <div className={`mt-8 transition-all duration-700 delay-200 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                <div className={`mt-8 transition-all duration-700 delay-200 opacity-100 translate-y-0`}>
                   {/* Header */}
                   <div className="grid grid-cols-12 gap-4 pb-3 border-b border-navy-700/30">
                     <div className="col-span-3 font-mono text-[9px] uppercase tracking-wider text-navy-500">Category</div>
@@ -694,7 +694,7 @@ export default function PredictionAccuracyPage() {
 
               {/* Direction / Level accuracy */}
               {report.directionLevel && (
-                <div className={`mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 transition-all duration-700 delay-300 ${categoryReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                <div className={`mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 transition-all duration-700 delay-300 opacity-100 translate-y-0`}>
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-wider text-navy-500 mb-1">Direction Accuracy</div>
                     <div className="font-mono text-lg font-bold text-navy-100">{(report.directionLevel.directionCorrectRate * 100).toFixed(1)}%</div>
@@ -727,7 +727,7 @@ export default function PredictionAccuracyPage() {
             <>
                   <section className="px-6 py-8">
                 <div ref={trendReveal.ref} className="max-w-5xl mx-auto">
-                  <div className={`transition-all duration-700 ${trendReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                  <div className={`transition-all duration-700 opacity-100 translate-y-0`}>
                     <div className="flex items-center gap-3 mb-2">
                       <div className="h-px w-8 bg-navy-700" />
                       <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">04 / Performance Trend</h2>
@@ -735,7 +735,7 @@ export default function PredictionAccuracyPage() {
                     </div>
                   </div>
 
-                  <div className={`mt-6 grid grid-cols-1 md:grid-cols-12 gap-8 transition-all duration-700 delay-100 ${trendReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                  <div className={`mt-6 grid grid-cols-1 md:grid-cols-12 gap-8 transition-all duration-700 delay-100 opacity-100 translate-y-0`}>
                     <div className="md:col-span-7 space-y-3 font-sans text-sm leading-relaxed text-navy-400">
                       <p>
                         The system continuously tracks its own accuracy over time and surfaces
@@ -817,7 +817,7 @@ export default function PredictionAccuracyPage() {
             <>
               <section className="px-6 py-8">
                 <div ref={scorecardReveal.ref} className="max-w-5xl mx-auto">
-                  <div className={`transition-all duration-700 ${scorecardReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                  <div className={`transition-all duration-700 opacity-100 translate-y-0`}>
                     <div className="flex items-center gap-3 mb-2">
                       <div className="h-px w-8 bg-navy-700" />
                       <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">
@@ -831,7 +831,7 @@ export default function PredictionAccuracyPage() {
                   </div>
 
                   {/* Summary row */}
-                  <div className={`mt-8 flex flex-wrap gap-x-10 gap-y-4 transition-all duration-700 delay-100 ${scorecardReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                  <div className={`mt-8 flex flex-wrap gap-x-10 gap-y-4 transition-all duration-700 delay-100 opacity-100 translate-y-0`}>
                     {(() => {
                       const confirmed = predictions.filter(p => p.outcome === "confirmed").length;
                       const denied = predictions.filter(p => p.outcome === "denied").length;
@@ -853,7 +853,7 @@ export default function PredictionAccuracyPage() {
                   </div>
 
                   {/* Predictions table */}
-                  <div className={`mt-8 transition-all duration-700 delay-200 ${scorecardReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                  <div className={`mt-8 transition-all duration-700 delay-200 opacity-100 translate-y-0`}>
                     <div className="grid grid-cols-12 gap-4 pb-3 border-b border-navy-700/30">
                       <div className="col-span-5 font-mono text-[9px] uppercase tracking-wider text-navy-500">Prediction</div>
                       <div className="col-span-2 font-mono text-[9px] uppercase tracking-wider text-navy-500">Category</div>
@@ -892,14 +892,14 @@ export default function PredictionAccuracyPage() {
           {/* ── Transparency ── */}
           <section className="px-6 py-8">
             <div ref={transparencyReveal.ref} className="max-w-5xl mx-auto">
-              <div className={`transition-all duration-700 ${transparencyReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`transition-all duration-700 opacity-100 translate-y-0`}>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="h-px w-8 bg-navy-700" />
                   <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Transparency</h2>
                 </div>
               </div>
 
-              <div className={`mt-6 grid grid-cols-1 md:grid-cols-3 gap-8 transition-all duration-700 delay-100 ${transparencyReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+              <div className={`mt-6 grid grid-cols-1 md:grid-cols-3 gap-8 transition-all duration-700 delay-100 opacity-100 translate-y-0`}>
                 {[
                   { icon: Eye, title: "Immutable Logging", body: "Every prediction is logged with timestamp, stated confidence, reasoning chain, contributing signal IDs, and eventual outcome. No record can be retroactively modified or deleted." },
                   { icon: Shield, title: "No Survivorship Bias", body: "The confidence level assigned at creation time is the score used for all accuracy calculations. This prevents cherry-picking of results and ensures reported metrics reflect true performance." },
@@ -926,14 +926,14 @@ export default function PredictionAccuracyPage() {
       {/* ── Related Research (always show) ── */}
       <section className="px-6 py-8">
         <div ref={relatedReveal.ref} className="max-w-5xl mx-auto">
-          <div className={`transition-all duration-700 ${relatedReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <div className={`transition-all duration-700 opacity-100 translate-y-0`}>
             <div className="flex items-center gap-3 mb-8">
               <div className="h-px w-8 bg-navy-700" />
               <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-navy-500">Related Research</h2>
             </div>
           </div>
 
-          <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 delay-100 ${relatedReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 delay-100 opacity-100 translate-y-0`}>
             {[
               { href: "/research/methodology", title: "Methodology", desc: "How NEXUS detects, scores, and synthesises intelligence from four primary signal layers plus narrative overlay." },
               { href: "/research/signal-theory", title: "Signal Theory", desc: "Deep dive into signal detection, intensity scoring, decay functions, and cross-layer amplification." },
