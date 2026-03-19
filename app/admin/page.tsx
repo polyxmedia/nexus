@@ -26,6 +26,7 @@ import {
   Plus,
   Shield,
   Timer,
+  Target,
   TrendingUp,
   UserCheck,
   Users,
@@ -48,6 +49,7 @@ import { AnalyticsPanel } from "@/components/admin/analytics-panel";
 import { SchedulerPanel } from "@/components/admin/scheduler-panel";
 import { BlogWriterPanel } from "@/components/admin/blog-writer-panel";
 import { CostMonitorPanel } from "@/components/admin/cost-monitor-panel";
+import { OutreachPanel } from "@/components/admin/outreach-panel";
 import { IntegrationsPanel } from "@/components/admin/integrations-panel";
 import { UsersTab } from "@/components/admin/users-tab";
 
@@ -67,6 +69,7 @@ const ADMIN_TABS = [
   { id: "integrations", label: "Integrations", icon: Globe },
   { id: "blog", label: "Blog Writer", icon: FileText },
   { id: "costs", label: "Costs", icon: Coins },
+  { id: "outreach", label: "Outreach", icon: Target },
   { id: "partnerships", label: "Partnerships", icon: Briefcase },
 ];
 
@@ -663,6 +666,10 @@ export default function AdminPage() {
 
         <Tabs.Content value="costs">
           <CostMonitorPanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="outreach">
+          <OutreachPanel />
         </Tabs.Content>
 
         <Tabs.Content value="partnerships">

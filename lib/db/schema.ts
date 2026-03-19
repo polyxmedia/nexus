@@ -1153,6 +1153,27 @@ export const pushDevices = pgTable("push_devices", {
 
 export type PushDevice = typeof pushDevices.$inferSelect;
 
+// ── Outreach Prospects ──
+
+export const outreachProspects = pgTable("outreach_prospects", {
+  id: serial("id").primaryKey(),
+  twitterId: text("twitter_id").notNull().unique(),
+  username: text("username").notNull(),
+  displayName: text("display_name"),
+  bio: text("bio"),
+  followers: integer("followers").notNull().default(0),
+  score: real("score").notNull().default(0),
+  tags: text("tags"), // JSON array
+  status: text("status").notNull().default("discovered"),
+  engagedAt: text("engaged_at"),
+  engagedTweetId: text("engaged_tweet_id"),
+  replyTweetId: text("reply_tweet_id"),
+  visitedAt: text("visited_at"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // ── Automation Rules ──
 
 export const automationRules = pgTable("automation_rules", {

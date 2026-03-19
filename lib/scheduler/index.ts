@@ -280,6 +280,16 @@ registerJob("automation-rules", 5 * 60_000, async () => {
   }
 });
 
+registerJob("outreach-discovery", 60 * 60_000, async () => {
+  // Discover and score prospects from Twitter every hour
+  // No AI calls, just Twitter search + keyword scoring
+  const { discoverProspects } = await import("@/lib/outreach/engine");
+  const result = await discoverProspects();
+  if (result.discovered > 0) {
+    console.log(`[scheduler] Outreach: ${result.discovered} new prospects, ${result.updated} updated`);
+  }
+});
+
 registerJob("iw-auto-detect", 15 * 60_000, async () => {
   // Auto-detect I&W indicators from OSINT feeds every 15 minutes
   const res = await internalFetch(`${getBaseUrl()}/api/iw/evaluate`, { method: "POST", headers: internalHeaders() });
