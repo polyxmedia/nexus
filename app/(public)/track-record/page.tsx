@@ -371,7 +371,7 @@ export default function TrackRecordPage() {
                 return (
                   <Link
                     key={p.id}
-                    href={`/predictions/${p.uuid}`}
+                    href={`/public-predictions/${p.uuid}`}
                     className={`block border border-navy-800/60 rounded-lg bg-navy-900/30 hover:bg-navy-900/50 hover:border-navy-700/50 transition-all ${anim} ${listReveal.visible ? shown : hidden}`}
                     style={{ transitionDelay: `${Math.min(i * 50, 500)}ms` }}
                   >

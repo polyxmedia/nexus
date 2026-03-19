@@ -455,11 +455,10 @@ export default function PredictionAccuracyPage() {
             </div>
           </section>
 
-          <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-
           {/* ── Difficulty Tiers ── */}
           {report.difficultyTiers && (
             <>
+              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
               <section className="px-6 py-16">
                 <div className="max-w-5xl mx-auto">
                   <div className="flex items-center gap-3 mb-2">
@@ -723,11 +722,10 @@ export default function PredictionAccuracyPage() {
             </div>
           </section>
 
-          <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
-
           {/* ── Trend ── */}
           {report.recentTrend && (
             <>
+              <div className="max-w-5xl mx-auto px-6"><div className="h-px bg-navy-800" /></div>
               <section className="px-6 py-16">
                 <div ref={trendReveal.ref} className="max-w-5xl mx-auto">
                   <div className={`transition-all duration-700 ${trendReveal.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>

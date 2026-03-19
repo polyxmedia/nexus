@@ -23,8 +23,6 @@ import {
   Area,
 } from "recharts";
 import type { BacktestResults } from "@/lib/backtest/types";
-import { PublicNav } from "@/components/layout/public-nav";
-import { PublicFooter } from "@/components/layout/public-footer";
 
 const n = (v: number | null | undefined): number => v ?? 0;
 
@@ -90,11 +88,9 @@ export default function PublicBacktestPage() {
   if (loading) {
     return (
       <>
-        <PublicNav />
         <div className="min-h-screen bg-navy-950 flex items-center justify-center">
           <div className="font-mono text-xs text-navy-500">Loading...</div>
         </div>
-        <PublicFooter />
       </>
     );
   }
@@ -102,14 +98,12 @@ export default function PublicBacktestPage() {
   if (error || !data || !data.results) {
     return (
       <>
-        <PublicNav />
         <div className="min-h-screen bg-navy-950 flex flex-col items-center justify-center gap-4">
           <p className="font-mono text-sm text-navy-400">{error || "Not found"}</p>
           <Link href="/research/methodology" className="font-mono text-xs text-accent-cyan hover:underline">
             View methodology
           </Link>
         </div>
-        <PublicFooter />
       </>
     );
   }
@@ -120,7 +114,6 @@ export default function PublicBacktestPage() {
 
   return (
     <>
-      <PublicNav />
       <div className="min-h-screen bg-navy-950 pt-24 pb-16">
         <div className="max-w-5xl mx-auto px-6">
           {/* Header */}
@@ -324,7 +317,6 @@ export default function PublicBacktestPage() {
           </div>
         </div>
       </div>
-      <PublicFooter />
     </>
   );
 }

@@ -35,6 +35,7 @@ import {
 import dynamic from "next/dynamic";
 import { HeroTerminal } from "@/components/landing/hero-terminal";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { CompetitorComparison } from "@/components/public/competitor-comparison";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 const ThreatMapPreview = dynamic(
@@ -1009,6 +1010,35 @@ export default function LandingPage() {
                 Contact Us
               </a>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── How We Compare ── */}
+      <section className="relative py-28">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 border border-navy-700/40 rounded-full px-4 py-1.5 mb-6">
+              <Shield className="h-3 w-3 text-accent-cyan" />
+              <span className="text-[10px] text-navy-400 tracking-[0.2em] uppercase">
+                Competitive Landscape
+              </span>
+            </div>
+            <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4">
+              How NEXUS compares
+            </h2>
+            <p className="text-sm text-navy-400 max-w-lg mx-auto">
+              The platforms that do intelligence well charge enterprise prices. The ones that are affordable do a single thing. NEXUS sits in the gap.
+            </p>
+          </div>
+          <CompetitorComparison />
+          <div className="text-center mt-8">
+            <Link
+              href="/why-nexus"
+              className="font-mono text-[11px] uppercase tracking-widest text-navy-500 hover:text-accent-cyan transition-colors"
+            >
+              Full competitive breakdown
+            </Link>
           </div>
         </div>
       </section>

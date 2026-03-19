@@ -289,7 +289,7 @@ export default function PublicPredictionPage() {
                 return (
                   <Link
                     key={r.id}
-                    href={`/predictions/${r.uuid}`}
+                    href={`/public-predictions/${r.uuid}`}
                     className="flex items-start gap-2.5 border border-navy-800/40 rounded-lg bg-navy-900/30 px-4 py-3 hover:bg-navy-900/50 transition-colors"
                   >
                     <RIcon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${rCfg?.color || "text-navy-600"}`} />
