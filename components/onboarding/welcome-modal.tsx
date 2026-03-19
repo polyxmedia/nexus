@@ -4,9 +4,7 @@ import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import {
-  Activity,
   BarChart3,
-  Globe,
   ArrowRight,
   Settings,
   Zap,

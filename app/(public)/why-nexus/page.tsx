@@ -562,10 +562,138 @@ export default function WhyNexusPage() {
 
       <Ruled maxWidth="max-w-5xl" />
 
+      {/* ── LIVE PROOF ── */}
+      <section className="px-6 py-20">
+        <div ref={proofReveal.ref} className="max-w-5xl mx-auto">
+          <SectionHead number="04" label="Live System Performance" visible={proofReveal.visible} />
+
+          <p
+            className={`text-base text-navy-400 leading-relaxed max-w-2xl mb-10 ${anim} ${proofReveal.visible ? shown : hidden}`}
+            style={{ transitionDelay: "100ms" }}
+          >
+            Anyone can make claims. We score ours. These numbers come directly
+            from the live NEXUS prediction engine, updated in real time. Every
+            prediction is tracked, every outcome is recorded, every score is
+            public.
+          </p>
+
+          {statsLoading ? (
+            <div
+              className={`flex items-center justify-center gap-2 py-16 text-navy-600 text-xs ${anim} ${proofReveal.visible ? shown : hidden}`}
+              style={{ transitionDelay: "200ms" }}
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading live stats...
+            </div>
+          ) : stats ? (
+            <div
+              className={`grid grid-cols-2 sm:grid-cols-3 gap-4 mb-10 ${anim} ${proofReveal.visible ? shown : hidden}`}
+              style={{ transitionDelay: "200ms" }}
+            >
+              {[
+                {
+                  label: "Predictions Generated",
+                  value: stats.totalPredictions.toLocaleString(),
+                  note: "AI-generated, falsifiable claims",
+                },
+                {
+                  label: "Predictions Resolved",
+                  value: stats.resolvedPredictions.toLocaleString(),
+                  note: "Auto-resolved against market data",
+                },
+                {
+                  label: "Hit Rate",
+                  value: `${(stats.hitRate * 100).toFixed(0)}%`,
+                  note: "Binary accuracy across all categories",
+                  color: stats.hitRate >= 0.5 ? "text-accent-emerald" : "text-navy-300",
+                },
+                {
+                  label: "Brier Score",
+                  value: stats.brierScore > 0 ? stats.brierScore.toFixed(3) : "N/A",
+                  note: stats.brierScore < 0.2 ? "Good calibration (< 0.25 = skilled)" : stats.brierScore < 0.3 ? "Moderate calibration" : "Building sample size",
+                  color: stats.brierScore > 0 && stats.brierScore < 0.2 ? "text-accent-emerald" : "text-navy-300",
+                },
+                {
+                  label: "Signal Layers Active",
+                  value: "4",
+                  note: "GEO, MKT, OSI, systemic risk",
+                },
+                {
+                  label: "Avg Confidence",
+                  value: stats.avgConfidence > 0 ? `${(stats.avgConfidence * 100).toFixed(0)}%` : "N/A",
+                  note: "Mean confidence across predictions",
+                },
+              ].map((stat) => (
+                <div key={stat.label} className="border border-navy-800/60 rounded-lg bg-navy-900/30 p-5">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600 block mb-2">
+                    {stat.label}
+                  </span>
+                  <span className={`text-2xl font-mono font-light tabular-nums ${"color" in stat && stat.color ? stat.color : "text-navy-100"}`}>
+                    {stat.value}
+                  </span>
+                  <span className="text-[10px] text-navy-600 block mt-1.5">{stat.note}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              className={`border border-navy-800/60 rounded-lg bg-navy-900/30 p-8 text-center ${anim} ${proofReveal.visible ? shown : hidden}`}
+              style={{ transitionDelay: "200ms" }}
+            >
+              <p className="text-sm text-navy-500">
+                Live stats are available once the prediction engine is running.
+              </p>
+              <p className="text-[10px] text-navy-600 mt-2">
+                Start a free trial to see the system in action.
+              </p>
+            </div>
+          )}
+
+          <div
+            className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${anim} ${proofReveal.visible ? shown : hidden}`}
+            style={{ transitionDelay: "350ms" }}
+          >
+            <div className="border border-navy-800/60 rounded-lg bg-navy-900/30 p-5">
+              <h4 className="text-[10px] font-mono uppercase tracking-widest text-accent-cyan mb-3">
+                Scored, Not Curated
+              </h4>
+              <p className="text-[12px] text-navy-500 leading-relaxed">
+                Every prediction the system makes is tracked and scored using
+                Brier proper scoring rules. Misses are recorded the same as
+                hits. You see the real accuracy, not a highlight reel.
+              </p>
+            </div>
+            <div className="border border-navy-800/60 rounded-lg bg-navy-900/30 p-5">
+              <h4 className="text-[10px] font-mono uppercase tracking-widest text-accent-amber mb-3">
+                Auto-Resolution
+              </h4>
+              <p className="text-[12px] text-navy-500 leading-relaxed">
+                Predictions resolve automatically against market data when
+                their deadline passes. No manual cherry-picking. No retroactive
+                edits. The system is honest because it has no choice.
+              </p>
+            </div>
+            <div className="border border-navy-800/60 rounded-lg bg-navy-900/30 p-5">
+              <h4 className="text-[10px] font-mono uppercase tracking-widest text-accent-emerald mb-3">
+                Self-Correcting
+              </h4>
+              <p className="text-[12px] text-navy-500 leading-relaxed">
+                Calibration feedback from resolved predictions feeds directly
+                into the next generation cycle. If the system is overconfident
+                in a category, it adjusts. Rolling Brier monitoring flags
+                model degradation before it compounds.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Ruled maxWidth="max-w-5xl" />
+
       {/* ── PRICING ── */}
       <section className="px-6 py-20">
         <div ref={pricingReveal.ref} className="max-w-5xl mx-auto">
-          <SectionHead number="04" label="Pricing" visible={pricingReveal.visible} />
+          <SectionHead number="05" label="Pricing" visible={pricingReveal.visible} />
 
           <p
             className={`text-base text-navy-400 leading-relaxed max-w-2xl mb-10 ${anim} ${pricingReveal.visible ? shown : hidden}`}

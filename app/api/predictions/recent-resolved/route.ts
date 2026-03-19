@@ -13,20 +13,24 @@ export async function GET(request: NextRequest) {
     const resolved = await db
       .select({
         id: schema.predictions.id,
+        uuid: schema.predictions.uuid,
         claim: schema.predictions.claim,
         category: schema.predictions.category,
         confidence: schema.predictions.confidence,
         outcome: schema.predictions.outcome,
+        outcomeNotes: schema.predictions.outcomeNotes,
         score: schema.predictions.score,
         resolvedAt: schema.predictions.resolvedAt,
         createdAt: schema.predictions.createdAt,
+        deadline: schema.predictions.deadline,
         direction: schema.predictions.direction,
         directionCorrect: schema.predictions.directionCorrect,
+        referenceSymbol: schema.predictions.referenceSymbol,
       })
       .from(schema.predictions)
       .where(isNotNull(schema.predictions.outcome))
       .orderBy(desc(schema.predictions.resolvedAt))
-      .limit(20);
+      .limit(40);
 
     return NextResponse.json({ predictions: resolved }, { headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120" } });
   } catch (error) {

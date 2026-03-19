@@ -5,13 +5,21 @@ import { requireTier } from "@/lib/auth/require-tier";
 import { validateOrigin } from "@/lib/security/csrf";
 
 const DEFAULT_WIDGETS = [
+  // Row 1: Key metrics at a glance
   { widgetType: "metric", title: "Threat Level", config: JSON.stringify({ metric: "threat_level" }), position: 0, width: 1 },
   { widgetType: "metric", title: "Market Regime", config: JSON.stringify({ metric: "market_regime" }), position: 1, width: 1 },
-  { widgetType: "signals", title: "High Intensity Signals", config: JSON.stringify({ minIntensity: 4 }), position: 2, width: 1 },
-  { widgetType: "thesis", title: "Active Thesis", config: JSON.stringify({}), position: 3, width: 2 },
-  { widgetType: "predictions", title: "Prediction Scorecard", config: JSON.stringify({}), position: 4, width: 1 },
-  { widgetType: "quick_chat", title: "Quick Chat", config: JSON.stringify({}), position: 5, width: 2 },
+  { widgetType: "metric", title: "VIX", config: JSON.stringify({ metric: "vix" }), position: 2, width: 1 },
+  // Row 2: Intelligence core
+  { widgetType: "daily_report", title: "Daily Briefing", config: JSON.stringify({}), position: 3, width: 3 },
+  // Row 3: Signals + thesis
+  { widgetType: "signals", title: "High Intensity Signals", config: JSON.stringify({ minIntensity: 4 }), position: 4, width: 1 },
+  { widgetType: "thesis", title: "Active Thesis", config: JSON.stringify({}), position: 5, width: 2 },
+  // Row 4: Markets + predictions
   { widgetType: "chart", title: "S&P 500", config: JSON.stringify({ symbol: "SPY", range: "3m" }), position: 6, width: 2 },
+  { widgetType: "predictions", title: "Prediction Scorecard", config: JSON.stringify({}), position: 7, width: 1 },
+  // Row 5: News + chat
+  { widgetType: "news", title: "News Feed", config: JSON.stringify({ category: "all", maxItems: 15 }), position: 8, width: 2 },
+  { widgetType: "quick_chat", title: "Quick Chat", config: JSON.stringify({}), position: 9, width: 1 },
 ];
 
 export async function GET() {

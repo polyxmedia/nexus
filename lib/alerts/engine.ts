@@ -377,16 +377,18 @@ export async function evaluateAlerts(): Promise<number> {
           const snapshot = await getGEXSnapshot(ticker || "SPY");
           if (snapshot && snapshot.aggregateRegime) {
             const currentRegime = snapshot.aggregateRegime;
-            if (lastGexRegime && currentRegime !== lastGexRegime) {
+            const now = Date.now();
+            const isStale = lastGexRegime && (now - lastGexRegime.timestamp > GEX_REGIME_TTL);
+            if (lastGexRegime && !isStale && currentRegime !== lastGexRegime.regime) {
               shouldTrigger = true;
               title = `Gamma regime flipped to ${currentRegime.toUpperCase()}`;
               message = currentRegime === "amplifying"
                 ? "Dealers now net short gamma. Moves will be amplified by hedging flows. Expect increased volatility."
                 : "Dealers now net long gamma. Expect range compression and mean reversion.";
               severity = currentRegime === "amplifying" ? 4 : 3;
-              data = { previousRegime: lastGexRegime, currentRegime, tickers: condition.gexTickers || ["SPY", "QQQ", "IWM"] };
+              data = { previousRegime: lastGexRegime.regime, currentRegime, tickers: condition.gexTickers || ["SPY", "QQQ", "IWM"] };
             }
-            lastGexRegime = currentRegime;
+            lastGexRegime = { regime: currentRegime, timestamp: now };
           }
         } catch { /* GEX unavailable */ }
         break;
