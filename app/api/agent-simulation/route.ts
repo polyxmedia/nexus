@@ -1,3 +1,5 @@
+export const maxDuration = 120;
+
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { desc, eq } from "drizzle-orm";

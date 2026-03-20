@@ -14,10 +14,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const topic = searchParams.get("topic");
 
-  // If cache is totally empty, trigger a scan (first load only)
+  // If cache is empty, run scan synchronously (Vercel kills fire-and-forget after response)
   if (await needsScan()) {
-    // Non-blocking: kick off scan but return immediately with whatever we have
-    runSentimentScan().catch(() => {});
+    await runSentimentScan();
   }
 
   if (topic) {

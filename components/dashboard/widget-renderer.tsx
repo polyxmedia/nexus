@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, ArrowRight, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, MinusCircle, Target, Shield, Sun, Moon, Send, MessageSquare } from "lucide-react";
+import { X, ArrowRight, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, MinusCircle, Target, Shield, Sun, Moon, Send, MessageSquare, TrendingUp, TrendingDown } from "lucide-react";
 import { Metric } from "@/components/ui/metric";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
@@ -1909,6 +1909,8 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <BrierScoreWidget />;
       case "oil_divergence":
         return <OilDivergenceDashWidget />;
+      case "trade_recs":
+        return <TradeRecsWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1983,6 +1985,64 @@ function OilDivergenceDashWidget() {
   );
 }
 
+// ── Trade Recommendations Widget ──
+
+interface TradeRecItem {
+  ticker: string;
+  direction: string;
+  rationale: string;
+  signalTitle: string;
+  signalId: number;
+  analysedAt: string;
+}
+
+function TradeRecsWidget() {
+  const { data: raw, isLoading: loading } = useSwrFetch<{ recs?: TradeRecItem[] }>("/api/dashboard/trade-recs", { dedupingInterval: 60_000 });
+  const recs = raw?.recs || [];
+
+  if (loading) return <WidgetSkeleton lines={5} />;
+  if (recs.length === 0) {
+    return (
+      <div className="text-center py-4">
+        <TrendingUp className="h-6 w-6 text-navy-700 mx-auto mb-2" />
+        <p className="text-xs text-navy-500 mb-1">No trade recommendations yet</p>
+        <Link href="/signals" className="text-xs text-navy-400 hover:text-navy-200 transition-colors">
+          Analyse a signal to generate trade ideas
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 max-h-64 overflow-y-auto">
+      {recs.map((rec) => {
+        const isBuy = rec.direction === "BUY";
+        return (
+          <Link
+            key={`${rec.ticker}-${rec.signalId}`}
+            href={`/signals/${rec.signalId}`}
+            className="block border border-navy-700/30 rounded px-3 py-2 hover:bg-navy-800/40 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold font-mono text-navy-100">{rec.ticker}</span>
+              <span className={`flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                isBuy
+                  ? "bg-accent-emerald/10 text-accent-emerald"
+                  : "bg-accent-rose/10 text-accent-rose"
+              }`}>
+                {isBuy ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                {rec.direction}
+              </span>
+            </div>
+            <p className="text-[10px] text-navy-400 leading-relaxed line-clamp-2">{rec.rationale}</p>
+            <p className="text-[9px] text-navy-600 mt-1 font-mono">{rec.signalTitle}</p>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Available Widgets Registry ──
 
 export const AVAILABLE_WIDGETS = [
@@ -2016,4 +2076,5 @@ export const AVAILABLE_WIDGETS = [
   { type: "quick_chat", name: "Quick Chat", description: "Start a conversation with the AI analyst", defaultWidth: 2, defaultConfig: {} },
   { type: "daily_report", name: "Daily Report", description: "AI-generated daily intelligence briefing with drill-down", defaultWidth: 3, defaultConfig: {} },
   { type: "brier_score", name: "Brier Score", description: "Platform prediction calibration, accuracy, and scoring breakdown", defaultWidth: 1, defaultConfig: {} },
+  { type: "trade_recs", name: "Trade Recommendations", description: "AI-generated trade ideas from signal analysis", defaultWidth: 1, defaultConfig: {} },
 ];

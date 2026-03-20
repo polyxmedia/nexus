@@ -82,6 +82,7 @@ const STORE_ITEMS: StoreItem[] = [
   { type: "thesis", name: "Active Thesis", description: "AI-generated market thesis with regime and confidence", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "cyan", minTier: "free" },
   { type: "signals", name: "Signal Feed", description: "Filtered intelligence signals by intensity", category: "intelligence", defaultWidth: 1, defaultConfig: { minIntensity: 4 }, accent: "amber", minTier: "free" },
   { type: "predictions", name: "Prediction Scorecard", description: "Accuracy tracking with Brier scoring", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "free" },
+  { type: "trade_recs", name: "Recommended Trades", description: "Latest AI-generated trade ideas from signal analysis", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "free" },
   { type: "calendar", name: "Calendar", description: "Hebrew, Islamic & economic calendar events", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "emerald", minTier: "free" },
   { type: "prediction_markets", name: "Prediction Markets", description: "Polymarket & Kalshi probability pricing", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "amber", minTier: "operator" },
   { type: "congressional_trading", name: "Congressional Trading", description: "STOCK Act disclosures, insider clusters", category: "intelligence", defaultWidth: 2, defaultConfig: {}, accent: "rose", minTier: "operator" },

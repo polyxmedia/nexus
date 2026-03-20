@@ -16,7 +16,7 @@ type CacheKey = (typeof CACHE_KEYS)[keyof typeof CACHE_KEYS];
 /**
  * Write a value to the data_cache table (upsert by key).
  */
-async function writeCache(key: CacheKey, data: unknown): Promise<void> {
+export async function writeCache(key: CacheKey, data: unknown): Promise<void> {
   const json = JSON.stringify(data);
   const now = new Date().toISOString();
   await db.insert(schema.dataCache).values({ key, data: json, updatedAt: now }).onConflictDoUpdate({

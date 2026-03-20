@@ -191,9 +191,9 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
   let scanned = 0;
   let errors = 0;
 
-  // Process topics in batches of 3 to avoid rate limits
-  for (let i = 0; i < TRACKED_TOPICS.length; i += 3) {
-    const batch = TRACKED_TOPICS.slice(i, i + 3);
+  // Process topics in batches of 5 (all sources have 5s timeouts, so parallel is fine)
+  for (let i = 0; i < TRACKED_TOPICS.length; i += 5) {
+    const batch = TRACKED_TOPICS.slice(i, i + 5);
     const results = await Promise.allSettled(
       batch.map((t) => scanTopic(t))
     );
@@ -202,17 +202,11 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
       if (results[j].status === "fulfilled") {
         const result = (results[j] as PromiseFulfilledResult<TopicSentiment>).value;
         memCache.set(batch[j].topic.toLowerCase(), result);
-        // Persist to DB (non-blocking, best-effort)
         persistToDb(batch[j].topic, result).catch(() => {});
         scanned++;
       } else {
         errors++;
       }
-    }
-
-    // 2s pause between batches to respect rate limits
-    if (i + 3 < TRACKED_TOPICS.length) {
-      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 

@@ -1,6 +1,8 @@
+export const maxDuration = 30;
+
 import { NextRequest, NextResponse } from "next/server";
 import { getMacroSnapshot, getYieldCurve, getFredSeries, FRED_SERIES, type FredSeriesId, type FredSeriesData } from "@/lib/market-data/fred";
-import { readCache, CACHE_KEYS } from "@/lib/market-data/cache-refresh";
+import { readCache, writeCache, CACHE_KEYS } from "@/lib/market-data/cache-refresh";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth";
 
@@ -20,8 +22,9 @@ export async function GET(req: NextRequest) {
       const cached = await readCache<ReturnType<typeof getYieldCurve>>(CACHE_KEYS.YIELD_CURVE, MAX_CACHE_AGE_MS);
       if (cached) return NextResponse.json(cached.data, { headers: CACHE_HEADERS });
 
-      // Fallback to live
+      // Fallback to live, cache the result for next time
       const curve = await getYieldCurve();
+      writeCache(CACHE_KEYS.YIELD_CURVE, curve).catch(() => {});
       return NextResponse.json(curve, { headers: CACHE_HEADERS });
     }
 
@@ -44,8 +47,9 @@ export async function GET(req: NextRequest) {
     const cached = await readCache<Record<string, FredSeriesData>>(CACHE_KEYS.MACRO_SNAPSHOT, MAX_CACHE_AGE_MS);
     if (cached) return NextResponse.json(cached.data, { headers: CACHE_HEADERS });
 
-    // Fallback to live FRED fetch
+    // Fallback to live FRED fetch, cache the result for next time
     const snapshot = await getMacroSnapshot();
+    writeCache(CACHE_KEYS.MACRO_SNAPSHOT, snapshot).catch(() => {});
     return NextResponse.json(snapshot, { headers: CACHE_HEADERS });
   } catch (err: unknown) {
     // If live fetch fails, try stale cache (any age)

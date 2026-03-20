@@ -207,8 +207,8 @@ export default function SubscribePage() {
                 }`}
               >
                 {isRecommended && !isSelected && (
-                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
-                    <span className="px-3 py-0.5 bg-accent-cyan/10 border border-accent-cyan/20 rounded-full font-mono text-[9px] uppercase tracking-wider text-accent-cyan">
+                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
+                    <span className="px-3 py-0.5 bg-navy-950 border border-accent-cyan/30 rounded-full font-mono text-[9px] uppercase tracking-wider text-accent-cyan shadow-[0_0_8px_rgba(6,182,212,0.1)]">
                       Recommended
                     </span>
                   </div>

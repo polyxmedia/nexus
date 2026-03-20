@@ -3,6 +3,8 @@
  * Emits progress events as the synthesis pipeline runs.
  */
 
+export const maxDuration = 300;
+
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";

@@ -357,10 +357,17 @@ export default function SentimentPage() {
 
   useEffect(() => {
     fetchData();
-    // Poll every 5 min (data updates every 30 min on background, but catch it quickly)
+    // Poll every 5 min once data is loaded
     pollRef.current = setInterval(fetchData, 5 * 60_000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchData]);
+
+  // When data is empty, poll aggressively until it appears
+  useEffect(() => {
+    if (loading || (data && data.topics.length > 0)) return;
+    const fast = setInterval(fetchData, 15_000);
+    return () => clearInterval(fast);
+  }, [loading, data, fetchData]);
 
   // Sort topics: poisoning flags first, then by absolute sentiment (most directional first)
   const sortedTopics = data?.topics

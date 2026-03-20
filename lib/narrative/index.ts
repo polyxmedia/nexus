@@ -32,10 +32,52 @@ export interface NarrativeSnapshot {
   lastUpdated: string;
 }
 
-// ── Cache ────────────────────────────────────────────────────────────────
+// ── Cache (DB-backed for Vercel serverless persistence) ──────────────────
 
-let snapshotCache: { data: NarrativeSnapshot; expiry: number } | null = null;
-const CACHE_TTL_MS = 1_800_000; // 30 minutes (GDELT rate limits make frequent refreshes impractical)
+import { db, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
+
+const CACHE_KEY = "narrative:snapshot";
+const CACHE_TTL_MS = 1_800_000; // 30 minutes
+
+async function getCachedSnapshot(): Promise<NarrativeSnapshot | null> {
+  try {
+    const rows = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, CACHE_KEY));
+    if (rows.length === 0) return null;
+    const parsed = JSON.parse(rows[0].value);
+    if (!parsed.expiry || parsed.expiry < Date.now()) return null;
+    return parsed.data as NarrativeSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedSnapshot(data: NarrativeSnapshot): Promise<void> {
+  const value = JSON.stringify({ data, expiry: Date.now() + CACHE_TTL_MS });
+  try {
+    const existing = await db
+      .select()
+      .from(schema.settings)
+      .where(eq(schema.settings.key, CACHE_KEY));
+    if (existing.length > 0) {
+      await db
+        .update(schema.settings)
+        .set({ value, updatedAt: new Date().toISOString() })
+        .where(eq(schema.settings.key, CACHE_KEY));
+    } else {
+      await db.insert(schema.settings).values({
+        key: CACHE_KEY,
+        value,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  } catch {
+    // Cache write failure is non-critical
+  }
+}
 
 // ── Theme Definitions ────────────────────────────────────────────────────
 
@@ -265,17 +307,17 @@ function detectDivergences(narratives: Narrative[]): NarrativeDivergence[] {
 // ── Main Snapshot Builder ────────────────────────────────────────────────
 
 export async function getNarrativeSnapshot(themeFilter?: string): Promise<NarrativeSnapshot> {
-  // Check cache
-  if (snapshotCache && snapshotCache.expiry > Date.now() && !themeFilter) {
-    return snapshotCache.data;
+  // Check DB-backed cache
+  if (!themeFilter) {
+    const cached = await getCachedSnapshot();
+    if (cached) return cached;
   }
 
   const themeKeys = themeFilter
     ? Object.keys(THEMES).filter(k => k === themeFilter)
     : Object.keys(THEMES);
 
-  // GDELT rate limits to 1 request/5s. Batch themes into 3 groups to stay under.
-  // Each batch combines keywords from multiple themes into one query.
+  // Batch themes into 3 groups, run all in parallel (3 concurrent GDELT requests is fine)
   const BATCH_SIZE = Math.ceil(themeKeys.length / 3);
   const themeBatches: string[][] = [];
   for (let i = 0; i < themeKeys.length; i += BATCH_SIZE) {
@@ -283,19 +325,15 @@ export async function getNarrativeSnapshot(themeFilter?: string): Promise<Narrat
   }
 
   const [gdeltBatchResults, redditResults] = await Promise.all([
-    // GDELT: 3 batched queries with 5.5s delay
-    (async () => {
-      const allArticles: GdeltArticle[] = [];
-      for (let i = 0; i < themeBatches.length; i++) {
-        if (i > 0) await new Promise(r => setTimeout(r, 5500));
-        const batchKeywords = themeBatches[i]
+    // GDELT: all batches in parallel
+    Promise.all(
+      themeBatches.map((batch) => {
+        const batchKeywords = batch
           .flatMap(key => THEMES[key].keywords.slice(0, 2))
           .join(" OR ");
-        const articles = await fetchGdeltTheme(batchKeywords);
-        allArticles.push(...articles);
-      }
-      return allArticles;
-    })(),
+        return fetchGdeltTheme(batchKeywords);
+      })
+    ).then(results => results.flat()),
     // Reddit: parallel
     Promise.all(SUBREDDITS.map(async (sub) => {
       const posts = await fetchRedditHot(sub);
@@ -406,7 +444,8 @@ export async function getNarrativeSnapshot(themeFilter?: string): Promise<Narrat
   };
 
   if (!themeFilter) {
-    snapshotCache = { data: snapshot, expiry: Date.now() + CACHE_TTL_MS };
+    // Write to DB cache (non-blocking)
+    setCachedSnapshot(snapshot).catch(() => {});
   }
 
   return snapshot;
