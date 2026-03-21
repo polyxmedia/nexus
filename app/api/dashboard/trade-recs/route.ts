@@ -55,7 +55,7 @@ export async function GET() {
             ticker: rec.ticker,
             direction: rec.direction || "BUY",
             rationale: rec.rationale || "",
-            signalTitle: signalMap.get(row.signalId) || "Signal Analysis",
+            signalTitle: String(signalMap.get(row.signalId) ?? "Signal Analysis"),
             signalId: row.signalId,
             analysedAt: row.createdAt,
           });

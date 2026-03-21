@@ -75,7 +75,6 @@ const SYMBOL_MAP: Record<string, string> = {
   "3LAP": "3LAP.L",
   "3LNV": "3LNV.L",
   "3LMS": "3LMS.L",
-  "3LTS": "3LTS.L",
   "3LAZ": "3LAZ.L",
   "3LMT": "3LMT.L",
   "3LGG": "3LGG.L",
