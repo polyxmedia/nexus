@@ -21,6 +21,8 @@ interface LayerToggleProps {
   vipCount: number;
   fireCount: number;
   fireHighCount: number;
+  fireMilitaryCount: number;
+  fireMilitaryOnly: boolean;
   radiationCount: number;
   radiationElevatedCount: number;
 }
@@ -121,6 +123,8 @@ export function LayerToggle({
   vipCount,
   fireCount,
   fireHighCount,
+  fireMilitaryCount,
+  fireMilitaryOnly,
   radiationCount,
   radiationElevatedCount,
 }: LayerToggleProps) {
@@ -141,7 +145,8 @@ export function LayerToggle({
       return `${vipCount}`;
     }
     if (key === "fires" && visibility.fires && fireCount > 0) {
-      return fireHighCount > 0 ? `${fireCount} / ${fireHighCount}H` : `${fireCount}`;
+      if (fireMilitaryOnly && fireMilitaryCount > 0) return `${fireMilitaryCount}M`;
+      return fireMilitaryCount > 0 ? `${fireCount} / ${fireMilitaryCount}M` : `${fireCount}`;
     }
     if (key === "radiation" && visibility.radiation && radiationCount > 0) {
       return radiationElevatedCount > 0 ? `${radiationCount} / ${radiationElevatedCount}!` : `${radiationCount}`;
@@ -180,6 +185,23 @@ export function LayerToggle({
             </button>
           );
         })}
+        {/* MIL sub-toggle: appears when fire layer is active */}
+        {visibility.fires && (
+          <button
+            onClick={() => onToggle("fireMilitaryOnly")}
+            className={cn(
+              "flex items-center gap-1 px-2 py-1.5 text-[8px] font-mono font-bold uppercase tracking-[0.12em] transition-all rounded border",
+              fireMilitaryOnly
+                ? "bg-red-500/15 text-red-400 border-red-500/30"
+                : "text-navy-500 hover:text-navy-300 hover:bg-navy-800 border-transparent"
+            )}
+          >
+            MIL
+            {fireMilitaryCount > 0 && (
+              <span className="text-[7px] opacity-60 tabular-nums">{fireMilitaryCount}</span>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

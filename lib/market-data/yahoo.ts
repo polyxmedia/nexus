@@ -65,6 +65,21 @@ const SYMBOL_MAP: Record<string, string> = {
   EURCHF: "EURCHF=X",
   "AUD/JPY": "AUDJPY=X",
   AUDJPY: "AUDJPY=X",
+  // LSE-listed leveraged ETPs
+  "3OIL": "3OIL.L",
+  "3LTS": "3LTS.L",
+  "3NGS": "3NGS.L",
+  "3GOL": "3GOL.L",
+  "3SIL": "3SIL.L",
+  "3LNG": "3LNG.L",
+  "3LAP": "3LAP.L",
+  "3LNV": "3LNV.L",
+  "3LMS": "3LMS.L",
+  "3LTS": "3LTS.L",
+  "3LAZ": "3LAZ.L",
+  "3LMT": "3LMT.L",
+  "3LGG": "3LGG.L",
+  BOIL: "BOIL.L",
 };
 
 function resolveSymbol(symbol: string): string {

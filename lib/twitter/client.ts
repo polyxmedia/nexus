@@ -19,6 +19,14 @@ interface TweetResult {
  * Get the stored OAuth 2.0 access token, refreshing if expired.
  */
 async function getAccessToken(): Promise<string | null> {
+  // Hard 5s timeout on the entire token retrieval to prevent hanging
+  return Promise.race([
+    getAccessTokenInner(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+  ]);
+}
+
+async function getAccessTokenInner(): Promise<string | null> {
   const rows = await db.select().from(schema.settings).where(
     eq(schema.settings.key, "twitter_oauth_access_token")
   );
@@ -255,7 +263,10 @@ export interface SearchedTweet {
  */
 export async function searchTweets(query: string, maxResults: number = 10): Promise<SearchedTweet[]> {
   const token = await getAccessToken();
-  if (!token) throw new Error("Twitter not authenticated. Reconnect in Admin > Integrations.");
+  if (!token) {
+    console.warn("[twitter] No access token available for search. Skipping.");
+    return [];
+  }
 
   const params = new URLSearchParams({
     query,
@@ -267,7 +278,7 @@ export async function searchTweets(query: string, maxResults: number = 10): Prom
 
   const res = await fetch(`https://api.x.com/2/tweets/search/recent?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(8_000),
   });
 
   if (!res.ok) {

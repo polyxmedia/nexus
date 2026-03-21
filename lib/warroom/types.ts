@@ -184,6 +184,11 @@ export interface FireDetection {
   satellite: string;
   acquiredAt: string;
   dayNight: "D" | "N";
+  military?: {
+    baseName: string;
+    baseType: string;
+    distanceKm: number;
+  };
 }
 
 export interface FireResponse {
@@ -191,6 +196,8 @@ export interface FireResponse {
   timestamp: number;
   totalCount: number;
   highConfidenceCount: number;
+  militaryCount: number;
+  days: number; // how many days of history
 }
 
 // ── Radiation Monitoring ──
@@ -246,6 +253,7 @@ export interface WarRoomLayerVisibility {
   satellites: boolean;
   vipAircraft: boolean;
   fires: boolean;
+  fireMilitaryOnly: boolean;
   radiation: boolean;
 }
 

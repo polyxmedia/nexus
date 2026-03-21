@@ -5050,12 +5050,31 @@ function executeCalculate(input: Record<string, unknown>) {
   const scope: Record<string, number> = {};
   const results: Array<{ label: string; expression: string; result: number | string }> = [];
 
+  // Sanitize variable names: mathjs can't handle names starting with digits
+  const sanitize = (name: string) => /^\d/.test(name) ? `_${name}` : name;
+  // Map original labels to sanitized versions for expression rewriting
+  const labelMap: Record<string, string> = {};
+
   for (const { label, expr } of expressions) {
     try {
-      const value = mathEvaluate(expr, scope);
+      const safeLabel = sanitize(label);
+      labelMap[label] = safeLabel;
+
+      // Rewrite expression: replace references to original labels with sanitized versions
+      let sanitizedExpr = expr;
+      for (const [origLabel, safeName] of Object.entries(labelMap)) {
+        if (origLabel !== safeName) {
+          sanitizedExpr = sanitizedExpr.replace(
+            new RegExp(origLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+            safeName
+          );
+        }
+      }
+
+      const value = mathEvaluate(sanitizedExpr, scope);
       const numValue = typeof value === "number" ? value :
         typeof value?.toNumber === "function" ? value.toNumber() : Number(value);
-      scope[label] = numValue;
+      scope[safeLabel] = numValue;
       results.push({ label, expression: expr, result: numValue });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Invalid expression";
@@ -5072,21 +5091,26 @@ async function executeGetSocialSentiment(input: Record<string, unknown>) {
     const { getCachedSentiment, getAllCachedSentiments, getTrackedTopics, scanCustomTopic, needsScan, runSentimentScan } = await import("@/lib/sentiment/aggregator");
     const topic = input.topic as string | undefined;
 
-    // If cache is empty, trigger a non-blocking scan
-    if (await needsScan()) {
-      runSentimentScan().catch(() => {});
-    }
+    // Fire-and-forget background scan check -- do NOT await needsScan() since
+    // it hits the DB and can hang on cold serverless invocations.
+    // Wrap the entire check-and-scan in a non-blocking promise.
+    Promise.resolve().then(async () => {
+      try {
+        if (await needsScan()) runSentimentScan().catch(() => {});
+      } catch { /* silent */ }
+    });
 
     if (topic) {
       // Try cache first (now async - checks memory then DB)
       const cached = await getCachedSentiment(topic);
       if (cached) return cached;
 
-      // On-demand scan for custom topic
-      const result = await scanCustomTopic(
-        topic,
-        `"${topic}" -is:retweet lang:en`
-      );
+      // On-demand scan for custom topic with hard timeout
+      const result = await Promise.race([
+        scanCustomTopic(topic, `"${topic}" -is:retweet lang:en`),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+      ]);
+      if (!result) return { error: `Sentiment scan for "${topic}" timed out. Try again in a moment.`, topic };
       return result;
     }
 

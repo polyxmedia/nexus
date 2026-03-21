@@ -1,6 +1,8 @@
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { requireTier } from "@/lib/auth/require-tier";
-import { getCachedSentiment, getAllCachedSentiments, getTrackedTopics, scanCustomTopic, needsScan, runSentimentScan } from "@/lib/sentiment/aggregator";
+import { getCachedSentiment, getAllCachedSentiments, getTrackedTopics, needsScan, runSentimentScan } from "@/lib/sentiment/aggregator";
 
 /**
  * GET /api/sentiment/social?topic=Gold
@@ -14,9 +16,16 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const topic = searchParams.get("topic");
 
-  // If cache is empty, run scan synchronously (Vercel kills fire-and-forget after response)
+  // If cache is empty, run scan with a timeout guard so we don't blow Vercel limits
   if (await needsScan()) {
-    await runSentimentScan();
+    try {
+      await Promise.race([
+        runSentimentScan(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Scan timeout")), 50_000)),
+      ]);
+    } catch (err) {
+      console.error("[sentiment] Scan failed or timed out:", err instanceof Error ? err.message : err);
+    }
   }
 
   if (topic) {

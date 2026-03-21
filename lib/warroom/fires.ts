@@ -1,14 +1,21 @@
 import type { FireDetection } from "./types";
+import { getAllBaseCoordinates } from "./military-bases";
 
 // NASA FIRMS provides near-real-time fire data from MODIS and VIIRS satellites
 // Free API: https://firms.modaps.eosdis.nasa.gov/api/
 
 const FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv";
 const MAP_KEY = process.env.NASA_FIRMS_KEY || "FIRMS_MAP_KEY";
+const MILITARY_RADIUS_KM = 2; // fires within 2km of base center = military
 
 // In-memory cache (fire data updates ~every 3 hours from satellite passes)
 let fireCache: { data: FireDetection[]; timestamp: number } | null = null;
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// Military base coordinates cache (refreshed with fire data)
+let baseCoordsCache: Array<{ lat: number; lng: number; name: string; type: string }> | null = null;
+let baseCoordsTimestamp = 0;
+const BASE_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 function parseConfidence(val: string | number): "low" | "nominal" | "high" {
   if (typeof val === "number") {
@@ -70,18 +77,77 @@ function parseCsvRow(headerIndex: Map<string, number>, row: string): FireDetecti
   };
 }
 
-export async function fetchFirmsData(): Promise<FireDetection[]> {
+// ── Haversine distance (km) ──
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── Military base matching ──
+
+async function getBaseCoords(): Promise<Array<{ lat: number; lng: number; name: string; type: string }>> {
+  if (baseCoordsCache && Date.now() - baseCoordsTimestamp < BASE_CACHE_TTL) {
+    return baseCoordsCache;
+  }
+  try {
+    baseCoordsCache = await getAllBaseCoordinates();
+    baseCoordsTimestamp = Date.now();
+    return baseCoordsCache;
+  } catch {
+    return baseCoordsCache ?? [];
+  }
+}
+
+function matchMilitaryBase(
+  fire: FireDetection,
+  bases: Array<{ lat: number; lng: number; name: string; type: string }>
+): FireDetection["military"] | undefined {
+  // Quick lat/lng bounding box pre-filter (~0.018 degrees ≈ 2km)
+  const margin = 0.025;
+  let closest: { name: string; type: string; dist: number } | null = null;
+
+  for (const base of bases) {
+    if (Math.abs(fire.lat - base.lat) > margin || Math.abs(fire.lng - base.lng) > margin) continue;
+    const dist = haversineKm(fire.lat, fire.lng, base.lat, base.lng);
+    if (dist <= MILITARY_RADIUS_KM && (!closest || dist < closest.dist)) {
+      closest = { name: base.name, type: base.type, dist };
+    }
+  }
+
+  if (!closest) return undefined;
+  return {
+    baseName: closest.name,
+    baseType: closest.type,
+    distanceKm: Math.round(closest.dist * 100) / 100,
+  };
+}
+
+// ── Main fetch ──
+
+export async function fetchFirmsData(days = 10): Promise<FireDetection[]> {
   if (fireCache && Date.now() - fireCache.timestamp < CACHE_TTL) {
     return fireCache.data;
   }
 
-  const url = `${FIRMS_BASE}/${MAP_KEY}/VIIRS_SNPP_NRT/world/1`;
+  // Clamp to FIRMS API max of 10 days
+  const dayParam = Math.min(10, Math.max(1, days));
+  const url = `${FIRMS_BASE}/${MAP_KEY}/VIIRS_SNPP_NRT/world/${dayParam}`;
 
   try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(20_000),
-      headers: { "User-Agent": "Nexus-WarRoom/1.0" },
-    });
+    const [res, bases] = await Promise.all([
+      fetch(url, {
+        signal: AbortSignal.timeout(30_000),
+        headers: { "User-Agent": "Nexus-WarRoom/1.0" },
+      }),
+      getBaseCoords(),
+    ]);
 
     if (!res.ok) {
       console.error(`FIRMS API error: ${res.status}`);
@@ -96,10 +162,16 @@ export async function fetchFirmsData(): Promise<FireDetection[]> {
     const headerIndex = buildHeaderIndex(headers);
     const fires: FireDetection[] = [];
 
-    for (let i = 1; i < lines.length && fires.length < 500; i++) {
+    for (let i = 1; i < lines.length && fires.length < 2000; i++) {
       const fire = parseCsvRow(headerIndex, lines[i]);
       if (!fire) continue;
       if (fire.confidence === "low") continue;
+
+      // Cross-reference against military bases
+      if (bases.length > 0) {
+        fire.military = matchMilitaryBase(fire, bases);
+      }
+
       fires.push(fire);
     }
 

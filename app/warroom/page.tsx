@@ -135,6 +135,7 @@ export default function WarRoomPage() {
     satellites: false,
     vipAircraft: false,
     fires: false,
+    fireMilitaryOnly: false,
     radiation: false,
   });
 
@@ -568,6 +569,8 @@ export default function WarRoomPage() {
           vipCount={vipAircraftData?.totalCount ?? 0}
           fireCount={fireData?.totalCount ?? 0}
           fireHighCount={fireData?.highConfidenceCount ?? 0}
+          fireMilitaryCount={fireData?.militaryCount ?? 0}
+          fireMilitaryOnly={layerVisibility.fireMilitaryOnly}
           radiationCount={radiationData?.totalCount ?? 0}
           radiationElevatedCount={radiationData?.elevatedCount ?? 0}
         />

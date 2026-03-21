@@ -197,6 +197,19 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_knowledge_status ON knowledge (status)`,
   `CREATE INDEX IF NOT EXISTS idx_knowledge_source ON knowledge (source)`,
   `CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge (category)`,
+  // Agent simulations
+  `CREATE TABLE IF NOT EXISTS agent_simulations (
+    id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    context TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    convergence_score DOUBLE PRECISION,
+    convergence_label TEXT,
+    dominant_stance TEXT,
+    agent_results TEXT,
+    summary TEXT,
+    created_at TEXT NOT NULL DEFAULT NOW()::TEXT
+  )`,
 ];
 
 export async function ensureTables() {

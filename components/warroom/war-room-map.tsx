@@ -400,7 +400,7 @@ export default function WarRoomMap({
 
       {/* Fire Detection Layer */}
       {layerVisibility.fires && fires && fires.length > 0 && (
-        <FireLayer fires={fires} />
+        <FireLayer fires={fires} militaryOnly={layerVisibility.fireMilitaryOnly} />
       )}
 
       {/* Radiation Monitoring Layer */}

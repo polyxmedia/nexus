@@ -191,6 +191,8 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
   let scanned = 0;
   let errors = 0;
 
+  console.log("[sentiment] Starting scan of", TRACKED_TOPICS.length, "topics...");
+
   // Process topics in batches of 5 (all sources have 5s timeouts, so parallel is fine)
   for (let i = 0; i < TRACKED_TOPICS.length; i += 5) {
     const batch = TRACKED_TOPICS.slice(i, i + 5);
@@ -205,10 +207,14 @@ export async function runSentimentScan(): Promise<{ scanned: number; errors: num
         persistToDb(batch[j].topic, result).catch(() => {});
         scanned++;
       } else {
+        const reason = (results[j] as PromiseRejectedResult).reason;
+        console.error(`[sentiment] Topic "${batch[j].topic}" failed:`, reason instanceof Error ? reason.message : reason);
         errors++;
       }
     }
   }
+
+  console.log(`[sentiment] Scan complete: ${scanned} scanned, ${errors} errors`);
 
   // Record scan time in DB so other serverless invocations know
   lastScanTime = Date.now();
@@ -253,18 +259,27 @@ export async function scanCustomTopic(topic: string, twitterQuery: string): Prom
 
 // ── Core Scan Logic ──
 
+/** Race a promise against a timeout -- returns fallback on timeout. */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function scanTopic(config: {
   topic: string;
   twitterQuery: string;
   redditKeywords: string[];
   stocktwitsSymbol?: string;
 }): Promise<TopicSentiment> {
-  // Fetch all 3 sources in parallel with tight timeouts
+  // Fetch all 3 sources in parallel, each with a hard 8s timeout
+  const FETCH_TIMEOUT = 8_000;
   const [twitterPosts, redditPosts, stocktwitsPosts] = await Promise.all([
-    fetchTwitterSentiment(config.twitterQuery).catch(() => [] as SentimentPost[]),
-    fetchRedditSentiment(config.redditKeywords).catch(() => [] as SentimentPost[]),
+    withTimeout(fetchTwitterSentiment(config.twitterQuery).catch(() => [] as SentimentPost[]), FETCH_TIMEOUT, []),
+    withTimeout(fetchRedditSentiment(config.redditKeywords).catch(() => [] as SentimentPost[]), FETCH_TIMEOUT, []),
     config.stocktwitsSymbol
-      ? fetchStockTwitsSentiment(config.stocktwitsSymbol).catch(() => [] as SentimentPost[])
+      ? withTimeout(fetchStockTwitsSentiment(config.stocktwitsSymbol).catch(() => [] as SentimentPost[]), FETCH_TIMEOUT, [])
       : Promise.resolve([] as SentimentPost[]),
   ]);
 
@@ -494,31 +509,52 @@ async function fetchTwitterSentiment(query: string): Promise<SentimentPost[]> {
 }
 
 async function fetchRedditSentiment(keywords: string[]): Promise<SentimentPost[]> {
-  const subreddits = ["wallstreetbets", "stocks", "investing", "geopolitics", "worldnews"];
   const posts: SentimentPost[] = [];
+  const ua = "NEXUS:intelligence-platform:v1.0 (by /u/nexusintel)";
 
-  // Fetch all subreddits in parallel
-  const results = await Promise.allSettled(
-    subreddits.map(async (sub) => {
-      const res = await fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=25`, {
-        headers: { "User-Agent": "NEXUS/1.0" },
+  // Use Reddit search to find posts matching keywords (hot endpoint rarely has exact matches)
+  const searchQuery = keywords.join(" OR ");
+  const subreddits = ["wallstreetbets", "stocks", "investing", "geopolitics", "worldnews"];
+  const searchUrl = `https://www.reddit.com/r/${subreddits.join("+")}/search.json?q=${encodeURIComponent(searchQuery)}&sort=hot&t=day&limit=30&restrict_sr=on`;
+
+  const results = await Promise.allSettled([
+    // Search for keyword-matching posts across all subreddits
+    (async () => {
+      const res = await fetch(searchUrl, {
+        headers: { "User-Agent": ua },
         signal: AbortSignal.timeout(5000),
       });
       if (!res.ok) return [];
       const json = await res.json();
       return (json.data?.children || []) as Array<{ data: Record<string, unknown> }>;
-    })
-  );
+    })(),
+    // Also grab hot posts from finance subs (broader coverage)
+    ...["wallstreetbets", "stocks"].map(async (sub) => {
+      const res = await fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=25`, {
+        headers: { "User-Agent": ua },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return (json.data?.children || []) as Array<{ data: Record<string, unknown> }>;
+    }),
+  ]);
+
+  const seen = new Set<string>();
 
   for (const result of results) {
     if (result.status !== "fulfilled") continue;
     for (const child of result.value) {
       const d = child.data;
+      const id = (d.id as string) || "";
+      if (seen.has(id)) continue;
+      seen.add(id);
+
       const title = (d.title as string) || "";
       const selftext = ((d.selftext as string) || "").slice(0, 200);
       const text = `${title} ${selftext}`.toLowerCase();
 
-      // Only include posts matching keywords
+      // For hot posts (not from search), require keyword match
       if (!keywords.some((kw) => text.includes(kw))) continue;
 
       // Filter noise (memes, shitposts, jokes, spam)
@@ -533,7 +569,7 @@ async function fetchRedditSentiment(keywords: string[]): Promise<SentimentPost[]
 
       posts.push({
         source: "reddit",
-        id: (d.id as string) || "",
+        id,
         text: title,
         author: (d.author as string) || "",
         timestamp: new Date(((d.created_utc as number) || 0) * 1000).toISOString(),
@@ -551,6 +587,7 @@ async function fetchRedditSentiment(keywords: string[]): Promise<SentimentPost[]
 async function fetchStockTwitsSentiment(symbol: string): Promise<SentimentPost[]> {
   try {
     const res = await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${symbol}.json`, {
+      headers: { "User-Agent": "NEXUS/1.0", Accept: "application/json" },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];

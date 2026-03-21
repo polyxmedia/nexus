@@ -348,7 +348,7 @@ export default function ChatPage() {
                 >
                   <button
                     onClick={() => { setActiveProject(p.id); setActiveTag(null); }}
-                    className={`flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-mono transition-colors ${
+                    className={`flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-mono transition-colors ${
                       activeProject === p.id
                         ? "bg-navy-800/60 text-navy-200"
                         : "text-navy-400 hover:text-navy-300 hover:bg-navy-800/30"
@@ -470,8 +470,8 @@ export default function ChatPage() {
                                 border: `1px solid ${project.color}30`,
                               }}
                             >
-                              <Folder className="h-2.5 w-2.5" />
-                              {project.name}
+                              <Folder className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate max-w-[10ch]">{project.name}</span>
                             </span>
                           )}
                         </div>
