@@ -49,16 +49,23 @@ const EMPTY_RESPONSE: AircraftResponse = {
   militaryCount: 0,
 };
 
+// Server-side cache (OpenSky rate-limits shared Vercel IPs aggressively)
+let aircraftCache: { data: AircraftResponse; timestamp: number } | null = null;
+const CACHE_TTL = 60_000; // 60 seconds (OpenSky updates every ~10s but rate limits are tight)
+
 async function fetchRegion(
   region: { name: string; lamin: number; lomin: number; lamax: number; lomax: number }
 ): Promise<unknown[][] | null> {
   const url = `https://opensky-network.org/api/states/all?lamin=${region.lamin}&lomin=${region.lomin}&lamax=${region.lamax}&lomax=${region.lomax}`;
   try {
     const res = await fetch(url, {
-      next: { revalidate: 30 },
+      cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[Aircraft] OpenSky ${region.name} returned ${res.status}`);
+      return null;
+    }
     const data = await res.json();
     return data.states || [];
   } catch {
@@ -78,13 +85,18 @@ export async function GET(request: NextRequest) {
     const lamax = searchParams.get("lamax");
     const lomax = searchParams.get("lomax");
 
+    // Serve from cache if fresh (protects against OpenSky rate limiting on Vercel shared IPs)
+    if (!lamin && aircraftCache && Date.now() - aircraftCache.timestamp < CACHE_TTL) {
+      return NextResponse.json(aircraftCache.data);
+    }
+
     let allStates: unknown[][] = [];
 
     if (lamin && lomin && lamax && lomax) {
       // Client-specified viewport bounds, single request
       const url = `https://opensky-network.org/api/states/all?lamin=${encodeURIComponent(lamin)}&lomin=${encodeURIComponent(lomin)}&lamax=${encodeURIComponent(lamax)}&lomax=${encodeURIComponent(lomax)}`;
       const res = await fetch(url, {
-        next: { revalidate: 30 },
+        cache: "no-store",
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
@@ -127,6 +139,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (allStates.length === 0) {
+      // Serve stale cache if available, better than empty map
+      if (aircraftCache) {
+        return NextResponse.json({ ...aircraftCache.data, stale: true });
+      }
       return NextResponse.json({ ...EMPTY_RESPONSE, error: "upstream_unavailable" });
     }
 
@@ -164,6 +180,11 @@ export async function GET(request: NextRequest) {
       totalCount: aircraft.length,
       militaryCount,
     };
+
+    // Cache the response for subsequent requests (survives within same serverless instance)
+    if (!lamin) {
+      aircraftCache = { data: response, timestamp: Date.now() };
+    }
 
     return NextResponse.json(response);
   } catch (error) {
