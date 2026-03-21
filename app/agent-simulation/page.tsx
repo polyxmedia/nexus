@@ -193,23 +193,30 @@ function SimulationHistoryCard({ sim, onClick }: { sim: Simulation; onClick: () 
 }
 
 export default function AgentSimulationPage() {
+  const router = useRouter();
   const [context, setContext] = useState("");
   const [running, setRunning] = useState(false);
   const [currentResult, setCurrentResult] = useState<Simulation | null>(null);
   const [history, setHistory] = useState<Simulation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchHistory = useCallback(async () => {
     try {
       const res = await fetch("/api/agent-simulation?limit=20");
+      if (res.status === 403) {
+        router.push("/dashboard");
+        return;
+      }
       if (res.ok) {
+        setIsAdmin(true);
         const data = await res.json();
         setHistory(Array.isArray(data) ? data : []);
       }
     } catch { /* silent */ }
     setLoading(false);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchHistory();
@@ -274,9 +281,10 @@ export default function AgentSimulationPage() {
     return acc;
   }, {});
 
+  if (!isAdmin) return null;
+
   return (
     <PageContainer title="Agent Simulation" subtitle="Multi-persona convergence analysis">
-      <UpgradeGate minTier="operator" feature="Agent simulation engine" blur>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left: Input + History */}
           <div className="lg:col-span-4 space-y-4">

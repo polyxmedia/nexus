@@ -279,29 +279,16 @@ export function AircraftLayer({ aircraft, onAircraftClick }: AircraftLayerProps)
       markers[i] = marker;
     }
 
-    // Preserve current view: block fitBounds/setView/flyTo the cluster might trigger
+    // Preserve current view when adding cluster layer
     const currentCenter = map.getCenter();
     const currentZoom = map.getZoom();
-
-    const origFitBounds = map.fitBounds;
-    const origSetView = map.setView;
-    const origFlyTo = map.flyTo;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    map.fitBounds = (() => map) as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    map.setView = (() => map) as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    map.flyTo = (() => map) as any;
 
     cluster.addLayers(markers);
     map.addLayer(cluster);
     clusterRef.current = cluster;
 
-    // Restore methods after chunked loading finishes (next frame)
+    // Restore view after cluster finishes layout (it may try to fitBounds)
     requestAnimationFrame(() => {
-      map.fitBounds = origFitBounds;
-      map.setView = origSetView;
-      map.flyTo = origFlyTo;
       map.setView(currentCenter, currentZoom, { animate: false });
     });
 
