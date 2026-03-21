@@ -13,12 +13,14 @@ export type MinTier = "free" | "analyst" | "observer" | "operator" | "institutio
 // Every protected route must call requireTier() with the mapped tier.
 // Routes not listed here are either public or require only authentication.
 export const ROUTE_TIERS: Record<string, MinTier> = {
+  // ── Free tier - basic access ──
+  "dashboard": "free",
+  "warroom": "free",
+
   // ── Observer tier ($199/mo) - core intelligence ──
   "chat": "analyst",
   "signals": "analyst",
   "predictions": "analyst",
-  "dashboard": "free",
-  "warroom": "free",
   "game-theory": "analyst",
   "calendar": "analyst",
   "timeline": "analyst",
@@ -26,45 +28,45 @@ export const ROUTE_TIERS: Record<string, MinTier> = {
   "news": "analyst",
   "narrative": "analyst",
   "knowledge": "analyst",
-  "thesis": "operator",
   "graph": "analyst",
   "parallels": "analyst",
   "actors": "analyst",
   "iw": "analyst",
   "longevity": "analyst",
 
-  // ── Operator tier ($599/mo) - advanced analytics + trading ──
-  "trade-lab": "operator",
-  "trading212": "operator",
-  "coinbase": "operator",
-  "ibkr": "operator",
-  "portfolio": "operator",
-  "market-data": "operator",
+  // ── Operator tier ($599/mo) - markets, analytics, trading, advanced intel ──
   "markets": "operator",
   "watchlists": "operator",
+  "market-data": "operator",
   "on-chain": "operator",
   "short-interest": "operator",
   "gex": "operator",
   "options": "operator",
-  "simulation": "operator",
   "prediction-markets": "operator",
   "congressional-trading": "operator",
   "ai-progression": "operator",
   "gpr": "operator",
   "bocpd": "operator",
-  "shipping": "operator",
   "macro": "operator",
   "regime": "operator",
   "risk": "operator",
   "nowcast": "operator",
+  "analytics": "operator",
+  "thesis": "operator",
+  "trade-lab": "operator",
+  "trading212": "operator",
+  "coinbase": "operator",
+  "ibkr": "operator",
+  "portfolio": "operator",
+  "shipping": "operator",
   "nlp": "operator",
   "osint": "operator",
   "ach": "operator",
   "sources": "operator",
   "collection-gaps": "operator",
-  "analytics": "operator",
 
-  // ── Institution tier (custom pricing) ──
+  // ── Institution tier (custom) - simulation, agents, API access ──
+  "simulation": "institution",
   "agents": "institution",
   "nexus-bridge": "institution",
 };
@@ -72,7 +74,7 @@ export const ROUTE_TIERS: Record<string, MinTier> = {
 // ── Chat Tool → Minimum Tier ──
 // Tools not listed here default to "analyst" (base paid tier).
 export const TOOL_TIERS: Record<string, MinTier> = {
-  // Analyst tools (core intelligence)
+  // ── Observer tools (core intelligence) ──
   "get_signals": "analyst",
   "get_market_snapshot": "analyst",
   "get_market_sentiment": "analyst",
@@ -89,16 +91,17 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "get_country_risk": "analyst",
   "get_cross_stream_alerts": "analyst",
   "get_treasury_auctions": "analyst",
-  "get_cot_data": "operator",
   "get_natural_threats": "analyst",
-  "search_multilang_intel": "operator",
   "get_timeline": "analyst",
   "get_esoteric_reading": "analyst",
   "get_game_theory": "analyst",
   "get_iw_status": "analyst",
   "get_narratives": "analyst",
+  "get_social_sentiment": "analyst",
+  "dcf_valuation": "analyst",
+  "get_financial_intelligence": "analyst",
 
-  // Operator tools (advanced analytics + trading)
+  // ── Operator tools (markets, analytics, trading, advanced intel) ──
   "get_market_regime": "operator",
   "get_systemic_risk": "operator",
   "get_economic_nowcast": "operator",
@@ -113,12 +116,13 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "get_ai_progression": "operator",
   "get_prediction_markets": "operator",
   "get_congressional_trading": "operator",
+  "get_cot_data": "operator",
+  "search_multilang_intel": "operator",
   "monte_carlo_simulation": "operator",
   "get_portfolio": "operator",
   "get_portfolio_risk": "operator",
   "simulate_scenario_impact": "operator",
   "get_macro_data": "operator",
-  "get_social_sentiment": "analyst",
   "analyze_central_bank_statement": "operator",
   "create_ach_analysis": "operator",
   "assess_source_reliability": "operator",
@@ -127,32 +131,30 @@ export const TOOL_TIERS: Record<string, MinTier> = {
   "extract_osint_entities": "operator",
   "save_to_knowledge": "operator",
   "add_knowledge": "operator",
+  "save_document_to_knowledge": "operator",
   "get_operator_context": "operator",
 
-  // Valuation & meta-tools
-  "dcf_valuation": "analyst",
-  "get_financial_intelligence": "analyst",
-
-  // Memory & artifacts (all tiers)
+  // ── Memory & artifacts (all paid tiers) ──
   "recall_memory": "analyst",
   "save_memory": "analyst",
   "delete_memory": "analyst",
   "create_artifact": "analyst",
-  "save_document_to_knowledge": "operator",
 };
 
 // ── Page → Minimum Tier (for client-side UpgradeGate) ──
 export const PAGE_TIERS: Record<string, MinTier> = {
-  // Analyst
+  // ── Free ──
+  "/dashboard": "free",
+  "/warroom": "free",
+
+  // ── Observer ($199/mo) ──
   "/chat": "analyst",
   "/signals": "analyst",
   "/predictions": "analyst",
   "/news": "analyst",
-  "/dashboard": "free",
   "/calendar": "analyst",
   "/timeline": "analyst",
   "/alerts": "analyst",
-  "/warroom": "free",
   "/game-theory": "analyst",
   "/graph": "analyst",
   "/narrative": "analyst",
@@ -160,14 +162,15 @@ export const PAGE_TIERS: Record<string, MinTier> = {
   "/parallels": "analyst",
   "/actors": "analyst",
   "/longevity": "analyst",
-  // Operator
-  "/trading": "operator",
+  "/dashboard/operator": "analyst",
+
+  // ── Operator ($599/mo) ──
   "/markets": "operator",
   "/watchlists": "operator",
+  "/trading": "operator",
   "/on-chain": "operator",
   "/gex": "operator",
   "/short-interest": "operator",
-  "/simulation": "operator",
   "/prediction-markets": "operator",
   "/congressional-trading": "operator",
   "/ai-progression": "operator",
@@ -176,5 +179,8 @@ export const PAGE_TIERS: Record<string, MinTier> = {
   "/shipping": "operator",
   "/trade-lab": "operator",
   "/thesis": "operator",
-  "/dashboard/operator": "operator",
+  "/sentiment": "operator",
+
+  // ── Institution (custom) ──
+  "/simulation": "institution",
 };
