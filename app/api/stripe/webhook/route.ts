@@ -518,6 +518,7 @@ export async function POST(request: Request) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = sub.customer as string;
+        const previousStatus = (event.data.previous_attributes as { status?: string })?.status;
 
         await db
           .update(schema.subscriptions)
@@ -530,21 +531,27 @@ export async function POST(request: Request) {
         // Mark referral as churned
         await handleReferralChurn(customerId);
 
-        // Send cancellation email + notify admin
-        const cancelSubs = await db
-          .select()
-          .from(schema.subscriptions)
-          .where(eq(schema.subscriptions.stripeCustomerId, customerId));
-        if (cancelSubs.length > 0) {
-          const cancelUsername = cancelSubs[0].userId.replace("user:", "");
-          const cancelEmail = await getUserEmail(cancelSubs[0].userId);
-          if (cancelEmail) {
-            const template = subscriptionCanceledEmail(cancelUsername);
-            sendEmail({ to: cancelEmail, ...template }).catch((err) =>
-              console.error("Cancellation email failed:", err)
-            );
+        // Only send cancellation email if they were actually paying (not just a trial expiry)
+        // Trial expiry: previous status was "trialing", they never converted
+        const wasTrialOnly = previousStatus === "trialing" || sub.status === "incomplete_expired";
+        if (!wasTrialOnly) {
+          const cancelSubs = await db
+            .select()
+            .from(schema.subscriptions)
+            .where(eq(schema.subscriptions.stripeCustomerId, customerId));
+          if (cancelSubs.length > 0) {
+            const cancelUsername = cancelSubs[0].userId.replace("user:", "");
+            const cancelEmail = await getUserEmail(cancelSubs[0].userId);
+            if (cancelEmail) {
+              const template = subscriptionCanceledEmail(cancelUsername);
+              sendEmail({ to: cancelEmail, ...template }).catch((err) =>
+                console.error("Cancellation email failed:", err)
+              );
+            }
+            notifyAdmin(adminSubscriptionCanceledEmail(cancelUsername)).catch(() => {});
           }
-          notifyAdmin(adminSubscriptionCanceledEmail(cancelUsername)).catch(() => {});
+        } else {
+          console.log(`[Webhook] Skipping cancel email for trial-only expiry: ${customerId}`);
         }
 
         break;
@@ -753,12 +760,29 @@ export async function POST(request: Request) {
           .where(eq(schema.subscriptions.stripeCustomerId, customerId));
 
         if (trialSubs.length > 0) {
-          const trialEmail = await getUserEmail(trialSubs[0].userId);
+          const trialUserId = trialSubs[0].userId;
+
+          // Deduplicate: only send one trial-ending email per user per 24 hours
+          const dedupKey = `email:trial_ending:${trialUserId}`;
+          const dedupRows = await db.select().from(schema.settings).where(eq(schema.settings.key, dedupKey));
+          if (dedupRows.length > 0) {
+            const lastSent = Number(dedupRows[0].value || 0);
+            if (Date.now() - lastSent < 24 * 60 * 60 * 1000) {
+              console.log(`[Webhook] Skipping duplicate trial-ending email for ${trialUserId}`);
+              break;
+            }
+          }
+
+          // Record that we're sending this email
+          await db.insert(schema.settings).values({ key: dedupKey, value: String(Date.now()), updatedAt: new Date().toISOString() })
+            .onConflictDoUpdate({ target: schema.settings.key, set: { value: String(Date.now()), updatedAt: new Date().toISOString() } });
+
+          const trialEmail = await getUserEmail(trialUserId);
           const tierName = await getTierNameById(trialSubs[0].tierId);
           if (trialEmail && tierName) {
             const baseUrl = process.env.NEXTAUTH_URL || "https://nexushq.xyz";
             const template = trialEndingEmail(
-              trialSubs[0].userId.replace("user:", ""),
+              trialUserId.replace("user:", ""),
               tierName,
               `${baseUrl}/settings`
             );
