@@ -1,5 +1,5 @@
 import type { FireDetection } from "./types";
-import { getAllBaseCoordinates } from "./military-bases";
+import { getAllBaseCoordinates, getBaseCount, ingestMilitaryBases, ensureMilitaryBasesTable } from "./military-bases";
 
 // NASA FIRMS provides near-real-time fire data from MODIS and VIIRS satellites
 // Free API: https://firms.modaps.eosdis.nasa.gov/api/
@@ -92,11 +92,34 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 // ── Military base matching ──
 
+let ingestTriggered = false;
+
 async function getBaseCoords(): Promise<Array<{ lat: number; lng: number; name: string; type: string }>> {
   if (baseCoordsCache && Date.now() - baseCoordsTimestamp < BASE_CACHE_TTL) {
     return baseCoordsCache;
   }
   try {
+    await ensureMilitaryBasesTable();
+    const count = await getBaseCount();
+
+    // Auto-ingest if table is empty (first deploy, no manual step needed)
+    if (count === 0 && !ingestTriggered) {
+      ingestTriggered = true;
+      console.log("[FIRMS] No military bases found, triggering auto-ingest from OSM...");
+      ingestMilitaryBases()
+        .then((r) => {
+          console.log(`[FIRMS] Auto-ingest complete: ${r.total} bases`);
+          // Clear cache so next fire refresh picks up the bases
+          baseCoordsCache = null;
+          baseCoordsTimestamp = 0;
+        })
+        .catch((err) => {
+          console.error("[FIRMS] Auto-ingest failed:", err);
+          ingestTriggered = false; // Allow retry on next request
+        });
+      return []; // Return empty for this request, bases available on next refresh
+    }
+
     baseCoordsCache = await getAllBaseCoordinates();
     baseCoordsTimestamp = Date.now();
     return baseCoordsCache;
