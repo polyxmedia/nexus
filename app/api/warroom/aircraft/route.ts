@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { AircraftState, AircraftResponse } from "@/lib/warroom/types";
 import { requireTier } from "@/lib/auth/require-tier";
+import { db, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
 
 const MILITARY_CALLSIGN_PREFIXES = [
   "RCH",    // USAF Air Mobility Command
@@ -49,9 +51,42 @@ const EMPTY_RESPONSE: AircraftResponse = {
   militaryCount: 0,
 };
 
-// Server-side cache (OpenSky rate-limits shared Vercel IPs aggressively)
-let aircraftCache: { data: AircraftResponse; timestamp: number } | null = null;
-const CACHE_TTL = 60_000; // 60 seconds (OpenSky updates every ~10s but rate limits are tight)
+// DB-backed cache (survives Vercel serverless cold starts)
+const CACHE_KEY = "warroom:aircraft:cache";
+const CACHE_TTL = 120_000; // 2 minutes (OpenSky rate-limits Vercel shared IPs)
+
+// In-memory hot layer (avoids DB read on every request within same instance)
+let memCache: { data: AircraftResponse; timestamp: number } | null = null;
+
+async function getCachedAircraft(): Promise<AircraftResponse | null> {
+  // Check memory first
+  if (memCache && Date.now() - memCache.timestamp < CACHE_TTL) {
+    return memCache.data;
+  }
+  // Check DB
+  try {
+    const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, CACHE_KEY));
+    if (rows.length === 0) return null;
+    const parsed = JSON.parse(rows[0].value);
+    if (!parsed.timestamp || Date.now() - parsed.timestamp > CACHE_TTL) return null;
+    memCache = { data: parsed.data, timestamp: parsed.timestamp };
+    return parsed.data as AircraftResponse;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedAircraft(data: AircraftResponse): Promise<void> {
+  memCache = { data, timestamp: Date.now() };
+  const value = JSON.stringify({ data, timestamp: Date.now() });
+  try {
+    await db.insert(schema.settings)
+      .values({ key: CACHE_KEY, value, updatedAt: new Date().toISOString() })
+      .onConflictDoUpdate({ target: schema.settings.key, set: { value, updatedAt: new Date().toISOString() } });
+  } catch {
+    // Cache write failure is non-critical
+  }
+}
 
 async function fetchRegion(
   region: { name: string; lamin: number; lomin: number; lamax: number; lomax: number }
@@ -86,8 +121,9 @@ export async function GET(request: NextRequest) {
     const lomax = searchParams.get("lomax");
 
     // Serve from cache if fresh (protects against OpenSky rate limiting on Vercel shared IPs)
-    if (!lamin && aircraftCache && Date.now() - aircraftCache.timestamp < CACHE_TTL) {
-      return NextResponse.json(aircraftCache.data);
+    if (!lamin) {
+      const cached = await getCachedAircraft();
+      if (cached) return NextResponse.json(cached);
     }
 
     let allStates: unknown[][] = [];
@@ -125,7 +161,7 @@ export async function GET(request: NextRequest) {
       if (allStates.length === 0) {
         try {
           const res = await fetch("https://opensky-network.org/api/states/all", {
-            next: { revalidate: 30 },
+            cache: "no-store",
             signal: AbortSignal.timeout(20_000),
           });
           if (res.ok) {
@@ -139,10 +175,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (allStates.length === 0) {
-      // Serve stale cache if available, better than empty map
-      if (aircraftCache) {
-        return NextResponse.json({ ...aircraftCache.data, stale: true });
-      }
+      // Serve stale DB cache if available, better than empty map
+      try {
+        const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, CACHE_KEY));
+        if (rows.length > 0) {
+          const stale = JSON.parse(rows[0].value);
+          if (stale.data) return NextResponse.json({ ...stale.data, stale: true });
+        }
+      } catch { /* fall through */ }
       return NextResponse.json({ ...EMPTY_RESPONSE, error: "upstream_unavailable" });
     }
 
@@ -181,9 +221,9 @@ export async function GET(request: NextRequest) {
       militaryCount,
     };
 
-    // Cache the response for subsequent requests (survives within same serverless instance)
+    // Cache to DB (survives Vercel cold starts)
     if (!lamin) {
-      aircraftCache = { data: response, timestamp: Date.now() };
+      setCachedAircraft(response).catch(() => {});
     }
 
     return NextResponse.json(response);

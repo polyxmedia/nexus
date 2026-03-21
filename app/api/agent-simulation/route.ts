@@ -3,15 +3,22 @@ export const maxDuration = 120;
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { desc, eq } from "drizzle-orm";
-import { requireTier } from "@/lib/auth/require-tier";
 import { validateOrigin } from "@/lib/security/csrf";
 import { rateLimit } from "@/lib/rate-limit";
 import { runAndPersistSimulation } from "@/lib/simulation/agent-engine";
 import { creditGate } from "@/lib/credits/gate";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
+
+async function isAdmin(): Promise<boolean> {
+  const session = await getServerSession(authOptions);
+  return (session?.user as { role?: string } | undefined)?.role === "admin";
+}
 
 export async function GET(request: NextRequest) {
-  const tierCheck = await requireTier("operator");
-  if ("response" in tierCheck) return tierCheck.response;
+  if (!(await isAdmin())) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const { searchParams } = new URL(request.url);
@@ -35,11 +42,12 @@ export async function POST(request: NextRequest) {
   const csrfError = validateOrigin(request);
   if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
 
-  const tierCheck = await requireTier("operator");
-  if ("response" in tierCheck) return tierCheck.response;
+  if (!(await isAdmin())) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  const { result: tierResult } = tierCheck;
-  const username = tierResult.username;
+  const session = await getServerSession(authOptions);
+  const username = session?.user?.name;
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Rate limit: max 5 simulations per hour

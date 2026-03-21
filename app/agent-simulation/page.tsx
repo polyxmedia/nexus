@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Button } from "@/components/ui/button";
