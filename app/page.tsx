@@ -1021,11 +1021,11 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 border border-navy-700/40 rounded-full px-4 py-1.5 mb-6">
               <Shield className="h-3 w-3 text-accent-cyan" />
               <span className="text-[10px] text-navy-400 tracking-[0.2em] uppercase">
-                Competitive Landscape
+                Market Position
               </span>
             </div>
             <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4">
-              How NEXUS compares
+              Where NEXUS fits
             </h2>
             <p className="text-sm text-navy-400 max-w-lg mx-auto">
               The platforms that do intelligence well charge enterprise prices. The ones that are affordable do a single thing. NEXUS sits in the gap.
