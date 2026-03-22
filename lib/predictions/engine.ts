@@ -41,9 +41,9 @@ import {
 import type { StrategicScenario } from "../thesis/types";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { SONNET_MODEL, HAIKU_MODEL } from "@/lib/ai/model";
-import { getBaseRateContext, adjustForBaseRate, getBaseRate, updateObservedRates } from "./base-rates";
+import { adjustForBaseRate, getBaseRate, updateObservedRates } from "./base-rates";
 import { getReferenceClassContext, getReferenceClassStats, classifyClaim } from "./reference-class";
-import { applyPlattScaling, fitPlattParameters } from "./platt-scaling";
+import { applyPlattScaling } from "./platt-scaling";
 import { validateThreshold } from "./threshold-validation";
 import { getCalendarActorInsights } from "../signals/actor-beliefs";
 import { getCategoryCalibrationAdjustment, applyCalibrationCorrection } from "../backtest/feedback-loops";

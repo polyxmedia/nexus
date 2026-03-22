@@ -63,10 +63,27 @@ const MAGNITUDE_PROFILES: Record<string, Record<number, MagnitudeProfile>> = {
 
 // ── Asset Classification ─────────────────────────────────────────────────
 
-const LEVERAGED_TICKERS = new Set(["UVXY", "VXX", "VIXY", "SVXY", "SVIX", "SQQQ", "TQQQ", "SPXU", "SPXS", "UPRO", "TZA", "TNA", "SOXS", "SOXL"]);
-const EQUITY_INDEX_TICKERS = new Set(["SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "IVV", "EFA", "EEM", "VEA", "VWO", "ACWI", "IEMG", "DAX"]);
-const SECTOR_TICKERS = new Set(["XLK", "XLF", "XLE", "XLV", "XLI", "XLB", "XLP", "XLU", "XLY", "XLRE", "XLC", "HYG", "IEF", "TLT", "LQD"]);
-const COMMODITY_TICKERS = new Set(["USO", "GLD", "SLV", "UNG", "WEAT", "CPER", "DBA", "DBC"]);
+// Synced with engine.ts ticker sets to avoid classification inconsistencies
+const LEVERAGED_TICKERS = new Set([
+  "UVXY", "VXX", "VIXY", "SVXY", "SVIX",
+  "SQQQ", "TQQQ", "SPXU", "SPXS", "UPRO",
+  "TZA", "TNA", "SOXS", "SOXL", "LABU", "LABD",
+  "NUGT", "DUST", "JNUG", "JDST", "ERX", "ERY",
+  "FAS", "FAZ", "YANG", "YINN",
+]);
+const EQUITY_INDEX_TICKERS = new Set([
+  "SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "IVV",
+  "EFA", "EEM", "VEA", "VWO", "ACWI", "IEMG", "DAX",
+]);
+const SECTOR_TICKERS = new Set([
+  "XLK", "XLF", "XLE", "XLV", "XLI", "XLB", "XLP", "XLU", "XLY", "XLRE",
+  "XLC", "XBI", "XHB", "XRT", "XME", "XOP", "KRE", "SMH", "SOXX", "IGV",
+  "HYG", "IEF", "TLT", "LQD",
+]);
+const COMMODITY_TICKERS = new Set([
+  "USO", "GLD", "SLV", "UNG", "WEAT", "CPER", "DBA", "DBC", "PDBC",
+  "GDX", "GDXJ", "IAU", "PPLT",
+]);
 
 function getAssetClass(ticker: string | null): string {
   if (!ticker) return "stock";
