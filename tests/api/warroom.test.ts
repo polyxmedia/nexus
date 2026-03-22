@@ -114,11 +114,13 @@ describe("GET /api/warroom/aircraft", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
 
     const { GET } = await import("@/app/api/warroom/aircraft/route");
-    const req = createRequest("/api/warroom/aircraft");
+    // Use bounding box params to bypass in-memory cache from previous test
+    const req = createRequest("/api/warroom/aircraft?lamin=35&lomin=-12&lamax=72&lomax=45");
     const res = await GET(req);
-    const { status, data } = await parseResponse<{ aircraft: unknown[] }>(res);
+    const { status, data } = await parseResponse<{ aircraft: unknown[]; error?: string }>(res);
     expect(status).toBe(200);
     expect(data.aircraft).toEqual([]);
+    expect(data.error).toBe("fetch_failed");
   });
 });
 
