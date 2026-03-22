@@ -19,7 +19,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const SOURCE_ICONS: Record<string, string> = {
   twitter: "X",
-  gdelt: "NEWS",
+  news: "NEWS",
 };
 
 function timeAgo(iso: string): string {
@@ -64,7 +64,7 @@ function SocialPopup({ post, onClose }: { post: SocialPost; onClose: () => void 
                 </span>
               </div>
             )}
-            {post.source === "gdelt" && (
+            {post.source === "news" && (
               <span className="text-[11px] font-mono font-medium text-navy-300">
                 {post.author}
               </span>

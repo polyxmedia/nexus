@@ -2617,16 +2617,31 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
         rawFactuals = input.resolutions || [];
 
         // Stage 2: Apply deterministic classification from structured data
+        // with programmatic validation of threshold_met against actual vs target
         finalResolutions = rawFactuals.map((r) => {
           if (!r.data_available) {
             return { id: r.id, outcome: "skip", score: 0, notes: r.evidence, direction_correct: null, level_correct: null };
           }
+
+          // Programmatic override: if LLM provided both target_value and actual_value,
+          // verify threshold_met is consistent. The LLM often says threshold_met=true
+          // when direction is correct but the numeric threshold wasn't actually reached.
+          let thresholdMet = r.threshold_met;
+          if (r.target_value != null && r.actual_value != null) {
+            // For percentage/count thresholds: actual must meet or exceed target
+            const actualMeetsTarget = r.actual_value >= r.target_value;
+            if (thresholdMet && !actualMeetsTarget) {
+              console.warn(`[resolvePredictions] OVERRIDE: Prediction #${r.id} claimed threshold_met=true but actual (${r.actual_value}) < target (${r.target_value}). Overriding to false.`);
+              thresholdMet = false;
+            }
+          }
+
           let outcome: string;
           let score: number;
-          if (r.threshold_met && r.direction_correct) {
+          if (thresholdMet && r.direction_correct) {
             outcome = "confirmed";
             score = 1.0;
-          } else if (r.direction_correct && !r.threshold_met) {
+          } else if (r.direction_correct && !thresholdMet) {
             outcome = "partial";
             score = 0.5;
           } else {
@@ -2639,7 +2654,7 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
             score,
             notes: r.evidence,
             direction_correct: r.direction_correct ? 1 : 0,
-            level_correct: r.threshold_met ? 1 : 0,
+            level_correct: thresholdMet ? 1 : 0,
           };
         });
 
@@ -2682,24 +2697,29 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
         if (block.type === "tool_use" && block.name === "submit_resolution") {
           const input = block.input as { resolutions: typeof rawFactuals };
           rawFactuals = input.resolutions || [];
-          // Apply deterministic classification
+          // Apply deterministic classification with programmatic validation
           finalResolutions = rawFactuals.map((r) => {
             if (!r.data_available) {
               return { id: r.id, outcome: "skip", score: 0, notes: r.evidence, direction_correct: null, level_correct: null };
             }
+            let thresholdMet = r.threshold_met;
+            if (r.target_value != null && r.actual_value != null && thresholdMet && r.actual_value < r.target_value) {
+              console.warn(`[resolvePredictions] OVERRIDE (forced): Prediction #${r.id} claimed threshold_met=true but actual (${r.actual_value}) < target (${r.target_value}). Overriding to false.`);
+              thresholdMet = false;
+            }
             let outcome: string;
             let score: number;
-            if (r.threshold_met && r.direction_correct) {
+            if (thresholdMet && r.direction_correct) {
               outcome = "confirmed";
               score = 1.0;
-            } else if (r.direction_correct && !r.threshold_met) {
+            } else if (r.direction_correct && !thresholdMet) {
               outcome = "partial";
               score = 0.5;
             } else {
               outcome = "denied";
               score = 0.0;
             }
-            return { id: r.id, outcome, score, notes: r.evidence, direction_correct: r.direction_correct ? 1 : 0, level_correct: r.threshold_met ? 1 : 0 };
+            return { id: r.id, outcome, score, notes: r.evidence, direction_correct: r.direction_correct ? 1 : 0, level_correct: thresholdMet ? 1 : 0 };
           });
           console.log(`[resolvePredictions] Forced submit: ${finalResolutions.length} resolutions (deterministic): ${finalResolutions.map(r => `#${r.id}=${r.outcome}`).join(", ")}`);
         }
