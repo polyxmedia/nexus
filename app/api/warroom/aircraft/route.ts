@@ -51,9 +51,58 @@ const EMPTY_RESPONSE: AircraftResponse = {
   militaryCount: 0,
 };
 
+// ── OpenSky OAuth2 (client credentials flow) ──
+// Without auth, Vercel shared IPs burn through the 400 anonymous daily credits fast.
+// Authenticated requests get 4,000+ credits/day.
+let tokenCache: { token: string; expiresAt: number } | null = null;
+
+async function getOpenSkyToken(): Promise<string | null> {
+  const clientId = process.env.OPENSKY_CLIENT_ID;
+  const clientSecret = process.env.OPENSKY_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  // Reuse token if still valid (with 60s buffer)
+  if (tokenCache && Date.now() < tokenCache.expiresAt - 60_000) {
+    return tokenCache.token;
+  }
+
+  try {
+    const res = await fetch("https://opensky-network.org/api/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      console.error(`[Aircraft] OpenSky OAuth failed: ${res.status}`);
+      return null;
+    }
+
+    const data = await res.json();
+    tokenCache = {
+      token: data.access_token,
+      expiresAt: Date.now() + (data.expires_in || 1800) * 1000,
+    };
+    return tokenCache.token;
+  } catch (err) {
+    console.error("[Aircraft] OpenSky OAuth error:", err);
+    return null;
+  }
+}
+
+function openSkyHeaders(token: string | null): Record<string, string> {
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
+
 // DB-backed cache (survives Vercel serverless cold starts)
 const CACHE_KEY = "warroom:aircraft:cache";
-const CACHE_TTL = 120_000; // 2 minutes (OpenSky rate-limits Vercel shared IPs)
+const CACHE_TTL = 120_000; // 2 minutes
 
 // In-memory hot layer (avoids DB read on every request within same instance)
 let memCache: { data: AircraftResponse; timestamp: number } | null = null;
@@ -89,12 +138,14 @@ async function setCachedAircraft(data: AircraftResponse): Promise<void> {
 }
 
 async function fetchRegion(
-  region: { name: string; lamin: number; lomin: number; lamax: number; lomax: number }
+  region: { name: string; lamin: number; lomin: number; lamax: number; lomax: number },
+  token: string | null
 ): Promise<unknown[][] | null> {
   const url = `https://opensky-network.org/api/states/all?lamin=${region.lamin}&lomin=${region.lomin}&lamax=${region.lamax}&lomax=${region.lomax}`;
   try {
     const res = await fetch(url, {
       cache: "no-store",
+      headers: openSkyHeaders(token),
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
@@ -126,6 +177,9 @@ export async function GET(request: NextRequest) {
       if (cached) return NextResponse.json(cached);
     }
 
+    // Get OAuth2 token (falls back to anonymous if no credentials)
+    const token = await getOpenSkyToken();
+
     let allStates: unknown[][] = [];
 
     if (lamin && lomin && lamax && lomax) {
@@ -133,6 +187,7 @@ export async function GET(request: NextRequest) {
       const url = `https://opensky-network.org/api/states/all?lamin=${encodeURIComponent(lamin)}&lomin=${encodeURIComponent(lomin)}&lamax=${encodeURIComponent(lamax)}&lomax=${encodeURIComponent(lomax)}`;
       const res = await fetch(url, {
         cache: "no-store",
+        headers: openSkyHeaders(token),
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
@@ -142,7 +197,7 @@ export async function GET(request: NextRequest) {
       allStates = data.states || [];
     } else {
       // No bounds specified, fetch strategic regions in parallel
-      const results = await Promise.allSettled(REGIONS.map(fetchRegion));
+      const results = await Promise.allSettled(REGIONS.map((r) => fetchRegion(r, token)));
 
       // Deduplicate by icao24 (index 0) since regions may overlap
       const seen = new Set<string>();
@@ -162,6 +217,7 @@ export async function GET(request: NextRequest) {
         try {
           const res = await fetch("https://opensky-network.org/api/states/all", {
             cache: "no-store",
+            headers: openSkyHeaders(token),
             signal: AbortSignal.timeout(20_000),
           });
           if (res.ok) {

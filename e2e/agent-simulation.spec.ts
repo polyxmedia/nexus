@@ -106,8 +106,7 @@ test.describe.serial("Agent simulation admin gating", () => {
 
   test("admin: GET /api/agent-simulation returns 200", async () => {
     const { status } = await apiGet(adminContext, "/api/agent-simulation");
-    // 200 with results (may be empty array) or 500 if table doesn't exist locally
-    expect([200, 500]).toContain(status);
+    expect(status).toBe(200);
   });
 
   // ═══════════════════════════════════════════
