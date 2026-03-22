@@ -4,6 +4,9 @@ import {
   detectClaimType,
   getTimeframeBucket,
   getMagnitudeBucket,
+  wilsonInterval,
+  matchesReferenceClass,
+  type ReferenceClass,
 } from "../reference-class";
 
 // ── detectClaimType ──────────────────────────────────────────────────────
@@ -181,5 +184,108 @@ describe("classifyClaim", () => {
   it("normalizes invalid direction to null", () => {
     const rc = classifyClaim("something", "market", "7 days", "sideways", null, null);
     expect(rc.direction).toBeNull();
+  });
+});
+
+// ── wilsonInterval ───────────────────────────────────────────────────────
+
+describe("wilsonInterval", () => {
+  it("returns full range [0, 1] for zero total", () => {
+    const ci = wilsonInterval(0, 0);
+    expect(ci.lower).toBe(0);
+    expect(ci.upper).toBe(1);
+    expect(ci.width).toBe(1);
+  });
+
+  it("0 successes out of 10 gives interval near 0", () => {
+    const ci = wilsonInterval(0, 10);
+    expect(ci.lower).toBe(0);
+    expect(ci.upper).toBeGreaterThan(0);
+    expect(ci.upper).toBeLessThan(0.35);
+  });
+
+  it("10 successes out of 10 gives interval near 1", () => {
+    const ci = wilsonInterval(10, 10);
+    expect(ci.lower).toBeGreaterThan(0.65);
+    expect(ci.upper).toBe(1);
+  });
+
+  it("5 out of 10 gives interval centered near 0.5", () => {
+    const ci = wilsonInterval(5, 10);
+    expect(ci.lower).toBeGreaterThan(0.2);
+    expect(ci.upper).toBeLessThan(0.8);
+    const center = (ci.lower + ci.upper) / 2;
+    expect(center).toBeCloseTo(0.5, 0);
+  });
+
+  it("wider interval for smaller samples", () => {
+    const small = wilsonInterval(3, 5);
+    const large = wilsonInterval(30, 50);
+    expect(small.width).toBeGreaterThan(large.width);
+  });
+
+  it("narrower interval for larger samples", () => {
+    const ci = wilsonInterval(50, 100);
+    expect(ci.width).toBeLessThan(0.20);
+  });
+
+  it("lower <= upper always", () => {
+    for (let s = 0; s <= 20; s++) {
+      const ci = wilsonInterval(s, 20);
+      expect(ci.lower).toBeLessThanOrEqual(ci.upper);
+    }
+  });
+
+  it("bounds are within [0, 1]", () => {
+    for (let s = 0; s <= 10; s++) {
+      const ci = wilsonInterval(s, 10);
+      expect(ci.lower).toBeGreaterThanOrEqual(0);
+      expect(ci.upper).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+// ── matchesReferenceClass (fallback hierarchy) ───────────────────────────
+
+describe("matchesReferenceClass", () => {
+  const target: ReferenceClass = {
+    claimType: "percentage_threshold",
+    category: "market",
+    timeframeBucket: "short",
+    magnitudeBucket: "medium",
+    direction: "down",
+  };
+
+  it("exact match requires all 5 dimensions", () => {
+    expect(matchesReferenceClass(target, target, "exact")).toBe(true);
+    expect(matchesReferenceClass({ ...target, direction: "up" }, target, "exact")).toBe(false);
+    expect(matchesReferenceClass({ ...target, magnitudeBucket: "large" }, target, "exact")).toBe(false);
+    expect(matchesReferenceClass({ ...target, timeframeBucket: "long" }, target, "exact")).toBe(false);
+    expect(matchesReferenceClass({ ...target, category: "geopolitical" }, target, "exact")).toBe(false);
+    expect(matchesReferenceClass({ ...target, claimType: "price_level" }, target, "exact")).toBe(false);
+  });
+
+  it("no_magnitude ignores magnitude bucket", () => {
+    expect(matchesReferenceClass({ ...target, magnitudeBucket: "large" }, target, "no_magnitude")).toBe(true);
+    expect(matchesReferenceClass({ ...target, magnitudeBucket: null }, target, "no_magnitude")).toBe(true);
+    // But direction must still match
+    expect(matchesReferenceClass({ ...target, direction: "up" }, target, "no_magnitude")).toBe(false);
+  });
+
+  it("no_direction ignores direction and magnitude", () => {
+    expect(matchesReferenceClass({ ...target, direction: "up", magnitudeBucket: "large" }, target, "no_direction")).toBe(true);
+    // But timeframe must match
+    expect(matchesReferenceClass({ ...target, timeframeBucket: "long" }, target, "no_direction")).toBe(false);
+  });
+
+  it("broad matches only claimType + category", () => {
+    expect(matchesReferenceClass({ ...target, timeframeBucket: "long", direction: "up", magnitudeBucket: "large" }, target, "broad")).toBe(true);
+    expect(matchesReferenceClass({ ...target, category: "geopolitical" }, target, "broad")).toBe(false);
+    expect(matchesReferenceClass({ ...target, claimType: "binary_event" }, target, "broad")).toBe(false);
+  });
+
+  it("category matches only category", () => {
+    expect(matchesReferenceClass({ ...target, claimType: "binary_event", timeframeBucket: "long", direction: "up" }, target, "category")).toBe(true);
+    expect(matchesReferenceClass({ ...target, category: "geopolitical" }, target, "category")).toBe(false);
   });
 });

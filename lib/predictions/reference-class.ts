@@ -188,7 +188,7 @@ export function classifyClaim(
 
 type MatchLevel = "exact" | "no_magnitude" | "no_direction" | "broad" | "category";
 
-function matchesReferenceClass(
+export function matchesReferenceClass(
   candidate: ReferenceClass,
   target: ReferenceClass,
   level: MatchLevel
@@ -242,7 +242,7 @@ interface ResolvedPrediction {
  * Wilson score interval for binomial proportions.
  * Standard method for small-sample confidence intervals (Gneiting & Raftery 2007).
  */
-function wilsonInterval(successes: number, total: number, z = 1.96): ConfidenceInterval {
+export function wilsonInterval(successes: number, total: number, z = 1.96): ConfidenceInterval {
   if (total === 0) return { lower: 0, upper: 1, width: 1 };
   const p = successes / total;
   const denom = 1 + z * z / total;

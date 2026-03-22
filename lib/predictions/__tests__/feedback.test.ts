@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brierScore, logLoss, outcomeToNumeric, decayWeight } from "../feedback";
+import { brierScore, logLoss, outcomeToNumeric, decayWeight, computeBINDecomposition } from "../feedback";
 
 // ── outcomeToNumeric ──
 
@@ -190,5 +190,186 @@ describe("decayWeight", () => {
     const w90 = decayWeight(new Date(now.getTime() - 90 * 86400000).toISOString(), now);
     expect(w30).toBeGreaterThan(w60);
     expect(w60).toBeGreaterThan(w90);
+  });
+});
+
+// ── computeBINDecomposition (Satopaa et al. 2021) ──
+
+describe("computeBINDecomposition", () => {
+  const now = new Date().toISOString();
+
+  function makePred(confidence: number, outcome: string, category = "market") {
+    return { confidence, outcome, category, resolvedAt: now };
+  }
+
+  it("returns default for fewer than 3 predictions", () => {
+    const result = computeBINDecomposition([makePred(0.7, "confirmed"), makePred(0.6, "denied")]);
+    expect(result.interpretation).toContain("Insufficient data");
+    expect(result.bias).toBe(0);
+    expect(result.noise).toBe(0);
+    expect(result.information).toBe(0);
+    expect(result.brierScore).toBe(0.25);
+    expect(result.byCategory).toEqual([]);
+  });
+
+  it("filters out expired and post_event predictions", () => {
+    const result = computeBINDecomposition([
+      makePred(0.7, "confirmed"),
+      makePred(0.6, "denied"),
+      makePred(0.5, "expired"),
+      makePred(0.5, "post_event"),
+    ]);
+    // Only 2 scoreable -> insufficient
+    expect(result.interpretation).toContain("Insufficient data");
+  });
+
+  it("computes zero bias for perfectly calibrated predictions", () => {
+    // Confidence matches hit rate exactly: 50% confidence, 50% hit rate
+    const preds = [
+      makePred(0.5, "confirmed"),
+      makePred(0.5, "denied"),
+      makePred(0.5, "confirmed"),
+      makePred(0.5, "denied"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.bias).toBe(0); // meanC = meanO = 0.5
+    expect(result.biasDirection).toBe("neutral");
+  });
+
+  it("detects overconfidence when mean confidence > mean outcome", () => {
+    const preds = [
+      makePred(0.8, "denied"),
+      makePred(0.8, "denied"),
+      makePred(0.8, "denied"),
+      makePred(0.8, "confirmed"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.biasDirection).toBe("overconfident");
+    expect(result.bias).toBeGreaterThan(0);
+  });
+
+  it("detects underconfidence when mean confidence < mean outcome", () => {
+    const preds = [
+      makePred(0.2, "confirmed"),
+      makePred(0.2, "confirmed"),
+      makePred(0.2, "confirmed"),
+      makePred(0.2, "denied"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.biasDirection).toBe("underconfident");
+  });
+
+  it("computes zero noise when all confidences are identical", () => {
+    const preds = [
+      makePred(0.6, "confirmed"),
+      makePred(0.6, "denied"),
+      makePred(0.6, "confirmed"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.noise).toBe(0); // var(c) = 0
+  });
+
+  it("computes positive noise when confidences vary", () => {
+    const preds = [
+      makePred(0.3, "denied"),
+      makePred(0.7, "confirmed"),
+      makePred(0.5, "denied"),
+      makePred(0.9, "confirmed"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.noise).toBeGreaterThan(0);
+  });
+
+  it("computes positive information when confidence tracks outcomes", () => {
+    // High confidence for confirmed, low for denied = positive covariance
+    const preds = [
+      makePred(0.9, "confirmed"),
+      makePred(0.1, "denied"),
+      makePred(0.8, "confirmed"),
+      makePred(0.2, "denied"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.information).toBeGreaterThan(0);
+  });
+
+  it("computes negative information when confidence inversely tracks outcomes", () => {
+    // High confidence for denied, low for confirmed = negative covariance
+    const preds = [
+      makePred(0.1, "confirmed"),
+      makePred(0.9, "denied"),
+      makePred(0.2, "confirmed"),
+      makePred(0.8, "denied"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.information).toBeLessThan(0);
+  });
+
+  it("Brier = bias + varC + varO - 2*cov(c,o)", () => {
+    const preds = [
+      makePred(0.7, "confirmed"),
+      makePred(0.3, "denied"),
+      makePred(0.6, "confirmed"),
+      makePred(0.4, "denied"),
+      makePred(0.5, "confirmed"),
+    ];
+    const result = computeBINDecomposition(preds);
+    // Brier should be non-negative
+    expect(result.brierScore).toBeGreaterThanOrEqual(0);
+    // Check against direct Brier computation
+    const directBrier = brierScore(preds);
+    expect(result.brierScore).toBeCloseTo(directBrier, 2);
+  });
+
+  it("provides per-category breakdown", () => {
+    const preds = [
+      makePred(0.7, "confirmed", "market"),
+      makePred(0.3, "denied", "market"),
+      makePred(0.6, "confirmed", "market"),
+      makePred(0.8, "confirmed", "geopolitical"),
+      makePred(0.2, "denied", "geopolitical"),
+      makePred(0.5, "denied", "geopolitical"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.byCategory.length).toBe(2);
+    const market = result.byCategory.find((c) => c.category === "market");
+    const geo = result.byCategory.find((c) => c.category === "geopolitical");
+    expect(market).toBeDefined();
+    expect(geo).toBeDefined();
+  });
+
+  it("skips categories with fewer than 3 predictions in breakdown", () => {
+    const preds = [
+      makePred(0.7, "confirmed", "market"),
+      makePred(0.3, "denied", "market"),
+      makePred(0.6, "confirmed", "market"),
+      makePred(0.5, "denied", "geopolitical"), // only 1 geo prediction
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.byCategory.length).toBe(1);
+    expect(result.byCategory[0].category).toBe("market");
+  });
+
+  it("generates non-empty interpretation and recommendation", () => {
+    const preds = [
+      makePred(0.8, "confirmed"),
+      makePred(0.3, "denied"),
+      makePred(0.6, "denied"),
+      makePred(0.7, "confirmed"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(result.interpretation.length).toBeGreaterThan(0);
+    expect(result.recommendation.length).toBeGreaterThan(0);
+  });
+
+  it("handles partial outcomes at 0.5", () => {
+    const preds = [
+      makePred(0.6, "partial"),
+      makePred(0.4, "partial"),
+      makePred(0.5, "partial"),
+    ];
+    const result = computeBINDecomposition(preds);
+    expect(Number.isFinite(result.bias)).toBe(true);
+    expect(Number.isFinite(result.noise)).toBe(true);
+    expect(Number.isFinite(result.information)).toBe(true);
   });
 });
