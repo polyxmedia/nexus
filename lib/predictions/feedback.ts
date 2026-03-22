@@ -941,18 +941,23 @@ function buildPromptSection(report: Omit<PerformanceReport, "promptSection">): s
     lines.push("Calibration is within acceptable range. Maintain current confidence approach.");
   }
 
-  // Reliability diagram data (only show reliable buckets)
+  // Reliability diagram / calibration curve (Gneiting & Raftery 2007)
   const reliableBuckets = report.calibration.filter((b) => b.reliable);
   if (reliableBuckets.length > 0) {
     lines.push("");
-    lines.push("Calibration by confidence band (reliable bands only, n >= 3):");
+    lines.push("CALIBRATION CURVE (predicted vs actual hit rates):");
+    lines.push("  Predicted | Actual  | n  | Assessment");
+    lines.push("  ---------|---------|----|-----------");
     for (const b of reliableBuckets) {
       const expected = b.midpoint;
       const actual = b.confirmedRate;
       const diff = actual - expected;
-      const direction = diff > 0.1 ? "underconfident" : diff < -0.1 ? "overconfident" : "well calibrated";
-      lines.push(`  ${b.range}: stated ~${(expected * 100).toFixed(0)}%, actual ${(actual * 100).toFixed(0)}% confirmed (n=${b.count}, ${direction})`);
+      const direction = diff > 0.1 ? "UNDERCONFIDENT" : diff < -0.1 ? "OVERCONFIDENT" : "calibrated";
+      const bar = "█".repeat(Math.round(actual * 20)).padEnd(20, "░");
+      lines.push(`  ${(expected * 100).toFixed(0).padStart(6)}%  | ${(actual * 100).toFixed(0).padStart(5)}%  | ${String(b.count).padStart(2)} | ${bar} ${direction}`);
     }
+    lines.push("");
+    lines.push("  Perfect calibration = predicted matches actual. Bars show actual hit rate (longer = higher).");
   }
 
   // Category performance (only reliable)

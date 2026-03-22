@@ -40,6 +40,12 @@ export interface ReferenceClass {
   direction: "up" | "down" | null;
 }
 
+export interface ConfidenceInterval {
+  lower: number;
+  upper: number;
+  width: number;
+}
+
 export interface ReferenceClassStats {
   referenceClass: ReferenceClass;
   totalPredictions: number;
@@ -49,6 +55,7 @@ export interface ReferenceClassStats {
   brierScore: number;
   sufficient: boolean;
   fallbackLevel: "exact" | "no_magnitude" | "no_direction" | "broad" | "category";
+  confidenceInterval: ConfidenceInterval;
 }
 
 const MIN_SAMPLES = 5;
@@ -231,6 +238,25 @@ interface ResolvedPrediction {
   referencePrices: string | null;
 }
 
+/**
+ * Wilson score interval for binomial proportions.
+ * Standard method for small-sample confidence intervals (Gneiting & Raftery 2007).
+ */
+function wilsonInterval(successes: number, total: number, z = 1.96): ConfidenceInterval {
+  if (total === 0) return { lower: 0, upper: 1, width: 1 };
+  const p = successes / total;
+  const denom = 1 + z * z / total;
+  const center = (p + z * z / (2 * total)) / denom;
+  const spread = (z / denom) * Math.sqrt(p * (1 - p) / total + z * z / (4 * total * total));
+  const lower = Math.max(0, center - spread);
+  const upper = Math.min(1, center + spread);
+  return {
+    lower: Math.round(lower * 1000) / 1000,
+    upper: Math.round(upper * 1000) / 1000,
+    width: Math.round((upper - lower) * 1000) / 1000,
+  };
+}
+
 function computeStats(
   preds: ResolvedPrediction[],
   refClass: ReferenceClass,
@@ -246,6 +272,7 @@ function computeStats(
       brierScore: 0.25,
       sufficient: false,
       fallbackLevel,
+      confidenceInterval: { lower: 0, upper: 1, width: 1 },
     };
   }
 
@@ -257,6 +284,7 @@ function computeStats(
       const actual = p.outcome === "confirmed" ? 1 : p.outcome === "partial" ? 0.5 : 0;
       return s + Math.pow(p.confidence - actual, 2);
     }, 0) / preds.length;
+  const ci = wilsonInterval(hits, preds.length);
 
   return {
     referenceClass: refClass,
@@ -267,6 +295,7 @@ function computeStats(
     brierScore: Math.round(brier * 1000) / 1000,
     sufficient: preds.length >= MIN_SAMPLES,
     fallbackLevel,
+    confidenceInterval: ci,
   };
 }
 
@@ -382,7 +411,9 @@ export async function getReferenceClassContext(
       const hitRate = data.total > 0 ? (data.hits / data.total * 100).toFixed(0) : "N/A";
       const avgConf = data.total > 0 ? (data.avgConf / data.total * 100).toFixed(0) : "N/A";
       const gap = data.total > 0 ? ((data.avgConf / data.total - data.hits / data.total) * 100).toFixed(0) : "0";
-      lines.push(`  ${key}: hit rate ${hitRate}% (n=${data.total}), avg confidence ${avgConf}%, gap ${Number(gap) > 0 ? "+" : ""}${gap}pp`);
+      const ci = data.total > 0 ? wilsonInterval(data.hits, data.total) : null;
+      const ciStr = ci ? ` [95% CI: ${(ci.lower * 100).toFixed(0)}-${(ci.upper * 100).toFixed(0)}%]` : "";
+      lines.push(`  ${key}: hit rate ${hitRate}%${ciStr} (n=${data.total}), avg confidence ${avgConf}%, gap ${Number(gap) > 0 ? "+" : ""}${gap}pp`);
     }
     lines.push("");
     lines.push("Start from the reference class hit rate as your anchor. Adjust based on specific evidence, but document why your estimate diverges.");

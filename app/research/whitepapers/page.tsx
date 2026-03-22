@@ -1182,6 +1182,57 @@ export default function WhitepaperPage() {
               </div>
             </ExpandableSection>
 
+            <ExpandableSection title="Reference Class Forecasting (Outside View)">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Every prediction is classified into a structured reference class before confidence adjustment. The system detects six claim types (percentage threshold, price level, day count, relative performance, binary event, policy action) via pattern matching, then buckets by timeframe (short/medium/long), magnitude (small/medium/large), and direction. This implements the Kahneman-Tversky reference class forecasting methodology: rather than evaluating each prediction in isolation (inside view), the system finds similar past predictions and uses their empirical hit rate as an anchor (outside view).
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  The fallback hierarchy ensures usable statistics even with small samples. Exact match (all five dimensions) requires at least five samples. If insufficient, the system progressively broadens: drop magnitude, drop direction, drop timeframe, until it reaches the category-level base rate as a last resort. The reference class hit rate, confidence interval (Wilson score), calibration gap, and sample size are injected into the generation prompt and used in the log-odds confidence adjustment. This replaces the previous keyword-matched category-level base rates with fine-grained empirical data.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Kahneman, D. &amp; Tversky, A. (1977). Intuitive Prediction: Biases and Corrective Procedures. Reference class forecasting methodology. Flyvbjerg, B. (2006). &quot;From Nobel Prize to Project Management.&quot; Journal of the American Planning Association. Cambridge outcome feedback study (2025). Structured reference class data outperforms text-based calibration advice.
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Platt Scaling Recalibration">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  After all confidence adjustments (base rate anchoring, specificity penalty, calibration correction, threshold validation), the system applies Platt scaling: a post-hoc sigmoid recalibration that learns from the pattern of prediction errors across the entire resolved dataset. The transform is calibrated_p = 1/(1+exp(A*logit(p)+B)), where A and B are two learned parameters fit by gradient descent on cross-entropy loss. This corrects systematic distortions in the confidence pipeline that per-category adjustments cannot address.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Platt scaling is preferred over isotonic regression for small samples: with only two parameters, it avoids the overfitting that isotonic regression exhibits below approximately 1,000 samples (Niculescu-Mizil &amp; Caruana 2005). The identity transform (A=-1, B=0) produces no change, which serves as the fallback when fewer than 15 resolved predictions exist or when the fitted model fails to improve on identity. Parameters are automatically refitted after each resolution batch and stored for immediate use in subsequent generation cycles. The system logs the improvement metric (percentage reduction in cross-entropy vs identity) for monitoring.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Platt, J. (1999). &quot;Probabilistic Outputs for SVMs.&quot; Advances in Large Margin Classifiers. Niculescu-Mizil, A. &amp; Caruana, R. (2005). &quot;Predicting Good Probabilities with Supervised Learning.&quot; ICML. Guo, C. et al. (2017). &quot;On Calibration of Modern Neural Networks.&quot; ICML.
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+
+            <ExpandableSection title="Threshold Feasibility Validation">
+              <div className="pt-4 space-y-4">
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  Reference class forecasting is also applied to the predicted threshold itself. When a prediction claims &quot;SPY will drop 15% in 7 days,&quot; the system computes the percentile rank of that magnitude against the empirical distribution of equity index moves over 7-day windows. Historical profiles for five asset classes (equity indices, leveraged products, sector ETFs, commodities, individual stocks) at four timeframes (7/14/30/90 days) provide median, 90th, and 99th percentile benchmarks derived from 2010-2025 data.
+                </p>
+                <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
+                  The percentile rank maps to a graduated confidence discount via smooth cosine interpolation. Moves within the 75th percentile receive no penalty. Between the 75th and 99th percentile, the discount increases smoothly from 0% to 70%. Beyond the 99th percentile, the maximum 70% discount applies. The cosine function ensures no discontinuities or step-function artifacts. This prevents the engine from assigning high confidence to historically implausible magnitude thresholds while still allowing aggressive predictions when the evidence genuinely warrants them.
+                </p>
+                <div className="mt-4 border border-navy-800/30 rounded p-4 bg-navy-900/20">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-navy-600 mb-2">Research Basis</div>
+                  <div className="font-sans text-[12px] text-navy-500 leading-relaxed">
+                    Kahneman, D. &amp; Tversky, A. (1977). Reference class forecasting applied to threshold feasibility. Gneiting, T. &amp; Raftery, A. (2007). &quot;Probabilistic Forecasts, Calibration and Sharpness.&quot; JRSS-B. The principle of maximizing sharpness subject to calibration implies that implausible thresholds should carry reduced confidence rather than being discarded outright.
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+
             <ExpandableSection title="Actor-Belief Bayesian Typing">
               <div className="pt-4 space-y-4">
                 <p className="font-sans text-[13px] text-navy-400 leading-[1.8]">
