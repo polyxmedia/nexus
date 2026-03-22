@@ -155,7 +155,7 @@ type FilterKey = "hebrew" | "islamic" | "kabbala" | "economic" | "earnings" | "o
 const FILTER_CONFIG: Record<FilterKey, { label: string; color: string; dot: string }> = {
   hebrew: { label: "Hebrew", color: "text-accent-amber", dot: "bg-accent-amber" },
   islamic: { label: "Islamic", color: "text-accent-emerald", dot: "bg-accent-emerald" },
-  kabbala: { label: "Kabbala", color: "text-purple-400", dot: "bg-purple-400" },
+  kabbala: { label: "Kabbala", color: "text-navy-400", dot: "bg-navy-400" },
   economic: { label: "Economic", color: "text-accent-cyan", dot: "bg-accent-cyan" },
   earnings: { label: "Earnings", color: "text-accent-rose", dot: "bg-accent-rose" },
   opex: { label: "OPEX", color: "text-orange-400", dot: "bg-orange-400" },
@@ -538,8 +538,8 @@ export default function CalendarPage() {
               {/* Chinese Cyclical */}
               <div className="px-4 py-3.5">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Star className="h-3 w-3 text-purple-400" />
-                  <span className="text-[9px] font-mono uppercase tracking-widest text-purple-400/60">Cyclical</span>
+                  <Star className="h-3 w-3 text-navy-400" />
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-navy-400/60">Cyclical</span>
                 </div>
                 <div className="text-[13px] font-bold text-navy-100 font-mono leading-tight">
                   {(data?.cyclical ?? data?.esoteric) ? `${(data.cyclical ?? data.esoteric)!.element} ${(data.cyclical ?? data.esoteric)!.animal}` : "N/A"}
@@ -1019,11 +1019,11 @@ export default function CalendarPage() {
               {(actorInsights.length > 0 || actorLoading) && (
                 <div className="mb-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Brain className="h-3.5 w-3.5 text-purple-400" />
+                    <Brain className="h-3.5 w-3.5 text-navy-400" />
                     <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
                       Actor-Belief Bayesian Update
                     </span>
-                    <span className="text-[7px] px-1.5 py-0.5 rounded border border-purple-400/20 bg-purple-400/8 text-purple-400 font-mono uppercase tracking-widest ml-1">
+                    <span className="text-[7px] px-1.5 py-0.5 rounded border border-navy-400/20 bg-navy-400/8 text-navy-400 font-mono uppercase tracking-widest ml-1">
                       Tahir 2025
                     </span>
                     <span className="ml-auto text-[9px] text-navy-600 font-mono">
@@ -1033,7 +1033,7 @@ export default function CalendarPage() {
 
                   {actorLoading ? (
                     <div className="flex items-center gap-2 py-6 justify-center">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-400" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-navy-400" />
                       <span className="text-[10px] text-navy-500">Computing actor behavioral updates...</span>
                     </div>
                   ) : (
@@ -1050,11 +1050,11 @@ export default function CalendarPage() {
                         return Array.from(grouped.entries()).map(([actorName, insights]) => (
                           <div
                             key={actorName}
-                            className="rounded-lg border border-purple-400/15 bg-purple-400/[0.03] overflow-hidden"
+                            className="rounded-lg border border-navy-400/15 bg-navy-400/[0.03] overflow-hidden"
                           >
                             {/* Actor header */}
-                            <div className="flex items-center gap-2 px-3.5 py-2 border-b border-purple-400/10 bg-purple-400/[0.02]">
-                              <Users className="h-3 w-3 text-purple-400/70" />
+                            <div className="flex items-center gap-2 px-3.5 py-2 border-b border-navy-400/10 bg-navy-400/[0.02]">
+                              <Users className="h-3 w-3 text-navy-400/70" />
                               <span className="text-[11px] font-semibold text-navy-200">{actorName}</span>
                             </div>
 
@@ -1136,7 +1136,7 @@ export default function CalendarPage() {
                                               key={n}
                                               className={`w-1 h-2.5 rounded-sm ${
                                                 n <= Math.round(insight.confidence * 5)
-                                                  ? "bg-purple-400/60"
+                                                  ? "bg-navy-400/60"
                                                   : "bg-navy-800"
                                               }`}
                                             />
@@ -1184,7 +1184,7 @@ export default function CalendarPage() {
                       AI Intelligence Reading
                     </span>
                     {(reading.cyclical ?? reading.esoteric) && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-400/10 text-purple-400 border border-purple-400/20 ml-1">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-navy-400/10 text-navy-400 border border-navy-400/20 ml-1">
                         Score {(reading.cyclical ?? reading.esoteric)?.compositeScore?.toFixed(1)}/10
                       </span>
                     )}
@@ -1460,10 +1460,10 @@ export default function CalendarPage() {
           </div>
 
           {/* Dual Calendar Overlap */}
-          <div className="rounded-lg border border-purple-400/20 bg-gradient-to-br from-purple-400/5 to-transparent p-4">
+          <div className="rounded-lg border border-navy-400/20 bg-gradient-to-br from-navy-400/5 to-transparent p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Target className="h-3.5 w-3.5 text-purple-400" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">Dual Calendar Convergence</span>
+              <Target className="h-3.5 w-3.5 text-navy-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-navy-400">Dual Calendar Convergence</span>
             </div>
 
             <div className="space-y-3">
@@ -1494,10 +1494,10 @@ export default function CalendarPage() {
           </div>
 
           {/* Actor-Belief Bayesian Typing */}
-          <div className="rounded-lg border border-purple-400/20 bg-gradient-to-br from-purple-400/5 via-navy-900/50 to-transparent p-4">
+          <div className="rounded-lg border border-navy-400/20 bg-gradient-to-br from-navy-400/5 via-navy-900/50 to-transparent p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Brain className="h-3.5 w-3.5 text-purple-400" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">Actor-Belief Bayesian Typing</span>
+              <Brain className="h-3.5 w-3.5 text-navy-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-navy-400">Actor-Belief Bayesian Typing</span>
             </div>
 
             <div className="space-y-3">
@@ -1660,14 +1660,14 @@ function EvidenceCard({
     amber: "bg-accent-amber",
     emerald: "bg-accent-emerald",
     cyan: "bg-accent-cyan",
-    purple: "bg-purple-400",
+    purple: "bg-navy-400",
   }[color];
 
   const barTrack = {
     amber: "bg-accent-amber/10",
     emerald: "bg-accent-emerald/10",
     cyan: "bg-accent-cyan/10",
-    purple: "bg-purple-400/10",
+    purple: "bg-navy-400/10",
   }[color];
 
   const strengthLabel = strength >= 80 ? "Strong" : strength >= 50 ? "Moderate" : "Weak";

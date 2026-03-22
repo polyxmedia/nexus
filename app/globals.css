@@ -539,6 +539,41 @@ body {
   animation: warroom-zone-pulse 3s ease-in-out infinite;
 }
 
+/* ── Social Intel Popup ── */
+.social-intel-popup .leaflet-popup-content-wrapper {
+  background: rgba(2, 6, 23, 0.95) !important;
+  border: 1px solid rgba(100, 120, 160, 0.2) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(12px);
+  color: var(--color-navy-100) !important;
+  padding: 0 !important;
+}
+
+.social-intel-popup .leaflet-popup-content {
+  margin: 12px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  line-height: 1.5 !important;
+}
+
+.social-intel-popup .leaflet-popup-tip {
+  background: rgba(2, 6, 23, 0.95) !important;
+  border: 1px solid rgba(100, 120, 160, 0.2) !important;
+  box-shadow: none !important;
+}
+
+.social-intel-popup .leaflet-popup-close-button {
+  color: var(--color-navy-500) !important;
+  font-size: 16px !important;
+  top: 6px !important;
+  right: 6px !important;
+}
+
+.social-intel-popup .leaflet-popup-close-button:hover {
+  color: var(--color-navy-200) !important;
+}
+
 /* ── Remove default Leaflet icon backgrounds ── */
 .leaflet-div-icon {
   background: transparent !important;
