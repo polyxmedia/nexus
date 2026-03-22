@@ -1799,7 +1799,8 @@ Output a brief devil's advocate summary (max 300 words).`;
     const { confidence: baseConfidence, baseRate: predictionBaseRate } = await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim);
 
     // Threshold validation gate (graduated discount for implausible thresholds)
-    const thresholdResult = validateThreshold(p.claim, referenceSymbol, priceTarget, referencePrices[referenceSymbol || ""], timeframeDays);
+    const tfDays = parseTimeframeDays(p.timeframe);
+    const thresholdResult = validateThreshold(p.claim, referenceSymbol, priceTarget, referencePrices[referenceSymbol || ""], tfDays);
     const thresholdAdjusted = baseConfidence * thresholdResult.discountMultiplier;
 
     // Platt scaling recalibration (post-hoc sigmoid correction)
