@@ -255,6 +255,7 @@ export interface WarRoomLayerVisibility {
   fires: boolean;
   fireMilitaryOnly: boolean;
   radiation: boolean;
+  social: boolean;
 }
 
 // -- Live Vessel Tracking (AIS) --

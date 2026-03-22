@@ -42,11 +42,11 @@ export async function POST(request: NextRequest) {
   const csrfError = validateOrigin(request);
   if (csrfError) return NextResponse.json({ error: csrfError }, { status: 403 });
 
-  if (!(await isAdmin())) {
+  const session = await getServerSession(authOptions);
+  if ((session?.user as { role?: string } | undefined)?.role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const session = await getServerSession(authOptions);
   const username = session?.user?.name;
   if (!username) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

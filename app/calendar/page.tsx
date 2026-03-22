@@ -15,7 +15,6 @@ import {
   Crosshair,
   ExternalLink,
   FileText,
-  Filter,
   Loader2,
   Moon,
   Sparkles,
@@ -23,7 +22,6 @@ import {
   Sun,
   TrendingDown,
   TrendingUp,
-  BookOpen,
   BarChart3,
   Target,
   Users,
@@ -467,13 +465,18 @@ export default function CalendarPage() {
 
   if (loading) {
     return (
-      <PageContainer title="Intelligence Calendar" subtitle="Multi-system convergence calendar">
+      <PageContainer title="Intelligence Calendar" subtitle="Multi-system convergence calendar with actor-belief modelling">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 rounded" />)}
+          <div className="grid grid-cols-12 gap-3">
+            <Skeleton className="col-span-12 md:col-span-8 h-28 rounded-lg" />
+            <Skeleton className="col-span-12 md:col-span-4 h-28 rounded-lg" />
           </div>
-          <Skeleton className="h-16 rounded" />
-          <Skeleton className="h-96 rounded" />
+          <Skeleton className="h-10 rounded" />
+          <Skeleton className="h-24 rounded-lg" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Skeleton className="md:col-span-2 h-[500px] rounded-lg" />
+            <Skeleton className="h-[400px] rounded-lg" />
+          </div>
         </div>
       </PageContainer>
     );
@@ -484,124 +487,161 @@ export default function CalendarPage() {
   const selectedPredictions = selectedDate && overlay?.predictions[selectedDate] ? overlay.predictions[selectedDate] : [];
 
   return (
-    <PageContainer title="Intelligence Calendar" subtitle="Hebrew, Islamic, Chinese, economic and signals convergence">
+    <PageContainer title="Intelligence Calendar" subtitle="Multi-system convergence calendar with actor-belief modelling">
       <UpgradeGate minTier="analyst" feature="Economic and geopolitical calendar">
+
+      {/* ── Tactical Briefing Header ── */}
+      <div className="relative mb-6">
+        {/* Atmospheric scan lines */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-lg opacity-[0.03]" style={{
+          backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(6,182,212,0.4) 2px, rgba(6,182,212,0.4) 3px)",
+        }} />
+
+        <div className="grid grid-cols-12 gap-3">
+          {/* Today's date systems - spans 8 cols */}
+          <div className="col-span-12 md:col-span-8 rounded-lg border border-navy-700/30 bg-navy-900/40 overflow-hidden">
+            <div className="px-5 py-2.5 border-b border-navy-700/20 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse" />
+                <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">Today&apos;s Intelligence Briefing</span>
+              </div>
+              <span className="text-[10px] font-mono text-navy-600">{data?.today?.gregorian || todayStr}</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-navy-800/40">
+              {/* Hebrew */}
+              <div className="px-4 py-3.5 group">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sun className="h-3 w-3 text-accent-amber" />
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-accent-amber/60">Hebrew</span>
+                </div>
+                <div className="text-[13px] font-bold text-navy-100 font-mono leading-tight">{data?.today?.hebrew || "N/A"}</div>
+                <div className="text-[9px] text-navy-500 mt-1 font-mono">
+                  Year {data?.today?.hebrewYear || "?"}
+                  {data?.shmita?.isShmita && <span className="ml-1.5 text-accent-rose font-bold uppercase tracking-wider">Shmita</span>}
+                </div>
+              </div>
+
+              {/* Hijri */}
+              <div className={`px-4 py-3.5 ${data?.today?.isRamadan ? "bg-accent-emerald/[0.04]" : ""}`}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Moon className="h-3 w-3 text-accent-emerald" />
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-accent-emerald/60">Hijri</span>
+                </div>
+                <div className="text-[13px] font-bold text-navy-100 font-mono leading-tight">{data?.today?.hijri || "N/A"}</div>
+                <div className="text-[9px] text-navy-500 mt-1 font-mono">
+                  {data?.today?.isRamadan && <span className="text-accent-emerald font-bold uppercase tracking-wider mr-1">Ramadan</span>}
+                  {data?.today?.isSacredMonth && !data?.today?.isRamadan && <span className="text-accent-amber font-bold uppercase tracking-wider mr-1">Sacred</span>}
+                  {data?.today?.hijriMonthName}
+                </div>
+              </div>
+
+              {/* Chinese Cyclical */}
+              <div className="px-4 py-3.5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Star className="h-3 w-3 text-purple-400" />
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-purple-400/60">Cyclical</span>
+                </div>
+                <div className="text-[13px] font-bold text-navy-100 font-mono leading-tight">
+                  {(data?.cyclical ?? data?.esoteric) ? `${(data.cyclical ?? data.esoteric)!.element} ${(data.cyclical ?? data.esoteric)!.animal}` : "N/A"}
+                </div>
+                <div className="text-[9px] text-navy-500 mt-1 font-mono">
+                  {(data?.cyclical ?? data?.esoteric)?.lunarPhase?.replace(/_/g, " ") || "N/A"}
+                  {(data?.cyclical ?? data?.esoteric) && <span className="ml-1.5 text-navy-600">Star {(data.cyclical ?? data.esoteric)!.flyingStar}</span>}
+                </div>
+              </div>
+
+              {/* Composite Score */}
+              <div className="px-4 py-3.5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Zap className="h-3 w-3 text-accent-cyan" />
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-accent-cyan/60">Composite</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold text-navy-100 font-mono leading-none tabular-nums">
+                    {(data?.cyclical ?? data?.esoteric)?.compositeScore?.toFixed(1) || "0"}
+                  </span>
+                  <span className="text-[10px] text-navy-600 font-mono">/10</span>
+                </div>
+                <div className="text-[9px] text-navy-500 mt-1 font-mono">
+                  {(data?.cyclical ?? data?.esoteric)?.kondratieffSeason} wave
+                  <span className="ml-1.5 text-navy-600">UY{(data?.cyclical ?? data?.esoteric)?.universalYear}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Next Key Event Countdown - spans 4 cols */}
+          <div className={`col-span-12 md:col-span-4 rounded-lg border overflow-hidden flex flex-col ${
+            nextKeyCountdown && nextKeyCountdown.days <= 3
+              ? "border-accent-amber/30 bg-gradient-to-br from-accent-amber/[0.06] to-navy-900/40"
+              : "border-navy-700/30 bg-navy-900/40"
+          }`}>
+            <div className="px-4 py-2.5 border-b border-navy-800/30 flex items-center gap-2">
+              <Clock className="h-3 w-3 text-accent-amber" />
+              <span className="text-[9px] font-mono uppercase tracking-widest text-navy-500">Next High-Significance Event</span>
+            </div>
+            <div className="flex-1 flex flex-col justify-center px-5 py-4">
+              {nextKeyEvent && nextKeyCountdown ? (
+                <>
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="text-4xl font-bold text-navy-100 font-mono leading-none tabular-nums tracking-tight">
+                      {nextKeyCountdown.days}
+                    </span>
+                    <span className="text-sm text-navy-500 font-mono">days</span>
+                    <span className="text-2xl font-bold text-navy-300 font-mono leading-none tabular-nums">
+                      {nextKeyCountdown.hours}
+                    </span>
+                    <span className="text-sm text-navy-500 font-mono">hrs</span>
+                  </div>
+                  <div className="text-[11px] text-accent-amber font-medium truncate">{nextKeyEvent.holiday}</div>
+                  <div className="text-[9px] text-navy-500 font-mono mt-0.5">
+                    {new Date(nextKeyEvent.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                    <span className="mx-1.5 text-navy-700">|</span>
+                    <span className="text-navy-600">SIG {nextKeyEvent.significance}/3</span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-navy-600 font-mono">No high-significance events upcoming</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Filter Bar ── */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <Filter className="h-3.5 w-3.5 text-navy-500" />
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500 mr-1">Layers:</span>
+      <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+        <span className="text-[9px] font-mono uppercase tracking-widest text-navy-600 mr-1">Layers</span>
         {(Object.entries(FILTER_CONFIG) as [FilterKey, typeof FILTER_CONFIG[FilterKey]][]).map(([key, config]) => (
           <button
             key={key}
             onClick={() => toggleFilter(key)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-mono uppercase tracking-wider transition-all duration-150 ${
               activeFilters.has(key)
-                ? `border-navy-600 bg-navy-800 ${config.color}`
-                : "border-navy-800 bg-navy-900/50 text-navy-600"
+                ? `bg-navy-800/80 ${config.color} border border-navy-700/40`
+                : "text-navy-600 hover:text-navy-400 border border-transparent"
             }`}
           >
-            <div className={`w-1.5 h-1.5 rounded-full ${activeFilters.has(key) ? config.dot : "bg-navy-700"}`} />
+            <div className={`w-1 h-1 rounded-full transition-colors ${activeFilters.has(key) ? config.dot : "bg-navy-700"}`} />
             {config.label}
           </button>
         ))}
         <div className="flex-1" />
-        <span className="text-[9px] text-navy-600 font-mono">
-          {filteredEvents.length} events
+        <span className="text-[9px] text-navy-700 font-mono tabular-nums">
+          {filteredEvents.length} events tracked
         </span>
       </div>
 
-      {/* ── Header Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
-        {/* Hebrew Date */}
-        <div className="rounded-lg px-4 py-3 bg-navy-800/60 border border-navy-700/40">
-          <div className="flex items-center gap-2 mb-1">
-            <Sun className="h-3.5 w-3.5 text-accent-amber" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Hebrew</span>
-          </div>
-          <div className="text-sm font-bold text-navy-100 font-mono">{data?.today?.hebrew || "N/A"}</div>
-          <div className="text-[10px] text-navy-400 mt-0.5">
-            Year {data?.today?.hebrewYear || "?"}
-            {data?.shmita?.isShmita && <span className="ml-1.5 text-accent-rose font-bold">SHMITA</span>}
+      {/* ── Week Ahead Timeline ── */}
+      <div className="rounded-lg border border-navy-700/20 bg-navy-900/30 mb-5 overflow-hidden">
+        <div className="px-4 py-2 border-b border-navy-800/30 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-px bg-accent-cyan/50" />
+            <span className="text-[9px] font-mono uppercase tracking-widest text-navy-500">7-Day Forward View</span>
+            <div className="w-12 h-px bg-gradient-to-r from-accent-cyan/30 to-transparent" />
           </div>
         </div>
-
-        {/* Hijri Date */}
-        <div className={`rounded-lg px-4 py-3 border ${
-          data?.today?.isRamadan ? "bg-accent-emerald/6 border-accent-emerald/30" : "bg-navy-800/60 border-navy-700/40"
-        }`}>
-          <div className="flex items-center gap-2 mb-1">
-            <Moon className="h-3.5 w-3.5 text-accent-emerald" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Hijri</span>
-          </div>
-          <div className="text-sm font-bold text-navy-100 font-mono">{data?.today?.hijri || "N/A"}</div>
-          <div className="text-[10px] text-navy-400 mt-0.5">
-            {data?.today?.isRamadan && <span className="text-accent-emerald font-bold mr-1.5">RAMADAN</span>}
-            {data?.today?.isSacredMonth && !data?.today?.isRamadan && <span className="text-accent-amber font-bold mr-1.5">SACRED</span>}
-            {data?.today?.hijriMonthName}
-          </div>
-        </div>
-
-        {/* Chinese */}
-        <div className="rounded-lg px-4 py-3 bg-navy-800/60 border border-navy-700/40">
-          <div className="flex items-center gap-2 mb-1">
-            <Star className="h-3.5 w-3.5 text-purple-400" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Chinese</span>
-          </div>
-          <div className="text-sm font-bold text-navy-100 font-mono">
-            {(data?.cyclical ?? data?.esoteric) ? `${(data.cyclical ?? data.esoteric)!.element} ${(data.cyclical ?? data.esoteric)!.animal}` : "N/A"}
-          </div>
-          <div className="text-[10px] text-navy-400 mt-0.5">
-            {(data?.cyclical ?? data?.esoteric)?.lunarPhase?.replace(/_/g, " ") || "N/A"}
-            {(data?.cyclical ?? data?.esoteric) && <span className="ml-1.5 text-navy-500">Star {(data.cyclical ?? data.esoteric)!.flyingStar}</span>}
-          </div>
-        </div>
-
-        {/* Composite Score */}
-        <div className="rounded-lg px-4 py-3 bg-navy-800/60 border border-navy-700/40">
-          <div className="flex items-center gap-2 mb-1">
-            <Zap className="h-3.5 w-3.5 text-accent-cyan" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Composite</span>
-          </div>
-          <div className="text-sm font-bold text-navy-100 font-mono">
-            {(data?.cyclical ?? data?.esoteric)?.compositeScore?.toFixed(1) || "0"}/10
-          </div>
-          <div className="text-[10px] text-navy-400 mt-0.5">
-            {(data?.cyclical ?? data?.esoteric)?.kondratieffSeason} wave
-            <span className="ml-1.5 text-navy-500">UY{(data?.cyclical ?? data?.esoteric)?.universalYear}</span>
-          </div>
-        </div>
-
-        {/* Next Key Event Countdown */}
-        <div className={`rounded-lg px-4 py-3 border ${
-          nextKeyCountdown && nextKeyCountdown.days <= 3
-            ? "bg-accent-amber/8 border-accent-amber/30"
-            : "bg-navy-800/60 border-navy-700/40"
-        }`}>
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="h-3.5 w-3.5 text-accent-amber" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Next Key</span>
-          </div>
-          {nextKeyEvent && nextKeyCountdown ? (
-            <>
-              <div className="text-sm font-bold text-navy-100 font-mono">
-                {nextKeyCountdown.days}d {nextKeyCountdown.hours}h
-              </div>
-              <div className="text-[10px] text-accent-amber mt-0.5 truncate">{nextKeyEvent.holiday}</div>
-            </>
-          ) : (
-            <div className="text-sm font-bold text-navy-500 font-mono">--</div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Week Ahead Strip ── */}
-      <div className="border border-navy-700/30 rounded-lg bg-navy-800/30 mb-4 overflow-hidden">
-        <div className="px-4 py-2 border-b border-navy-700/20 flex items-center gap-2">
-          <Calendar className="h-3 w-3 text-accent-cyan" />
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">Week Ahead</span>
-        </div>
-        <div className="grid grid-cols-7 divide-x divide-navy-700/20">
-          {weekAhead.map((day) => {
+        <div className="grid grid-cols-7">
+          {weekAhead.map((day, idx) => {
             const convergence = getConvergenceScore(day.events, day.signals, day.predictions);
             const isToday = day.date === todayStr;
             const isSelected = day.date === selectedDate;
@@ -615,50 +655,64 @@ export default function CalendarPage() {
                   setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
                   selectDate(day.date);
                 }}
-                className={`px-2 py-2.5 text-left transition-colors relative ${
-                  isSelected ? "bg-navy-700/60" : isToday ? "bg-navy-700/30" : "hover:bg-navy-800/40"
+                className={`px-2.5 py-3 text-left transition-all duration-150 relative ${
+                  idx > 0 ? "border-l border-navy-800/30" : ""
+                } ${
+                  isSelected
+                    ? "bg-navy-800/60"
+                    : isToday
+                      ? "bg-accent-cyan/[0.04]"
+                      : "hover:bg-navy-800/30"
                 }`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-[10px] font-medium ${isToday ? "text-accent-cyan" : "text-navy-500"}`}>
+                {/* Today indicator line */}
+                {isToday && <div className="absolute top-0 left-0 right-0 h-px bg-accent-cyan/60" />}
+
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className={`text-[9px] font-mono uppercase tracking-wider ${isToday ? "text-accent-cyan" : "text-navy-600"}`}>
                     {day.dayName}
                   </span>
-                  <span className={`text-[11px] font-mono font-bold ${isToday ? "text-accent-cyan" : "text-navy-300"}`}>
+                  <span className={`text-xs font-mono font-bold tabular-nums ${isToday ? "text-accent-cyan" : "text-navy-300"}`}>
                     {day.dayNum}
                   </span>
                 </div>
+
                 {convergence >= 3 && (
-                  <div className="flex items-center gap-1 mb-1">
+                  <div className="flex items-center gap-1 mb-1.5 py-0.5 px-1 rounded bg-accent-amber/8">
                     <Zap className="h-2.5 w-2.5 text-accent-amber" />
-                    <span className="text-[8px] font-bold text-accent-amber">{convergence} layers</span>
+                    <span className="text-[8px] font-bold font-mono text-accent-amber tabular-nums">{convergence}x</span>
                   </div>
                 )}
-                <div className="space-y-0.5">
+
+                <div className="space-y-0.5 min-h-[36px]">
                   {day.events.slice(0, 2).map((ev, i) => (
-                    <div key={i} className={`text-[8px] leading-tight truncate ${getEventTextColor(ev)}`}>
+                    <div key={i} className={`text-[8px] leading-tight truncate font-mono ${getEventTextColor(ev)}`}>
                       {ev.holiday}
                     </div>
                   ))}
                   {day.signals.length > 0 && (
-                    <div className="text-[8px] leading-tight text-signal-4 truncate">
+                    <div className="text-[8px] leading-tight text-signal-4 font-mono truncate">
                       {day.signals.length} signal{day.signals.length > 1 ? "s" : ""}
                     </div>
                   )}
                   {day.predictions.length > 0 && (
-                    <div className="text-[8px] leading-tight text-signal-5 truncate">
+                    <div className="text-[8px] leading-tight text-signal-5 font-mono truncate">
                       {day.predictions.length} deadline{day.predictions.length > 1 ? "s" : ""}
                     </div>
                   )}
                   {totalItems > 3 && (
-                    <div className="text-[7px] text-navy-500">+{totalItems - 3} more</div>
+                    <div className="text-[7px] text-navy-600 font-mono">+{totalItems - 3}</div>
                   )}
                 </div>
-                {/* Convergence bar */}
-                {convergence > 0 && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{
-                    background: convergence >= 4 ? "rgb(245,158,11)" : convergence >= 3 ? "rgb(6,182,212)" : convergence >= 2 ? "rgba(148,163,184,0.3)" : "rgba(148,163,184,0.1)",
-                  }} />
-                )}
+
+                {/* Convergence heat bar */}
+                <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{
+                  background: convergence >= 5 ? "linear-gradient(90deg, rgba(245,158,11,0.8), rgba(245,158,11,0.4))"
+                    : convergence >= 4 ? "rgba(245,158,11,0.5)"
+                    : convergence >= 3 ? "rgba(6,182,212,0.4)"
+                    : convergence >= 2 ? "rgba(100,116,139,0.2)"
+                    : "transparent",
+                }} />
               </button>
             );
           })}
@@ -669,14 +723,14 @@ export default function CalendarPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* ── Calendar Grid ── */}
         <div className="md:col-span-2 space-y-4">
-          <div className="border border-navy-700/40 rounded-lg bg-navy-800/40 p-5">
+          <div className="border border-navy-700/30 rounded-lg bg-navy-900/30 overflow-hidden">
             {/* Month Nav */}
-            <div className="flex items-center justify-between mb-4">
-              <button onClick={prevMonth} className="p-1 rounded hover:bg-navy-700 text-navy-400 hover:text-navy-200 transition-colors">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-navy-800/30">
+              <button onClick={prevMonth} className="p-1.5 rounded hover:bg-navy-800 text-navy-500 hover:text-navy-200 transition-colors">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <div className="flex items-center gap-3">
-                <h2 className="text-sm font-bold text-navy-100 tracking-wider uppercase">
+                <h2 className="text-sm font-bold text-navy-100 tracking-widest uppercase font-mono">
                   {MONTH_NAMES[viewMonth.month]} {viewMonth.year}
                 </h2>
                 <button
@@ -684,140 +738,158 @@ export default function CalendarPage() {
                     const now = new Date();
                     setViewMonth({ year: now.getFullYear(), month: now.getMonth() });
                   }}
-                  className="text-[9px] text-navy-500 hover:text-accent-cyan transition-colors uppercase tracking-wider"
+                  className="text-[9px] font-mono text-navy-600 hover:text-accent-cyan transition-colors uppercase tracking-widest px-2 py-0.5 rounded border border-navy-800 hover:border-accent-cyan/30"
                 >
                   Today
                 </button>
               </div>
-              <button onClick={nextMonth} className="p-1 rounded hover:bg-navy-700 text-navy-400 hover:text-navy-200 transition-colors">
+              <button onClick={nextMonth} className="p-1.5 rounded hover:bg-navy-800 text-navy-500 hover:text-navy-200 transition-colors">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Day Headers */}
-            <div className="grid grid-cols-7 gap-px mb-1">
-              {DAY_NAMES.map((d) => (
-                <div key={d} className="text-center text-[10px] text-navy-500 font-semibold uppercase tracking-wider py-1">
-                  {d}
-                </div>
-              ))}
-            </div>
+            <div className="p-3">
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 mb-1">
+                {DAY_NAMES.map((d) => (
+                  <div key={d} className="text-center text-[9px] text-navy-600 font-mono uppercase tracking-widest py-1.5">
+                    {d}
+                  </div>
+                ))}
+              </div>
 
-            {/* Day Cells with convergence heatmap */}
-            <div className="grid grid-cols-7 gap-px">
-              {calendarDays.map((day, i) => {
-                if (day === null) return <div key={`empty-${i}`} className="h-20" />;
+              {/* Day Cells with convergence heatmap */}
+              <div className="grid grid-cols-7 gap-[1px]">
+                {calendarDays.map((day, i) => {
+                  if (day === null) return <div key={`empty-${i}`} className="h-[88px]" />;
 
-                const ds = dateStr(day);
-                const dayEvents = eventsByDate.get(ds) || [];
-                const daySignals = overlay?.signals[ds] || [];
-                const dayPredictions = overlay?.predictions[ds] || [];
-                const isToday = ds === todayStr;
-                const isSelected = ds === selectedDate;
-                const convergence = getConvergenceScore(dayEvents, daySignals, dayPredictions);
-                const maxSig = dayEvents.reduce((max, e) => Math.max(max, e.significance), 0);
-                const hasItems = dayEvents.length > 0 || daySignals.length > 0 || dayPredictions.length > 0;
+                  const ds = dateStr(day);
+                  const dayEvents = eventsByDate.get(ds) || [];
+                  const daySignals = overlay?.signals[ds] || [];
+                  const dayPredictions = overlay?.predictions[ds] || [];
+                  const isToday = ds === todayStr;
+                  const isSelected = ds === selectedDate;
+                  const convergence = getConvergenceScore(dayEvents, daySignals, dayPredictions);
+                  const maxSig = dayEvents.reduce((max, e) => Math.max(max, e.significance), 0);
+                  const hasItems = dayEvents.length > 0 || daySignals.length > 0 || dayPredictions.length > 0;
 
-                return (
-                  <button
-                    key={ds}
-                    onClick={() => selectDate(ds)}
-                    className={`h-20 rounded px-1 py-0.5 text-left transition-colors relative border ${
-                      isSelected
-                        ? "bg-navy-700 border-accent-cyan/40"
-                        : isToday
-                          ? "bg-navy-700/50 border-navy-600"
-                          : convergence >= 3
-                            ? convergenceBg(convergence)
-                            : hasItems
-                              ? "bg-navy-800/60 hover:bg-navy-700/50 border-transparent"
-                              : "hover:bg-navy-800/30 border-transparent"
-                    }`}
-                  >
-                    {/* Day number + convergence badge */}
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[11px] font-mono ${isToday ? "text-accent-cyan font-bold" : "text-navy-300"}`}>
-                        {day}
-                      </span>
+                  return (
+                    <button
+                      key={ds}
+                      onClick={() => selectDate(ds)}
+                      className={`h-[88px] rounded-sm px-1.5 py-1 text-left transition-all duration-150 relative group ${
+                        isSelected
+                          ? "bg-navy-800 ring-1 ring-accent-cyan/40"
+                          : isToday
+                            ? "bg-accent-cyan/[0.06] ring-1 ring-accent-cyan/20"
+                            : convergence >= 3
+                              ? convergenceBg(convergence)
+                              : hasItems
+                                ? "bg-navy-800/40 hover:bg-navy-800/70 border-transparent"
+                                : "hover:bg-navy-800/30 border-transparent"
+                      }`}
+                    >
+                      {/* Convergence left accent bar */}
                       {convergence >= 3 && (
-                        <span className={`text-[7px] font-bold px-1 rounded ${
-                          convergence >= 5 ? "bg-accent-amber/20 text-accent-amber" :
-                          convergence >= 4 ? "bg-accent-amber/15 text-accent-amber/80" :
-                          "bg-accent-cyan/15 text-accent-cyan"
-                        }`}>
-                          {convergence}
-                        </span>
+                        <div className="absolute left-0 top-1 bottom-1 w-[2px] rounded-full" style={{
+                          background: convergence >= 5 ? "#f59e0b" : convergence >= 4 ? "rgba(245,158,11,0.6)" : "rgba(6,182,212,0.5)",
+                        }} />
                       )}
-                    </div>
 
-                    {/* Event labels */}
-                    {hasItems && (
-                      <div className="mt-0.5 space-y-px">
-                        {dayEvents.slice(0, 2).map((ev, j) => (
-                          <div key={j} className={`text-[7px] leading-tight truncate ${getEventTextColor(ev)}`}>
-                            {ev.holiday}
-                          </div>
-                        ))}
-                        {daySignals.length > 0 && dayEvents.length < 2 && (
-                          <div className="text-[7px] leading-tight text-signal-4 truncate">
-                            {daySignals[0].title}
-                          </div>
-                        )}
-                        {dayPredictions.length > 0 && dayEvents.length < 2 && daySignals.length === 0 && (
-                          <div className="text-[7px] leading-tight text-signal-5 truncate">
-                            {dayPredictions[0].claim.slice(0, 30)}...
-                          </div>
+                      {/* Day number + convergence badge */}
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className={`text-[11px] font-mono tabular-nums ${
+                          isToday ? "text-accent-cyan font-bold" :
+                          isSelected ? "text-navy-100 font-bold" :
+                          "text-navy-400 group-hover:text-navy-300"
+                        }`}>
+                          {day}
+                        </span>
+                        {convergence >= 3 && (
+                          <span className={`text-[7px] font-bold font-mono px-1 rounded tabular-nums ${
+                            convergence >= 5 ? "bg-accent-amber/20 text-accent-amber" :
+                            convergence >= 4 ? "bg-accent-amber/12 text-accent-amber/80" :
+                            "bg-accent-cyan/12 text-accent-cyan"
+                          }`}>
+                            {convergence}x
+                          </span>
                         )}
                       </div>
-                    )}
 
-                    {/* Indicator dots */}
-                    {hasItems && (
-                      <div className="absolute bottom-0.5 right-0.5 flex gap-0.5 items-center">
-                        {maxSig >= 3 && <Star className="h-2 w-2 text-accent-amber fill-accent-amber" />}
-                        {[...new Set(dayEvents.map(getFilterKey))].map((key) => (
-                          <div key={key} className={`w-1 h-1 rounded-full ${FILTER_CONFIG[key].dot}`} />
-                        ))}
-                        {daySignals.length > 0 && activeFilters.has("signals") && (
-                          <div className="w-1 h-1 rounded-full bg-signal-4" />
-                        )}
-                        {dayPredictions.length > 0 && activeFilters.has("predictions") && (
-                          <div className="w-1 h-1 rounded-full bg-signal-5" />
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+                      {/* Event labels */}
+                      {hasItems && (
+                        <div className="space-y-px">
+                          {dayEvents.slice(0, 2).map((ev, j) => (
+                            <div key={j} className={`text-[7px] leading-[10px] truncate font-mono ${getEventTextColor(ev)}`}>
+                              {ev.holiday}
+                            </div>
+                          ))}
+                          {daySignals.length > 0 && dayEvents.length < 2 && (
+                            <div className="text-[7px] leading-[10px] text-signal-4 truncate font-mono">
+                              {daySignals[0].title}
+                            </div>
+                          )}
+                          {dayPredictions.length > 0 && dayEvents.length < 2 && daySignals.length === 0 && (
+                            <div className="text-[7px] leading-[10px] text-signal-5 truncate font-mono">
+                              {dayPredictions[0].claim.slice(0, 30)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Indicator dots */}
+                      {hasItems && (
+                        <div className="absolute bottom-1 right-1 flex gap-[3px] items-center">
+                          {maxSig >= 3 && <Star className="h-2 w-2 text-accent-amber fill-accent-amber" />}
+                          {[...new Set(dayEvents.map(getFilterKey))].map((key) => (
+                            <div key={key} className={`w-[3px] h-[3px] rounded-full ${FILTER_CONFIG[key].dot}`} />
+                          ))}
+                          {daySignals.length > 0 && activeFilters.has("signals") && (
+                            <div className="w-[3px] h-[3px] rounded-full bg-signal-4" />
+                          )}
+                          {dayPredictions.length > 0 && activeFilters.has("predictions") && (
+                            <div className="w-[3px] h-[3px] rounded-full bg-signal-5" />
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* ── Selected Date Detail ── */}
           {selectedDate && (
-            <div className="border border-navy-700/40 rounded-lg bg-navy-800/40 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-3.5 w-3.5 text-accent-amber" />
-                  <span className="text-xs font-bold text-navy-100 uppercase tracking-wider">
-                    {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
-                      weekday: "long", month: "long", day: "numeric", year: "numeric",
-                    })}
-                  </span>
-                  {selectedDate === todayStr && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">TODAY</span>
-                  )}
-                </div>
-                {reading && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] text-navy-500 font-mono">{reading.hebrew}</span>
-                    {reading.holidays.length > 0 && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-amber/10 text-accent-amber border border-accent-amber/20">
-                        {reading.holidays[0]}
-                      </span>
+            <div className="border border-navy-700/30 rounded-lg bg-navy-900/30 overflow-hidden">
+              {/* Selected date header with accent line */}
+              <div className="relative px-5 py-3.5 border-b border-navy-800/30">
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-accent-amber/40 via-accent-cyan/20 to-transparent" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Crosshair className="h-3.5 w-3.5 text-accent-amber" />
+                    <span className="text-xs font-bold text-navy-100 uppercase tracking-wider font-mono">
+                      {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
+                        weekday: "long", month: "long", day: "numeric", year: "numeric",
+                      })}
+                    </span>
+                    {selectedDate === todayStr && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-accent-cyan/8 text-accent-cyan border border-accent-cyan/20 font-mono uppercase tracking-widest">Live</span>
                     )}
                   </div>
-                )}
+                  {reading && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-navy-500 font-mono">{reading.hebrew}</span>
+                      {reading.holidays.length > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-amber/8 text-accent-amber border border-accent-amber/20 font-mono">
+                          {reading.holidays[0]}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+              <div className="p-5">
 
               {/* Market snapshot for past dates */}
               {selectedDate < todayStr && (
@@ -1161,6 +1233,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           )}
         </div>
@@ -1168,10 +1241,12 @@ export default function CalendarPage() {
         {/* ── Right Sidebar ── */}
         <div className="space-y-4">
           {/* Upcoming Events */}
-          <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-4">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500 mb-3">
-              Upcoming Events
-            </h2>
+          <div className="border border-navy-700/20 rounded-lg bg-navy-900/30 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-navy-800/30 flex items-center gap-2">
+              <Calendar className="h-3 w-3 text-navy-500" />
+              <span className="text-[9px] font-mono uppercase tracking-widest text-navy-500">Upcoming Events</span>
+            </div>
+            <div className="p-3">
             <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
               {upcomingEvents.length === 0 ? (
                 <div className="text-xs text-navy-500 text-center py-8">No upcoming events</div>
@@ -1219,16 +1294,16 @@ export default function CalendarPage() {
                 })
               )}
             </div>
+            </div>
           </div>
 
           {/* Convergence Hotspots */}
-          <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-4">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="border border-navy-700/20 rounded-lg bg-navy-900/30 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-navy-800/30 flex items-center gap-2">
               <Zap className="h-3 w-3 text-accent-amber" />
-              <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500">
-                Convergence Hotspots
-              </h2>
+              <span className="text-[9px] font-mono uppercase tracking-widest text-navy-500">Convergence Hotspots</span>
             </div>
+            <div className="p-3">
             <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
               <ConvergenceHotspots
                 eventsByDate={eventsByDate}
@@ -1241,13 +1316,15 @@ export default function CalendarPage() {
                 }}
               />
             </div>
+            </div>
           </div>
 
           {/* Legend */}
-          <div className="border border-navy-800/60 rounded-lg bg-navy-900/50 p-4">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-navy-500 mb-2">
-              Convergence Scale
-            </h2>
+          <div className="border border-navy-700/20 rounded-lg bg-navy-900/30 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-navy-800/30">
+              <span className="text-[9px] font-mono uppercase tracking-widest text-navy-500">Convergence Scale</span>
+            </div>
+            <div className="p-3">
             <div className="space-y-1.5">
               {[
                 { score: "5+", label: "Maximum convergence", color: "bg-accent-amber/20 border-accent-amber/40" },
@@ -1262,6 +1339,7 @@ export default function CalendarPage() {
                   <span className="text-[9px] text-navy-500">{item.label}</span>
                 </div>
               ))}
+            </div>
             </div>
           </div>
         </div>

@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/page-container";
-import { UpgradeGate } from "@/components/subscription/upgrade-gate";
 import { Button } from "@/components/ui/button";
 import {
   Loader2,
@@ -285,7 +284,7 @@ export default function AgentSimulationPage() {
 
   return (
     <PageContainer title="Agent Simulation" subtitle="Multi-persona convergence analysis">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left: Input + History */}
           <div className="lg:col-span-4 space-y-4">
             <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4">
@@ -441,7 +440,6 @@ export default function AgentSimulationPage() {
             )}
           </div>
         </div>
-      </UpgradeGate>
     </PageContainer>
   );
 }

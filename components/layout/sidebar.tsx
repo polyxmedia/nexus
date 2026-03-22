@@ -355,7 +355,7 @@ export function Sidebar() {
         <NavSection label="Intelligence" items={intelligenceNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
         <NavSection label="Tools" items={toolsNavWithBadges} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
         <NavSection label="Markets" items={marketsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
-        <NavSection label="Analytics" items={analyticsNav} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
+        <NavSection label="Analytics" items={isAdmin ? analyticsNav : analyticsNav.filter(i => i.href !== "/agent-simulation")} pathname={pathname} checkAccess={subLoading ? undefined : meetsMinTier} />
       </nav>
 
       {/* Upgrade glideslope */}

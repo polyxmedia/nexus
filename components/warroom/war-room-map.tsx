@@ -28,6 +28,8 @@ import { VesselTrailLayer } from "./vessel-trail-layer";
 import { VipAircraftLayer } from "./vip-aircraft-layer";
 import { FireLayer } from "./fire-layer";
 import { RadiationLayer } from "./radiation-layer";
+import { SocialLayer } from "./social-layer";
+import type { SocialPost } from "@/lib/warroom/social-intel";
 import type { VesselTrailPoint } from "@/lib/warroom/use-vessel-tracker";
 
 interface WarRoomMapProps {
@@ -58,6 +60,7 @@ interface WarRoomMapProps {
   onVipAircraftClick?: (aircraft: VipAircraftState) => void;
   fires?: FireDetection[];
   radiation?: RadiationReading[];
+  socialPosts?: SocialPost[];
 }
 
 const ESCALATION_COLORS: Record<number, string> = {
@@ -161,6 +164,7 @@ export default function WarRoomMap({
   onVipAircraftClick,
   fires,
   radiation,
+  socialPosts,
 }: WarRoomMapProps) {
   const activeActorId = hoveredActorId || selectedActorId;
 
@@ -406,6 +410,11 @@ export default function WarRoomMap({
       {/* Radiation Monitoring Layer */}
       {layerVisibility.radiation && radiation && radiation.length > 0 && (
         <RadiationLayer readings={radiation} />
+      )}
+
+      {/* Social Intelligence Layer */}
+      {layerVisibility.social && socialPosts && socialPosts.length > 0 && (
+        <SocialLayer posts={socialPosts} />
       )}
     </MapContainer>
   );

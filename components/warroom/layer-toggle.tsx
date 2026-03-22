@@ -5,7 +5,7 @@ import {
   GlobeAltIcon,
   FireIcon,
 } from "@heroicons/react/24/solid";
-import { Plane, Ship, Satellite, Crown, Flame, Radiation } from "lucide-react";
+import { Plane, Ship, Satellite, Crown, Flame, Radiation, MessageCircle } from "lucide-react";
 import type { WarRoomLayerVisibility } from "@/lib/warroom/types";
 
 interface LayerToggleProps {
@@ -25,6 +25,7 @@ interface LayerToggleProps {
   fireMilitaryOnly: boolean;
   radiationCount: number;
   radiationElevatedCount: number;
+  socialCount: number;
 }
 
 const LAYERS = [
@@ -108,6 +109,16 @@ const LAYERS = [
     activeBorder: "border-lime-500/25",
     dotColor: "bg-lime-400",
   },
+  {
+    key: "social" as const,
+    label: "INTEL",
+    Icon: MessageCircle,
+    heroIcon: null,
+    activeColor: "text-blue-400",
+    activeBg: "bg-blue-500/8",
+    activeBorder: "border-blue-500/25",
+    dotColor: "bg-blue-400",
+  },
 ];
 
 export function LayerToggle({
@@ -127,6 +138,7 @@ export function LayerToggle({
   fireMilitaryOnly,
   radiationCount,
   radiationElevatedCount,
+  socialCount,
 }: LayerToggleProps) {
   function getCount(key: string): string | null {
     if (key === "aircraft" && visibility.aircraft && aircraftCount > 0) {
@@ -150,6 +162,9 @@ export function LayerToggle({
     }
     if (key === "radiation" && visibility.radiation && radiationCount > 0) {
       return radiationElevatedCount > 0 ? `${radiationCount} / ${radiationElevatedCount}!` : `${radiationCount}`;
+    }
+    if (key === "social" && visibility.social && socialCount > 0) {
+      return `${socialCount}`;
     }
     return null;
   }

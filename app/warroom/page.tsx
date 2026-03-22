@@ -30,6 +30,7 @@ import { useSatelliteData } from "@/lib/warroom/use-satellite-data";
 import { useVipAircraftData } from "@/lib/warroom/use-vip-aircraft-data";
 import { useFireData } from "@/lib/warroom/use-fire-data";
 import { useRadiationData } from "@/lib/warroom/use-radiation-data";
+import { useSocialData } from "@/lib/warroom/use-social-data";
 import { useSweepDelta } from "@/lib/warroom/use-sweep-delta";
 import { SweepDeltaPanel } from "@/components/warroom/sweep-delta-panel";
 import type { WarRoomData, WarRoomLayerVisibility, OsintEvent, AircraftState, VesselState, VipAircraftState } from "@/lib/warroom/types";
@@ -137,6 +138,7 @@ export default function WarRoomPage() {
     fires: false,
     fireMilitaryOnly: false,
     radiation: false,
+    social: false,
   });
 
   const { data: aircraftData } = useAircraftData(layerVisibility.aircraft);
@@ -146,6 +148,7 @@ export default function WarRoomPage() {
   const { data: vipAircraftData } = useVipAircraftData(layerVisibility.vipAircraft);
   const { data: fireData } = useFireData(layerVisibility.fires);
   const { data: radiationData } = useRadiationData(layerVisibility.radiation);
+  const { data: socialData } = useSocialData(layerVisibility.social);
   const { data: sweepDeltaData, loading: sweepDeltaLoading } = useSweepDelta();
 
   useEffect(() => {
@@ -524,6 +527,7 @@ export default function WarRoomPage() {
               onVipAircraftClick={handleVipAircraftClick}
               fires={fireData?.fires ?? []}
               radiation={radiationData?.readings ?? []}
+              socialPosts={socialData?.posts ?? []}
             />
           ) : (
             <GlobeView
@@ -573,6 +577,7 @@ export default function WarRoomPage() {
           fireMilitaryOnly={layerVisibility.fireMilitaryOnly}
           radiationCount={radiationData?.totalCount ?? 0}
           radiationElevatedCount={radiationData?.elevatedCount ?? 0}
+          socialCount={socialData?.totalCount ?? 0}
         />
 
         {/* Intel Panel (right) */}
