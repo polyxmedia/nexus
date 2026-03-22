@@ -1472,7 +1472,7 @@ export default function CalendarPage() {
                 finding="When major Hebrew and Islamic observances overlap (e.g., Ramadan coinciding with Passover, which occurs roughly every 33 years), geopolitical sensitivity in the Middle East intensifies. The 1973 Yom Kippur War occurred during Ramadan. The 2023 Hamas attack occurred on Simchat Torah, one day before the Prophet's Birthday."
                 strength={82}
                 source="Multiple primary sources; Lunisolar calendar analysis"
-                color="purple"
+                color="cyan"
               />
 
               <EvidenceCard
@@ -1480,7 +1480,7 @@ export default function CalendarPage() {
                 finding="When options/futures expiration (triple witching) coincides with high-significance calendar events, realized volatility increases by 40-60% above triple witching baseline. The options market's mechanical rebalancing amplifies any calendar-driven sentiment shifts."
                 strength={55}
                 source="CBOE historical data; Nexus internal analysis"
-                color="purple"
+                color="cyan"
               />
 
               <EvidenceCard
@@ -1488,7 +1488,7 @@ export default function CalendarPage() {
                 finding="NEXUS replaces additive convergence bonuses with sequential Bayesian updating across signal layers. Each layer produces a likelihood ratio weighted by reliability coefficients. Conditional dependency matrices prevent double-counting correlated evidence (e.g., geopolitical and OSINT layers share a 0.50 independence factor). Calendar/celestial layers receive low reliability coefficients (0.35) reflecting their narrative-context role."
                 strength={75}
                 source="Martin, C. (2026). Bayesian Networks for Geopolitical Forecasting. arXiv:2601.13362"
-                color="purple"
+                color="cyan"
               />
             </div>
           </div>
@@ -1506,7 +1506,7 @@ export default function CalendarPage() {
                 finding="Instead of 'Purim = +1 convergence bonus', the Bayesian model updates actor behavioral probabilities: 'Ben Gvir's P(territorial assertion) = 0.15 baseline; on Tisha B'Av, posterior rises to 0.39 based on 3 documented Temple Mount visits.' Each modifier carries a confidence-damped multiplier: effective = 1 + (posterior - 1) * confidence. Multiple modifiers compose multiplicatively with a hard cap at 0.95."
                 strength={68}
                 source="Tahir, M. (2025). Computational Geopolitics: Bayesian Game Theory for State Actor Modeling"
-                color="purple"
+                color="cyan"
               />
 
               <EvidenceCard
@@ -1514,7 +1514,7 @@ export default function CalendarPage() {
                 finding="Iran IRGC shows documented P(military action) suppression during Ramadan: base 4% drops to ~2% (multiplier 0.5, confidence 0.7). Hezbollah shows similar patterns (base 6% to ~2.3%, multiplier 0.4, confidence 0.75). Non-state actors like Houthis show weaker suppression (multiplier 0.6, confidence 0.5), consistent with less centralized decision-making."
                 strength={72}
                 source="ACLED conflict data analysis; NEXUS actor-belief module (21 actors, 37 modifiers)"
-                color="purple"
+                color="cyan"
               />
 
               <EvidenceCard
@@ -1522,7 +1522,7 @@ export default function CalendarPage() {
                 finding="The Federal Reserve's FOMC meetings are modeled with the highest posterior multiplier (5.0x) and confidence (0.95) in the actor-belief system. P(economic measure) rises from 50% baseline to 95% cap during scheduled meetings. Jackson Hole symposium (4.0x, 0.85) historically signals major policy pivots: Bernanke QE (2010), Powell framework shift (2020)."
                 strength={92}
                 source="Federal Reserve Schedule; NEXUS actor-belief module"
-                color="purple"
+                color="cyan"
               />
             </div>
           </div>
@@ -1654,20 +1654,18 @@ function EvidenceCard({
   strength: number; // 0-100
   source: string;
   url?: string;
-  color: "amber" | "emerald" | "cyan" | "purple";
+  color: "amber" | "emerald" | "cyan";
 }) {
   const barColor = {
     amber: "bg-accent-amber",
     emerald: "bg-accent-emerald",
     cyan: "bg-accent-cyan",
-    purple: "bg-navy-400",
   }[color];
 
   const barTrack = {
     amber: "bg-accent-amber/10",
     emerald: "bg-accent-emerald/10",
     cyan: "bg-accent-cyan/10",
-    purple: "bg-navy-400/10",
   }[color];
 
   const strengthLabel = strength >= 80 ? "Strong" : strength >= 50 ? "Moderate" : "Weak";

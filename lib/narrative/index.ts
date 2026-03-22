@@ -214,14 +214,18 @@ interface GdeltArticle {
 
 async function fetchGdeltTheme(topic: string): Promise<GdeltArticle[]> {
   try {
-    // GDELT requires OR'd terms wrapped in parentheses
-    const query = encodeURIComponent(`(${topic})`);
+    // GDELT requires OR'd terms wrapped in parentheses, but single terms must not use parens
+    const hasOr = topic.includes(" OR ");
+    const query = encodeURIComponent(hasOr ? `(${topic})` : topic);
     const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=20&format=json&sort=DateDesc`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
     if (!res.ok) return [];
     const text = await res.text();
     // GDELT returns plain text errors, not JSON, on invalid queries
-    if (!text.startsWith("{") && !text.startsWith("[")) return [];
+    if (!text.startsWith("{") && !text.startsWith("[")) {
+      console.warn(`[narrative] GDELT returned non-JSON for query "${topic.slice(0, 60)}": ${text.slice(0, 100)}`);
+      return [];
+    }
     const json = JSON.parse(text);
     return (json?.articles || []) as GdeltArticle[];
   } catch {
