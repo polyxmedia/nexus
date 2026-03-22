@@ -502,17 +502,19 @@ export default function PredictionsPage() {
   const resolved = predictions.filter((p) => p.outcome);
   const pending = predictions.filter((p) => !p.outcome);
   const pastDeadline = pending.filter((p) => p.deadline <= today);
-  const hits = resolved.filter((p) => p.outcome === "confirmed");
-  const misses = resolved.filter((p) => p.outcome === "denied");
-  const partials = resolved.filter((p) => p.outcome === "partial");
-  const accuracy = resolved.length > 0 ? hits.length / resolved.length : 0;
-  const avgScore = resolved.length > 0 ? resolved.reduce((s, p) => s + (p.score || 0), 0) / resolved.length : 0;
+  // Scoreable: exclude expired and post_event (invalid) from accuracy metrics
+  const scoreable = resolved.filter((p) => p.outcome !== "expired" && p.outcome !== "post_event");
+  const hits = scoreable.filter((p) => p.outcome === "confirmed");
+  const misses = scoreable.filter((p) => p.outcome === "denied");
+  const partials = scoreable.filter((p) => p.outcome === "partial");
+  const accuracy = scoreable.length > 0 ? hits.length / scoreable.length : 0;
+  const avgScore = scoreable.length > 0 ? scoreable.reduce((s, p) => s + (p.score || 0), 0) / scoreable.length : 0;
 
   // Category stats
   const categories = ["market", "geopolitical"];
   const categoryStats = categories.map((cat) => {
     const all = predictions.filter((p) => p.category === cat);
-    const res = all.filter((p) => p.outcome);
+    const res = all.filter((p) => p.outcome && p.outcome !== "expired" && p.outcome !== "post_event");
     const h = res.filter((p) => p.outcome === "confirmed");
     const acc = res.length > 0 ? h.length / res.length : 0;
     const avg = res.length > 0 ? res.reduce((s, p) => s + (p.score || 0), 0) / res.length : 0;
@@ -676,7 +678,7 @@ export default function PredictionsPage() {
   const regimePerformance = useMemo(() => {
     const regimes: Record<string, { total: number; hits: number; brierSum: number }> = {};
     for (const p of resolved) {
-      if (!p.outcome || p.outcome === "expired") continue;
+      if (!p.outcome || p.outcome === "expired" || p.outcome === "post_event") continue;
       const regime = p.regimeAtCreation || "unknown";
       if (!regimes[regime]) regimes[regime] = { total: 0, hits: 0, brierSum: 0 };
       regimes[regime].total++;
@@ -695,7 +697,7 @@ export default function PredictionsPage() {
   const rollingBrierData = useMemo(() => {
     const windowSize = 10;
     const sorted = [...resolved]
-      .filter((p) => p.outcome && p.outcome !== "expired")
+      .filter((p) => p.outcome && p.outcome !== "expired" && p.outcome !== "post_event")
       .sort((a, b) => (a.resolvedAt || a.deadline).localeCompare(b.resolvedAt || b.deadline));
 
     if (sorted.length < windowSize) return [];
@@ -743,7 +745,7 @@ export default function PredictionsPage() {
   const directionStats = useMemo(() => {
     const withDir = resolved.filter((p) => p.direction && p.directionCorrect !== null);
     const correct = withDir.filter((p) => p.directionCorrect === 1);
-    const withLevel = resolved.filter((p) => p.priceTarget && p.levelCorrect !== null);
+    const withLevel = resolved.filter((p) => p.levelCorrect !== null);
     const levelCorrect = withLevel.filter((p) => p.levelCorrect === 1);
     return {
       total: withDir.length,
@@ -2091,32 +2093,49 @@ export default function PredictionsPage() {
         </div>
       )}
 
-      {/* ── Tabs ── */}
+      {/* ── Tabs + Category Filter ── */}
       {!loading && predictions.length > 0 && (
-        <div className="flex items-center gap-0 mb-4 border-b border-navy-700/20">
-          <button
-            onClick={() => { setActiveTab("pending"); setActiveOutcome(null); setCurrentPage(1); }}
-            className={`px-4 py-2 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
-              activeTab === "pending"
-                ? "border-accent-cyan text-accent-cyan"
-                : "border-transparent text-navy-500 hover:text-navy-300"
-            }`}
-          >
-            <Clock className="h-3 w-3 inline-block mr-1.5 -mt-0.5" />
-            Pending ({displayPending.length})
-            {resolving && <Loader2 className="h-3 w-3 animate-spin text-accent-cyan inline-block ml-1.5" />}
-          </button>
-          <button
-            onClick={() => { setActiveTab("resolved"); setCurrentPage(1); }}
-            className={`px-4 py-2 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
-              activeTab === "resolved"
-                ? "border-accent-cyan text-accent-cyan"
-                : "border-transparent text-navy-500 hover:text-navy-300"
-            }`}
-          >
-            <Target className="h-3 w-3 inline-block mr-1.5 -mt-0.5" />
-            Resolved ({displayResolved.length})
-          </button>
+        <div className="flex items-center justify-between mb-4 border-b border-navy-700/20">
+          <div className="flex items-center gap-0">
+            <button
+              onClick={() => { setActiveTab("pending"); setActiveOutcome(null); setCurrentPage(1); }}
+              className={`px-4 py-2 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+                activeTab === "pending"
+                  ? "border-accent-cyan text-accent-cyan"
+                  : "border-transparent text-navy-500 hover:text-navy-300"
+              }`}
+            >
+              <Clock className="h-3 w-3 inline-block mr-1.5 -mt-0.5" />
+              Pending ({displayPending.length})
+              {resolving && <Loader2 className="h-3 w-3 animate-spin text-accent-cyan inline-block ml-1.5" />}
+            </button>
+            <button
+              onClick={() => { setActiveTab("resolved"); setCurrentPage(1); }}
+              className={`px-4 py-2 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+                activeTab === "resolved"
+                  ? "border-accent-cyan text-accent-cyan"
+                  : "border-transparent text-navy-500 hover:text-navy-300"
+              }`}
+            >
+              <Target className="h-3 w-3 inline-block mr-1.5 -mt-0.5" />
+              Resolved ({displayResolved.length})
+            </button>
+          </div>
+          <div className="flex items-center gap-1 -mb-px pb-2">
+            {[null, "market", "geopolitical"].map((cat) => (
+              <button
+                key={cat ?? "all"}
+                onClick={() => { setActiveCategory(activeCategory === cat ? null : cat); setCurrentPage(1); }}
+                className={`px-2.5 py-1 text-[9px] font-mono uppercase tracking-wider rounded transition-colors ${
+                  activeCategory === cat
+                    ? "bg-accent-cyan/10 text-accent-cyan"
+                    : "text-navy-500 hover:text-navy-300 hover:bg-navy-800/40"
+                }`}
+              >
+                {cat ?? "All"}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

@@ -70,13 +70,13 @@ export function getResolutionLabel(outcome: string, confidence: number, _score?:
 
   if (outcome === "post_event") {
     return {
-      label: "POST-EVENT",
+      label: "INVALID",
       color: "text-navy-400",
       bg: "bg-navy-800/40",
       border: "border-navy-700/30",
-      brierQuality: quality,
-      brierScore: brier,
-      calibrationNote: "Created after the event occurred, excluded from scoring",
+      brierQuality: "N/A",
+      brierScore: 0,
+      calibrationNote: "Excluded from scoring: target already met at creation",
     };
   }
 

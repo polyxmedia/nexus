@@ -84,9 +84,12 @@ describe("getResolutionLabel", () => {
     expect(getResolutionLabel("expired", 0.70).label).toBe("EXPIRED");
   });
 
-  // ── POST-EVENT ──
-  it("post_event always = POST-EVENT", () => {
-    expect(getResolutionLabel("post_event", 0.50).label).toBe("POST-EVENT");
+  // ── POST-EVENT / INVALID ──
+  it("post_event = INVALID with no Brier score", () => {
+    const result = getResolutionLabel("post_event", 0.50);
+    expect(result.label).toBe("INVALID");
+    expect(result.brierScore).toBe(0);
+    expect(result.brierQuality).toBe("N/A");
   });
 
   // ── Brier quality bands ──
