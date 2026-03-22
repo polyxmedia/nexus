@@ -42,6 +42,9 @@ import type { StrategicScenario } from "../thesis/types";
 import { loadPrompt } from "@/lib/prompts/loader";
 import { SONNET_MODEL, HAIKU_MODEL } from "@/lib/ai/model";
 import { getBaseRateContext, adjustForBaseRate, getBaseRate, updateObservedRates } from "./base-rates";
+import { getReferenceClassContext, getReferenceClassStats, classifyClaim } from "./reference-class";
+import { applyPlattScaling, fitPlattParameters } from "./platt-scaling";
+import { validateThreshold } from "./threshold-validation";
 import { getCalendarActorInsights } from "../signals/actor-beliefs";
 import { getCategoryCalibrationAdjustment, applyCalibrationCorrection } from "../backtest/feedback-loops";
 
@@ -764,8 +767,16 @@ async function adjustConfidenceForBaseRate(rawConfidence: number, category: stri
     : afterCompound < 0.85 ? 4
     : 4;
 
-  // ── Base rate anchoring ──
-  const { rate: baseRate } = await getBaseRate(category, claim);
+  // ── Reference class anchoring (Kahneman outside view) ──
+  // Try structured reference class first, fall back to keyword base rate
+  let baseRate: number;
+  try {
+    const refClass = classifyClaim(claim, category, "14 days", null, null, null);
+    const refStats = await getReferenceClassStats(refClass);
+    baseRate = refStats.sufficient ? refStats.hitRate : (await getBaseRate(category, claim)).rate;
+  } catch {
+    baseRate = (await getBaseRate(category, claim)).rate;
+  }
   const baseRateAdjusted = adjustForBaseRate(afterCompound, baseRate, evidenceStrength);
 
   // ── Specificity penalty ──
@@ -1375,10 +1386,10 @@ ${actionsSummary}`;
     `${sym}: ${price.toFixed(2)}`
   ).join(", ");
 
-  // ── Base Rate Anchoring (Tetlock "Fermi-ize" principle) ──
-  emit("Loading base rate anchors (Tetlock calibration)", "running");
-  const baseRateContext = await getBaseRateContext();
-  emit("Base rates loaded", "done");
+  // ── Reference Class Forecasting (Kahneman/Tversky outside view) ──
+  emit("Loading reference class data (Tetlock calibration)", "running");
+  const baseRateContext = await getReferenceClassContext();
+  emit("Reference class data loaded", "done");
 
   // ── Actor-Belief Bayesian Typing (calendar-conditioned behavior) ──
   emit("Evaluating actor-belief calendar conditioning", "running");
@@ -1784,9 +1795,17 @@ Output a brief devil's advocate summary (max 300 words).`;
       }
     }
 
-    // Compute confidence with all adjustments, then enforce magnitude cap
+    // Compute confidence with all adjustments: base rate -> threshold discount -> Platt scaling -> magnitude cap
     const { confidence: baseConfidence, baseRate: predictionBaseRate } = await adjustConfidenceForBaseRate(p.confidence, p.category, p.claim);
-    const finalConfidence = Math.min(baseConfidence, magnitudeConfidenceCap);
+
+    // Threshold validation gate (graduated discount for implausible thresholds)
+    const thresholdResult = validateThreshold(p.claim, referenceSymbol, priceTarget, referencePrices[referenceSymbol || ""], timeframeDays);
+    const thresholdAdjusted = baseConfidence * thresholdResult.discountMultiplier;
+
+    // Platt scaling recalibration (post-hoc sigmoid correction)
+    const plattCalibrated = await applyPlattScaling(thresholdAdjusted);
+
+    const finalConfidence = Math.min(plattCalibrated, magnitudeConfidenceCap);
 
     const rows = await db
       .insert(schema.predictions)

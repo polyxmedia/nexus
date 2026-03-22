@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveByData } from "@/lib/predictions/engine";
 import { requireTier } from "@/lib/auth/require-tier";
 import { fetchAndTweetResolutions } from "@/lib/twitter/predictions";
+import { fitPlattParameters } from "@/lib/predictions/platt-scaling";
 
 // Fast data-driven resolution - no AI, just market data comparison
 // Available to analyst+ users so auto-resolve on page load works
@@ -21,6 +22,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Refit Platt scaling after resolution
+    if (results.length > 0) {
+      fitPlattParameters().catch(() => {});
+    }
     return NextResponse.json({
       resolved: results.length,
       results,
