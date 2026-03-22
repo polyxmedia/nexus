@@ -115,10 +115,11 @@ describe("getResolutionLabel", () => {
     expect(result.brierQuality).toBe("Poor");
   });
 
-  // ── Score override ──
-  it("uses provided score instead of computing Brier", () => {
-    const result = getResolutionLabel("confirmed", 0.75, 0.05);
-    expect(result.brierScore).toBe(0.05);
+  // ── Score parameter is ignored (DB score is correctness, not Brier) ──
+  it("ignores provided DB score and computes Brier from confidence+outcome", () => {
+    const result = getResolutionLabel("confirmed", 0.75, 1.0);
+    // 75% confidence confirmed: Brier = (0.75 - 1)^2 = 0.0625
+    expect(result.brierScore).toBeCloseTo(0.0625, 4);
     expect(result.brierQuality).toBe("Excellent");
   });
 

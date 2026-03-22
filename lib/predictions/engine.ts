@@ -2267,7 +2267,7 @@ const RESOLUTION_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "submit_resolution",
-    description: "Submit your final resolution for one or more predictions AFTER you have gathered and verified all evidence. You MUST call get_market_price or search_news first before calling this.",
+    description: "Submit your factual analysis for one or more predictions AFTER gathering evidence. Do NOT decide HIT/MISS/PARTIAL yourself -- the system will classify outcomes from your structured data. You MUST provide the numeric comparison fields accurately.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -2277,13 +2277,15 @@ const RESOLUTION_TOOLS: Anthropic.Tool[] = [
             type: "object",
             properties: {
               id: { type: "number", description: "Prediction ID" },
-              outcome: { type: "string", enum: ["confirmed", "denied", "partial", "skip"], description: "confirmed=both direction and level correct, denied=wrong, partial=direction right but level wrong, skip=insufficient data" },
-              score: { type: "number", description: "0.0 (worst) to 1.0 (best). confirmed=1.0, partial=0.5, denied=0.0" },
-              notes: { type: "string", description: "Evidence summary citing specific prices, dates, and data points" },
-              direction_correct: { type: "number", enum: [0, 1], description: "1 if market moved in predicted direction, 0 if not" },
-              level_correct: { type: "number", enum: [0, 1], description: "1 if price target was reached, 0 if not" },
+              target_description: { type: "string", description: "What the prediction required (e.g. 'HYG decline >2% from March 7 close')" },
+              target_value: { type: "number", description: "The numeric threshold required (e.g. 2.0 for a 2% decline, 510 for SPY below 510)" },
+              actual_value: { type: "number", description: "The actual observed value (e.g. 0.97 for a 0.97% decline, 659.80 for SPY close)" },
+              threshold_met: { type: "boolean", description: "Did the actual value meet the required threshold? true/false. CRITICAL: 0.97 < 2.0 is false, 1.33 < 2.0 is false, 4 < 6 is false." },
+              direction_correct: { type: "boolean", description: "Did the market move in the predicted direction (regardless of magnitude)?" },
+              evidence: { type: "string", description: "Evidence summary citing specific prices, dates, and data points. MUST include arithmetic: 'Actual: X, Required: Y, X < Y therefore threshold NOT met'" },
+              data_available: { type: "boolean", description: "Was sufficient data available to make an assessment? false = skip for retry." },
             },
-            required: ["id", "outcome", "score", "notes"],
+            required: ["id", "threshold_met", "direction_correct", "evidence", "data_available"],
           },
         },
       },
@@ -2448,12 +2450,24 @@ export async function resolvePredictions(options?: { skipHousekeeping?: boolean 
     console.log("[resolvePredictions] skipping housekeeping (manual resolve)");
   }
 
+  // ── Data-first: resolve market predictions with structured targets programmatically ──
+  // This prevents AI math errors on predictions that have price targets + symbols.
+  let dataResolved: Array<{ id: number; outcome: string; score: number; notes: string }> = [];
+  try {
+    dataResolved = await resolveByData();
+    if (dataResolved.length > 0) {
+      console.log(`[resolvePredictions] Data-resolved ${dataResolved.length} market predictions first: ${dataResolved.map(r => `#${r.id}=${r.outcome}`).join(", ")}`);
+    }
+  } catch (err) {
+    console.error("[resolvePredictions] resolveByData failed, continuing with AI:", err);
+  }
+
   const pending = await db
     .select()
     .from(schema.predictions)
     .where(isNull(schema.predictions.outcome));
 
-  console.log(`[resolvePredictions] pending count: ${pending.length}`);
+  console.log(`[resolvePredictions] pending count: ${pending.length} (after data-resolve)`);
 
   if (pending.length === 0) {
     console.log("[resolvePredictions] EXITING: No pending predictions found");
@@ -2495,21 +2509,29 @@ CRITICAL RULES:
 10. If the prediction was ALREADY TRUE when it was created (start price already past the target), outcome is "denied" with note "Invalid: target already met at creation."
 11. CRITICAL - COMMODITY FUTURES: Never use ETF proxies (USO, UNG, CPER, SLV, WEAT) to verify commodity price targets stated in per-unit terms ($85/barrel, $4.50/pound, $2000/oz). ETF share prices are completely different from underlying commodity prices. If you can only get ETF data for a commodity prediction, mark as "skip" with note "Instrument mismatch: need actual futures/spot price, not ETF proxy."
 
-SCORING:
-- confirmed (both direction and level correct): score = 1.0
-- partial (direction correct but level wrong, OR data insufficient but evidence suggests the prediction was likely correct): score = 0.5
-- denied (evidence clearly shows the prediction was WRONG): score = 0.0
-- skip (cannot make any assessment at all): will retry later
+YOUR ROLE: Extract facts ONLY. You do NOT classify outcomes (HIT/MISS/PARTIAL). The system does that from your structured data.
 
-CRITICAL: "denied" means you have EVIDENCE that the prediction was wrong. If you simply cannot find the data to verify (e.g. no RSI data available, no specific indicator reading), that is NOT a denial. Use "skip" to retry later, or "partial" if circumstantial evidence suggests the direction was correct. NEVER deny a prediction just because you couldn't find the specific data point. Absence of data is not evidence of failure.
+For each prediction, you must determine:
+1. What the prediction's specific target/threshold was (price level, percentage, number of days, etc.)
+2. What the actual observed values were (with sources)
+3. Whether the threshold was numerically met: true or false
+4. Whether the market moved in the predicted direction: true or false
 
-After gathering evidence, you MUST call submit_resolution with your final verdicts. Do NOT keep searching endlessly.
+ARITHMETIC (CRITICAL):
+- For "X% decline/gain": compute actual_pct = ((end - start) / start) * 100. Compare to threshold.
+- For "above/below X": compare actual price to X directly.
+- For "on at least N days": count the specific days. If count < N, threshold_met = false.
+- For "outperform by X%": compute relative return. If relative < X%, threshold_met = false.
+- ALWAYS show your arithmetic in the evidence field: "Actual: X, Required: Y, X < Y therefore threshold NOT met"
+- 1.33% does NOT exceed 2%. 0.97% does NOT exceed 2%. 4 days does NOT meet "at least 6 days".
+
+If you cannot find sufficient data to make an assessment, set data_available = false. The system will retry later.
 
 CRITICAL WORKFLOW:
 1. Make 2-3 tool calls maximum per prediction to gather data
-2. If data is available: resolve as confirmed/denied/partial based on evidence
-3. If data is unavailable: use "skip" so it retries later. If data is partial but circumstantial evidence supports the direction: use "partial" with score 0.5. NEVER use "denied" when you simply couldn't find data.
-4. Call submit_resolution within 5 rounds. Every prediction MUST get a verdict.
+2. Extract the factual comparison (target vs actual) with arithmetic shown
+3. Set threshold_met and direction_correct based on the numeric comparison
+4. Call submit_resolution within 5 rounds with structured data for every prediction
 
 You MUST call submit_resolution before finishing. Never end without submitting.`;
 
@@ -2523,6 +2545,19 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
     },
   ];
 
+  // Stage 1 output: structured factual data from the LLM (no classification)
+  let rawFactuals: Array<{
+    id: number;
+    target_description?: string;
+    target_value?: number;
+    actual_value?: number;
+    threshold_met: boolean;
+    direction_correct: boolean;
+    evidence: string;
+    data_available: boolean;
+  }> = [];
+
+  // Stage 2 output: deterministic classification applied by code
   let finalResolutions: Array<{
     id: number;
     outcome: string;
@@ -2577,10 +2612,38 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
     for (const toolUse of toolUseBlocks) {
       console.log(`[resolvePredictions] Tool call: ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 200)})`);
       if (toolUse.name === "submit_resolution") {
-        // Final submission -- extract resolutions
-        const input = toolUse.input as { resolutions: typeof finalResolutions };
-        finalResolutions = input.resolutions || [];
-        console.log(`[resolvePredictions] SUBMIT: ${finalResolutions.length} resolutions: ${finalResolutions.map(r => `#${r.id}=${r.outcome}`).join(", ")}`);
+        // Stage 1: Extract structured factual data from the LLM
+        const input = toolUse.input as { resolutions: typeof rawFactuals };
+        rawFactuals = input.resolutions || [];
+
+        // Stage 2: Apply deterministic classification from structured data
+        finalResolutions = rawFactuals.map((r) => {
+          if (!r.data_available) {
+            return { id: r.id, outcome: "skip", score: 0, notes: r.evidence, direction_correct: null, level_correct: null };
+          }
+          let outcome: string;
+          let score: number;
+          if (r.threshold_met && r.direction_correct) {
+            outcome = "confirmed";
+            score = 1.0;
+          } else if (r.direction_correct && !r.threshold_met) {
+            outcome = "partial";
+            score = 0.5;
+          } else {
+            outcome = "denied";
+            score = 0.0;
+          }
+          return {
+            id: r.id,
+            outcome,
+            score,
+            notes: r.evidence,
+            direction_correct: r.direction_correct ? 1 : 0,
+            level_correct: r.threshold_met ? 1 : 0,
+          };
+        });
+
+        console.log(`[resolvePredictions] SUBMIT: ${finalResolutions.length} resolutions (deterministic): ${finalResolutions.map(r => `#${r.id}=${r.outcome}(threshold=${rawFactuals.find(f => f.id === r.id)?.threshold_met},dir=${rawFactuals.find(f => f.id === r.id)?.direction_correct})`).join(", ")}`);
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,
@@ -2607,7 +2670,7 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
   if (finalResolutions.length === 0 && due.length > 0) {
     console.log("[resolvePredictions] No resolutions submitted after tool loop. Forcing final call...");
     try {
-      messages.push({ role: "user", content: "You have not submitted resolutions yet. You MUST call submit_resolution NOW with verdicts for all predictions. If you lack data, mark as denied with explanation. Do it immediately." });
+      messages.push({ role: "user", content: "You have not submitted resolutions yet. You MUST call submit_resolution NOW with your factual analysis for all predictions. Set data_available=false if you lack data. Do it immediately." });
       const forceResponse = await client.messages.create({
         model: SONNET_MODEL,
         max_tokens: 4096,
@@ -2617,9 +2680,28 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
       });
       for (const block of forceResponse.content) {
         if (block.type === "tool_use" && block.name === "submit_resolution") {
-          const input = block.input as { resolutions: typeof finalResolutions };
-          finalResolutions = input.resolutions || [];
-          console.log(`[resolvePredictions] Forced submit: ${finalResolutions.length} resolutions: ${finalResolutions.map(r => `#${r.id}=${r.outcome}`).join(", ")}`);
+          const input = block.input as { resolutions: typeof rawFactuals };
+          rawFactuals = input.resolutions || [];
+          // Apply deterministic classification
+          finalResolutions = rawFactuals.map((r) => {
+            if (!r.data_available) {
+              return { id: r.id, outcome: "skip", score: 0, notes: r.evidence, direction_correct: null, level_correct: null };
+            }
+            let outcome: string;
+            let score: number;
+            if (r.threshold_met && r.direction_correct) {
+              outcome = "confirmed";
+              score = 1.0;
+            } else if (r.direction_correct && !r.threshold_met) {
+              outcome = "partial";
+              score = 0.5;
+            } else {
+              outcome = "denied";
+              score = 0.0;
+            }
+            return { id: r.id, outcome, score, notes: r.evidence, direction_correct: r.direction_correct ? 1 : 0, level_correct: r.threshold_met ? 1 : 0 };
+          });
+          console.log(`[resolvePredictions] Forced submit: ${finalResolutions.length} resolutions (deterministic): ${finalResolutions.map(r => `#${r.id}=${r.outcome}`).join(", ")}`);
         }
       }
     } catch (err) {
@@ -2722,7 +2804,7 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
     }
   }
 
-  return updated;
+  return [...dataResolved, ...updated];
 }
 
 // ── Helpers ──

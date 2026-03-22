@@ -38,8 +38,10 @@ function computeBrier(confidence: number, outcome: string): number {
   return Math.pow(confidence - actual, 2);
 }
 
-export function getResolutionLabel(outcome: string, confidence: number, score?: number | null): ResolutionLabel {
-  const brier = score ?? computeBrier(confidence, outcome);
+export function getResolutionLabel(outcome: string, confidence: number, _score?: number | null): ResolutionLabel {
+  // Always compute Brier from confidence + outcome. The DB `score` field is a
+  // correctness score (1=right, 0=wrong), NOT a Brier score (0=perfect, 1=worst).
+  const brier = computeBrier(confidence, outcome);
   const quality = brierQuality(brier);
 
   if (outcome === "partial") {
