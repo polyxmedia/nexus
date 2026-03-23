@@ -2326,7 +2326,7 @@ const RESOLUTION_TOOLS: Anthropic.Tool[] = [
 ];
 
 /** Date window for filtering evidence to the prediction's active period */
-interface EvidenceWindow {
+export interface EvidenceWindow {
   /** Earliest createdAt among due predictions (YYYY-MM-DD) */
   windowStart: string;
   /** Latest deadline among due predictions (YYYY-MM-DD) */
@@ -2337,7 +2337,7 @@ interface EvidenceWindow {
  * Parse a date string (YYYYMMDD or YYYY-MM-DD or full ISO) to YYYY-MM-DD for comparison.
  * Returns null if unparseable.
  */
-function normalizeToDateString(raw: string): string | null {
+export function normalizeToDateString(raw: string): string | null {
   if (!raw || raw === "unknown") return null;
   // YYYYMMDD format (GDELT seendate)
   if (/^\d{8}/.test(raw)) {
@@ -2438,7 +2438,16 @@ async function executeResolutionTool(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       const encoded = encodeURIComponent(query);
-      const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encoded}&mode=ArtList&maxrecords=30&format=json&timespan=30d`;
+
+      // Use GDELT startdatetime/enddatetime to constrain to prediction window
+      // Format: YYYYMMDDHHMMSS
+      let dateParams = "&timespan=30d"; // fallback
+      if (evidenceWindow) {
+        const start = evidenceWindow.windowStart.replace(/-/g, "") + "000000";
+        const end = evidenceWindow.windowEnd.replace(/-/g, "") + "235959";
+        dateParams = `&startdatetime=${start}&enddatetime=${end}`;
+      }
+      const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encoded}&mode=ArtList&maxrecords=30&format=json${dateParams}`;
 
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
@@ -2446,12 +2455,36 @@ async function executeResolutionTool(
       if (!res.ok) return JSON.stringify({ error: `GDELT returned ${res.status}` });
 
       const data = await res.json();
-      const articles = (data.articles || []).slice(0, 20);
+      const allArticles = (data.articles || []).slice(0, 30) as Array<{ title: string; seendate: string; domain: string; url: string }>;
+
+      // Post-filter: drop any articles outside the evidence window (belt-and-suspenders)
+      let excluded = 0;
+      const articles = allArticles.filter((a) => {
+        if (!evidenceWindow) return true;
+        const articleDate = normalizeToDateString(a.seendate || "");
+        if (!articleDate) return true; // keep articles with unparseable dates, AI can evaluate
+        if (articleDate < evidenceWindow.windowStart || articleDate > evidenceWindow.windowEnd) {
+          excluded++;
+          console.warn(
+            `[search_news] EVIDENCE DATE GATE: Excluding article "${a.title?.slice(0, 80)}" ` +
+            `(date: ${articleDate}) outside prediction window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}`
+          );
+          return false;
+        }
+        return true;
+      });
+
+      const windowNote = evidenceWindow
+        ? `NOTE: Results filtered to prediction evidence window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}. ${excluded > 0 ? `${excluded} article(s) excluded for being outside this window.` : ""}`
+        : undefined;
 
       return JSON.stringify({
         query,
+        evidence_window: evidenceWindow ? { start: evidenceWindow.windowStart, end: evidenceWindow.windowEnd } : undefined,
+        window_note: windowNote,
         results_count: articles.length,
-        articles: articles.map((a: { title: string; seendate: string; domain: string; url: string }) => ({
+        excluded_count: excluded,
+        articles: articles.slice(0, 20).map((a) => ({
           date: a.seendate?.slice(0, 8) || "unknown",
           title: a.title,
           source: a.domain,
@@ -2474,18 +2507,46 @@ async function executeResolutionTool(
       const xml = await res.text();
 
       // Parse RSS items
-      const items: Array<{ title: string; date: string; source: string }> = [];
+      const allItems: Array<{ title: string; date: string; source: string }> = [];
       const itemRegex = /<item>([\s\S]*?)<\/item>/g;
       let match;
-      while ((match = itemRegex.exec(xml)) !== null && items.length < 10) {
+      while ((match = itemRegex.exec(xml)) !== null && allItems.length < 15) {
         const itemXml = match[1];
         const title = itemXml.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1") || "";
         const pubDate = itemXml.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || "";
         const source = itemXml.match(/<source[^>]*>(.*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/, "$1") || "";
-        if (title) items.push({ title, date: pubDate, source });
+        if (title) allItems.push({ title, date: pubDate, source });
       }
 
-      return JSON.stringify({ query, results_count: items.length, results: items });
+      // Filter by evidence window
+      let excluded = 0;
+      const items = allItems.filter((item) => {
+        if (!evidenceWindow) return true;
+        const articleDate = normalizeToDateString(item.date);
+        if (!articleDate) return true; // keep unparseable dates
+        if (articleDate < evidenceWindow.windowStart || articleDate > evidenceWindow.windowEnd) {
+          excluded++;
+          console.warn(
+            `[web_search] EVIDENCE DATE GATE: Excluding result "${item.title?.slice(0, 80)}" ` +
+            `(date: ${articleDate}) outside prediction window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}`
+          );
+          return false;
+        }
+        return true;
+      });
+
+      const windowNote = evidenceWindow
+        ? `NOTE: Results filtered to prediction evidence window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}. ${excluded > 0 ? `${excluded} result(s) excluded for being outside this window.` : ""}`
+        : undefined;
+
+      return JSON.stringify({
+        query,
+        evidence_window: evidenceWindow ? { start: evidenceWindow.windowStart, end: evidenceWindow.windowEnd } : undefined,
+        window_note: windowNote,
+        results_count: items.length,
+        excluded_count: excluded,
+        results: items.slice(0, 10),
+      });
     } catch {
       return JSON.stringify({ error: "Web search unavailable" });
     }
@@ -2552,7 +2613,7 @@ export async function resolvePredictions(options?: { skipHousekeeping?: boolean 
       ? `\nPrice Target: ${p.referenceSymbol} ${p.direction === "down" ? "below" : "above"} ${p.priceTarget}`
       : "";
     const refPrices = p.referencePrices ? `\nReference Prices at Creation: ${p.referencePrices}` : "";
-    return `ID: ${p.id}\nClaim: "${p.claim}"\nCategory: ${p.category}\nConfidence: ${(p.confidence * 100).toFixed(0)}%\nDeadline: ${p.deadline}\nCreated: ${p.createdAt}${dirInfo}${targetInfo}${refPrices}${grounding}`;
+    return `ID: ${p.id}\nClaim: "${p.claim}"\nCategory: ${p.category}\nConfidence: ${(p.confidence * 100).toFixed(0)}%\nDeadline: ${p.deadline}\nCreated: ${p.createdAt}\nEvidence Window: ${p.createdAt.split("T")[0]} to ${p.deadline} (ONLY evidence within this window counts)${dirInfo}${targetInfo}${refPrices}${grounding}`;
   }).join("\n\n");
 
   const systemPrompt = `You are a prediction resolution engine. Your job is to evaluate whether predictions came true using REAL DATA ONLY.
@@ -2560,6 +2621,7 @@ export async function resolvePredictions(options?: { skipHousekeeping?: boolean 
 CRITICAL RULES:
 1. You MUST call get_market_price for EVERY market prediction before resolving it. Never guess prices.
 2. You MUST call search_news for EVERY geopolitical prediction before resolving it. Never assume events happened.
+EVIDENCE DATE GATING (CRITICAL): Only evidence dated WITHIN the prediction's active window (Created date to Deadline date) counts toward resolution. If a news article or data point predates the prediction's Created date, it CANNOT be used as confirming evidence. A prediction created March 16 cannot be confirmed by a March 3 article. The tools will pre-filter results to the evidence window, but if you notice any source with a date before the prediction's Created date, you MUST ignore it.
 3. For FX pairs: verify you are reading the quote in the correct direction. EUR/USD = dollars per euro (how many USD for 1 EUR). USD/JPY = yen per dollar. If the claim says "USD will strengthen vs EUR" that means EUR/USD goes DOWN (fewer dollars needed per euro).
 4. For relative performance claims (X outperforms Y): fetch BOTH instruments and compute the relative return yourself. CRITICAL: "outperform" in a DOWN market means falling LESS. If SPY drops 3% and IEF drops 1%, IEF outperformed by 2%. Outperformance = return_X - return_Y, not absolute returns.
 5. For "close above/below" claims: check the CLOSE price, not the intraday high/low.
@@ -2629,6 +2691,19 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
   }> = [];
 
   const MAX_TOOL_ROUNDS = 10; // Safety cap on tool-use iterations
+
+  // Compute the broadest evidence window across all due predictions
+  // so tool results are constrained to only return in-window sources
+  const evidenceWindow: EvidenceWindow = {
+    windowStart: due.reduce((earliest, p) => {
+      const created = p.createdAt.split("T")[0];
+      return created < earliest ? created : earliest;
+    }, due[0].createdAt.split("T")[0]),
+    windowEnd: due.reduce((latest, p) => {
+      return p.deadline > latest ? p.deadline : latest;
+    }, due[0].deadline),
+  };
+  console.log(`[resolvePredictions] Evidence window: ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}`);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     console.log(`[resolvePredictions] Round ${round + 1}/${MAX_TOOL_ROUNDS}, messages=${messages.length}`);
@@ -2727,7 +2802,7 @@ You MUST call submit_resolution before finishing. Never end without submitting.`
         });
       } else {
         // Data-fetching tool -- execute and return results
-        const result = await executeResolutionTool(toolUse.name, toolUse.input, alphaVantageKey);
+        const result = await executeResolutionTool(toolUse.name, toolUse.input, alphaVantageKey, evidenceWindow);
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,

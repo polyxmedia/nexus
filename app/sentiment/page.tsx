@@ -113,7 +113,7 @@ function sourceLabel(source: string): string {
 
 function postUrl(post: { id: string; source: string; author: string }): string | null {
   if (!post.id) return null;
-  if (post.source === "twitter") return `https://x.com/${post.author}/status/${post.id}`;
+  if (post.source === "twitter") return `https://x.com/i/status/${post.id}`;
   if (post.source === "reddit") return `https://www.reddit.com/comments/${post.id}`;
   if (post.source === "stocktwits") return `https://stocktwits.com/message/${post.id}`;
   return null;

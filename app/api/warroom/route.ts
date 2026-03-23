@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { signals as signalsTable, theses } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { ACTORS, SCENARIOS } from "@/lib/game-theory/actors";
 import { analyzeScenario } from "@/lib/game-theory/analysis";
 import { runBayesianAnalysis, initializeBeliefs, summarizeBayesianAnalysis } from "@/lib/game-theory/bayesian";
@@ -70,6 +70,7 @@ export async function GET() {
       db
         .select()
         .from(signalsTable)
+        .where(sql`${signalsTable.category} NOT IN ('celestial', 'hebrew', 'islamic')`)
         .orderBy(desc(signalsTable.intensity))
         .limit(50),
       db

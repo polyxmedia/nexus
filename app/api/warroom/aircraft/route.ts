@@ -51,53 +51,21 @@ const EMPTY_RESPONSE: AircraftResponse = {
   militaryCount: 0,
 };
 
-// ── OpenSky OAuth2 (client credentials flow) ──
-// Without auth, Vercel shared IPs burn through the 400 anonymous daily credits fast.
+// ── OpenSky Basic Auth ──
+// Without auth, Vercel shared IPs get rate-limited or rejected.
 // Authenticated requests get 4,000+ credits/day.
-let tokenCache: { token: string; expiresAt: number } | null = null;
+// OpenSky uses HTTP Basic Authentication (username:password), not OAuth2.
 
-async function getOpenSkyToken(): Promise<string | null> {
-  const clientId = process.env.OPENSKY_CLIENT_ID;
-  const clientSecret = process.env.OPENSKY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-
-  // Reuse token if still valid (with 60s buffer)
-  if (tokenCache && Date.now() < tokenCache.expiresAt - 60_000) {
-    return tokenCache.token;
-  }
-
-  try {
-    const res = await fetch("https://opensky-network.org/api/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "client_credentials",
-        client_id: clientId,
-        client_secret: clientSecret,
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!res.ok) {
-      console.error(`[Aircraft] OpenSky OAuth failed: ${res.status}`);
-      return null;
-    }
-
-    const data = await res.json();
-    tokenCache = {
-      token: data.access_token,
-      expiresAt: Date.now() + (data.expires_in || 1800) * 1000,
-    };
-    return tokenCache.token;
-  } catch (err) {
-    console.error("[Aircraft] OpenSky OAuth error:", err);
-    return null;
-  }
+function getOpenSkyAuth(): string | null {
+  const username = process.env.OPENSKY_USERNAME;
+  const password = process.env.OPENSKY_PASSWORD;
+  if (!username || !password) return null;
+  return Buffer.from(`${username}:${password}`).toString("base64");
 }
 
-function openSkyHeaders(token: string | null): Record<string, string> {
-  if (!token) return {};
-  return { Authorization: `Bearer ${token}` };
+function openSkyHeaders(auth: string | null): Record<string, string> {
+  if (!auth) return {};
+  return { Authorization: `Basic ${auth}` };
 }
 
 // DB-backed cache (survives Vercel serverless cold starts)
@@ -145,7 +113,7 @@ async function fetchRegion(
   try {
     const res = await fetch(url, {
       cache: "no-store",
-      headers: openSkyHeaders(token),
+      headers: openSkyHeaders(auth),
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
@@ -177,8 +145,8 @@ export async function GET(request: NextRequest) {
       if (cached) return NextResponse.json(cached);
     }
 
-    // Get OAuth2 token (falls back to anonymous if no credentials)
-    const token = await getOpenSkyToken();
+    // Get Basic Auth credentials (falls back to anonymous if not configured)
+    const auth = getOpenSkyAuth();
 
     let allStates: unknown[][] = [];
 
@@ -187,7 +155,7 @@ export async function GET(request: NextRequest) {
       const url = `https://opensky-network.org/api/states/all?lamin=${encodeURIComponent(lamin)}&lomin=${encodeURIComponent(lomin)}&lamax=${encodeURIComponent(lamax)}&lomax=${encodeURIComponent(lomax)}`;
       const res = await fetch(url, {
         cache: "no-store",
-        headers: openSkyHeaders(token),
+        headers: openSkyHeaders(auth),
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
@@ -217,7 +185,7 @@ export async function GET(request: NextRequest) {
         try {
           const res = await fetch("https://opensky-network.org/api/states/all", {
             cache: "no-store",
-            headers: openSkyHeaders(token),
+            headers: openSkyHeaders(auth),
             signal: AbortSignal.timeout(20_000),
           });
           if (res.ok) {
