@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { X, Plane, Eye, Loader2, ExternalLink, MapPin } from "lucide-react";
-import L from "leaflet";
+import type L from "leaflet";
 import type { AircraftState } from "@/lib/warroom/types";
 import { decodeCallsign } from "@/lib/warroom/callsign-decode";
 
@@ -65,49 +65,56 @@ function TrackMiniMap({ track, isMilitary }: { track: TrackPoint[]; isMilitary: 
       mapRef.current = null;
     }
 
-    const miniMap = L.map(containerRef.current, {
-      zoomControl: false,
-      attributionControl: false,
-      dragging: false,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      boxZoom: false,
-      keyboard: false,
-      touchZoom: false,
+    let cancelled = false;
+    import("leaflet").then((leaflet) => {
+      if (cancelled || !containerRef.current) return;
+      const Leaf = leaflet.default;
+
+      const miniMap = Leaf.map(containerRef.current, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        touchZoom: false,
+      });
+
+      Leaf.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+        subdomains: "abcd",
+      }).addTo(miniMap);
+
+      const coords: L.LatLngExpression[] = track.map((p) => [p.lat, p.lng]);
+      const color = isMilitary ? "#f43f5e" : "#06b6d4";
+
+      Leaf.polyline(coords, { color, weight: 2, opacity: 0.8 }).addTo(miniMap);
+
+      // Start marker
+      Leaf.circleMarker(coords[0], {
+        radius: 4,
+        color: "#555",
+        fillColor: "#3d3d3d",
+        fillOpacity: 1,
+        weight: 1,
+      }).addTo(miniMap);
+
+      // Current position marker
+      Leaf.circleMarker(coords[coords.length - 1], {
+        radius: 5,
+        color: "rgba(255,255,255,0.3)",
+        fillColor: color,
+        fillOpacity: 1,
+        weight: 1,
+      }).addTo(miniMap);
+
+      const bounds = Leaf.latLngBounds(coords);
+      miniMap.fitBounds(bounds, { padding: [15, 15] });
+      mapRef.current = miniMap;
     });
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
-      subdomains: "abcd",
-    }).addTo(miniMap);
-
-    const coords: L.LatLngExpression[] = track.map((p) => [p.lat, p.lng]);
-    const color = isMilitary ? "#f43f5e" : "#06b6d4";
-
-    L.polyline(coords, { color, weight: 2, opacity: 0.8 }).addTo(miniMap);
-
-    // Start marker
-    L.circleMarker(coords[0], {
-      radius: 4,
-      color: "#555",
-      fillColor: "#3d3d3d",
-      fillOpacity: 1,
-      weight: 1,
-    }).addTo(miniMap);
-
-    // Current position marker
-    L.circleMarker(coords[coords.length - 1], {
-      radius: 5,
-      color: "rgba(255,255,255,0.3)",
-      fillColor: color,
-      fillOpacity: 1,
-      weight: 1,
-    }).addTo(miniMap);
-
-    const bounds = L.latLngBounds(coords);
-    miniMap.fitBounds(bounds, { padding: [15, 15] });
-    mapRef.current = miniMap;
-
     return () => {
+      cancelled = true;
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
