@@ -132,22 +132,31 @@ export async function POST(request: Request) {
       customerId = customer.id;
     }
 
-    // Cancel any existing incomplete/past_due subscriptions for this customer
-    // to prevent orphaned subs from interfering
-    const existingStripeSubs = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "incomplete",
-    });
-    await Promise.all(existingStripeSubs.data.map((s) => stripe.subscriptions.cancel(s.id)));
+    // Cancel any existing subscriptions for this customer to prevent stacking.
+    // Users switching tiers should have their old subscription replaced, not stacked.
+    for (const status of ["incomplete", "trialing", "past_due"] as const) {
+      const existingStripeSubs = await stripe.subscriptions.list({ customer: customerId, status });
+      await Promise.all(existingStripeSubs.data.map((s) => stripe.subscriptions.cancel(s.id)));
+    }
+    // For active subs, cancel at period end (graceful) unless it's a trial upgrade
+    const activeSubs = await stripe.subscriptions.list({ customer: customerId, status: "active" });
+    await Promise.all(activeSubs.data.map((s) => stripe.subscriptions.cancel(s.id)));
 
-    // Check if user has ever had a completed subscription (no trial for returning users)
-    // Incomplete/canceled subs don't count, the user never actually activated
-    const hadRealSub = existingSubs.length > 0
-      && existingSubs[0].stripeSubscriptionId
-      && existingSubs[0].stripeSubscriptionId.length > 0
-      && !existingSubs[0].stripeSubscriptionId.startsWith("comped_")
-      && existingSubs[0].status !== "incomplete"
-      && existingSubs[0].status !== "canceled";
+    // Check if this customer has ever had a trial on Stripe (prevents trial abuse).
+    // Query Stripe directly since the DB can be stale.
+    let hadTrial = false;
+    try {
+      const allSubs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 50 });
+      hadTrial = allSubs.data.some((s) => s.trial_end != null && s.trial_end > 0);
+    } catch {
+      // Fallback to DB check
+      hadTrial = existingSubs.length > 0
+        && existingSubs[0].stripeSubscriptionId != null
+        && existingSubs[0].stripeSubscriptionId.length > 0
+        && !existingSubs[0].stripeSubscriptionId.startsWith("comped_")
+        && existingSubs[0].status !== "incomplete"
+        && existingSubs[0].status !== "canceled";
+    }
 
     // Create subscription with incomplete payment so Elements can confirm it
     const subscription = await stripe.subscriptions.create({
@@ -157,7 +166,7 @@ export async function POST(request: Request) {
       payment_settings: {
         save_default_payment_method: "on_subscription",
       },
-      ...(!hadRealSub && { trial_period_days: 2 }),
+      ...(!hadTrial && { trial_period_days: 2 }),
       expand: ["latest_invoice.payment_intent", "pending_setup_intent"],
       metadata: {
         userId,
