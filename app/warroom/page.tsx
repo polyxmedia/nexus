@@ -99,6 +99,7 @@ function BootSequence() {
 export default function WarRoomPage() {
   const [data, setData] = useState<WarRoomData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedActorId, setSelectedActorId] = useState<string | null>(null);
   const [hoveredActorId, setHoveredActorId] = useState<string | null>(null);
@@ -178,6 +179,14 @@ export default function WarRoomPage() {
         setLoading(false);
       });
   }, []);
+
+  // Delay hiding loading overlay to let map tiles start rendering
+  useEffect(() => {
+    if (!loading && data && !error) {
+      const t = setTimeout(() => setMapReady(true), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [loading, data, error]);
 
   // Record vessel positions for tracked vessels
   useEffect(() => {
@@ -275,7 +284,10 @@ export default function WarRoomPage() {
     setWatchlist((prev) => prev.filter((w) => w.id !== id));
   }, []);
 
-  if (loading || (!data && !error)) {
+  const showLoadingScreen = loading || (!data && !error);
+  const showLoadingOverlay = !showLoadingScreen && !mapReady;
+
+  if (showLoadingScreen) {
     return (
       <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
         <UpgradeGate minTier="free" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
@@ -420,6 +432,17 @@ export default function WarRoomPage() {
   return (
     <div className="ml-0 md:ml-48 h-screen flex flex-col overflow-hidden bg-navy-950 pt-12 md:pt-0">
       <UpgradeGate minTier="free" feature="War room with OSINT, aircraft tracking, and vessel monitoring" blur>
+      {/* Loading overlay while map tiles initialize */}
+      {showLoadingOverlay && (
+        <div className="absolute inset-0 z-50 bg-navy-950 flex items-center justify-center transition-opacity duration-700 animate-pulse">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse" />
+            <span className="text-[9px] text-accent-cyan/60 uppercase tracking-[0.3em] font-mono">
+              Initialising Map
+            </span>
+          </div>
+        </div>
+      )}
       {/* Top Bar - COP Status */}
       <div className="h-9 border-b border-navy-700 bg-navy-900/95 backdrop-blur-sm flex items-center px-3 gap-0 shrink-0 z-20 font-mono">
         {/* Threat Level */}

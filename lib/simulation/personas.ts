@@ -68,6 +68,14 @@ export const AGENT_PERSONAS: AgentPersona[] = [
 
 export type AgentStance = "strongly_bullish" | "bullish" | "neutral" | "bearish" | "strongly_bearish";
 
+export const STANCE_VALUES: Record<AgentStance, number> = {
+  strongly_bullish: 2,
+  bullish: 1,
+  neutral: 0,
+  bearish: -1,
+  strongly_bearish: -2,
+};
+
 export interface AgentResult {
   personaId: string;
   personaName: string;

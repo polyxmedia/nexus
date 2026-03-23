@@ -114,7 +114,26 @@ export const authOptions: AuthOptions = {
     maxAge: 8 * 60 * 60, // 8 hours
   },
   callbacks: {
-    async session({ session }) {
+    async jwt({ token, user }) {
+      // On sign-in, read role from DB and persist in JWT
+      if (user?.name) {
+        try {
+          const userSetting = await db
+            .select()
+            .from(schema.settings)
+            .where(eq(schema.settings.key, `user:${user.name}`))
+            .limit(1);
+          if (userSetting[0]?.value) {
+            const userData = JSON.parse(userSetting[0].value);
+            token.role = userData.role || "user";
+          }
+        } catch {
+          token.role = "user";
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
       // Check for admin impersonation cookie with full validation
       // (re-checks admin role in DB and verifies token not revoked)
       try {
@@ -128,21 +147,9 @@ export const authOptions: AuthOptions = {
         // cookies() may not be available in all contexts (e.g. middleware)
       }
 
-      // Attach role from DB to session
-      if (session.user?.name) {
-        try {
-          const userSetting = await db
-            .select()
-            .from(schema.settings)
-            .where(eq(schema.settings.key, `user:${session.user.name}`))
-            .limit(1);
-          if (userSetting[0]?.value) {
-            const userData = JSON.parse(userSetting[0].value);
-            (session.user as Record<string, unknown>).role = userData.role || "user";
-          }
-        } catch {
-          // Fallback: no role attached
-        }
+      // Attach role from JWT token (cached at sign-in, no DB hit)
+      if (token.role) {
+        (session.user as Record<string, unknown>).role = token.role;
       }
 
       return session;

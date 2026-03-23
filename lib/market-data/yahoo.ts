@@ -19,6 +19,7 @@ export interface QuoteData {
   volume: number;
   timestamp: string;
   name: string;
+  currency?: string;
   marketCap?: number;
   high52w?: number;
   low52w?: number;
@@ -172,6 +173,8 @@ export async function getQuoteData(symbol: string): Promise<QuoteData> {
       ? new Date(marketTime * 1000).toISOString()
       : new Date().toISOString();
 
+  const rawCurrency = (result.currency as string) || undefined;
+
   return {
     symbol,
     price: (result.regularMarketPrice as number) ?? 0,
@@ -180,6 +183,7 @@ export async function getQuoteData(symbol: string): Promise<QuoteData> {
     volume: (result.regularMarketVolume as number) ?? 0,
     timestamp,
     name: (result.shortName as string) || (result.longName as string) || symbol,
+    currency: rawCurrency,
     marketCap: (result.marketCap as number) ?? undefined,
     high52w: (result.fiftyTwoWeekHigh as number) ?? undefined,
     low52w: (result.fiftyTwoWeekLow as number) ?? undefined,

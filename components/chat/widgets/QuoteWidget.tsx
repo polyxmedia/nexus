@@ -11,6 +11,7 @@ interface QuoteData {
   changePercent: number;
   volume: number;
   timestamp: string;
+  currency?: string;
   error?: string;
 }
 
@@ -24,6 +25,10 @@ export function QuoteWidget({ data }: { data: QuoteData }) {
   }
 
   const positive = data.change >= 0;
+  const currencyLabel = data.currency === "GBp" ? "p" : data.currency === "GBP" ? "£" : data.currency === "USD" ? "$" : data.currency === "EUR" ? "€" : "";
+  const priceDisplay = data.currency === "GBp"
+    ? `${data.price?.toFixed(2)}p`
+    : `${currencyLabel}${data.price?.toFixed(2) ?? "N/A"}`;
 
   return (
     <CollapsibleCard
@@ -33,7 +38,7 @@ export function QuoteWidget({ data }: { data: QuoteData }) {
       <div className="grid grid-cols-4 gap-4">
         <Metric
           label="Price"
-          value={data.price?.toFixed(2) ?? "N/A"}
+          value={priceDisplay}
         />
         <Metric
           label="Change"

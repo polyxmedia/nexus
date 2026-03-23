@@ -1911,6 +1911,12 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
         return <OilDivergenceDashWidget />;
       case "trade_recs":
         return <TradeRecsWidget />;
+      case "yield_curve":
+        return <YieldCurveWidget />;
+      case "correlations":
+        return <CorrelationWidget />;
+      case "econ_countdown":
+        return <EconCountdownWidget />;
       default:
         return <WidgetError message={`Unknown widget type: ${widget.widgetType}`} />;
     }
@@ -1920,6 +1926,254 @@ export function WidgetRenderer({ widget, onRemove }: WidgetProps) {
     <WidgetShell title={widget.title} onRemove={() => onRemove(widget.id)}>
       {renderContent()}
     </WidgetShell>
+  );
+}
+
+// ── Yield Curve Widget ──
+
+interface YieldCurveData {
+  curve: Array<{ maturity: string; yield: number }>;
+  spread2s10s: number;
+  isInverted: boolean;
+  fedFunds: number | null;
+}
+
+function YieldCurveWidget() {
+  const { data, isLoading: loading } = useSwrFetch<YieldCurveData>("/api/macro?action=yield_curve", { dedupingInterval: 120_000 });
+
+  if (loading) return <WidgetSkeleton lines={5} />;
+  if (!data?.curve?.length) return <WidgetError message="Yield curve unavailable" />;
+
+  const yields = data.curve;
+  const maxY = Math.max(...yields.map((p) => p.yield), 0.1);
+  const minY = Math.min(...yields.map((p) => p.yield), 0);
+  const range = maxY - minY || 1;
+  const svgW = 280;
+  const svgH = 80;
+  const pad = { t: 8, b: 16, l: 0, r: 0 };
+  const plotW = svgW - pad.l - pad.r;
+  const plotH = svgH - pad.t - pad.b;
+
+  const points = yields.map((p, i) => {
+    const x = pad.l + (i / (yields.length - 1)) * plotW;
+    const y = pad.t + plotH - ((p.yield - minY) / range) * plotH;
+    return { x, y, ...p };
+  });
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1].x},${svgH - pad.b} L${points[0].x},${svgH - pad.b} Z`;
+
+  const curveColor = data.isInverted ? "#f43f5e" : "#06b6d4";
+  const spreadColor = data.spread2s10s < 0 ? "text-accent-rose" : data.spread2s10s < 0.2 ? "text-accent-amber" : "text-accent-emerald";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-[9px] text-navy-500 block">2s/10s Spread</span>
+          <span className={`text-sm font-mono font-bold ${spreadColor}`}>
+            {data.spread2s10s >= 0 ? "+" : ""}{data.spread2s10s.toFixed(2)}%
+          </span>
+        </div>
+        {data.isInverted && (
+          <span className="text-[9px] font-mono font-bold text-accent-rose bg-accent-rose/10 px-1.5 py-0.5 rounded">INVERTED</span>
+        )}
+        {data.fedFunds != null && (
+          <div className="text-right">
+            <span className="text-[9px] text-navy-500 block">Fed Funds</span>
+            <span className="text-[11px] font-mono text-navy-200">{data.fedFunds.toFixed(2)}%</span>
+          </div>
+        )}
+      </div>
+
+      <svg width="100%" viewBox={`0 0 ${svgW} ${svgH}`} className="overflow-visible">
+        <defs>
+          <linearGradient id="yc-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={curveColor} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={curveColor} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#yc-fill)" />
+        <path d={linePath} fill="none" stroke={curveColor} strokeWidth="2" />
+        {points.map((p) => (
+          <circle key={p.maturity} cx={p.x} cy={p.y} r="2.5" fill={curveColor} />
+        ))}
+        {points.map((p) => (
+          <text key={`l-${p.maturity}`} x={p.x} y={svgH - 2} textAnchor="middle" className="text-[7px] fill-navy-500 font-mono">{p.maturity}</text>
+        ))}
+      </svg>
+
+      <div className="grid grid-cols-4 gap-1 pt-1 border-t border-navy-700/20">
+        {["1M", "2Y", "10Y", "30Y"].map((m) => {
+          const point = yields.find((p) => p.maturity === m);
+          return (
+            <div key={m} className="text-center">
+              <span className="text-[8px] text-navy-500 block">{m}</span>
+              <span className="text-[10px] font-mono text-navy-200">{point ? `${point.yield.toFixed(2)}%` : "N/A"}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Correlation Matrix Widget ──
+
+interface CorrelationWidgetPair {
+  pair: [string, string];
+  labels: [string, string];
+  current20d: number | null;
+  historicalMean: number;
+  deviation: number;
+  significance: "normal" | "notable" | "significant" | "extreme";
+}
+
+interface CorrelationWidgetData {
+  pairs: CorrelationWidgetPair[];
+  breaks: Array<{ labels: [string, string]; significance: string; interpretation: string }>;
+  overallStress: number;
+}
+
+const CORR_SIG_STYLES: Record<string, { bg: string; text: string }> = {
+  normal: { bg: "bg-navy-800/40", text: "text-navy-400" },
+  notable: { bg: "bg-accent-amber/10", text: "text-accent-amber" },
+  significant: { bg: "bg-accent-rose/10", text: "text-accent-rose" },
+  extreme: { bg: "bg-accent-rose/20", text: "text-accent-rose" },
+};
+
+function CorrelationWidget() {
+  const { data, isLoading: loading } = useSwrFetch<CorrelationWidgetData>("/api/regime/correlations", { dedupingInterval: 120_000 });
+
+  if (loading) return <WidgetSkeleton lines={6} />;
+  if (!data?.pairs?.length) return <WidgetError message="Correlation data unavailable" />;
+
+  const stressColor = data.overallStress >= 60 ? "text-accent-rose" : data.overallStress >= 30 ? "text-accent-amber" : "text-accent-emerald";
+  const stressLabel = data.overallStress >= 60 ? "HIGH STRESS" : data.overallStress >= 30 ? "ELEVATED" : "NORMAL";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-[9px] text-navy-500 block">Cross-Asset Stress</span>
+          <span className={`text-xs font-mono font-bold ${stressColor}`}>{stressLabel}</span>
+        </div>
+        <GaugeBar value={data.overallStress} min={0} max={100} thresholds={[30, 60]} label="" />
+      </div>
+
+      <div className="space-y-1 max-h-44 overflow-y-auto">
+        {data.pairs.map((p) => {
+          const style = CORR_SIG_STYLES[p.significance] || CORR_SIG_STYLES.normal;
+          const val = p.current20d;
+          const corrBar = val != null ? Math.abs(val) * 100 : 0;
+          const isNeg = val != null && val < 0;
+          return (
+            <div key={p.pair.join("-")} className={`flex items-center gap-2 py-1 px-1.5 rounded ${style.bg}`}>
+              <span className="text-[9px] text-navy-300 w-20 shrink-0 truncate font-mono">{p.labels[0]}/{p.labels[1]}</span>
+              <div className="flex-1 h-1.5 bg-navy-800 rounded-full overflow-hidden relative">
+                <div
+                  className={`h-full rounded-full ${isNeg ? "bg-accent-rose/60" : "bg-accent-cyan/60"}`}
+                  style={{ width: `${Math.min(corrBar, 100)}%` }}
+                />
+              </div>
+              <span className={`text-[10px] font-mono w-10 text-right ${style.text}`}>
+                {val != null ? val.toFixed(2) : "N/A"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {data.breaks.length > 0 && (
+        <div className="border-t border-navy-700/20 pt-1.5 space-y-1">
+          <span className="text-[9px] text-accent-amber font-mono">ACTIVE BREAKS</span>
+          {data.breaks.slice(0, 3).map((b, i) => (
+            <p key={i} className="text-[9px] text-navy-400 leading-tight">
+              <span className="text-navy-300">{b.labels.join(" / ")}</span>: {b.interpretation}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Economic Calendar Countdown Widget ──
+
+interface EconCountdownEvent {
+  date: string;
+  holiday: string;
+  type: string;
+  significance: number;
+  marketRelevance: string;
+}
+
+function EconCountdownWidget() {
+  const { data: calData, isLoading: loading } = useSwrFetch<{ events: EconCountdownEvent[] }>("/api/calendar/hebrew", { dedupingInterval: 300_000 });
+  const [now, setNow] = useState(() => new Date());
+
+  // Tick every minute for countdown
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (loading) return <WidgetSkeleton lines={5} />;
+
+  // Fall back to economic calendar if market-snapshot doesn't return events
+  const events = calData?.events || [];
+  const today = now.toISOString().split("T")[0];
+  const upcoming = events
+    .filter((e) => e.date >= today && e.significance >= 2)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
+
+  if (upcoming.length === 0) return <WidgetError message="No upcoming events" />;
+
+  function formatCountdown(eventDate: string): string {
+    const target = new Date(eventDate + "T09:30:00");
+    const diffMs = target.getTime() - now.getTime();
+    if (diffMs <= 0) return "NOW";
+    const days = Math.floor(diffMs / 86400000);
+    const hours = Math.floor((diffMs % 86400000) / 3600000);
+    if (days > 0) return `${days}d ${hours}h`;
+    const mins = Math.floor((diffMs % 3600000) / 60000);
+    return `${hours}h ${mins}m`;
+  }
+
+  const SIG_COLORS = ["", "bg-navy-600", "bg-accent-amber", "bg-accent-rose"];
+  const TYPE_ICONS: Record<string, string> = {
+    fomc: "FED", nfp: "NFP", cpi: "CPI", gdp: "GDP", earnings: "ERN", pmi: "PMI",
+    jobless: "CLM", retail: "RTL", housing: "HSG", consumer: "CSM",
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {upcoming.map((event, i) => {
+        const countdown = formatCountdown(event.date);
+        const isImminent = countdown === "NOW" || (!countdown.includes("d") && parseInt(countdown) < 4);
+        return (
+          <div
+            key={`${event.date}-${event.holiday}-${i}`}
+            className={`flex items-center gap-2 py-1.5 px-2 rounded transition-colors ${isImminent ? "bg-accent-amber/8 border border-accent-amber/20" : "bg-navy-800/30"}`}
+          >
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${SIG_COLORS[event.significance] || "bg-navy-600"}`} />
+            <span className="text-[9px] font-mono text-navy-500 w-7 shrink-0">{TYPE_ICONS[event.type] || event.type.slice(0, 3).toUpperCase()}</span>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] text-navy-200 truncate block">{event.holiday}</span>
+            </div>
+            <div className="text-right shrink-0">
+              <span className={`text-[10px] font-mono ${isImminent ? "text-accent-amber font-bold" : "text-navy-400"}`}>
+                {countdown}
+              </span>
+              <span className="text-[8px] text-navy-600 block">
+                {new Date(event.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -2077,4 +2331,7 @@ export const AVAILABLE_WIDGETS = [
   { type: "daily_report", name: "Daily Report", description: "AI-generated daily intelligence briefing with drill-down", defaultWidth: 3, defaultConfig: {} },
   { type: "brier_score", name: "Brier Score", description: "Platform prediction calibration, accuracy, and scoring breakdown", defaultWidth: 1, defaultConfig: {} },
   { type: "trade_recs", name: "Trade Recommendations", description: "AI-generated trade ideas from signal analysis", defaultWidth: 1, defaultConfig: {} },
+  { type: "yield_curve", name: "Yield Curve", description: "Treasury yield curve with 2s/10s spread and inversion detection", defaultWidth: 1, defaultConfig: {} },
+  { type: "correlations", name: "Correlation Matrix", description: "Cross-asset correlations with break detection and stress score", defaultWidth: 2, defaultConfig: {} },
+  { type: "econ_countdown", name: "Event Countdown", description: "Countdown to next major economic releases (FOMC, NFP, CPI)", defaultWidth: 1, defaultConfig: {} },
 ];

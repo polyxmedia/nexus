@@ -95,6 +95,9 @@ const STORE_ITEMS: StoreItem[] = [
   { type: "currency_stress", name: "Currency Stress", description: "Dollar index, EUR, JPY, CNY trends", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
   { type: "oil_divergence", name: "Oil-SPX Divergence", description: "Premarket oil-equity divergence signal with regime detection", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "rose", minTier: "operator" },
   { type: "commodities", name: "Commodity Complex", description: "Gold, WTI, Brent, Natural Gas", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "operator" },
+  { type: "yield_curve", name: "Yield Curve", description: "Treasury yield curve with 2s/10s spread and inversion", category: "markets", defaultWidth: 1, defaultConfig: {}, accent: "cyan", minTier: "operator" },
+  { type: "correlations", name: "Correlation Matrix", description: "Cross-asset correlations with break detection", category: "analytics", defaultWidth: 2, defaultConfig: {}, accent: "rose", minTier: "operator" },
+  { type: "econ_countdown", name: "Event Countdown", description: "Countdown to FOMC, NFP, CPI and other releases", category: "intelligence", defaultWidth: 1, defaultConfig: {}, accent: "amber", minTier: "analyst" },
   // Analytics
   { type: "metric", name: "Portfolio Value", description: "Live portfolio value with P&L", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "portfolio_value" }, accent: "emerald", minTier: "operator" },
   { type: "metric", name: "Thesis Confidence", description: "Active thesis confidence level", category: "analytics", defaultWidth: 1, defaultConfig: { metric: "thesis_confidence" }, accent: "cyan", minTier: "free" },

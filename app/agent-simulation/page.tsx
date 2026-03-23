@@ -44,6 +44,33 @@ interface Simulation {
   createdAt: string;
 }
 
+const PRESET_SCENARIOS = [
+  {
+    label: "Oil Shock",
+    context: "Iran has closed the Strait of Hormuz after US sanctions escalation. Brent crude spiked 18% overnight. OPEC emergency meeting called for tomorrow. US Strategic Petroleum Reserve at 30-year lows. China importing record Russian crude via shadow fleet.",
+  },
+  {
+    label: "Fed Pivot",
+    context: "Fed surprised markets with a 50bp rate cut citing deteriorating labor market. Unemployment jumped to 4.8%. CPI still at 3.2%. Bond market pricing in 200bp of cuts over next 12 months. Dollar index falling sharply. Gold at all-time highs.",
+  },
+  {
+    label: "China-Taiwan",
+    context: "PLA conducting live-fire exercises within 12nm of Taiwan. TSMC share price down 22%. US carrier strike group transiting Philippine Sea. Japan raised defense readiness. Semiconductor supply chain in crisis mode. VIX spiked to 45.",
+  },
+  {
+    label: "AI Bubble Pop",
+    context: "Nvidia missed earnings by 30%, guidance slashed. Major cloud providers reporting AI capex pullback. Several AI startups defaulting on GPU leases. Nasdaq down 8% in 3 sessions. Rotation into value and defensive sectors accelerating.",
+  },
+  {
+    label: "Banking Crisis",
+    context: "Three regional US banks failed this week. Commercial real estate defaults accelerating. Credit spreads widening rapidly. Fed opened emergency lending facility. Bank ETF (KBE) down 25% this month. Deposit flight to money market funds and T-bills.",
+  },
+  {
+    label: "Crypto Black Swan",
+    context: "Tether depegged to $0.92 after reserve audit revealed $8B shortfall. Bitcoin crashed 35% in 24 hours. Major crypto exchange halted withdrawals. Contagion spreading to DeFi protocols. Congressional hearing on stablecoin regulation announced for next week.",
+  },
+];
+
 const STANCE_CONFIG: Record<string, { color: string; bg: string; icon: typeof TrendingUp }> = {
   strongly_bullish: { color: "text-accent-emerald", bg: "bg-accent-emerald/10", icon: TrendingUp },
   bullish: { color: "text-accent-emerald/70", bg: "bg-accent-emerald/5", icon: TrendingUp },
@@ -197,6 +224,7 @@ function SimulationHistoryCard({ sim, onClick }: { sim: Simulation; onClick: () 
 export default function AgentSimulationPage() {
   const router = useRouter();
   const [context, setContext] = useState("");
+  const [swarmSize, setSwarmSize] = useState(7);
   const [running, setRunning] = useState(false);
   const [currentResult, setCurrentResult] = useState<Simulation | null>(null);
   const [history, setHistory] = useState<Simulation[]>([]);
@@ -204,6 +232,7 @@ export default function AgentSimulationPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "graph">("graph");
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -234,7 +263,7 @@ export default function AgentSimulationPage() {
       const res = await fetch("/api/agent-simulation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context }),
+        body: JSON.stringify({ context, swarmSize }),
       });
 
       if (!res.ok) {
@@ -298,14 +327,53 @@ export default function AgentSimulationPage() {
                 Simulation Context
               </span>
             </div>
+
+            {/* Preset scenarios */}
+            <div className="mb-3">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-navy-600 block mb-1.5">Presets</span>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_SCENARIOS.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => setContext(p.context)}
+                    className="text-[9px] font-mono px-2 py-1 rounded border border-navy-700/30 text-navy-400 hover:text-navy-200 hover:border-navy-600/50 hover:bg-navy-800/40 transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <textarea
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              placeholder="Describe the current situation, signals, or scenario you want the agent panel to analyze..."
+              placeholder="Describe the scenario you want the agent swarm to analyze, or pick a preset above..."
               rows={6}
               maxLength={5000}
               className="w-full rounded bg-navy-900/40 border border-navy-700/40 text-[11px] font-mono text-navy-300 placeholder:text-navy-600 focus:outline-none focus:border-navy-600 transition-colors p-3 resize-none"
             />
+
+            {/* Swarm size */}
+            <div className="flex items-center gap-3 mt-3 mb-2">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Swarm Size</span>
+              <div className="flex items-center gap-1.5">
+                {[3, 5, 7, 10, 15].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setSwarmSize(n)}
+                    className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${
+                      swarmSize === n
+                        ? "bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30"
+                        : "text-navy-500 border border-navy-700/30 hover:text-navy-300 hover:border-navy-600/50"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[9px] font-mono text-navy-600">agents</span>
+            </div>
+
             <div className="flex items-center justify-between mt-2">
               <span className="text-[9px] font-mono text-navy-600 tabular-nums">
                 {context.length}/5000
@@ -319,7 +387,7 @@ export default function AgentSimulationPage() {
                 {running ? (
                   <>
                     <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                    Running 7 agents...
+                    Running {swarmSize} agents...
                   </>
                 ) : (
                   <>
@@ -447,9 +515,62 @@ export default function AgentSimulationPage() {
                     agents={agents}
                     convergenceScore={currentResult.convergenceScore}
                     dominantStance={currentResult.dominantStance}
+                    onAgentClick={(id) => setSelectedAgentId(selectedAgentId === id ? null : id)}
                   />
                 </div>
               )}
+
+              {/* Agent Detail Panel (graph click) */}
+              {viewMode === "graph" && selectedAgentId && (() => {
+                const agent = agents.find((a) => a.personaId === selectedAgentId);
+                if (!agent) return null;
+                const config = STANCE_CONFIG[agent.stance] || STANCE_CONFIG.neutral;
+                return (
+                  <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-lg ${config.bg} flex items-center justify-center`}>
+                          <StanceIcon stance={agent.stance} />
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-navy-200">{agent.personaName}</span>
+                          <span className="text-[9px] font-mono text-navy-600 ml-2">{agent.role}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedAgentId(null)} className="text-navy-600 hover:text-navy-400 text-xs font-mono">
+                        Close
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[10px] font-mono uppercase tracking-wider ${config.color}`}>
+                        {agent.stance.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-[9px] font-mono text-navy-600">
+                        {Math.round(agent.confidence * 100)}% confidence
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-navy-300 font-sans leading-relaxed">{agent.reasoning}</p>
+                    {agent.keyFactors.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Key Factors</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {agent.keyFactors.map((f, i) => (
+                            <span key={i} className="text-[9px] font-mono text-navy-400 px-1.5 py-0.5 rounded bg-navy-800/40">
+                              {f}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {agent.dissent && (
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-accent-amber/60">Dissent</span>
+                        <p className="text-[10px] text-accent-amber/80 font-sans leading-relaxed">{agent.dissent}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* List View */}
               {viewMode === "list" && (

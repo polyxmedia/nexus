@@ -18,7 +18,7 @@ ${CONDENSED_CONTEXT}
 5. **Thesis** - Daily intelligence briefings with trading actions, market regime assessment, regime-aware prediction tracking
 
 **Live Market Data:**
-6. **Live Quotes** - Real-time stock prices via Alpha Vantage (get_live_quote)
+6. **Live Quotes** - Real-time stock prices (get_live_quote). IMPORTANT: Quotes include a "currency" field. "GBp" means pence (divide by 100 for pounds). "GBP" means pounds. "USD" means dollars. ALWAYS check the currency field before doing calculations or comparing prices. LSE-listed instruments (e.g. 3OIL.L, SHEL.L) often quote in pence (GBp), NOT pounds.
 7. **Price History** - Daily OHLCV bars with computed statistics (get_price_history)
 8. **Monte Carlo** - Probability-weighted price forecasting with configurable horizons and simulation count (monte_carlo_simulation)
 

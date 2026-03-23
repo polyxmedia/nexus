@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -12,6 +12,7 @@ import {
   type Node,
   type Edge,
   type NodeMouseHandler,
+  type NodeChange,
   Position,
   Panel,
   ReactFlowProvider,
@@ -423,72 +424,69 @@ function SimulationGraphInner({ agents, convergenceScore, dominantStance, onAgen
     [agents]
   );
 
-  // Apply selection state
-  const styledNodes = useMemo(() => {
-    return initialNodes.map((node) => {
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(initialNodes);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges);
+
+  // Track drag positions so selection re-styling doesn't reset them
+  const dragPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    onNodesChange(changes);
+    // Capture drag positions
+    for (const c of changes) {
+      if (c.type === "position" && c.position && c.id) {
+        dragPositions.current.set(c.id, c.position);
+      }
+    }
+  }, [onNodesChange]);
+
+  // Sync layout + selection styling into rfNodes/rfEdges
+  useEffect(() => {
+    setRfNodes(initialNodes.map((node) => {
+      // Preserve drag position
+      const dragPos = dragPositions.current.get(node.id);
+      const position = dragPos || node.position;
+
       if (node.type === "agent") {
         const d = node.data as unknown as AgentNodeData;
         const isSelected = node.id === selectedAgent;
         const isDimmed = selectedAgent !== null && !isSelected;
-
-        // If an agent is selected, only dim factors not connected to it
-        return {
-          ...node,
-          data: { ...d, isSelected, isDimmed },
-        };
+        return { ...node, position, data: { ...d, isSelected, isDimmed } };
       }
       if (node.type === "factor") {
         const d = node.data as unknown as FactorNodeData;
         if (selectedAgent) {
-          // Check if this factor connects to selected agent
           const connected = initialEdges.some(
             (e) =>
               (e.source === node.id && e.target === selectedAgent) ||
               (e.target === node.id && e.source === selectedAgent)
           );
-          return {
-            ...node,
-            data: { ...d, isDimmed: !connected, isSelected: connected },
-          };
+          return { ...node, position, data: { ...d, isDimmed: !connected, isSelected: connected } };
         }
-        return { ...node, data: { ...d, isDimmed: false, isSelected: false } };
+        return { ...node, position, data: { ...d, isDimmed: false, isSelected: false } };
       }
-      return node;
-    });
-  }, [initialNodes, initialEdges, selectedAgent]);
+      return { ...node, position };
+    }));
 
-  const styledEdges = useMemo(() => {
-    if (!selectedAgent) return initialEdges;
-    return initialEdges.map((edge) => {
-      const connected =
-        edge.source === selectedAgent || edge.target === selectedAgent;
-      if (!connected) {
+    if (!selectedAgent) {
+      setRfEdges(initialEdges);
+    } else {
+      setRfEdges(initialEdges.map((edge) => {
+        const connected = edge.source === selectedAgent || edge.target === selectedAgent;
+        if (!connected) {
+          return { ...edge, style: { ...edge.style, opacity: 0.05 } };
+        }
         return {
           ...edge,
-          style: { ...edge.style, opacity: 0.05 },
+          style: {
+            ...edge.style,
+            opacity: 1,
+            strokeWidth: typeof edge.style?.strokeWidth === "number" ? edge.style.strokeWidth * 1.5 : 2,
+          },
         };
-      }
-      return {
-        ...edge,
-        style: {
-          ...edge.style,
-          opacity: 1,
-          strokeWidth:
-            typeof edge.style?.strokeWidth === "number"
-              ? edge.style.strokeWidth * 1.5
-              : 2,
-        },
-      };
-    });
-  }, [initialEdges, selectedAgent]);
-
-  const [rfNodes, , onNodesChange] = useNodesState(styledNodes);
-  const [rfEdges, , onEdgesChange] = useEdgesState(styledEdges);
-
-  // Keep nodes/edges in sync with styled versions
-  useMemo(() => {
-    // This is handled by key prop on ReactFlow forcing re-render
-  }, [styledNodes, styledEdges]);
+      }));
+    }
+  }, [initialNodes, initialEdges, selectedAgent, setRfNodes, setRfEdges]);
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
@@ -513,11 +511,10 @@ function SimulationGraphInner({ agents, convergenceScore, dominantStance, onAgen
 
   return (
     <ReactFlow
-      key={JSON.stringify(agents.map((a) => a.personaId))}
-      nodes={styledNodes}
-      edges={styledEdges}
+      nodes={rfNodes}
+      edges={rfEdges}
       nodeTypes={nodeTypes}
-      onNodesChange={onNodesChange}
+      onNodesChange={handleNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
       onPaneClick={handlePaneClick}

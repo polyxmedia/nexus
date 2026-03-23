@@ -5,17 +5,9 @@
  * then measures their convergence/divergence as a signal.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { AGENT_PERSONAS, type AgentResult, type AgentStance } from "./personas";
+import { AGENT_PERSONAS, STANCE_VALUES, type AgentResult, type AgentStance } from "./personas";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
-
-const STANCE_VALUES: Record<AgentStance, number> = {
-  strongly_bullish: 2,
-  bullish: 1,
-  neutral: 0,
-  bearish: -1,
-  strongly_bearish: -2,
-};
 
 const STANCE_LABELS: AgentStance[] = [
   "strongly_bearish",
@@ -172,15 +164,42 @@ function generateSummary(results: AgentResult[], convergence: ReturnType<typeof 
   return parts.join(" ");
 }
 
+/**
+ * Build a swarm of the requested size from the base personas.
+ * If swarmSize <= base count, pick that many. If larger, duplicate
+ * personas with variant suffixes so each agent runs independently.
+ */
+function buildSwarm(size: number): typeof AGENT_PERSONAS {
+  if (size <= AGENT_PERSONAS.length) {
+    return AGENT_PERSONAS.slice(0, size);
+  }
+
+  const swarm = [...AGENT_PERSONAS];
+  let variant = 2;
+  while (swarm.length < size) {
+    const base = AGENT_PERSONAS[swarm.length % AGENT_PERSONAS.length];
+    swarm.push({
+      ...base,
+      id: `${base.id}-v${variant}`,
+      name: `${base.name} #${variant}`,
+    });
+    if (swarm.length % AGENT_PERSONAS.length === 0) variant++;
+  }
+  return swarm;
+}
+
 export async function runSimulation(
   apiKey: string,
-  context: string
+  context: string,
+  swarmSize: number = 7
 ): Promise<SimulationResult> {
   const client = new Anthropic({ apiKey });
 
+  const swarm = buildSwarm(swarmSize);
+
   // Run all agents in parallel
   const results = await Promise.all(
-    AGENT_PERSONAS.map((persona) => runAgent(client, persona, context))
+    swarm.map((persona) => runAgent(client, persona, context))
   );
 
   const convergence = computeConvergence(results);
@@ -197,7 +216,8 @@ export async function runSimulation(
 
 export async function runAndPersistSimulation(
   apiKey: string,
-  context: string
+  context: string,
+  swarmSize: number = 7
 ): Promise<{ id: number; uuid: string; result: SimulationResult }> {
   // Create the row first as "running"
   const [row] = await db
@@ -206,7 +226,7 @@ export async function runAndPersistSimulation(
     .returning();
 
   try {
-    const result = await runSimulation(apiKey, context);
+    const result = await runSimulation(apiKey, context, swarmSize);
 
     // Update with results
     await db

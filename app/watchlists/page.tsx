@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { Button } from "@/components/ui/button";
 import { UpgradeGate } from "@/components/subscription/upgrade-gate";
+import dynamic from "next/dynamic";
 import {
   Plus,
   Search,
@@ -19,7 +20,10 @@ import {
   RefreshCw,
   List,
   Clock,
+  BarChart3,
 } from "lucide-react";
+
+const CandlestickChart = dynamic(() => import("@/components/charts/candlestick-chart"), { ssr: false });
 
 interface Quote {
   symbol: string;
@@ -68,6 +72,9 @@ export default function WatchlistsPage() {
   const [editingName, setEditingName] = useState<{ id: number; value: string } | null>(null);
   const [dragItem, setDragItem] = useState<{ watchlistId: number; itemId: number } | null>(null);
   const [dragOverItem, setDragOverItem] = useState<{ watchlistId: number; itemId: number } | null>(null);
+  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<Record<string, Array<{ time: string; open: number; high: number; low: number; close: number; volume?: number }>>>({});
+  const [techData, setTechData] = useState<Record<string, { rsi?: number; trend?: string; momentum?: string; sma20?: number; sma50?: number }>>({});
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchWatchlists = useCallback(async (withQuotes = true) => {
@@ -91,6 +98,27 @@ export default function WatchlistsPage() {
       setRefreshing(false);
     }
   }, []);
+
+  const toggleSymbolDetail = useCallback(async (symbol: string) => {
+    if (expandedSymbol === symbol) {
+      setExpandedSymbol(null);
+      return;
+    }
+    setExpandedSymbol(symbol);
+    // Fetch chart data if not cached
+    if (!chartData[symbol]) {
+      try {
+        const res = await fetch(`/api/markets/chart?symbol=${encodeURIComponent(symbol)}&range=3mo`);
+        const data = await res.json();
+        if (data.bars) {
+          setChartData((prev) => ({ ...prev, [symbol]: data.bars }));
+        }
+        if (data.technicals) {
+          setTechData((prev) => ({ ...prev, [symbol]: data.technicals }));
+        }
+      } catch { /* silent */ }
+    }
+  }, [expandedSymbol, chartData]);
 
   // Initial load + polling (pauses when tab hidden)
   useEffect(() => {

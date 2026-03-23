@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { context } = body;
+    const { context, swarmSize: rawSwarmSize } = body;
 
     if (!context || typeof context !== "string" || context.length < 10 || context.length > 5000) {
       return NextResponse.json(
@@ -73,6 +73,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const swarmSize = Math.max(3, Math.min(15, Number(rawSwarmSize) || 7));
 
     // Get Anthropic API key from settings
     const apiKeySetting = await db
@@ -86,10 +88,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 500 });
     }
 
-    const { id, uuid, result } = await runAndPersistSimulation(apiKey, context);
+    const { id, uuid, result } = await runAndPersistSimulation(apiKey, context, swarmSize);
 
-    // Debit credits for 7 agent calls (~500 tokens each)
-    await gate.debit("claude-sonnet-4-20250514", 3500, 3500, "agent_simulation");
+    // Debit credits for agent calls (~500 tokens each)
+    await gate.debit("claude-sonnet-4-20250514", swarmSize * 500, swarmSize * 500, "agent_simulation");
 
     return NextResponse.json({
       id,
