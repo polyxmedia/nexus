@@ -2325,10 +2325,40 @@ const RESOLUTION_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+/** Date window for filtering evidence to the prediction's active period */
+interface EvidenceWindow {
+  /** Earliest createdAt among due predictions (YYYY-MM-DD) */
+  windowStart: string;
+  /** Latest deadline among due predictions (YYYY-MM-DD) */
+  windowEnd: string;
+}
+
+/**
+ * Parse a date string (YYYYMMDD or YYYY-MM-DD or full ISO) to YYYY-MM-DD for comparison.
+ * Returns null if unparseable.
+ */
+function normalizeToDateString(raw: string): string | null {
+  if (!raw || raw === "unknown") return null;
+  // YYYYMMDD format (GDELT seendate)
+  if (/^\d{8}/.test(raw)) {
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  }
+  // Already YYYY-MM-DD or ISO
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+  // Try RFC 2822 (Google News RSS pubDate)
+  try {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+  } catch { /* ignore */ }
+  return null;
+}
+
 async function executeResolutionTool(
   toolName: string,
   input: Record<string, unknown>,
-  alphaVantageKey: string
+  alphaVantageKey: string,
+  evidenceWindow?: EvidenceWindow,
 ): Promise<string> {
   if (toolName === "get_market_price") {
     const symbol = (input.symbol as string || "").trim();

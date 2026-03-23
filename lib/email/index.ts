@@ -74,53 +74,112 @@ export async function getEmailLog(): Promise<EmailLogEntry[]> {
   try { return JSON.parse(rows[0].value); } catch { return []; }
 }
 
+// ── Rate Limiting + Dedup ─────────────────────────────────────────────────
+// Resend free tier: 2 emails/second. We enforce 1/second with a queue.
+// Dedup: same (type + recipient) within 10 minutes is suppressed.
+
+const EMAIL_QUEUE: Array<() => Promise<void>> = [];
+let queueProcessing = false;
+const SEND_INTERVAL_MS = 1000; // 1 email per second max
+
+// In-memory dedup cache: key = "type:recipient" -> timestamp
+const recentlySent = new Map<string, number>();
+const DEDUP_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+function isDuplicate(emailType: string, recipient: string): boolean {
+  const key = `${emailType}:${recipient}`;
+  const lastSent = recentlySent.get(key);
+  if (lastSent && Date.now() - lastSent < DEDUP_WINDOW_MS) {
+    return true;
+  }
+  recentlySent.set(key, Date.now());
+  // Clean old entries periodically
+  if (recentlySent.size > 200) {
+    const now = Date.now();
+    for (const [k, ts] of recentlySent) {
+      if (now - ts > DEDUP_WINDOW_MS) recentlySent.delete(k);
+    }
+  }
+  return false;
+}
+
+async function processEmailQueue() {
+  if (queueProcessing) return;
+  queueProcessing = true;
+  while (EMAIL_QUEUE.length > 0) {
+    const task = EMAIL_QUEUE.shift();
+    if (task) {
+      try { await task(); } catch { /* logged inside task */ }
+    }
+    if (EMAIL_QUEUE.length > 0) {
+      await new Promise((r) => setTimeout(r, SEND_INTERVAL_MS));
+    }
+  }
+  queueProcessing = false;
+}
+
 export async function sendEmail({ to, subject, html, text, replyTo, type }: SendEmailOptions) {
   const toArr = Array.isArray(to) ? to : [to];
+  const emailType = type || inferType(subject);
+
+  // Dedup: suppress identical email type to same recipient within window
+  const primaryRecipient = toArr[0];
+  if (isDuplicate(emailType, primaryRecipient)) {
+    console.log(`[email] Suppressed duplicate: ${emailType} to ${primaryRecipient} (sent within last 10m)`);
+    return { id: "suppressed-duplicate" };
+  }
+
   const logEntry: EmailLogEntry = {
     id: crypto.randomUUID(),
     to: toArr.join(", "),
     subject,
-    type: type || inferType(subject),
+    type: emailType,
     status: "sent",
     sentAt: new Date().toISOString(),
   };
 
-  try {
-    const result = await getResend().emails.send({
-      from: FROM_ADDRESS,
-      to: toArr,
-      subject,
-      html,
-      ...(text ? { text } : {}),
-      ...(replyTo ? { replyTo } : {}),
-    });
+  // Queue the actual send to respect rate limits
+  return new Promise<{ id: string } | undefined>((resolve, reject) => {
+    EMAIL_QUEUE.push(async () => {
+      try {
+        const result = await getResend().emails.send({
+          from: FROM_ADDRESS,
+          to: toArr,
+          subject,
+          html,
+          ...(text ? { text } : {}),
+          ...(replyTo ? { replyTo } : {}),
+        });
 
-    if (result.error) {
-      logEntry.status = "failed";
-      logEntry.error = result.error.message;
-      await logEmail(logEntry);
-      throw new Error(result.error.message);
-    }
+        if (result.error) {
+          logEntry.status = "failed";
+          logEntry.error = result.error.message;
+          await logEmail(logEntry);
+          reject(new Error(result.error.message));
+          return;
+        }
 
-    logEntry.resendId = result.data?.id;
-    await logEmail(logEntry);
-    return result.data;
-  } catch (err) {
-    if (logEntry.status !== "failed") {
-      logEntry.status = "failed";
-      logEntry.error = err instanceof Error ? err.message : String(err);
-      await logEmail(logEntry);
-    }
-    // Report email delivery failures to Sentry for monitoring
-    Sentry.withScope((scope) => {
-      scope.setTag("email.type", logEntry.type);
-      scope.setTag("email.to", logEntry.to);
-      scope.setExtra("subject", logEntry.subject);
-      scope.setLevel("error");
-      Sentry.captureException(err instanceof Error ? err : new Error(String(err)));
+        logEntry.resendId = result.data?.id;
+        await logEmail(logEntry);
+        resolve(result.data);
+      } catch (err) {
+        if (logEntry.status !== "failed") {
+          logEntry.status = "failed";
+          logEntry.error = err instanceof Error ? err.message : String(err);
+          await logEmail(logEntry);
+        }
+        Sentry.withScope((scope) => {
+          scope.setTag("email.type", logEntry.type);
+          scope.setTag("email.to", logEntry.to);
+          scope.setExtra("subject", logEntry.subject);
+          scope.setLevel("error");
+          Sentry.captureException(err instanceof Error ? err : new Error(String(err)));
+        });
+        reject(err);
+      }
     });
-    throw err;
-  }
+    processEmailQueue();
+  });
 }
 
 /** Look up a user's email from the settings table. userId is "user:{username}" */
