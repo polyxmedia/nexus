@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, type SQL } from "drizzle-orm";
 import { requireTier } from "@/lib/auth/require-tier";
 
 // Calendar/celestial/theological signals endpoint.
@@ -16,17 +16,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 
-    const conditions = [
+    const conditions: SQL[] = [
       sql`${schema.signals.category} IN ('celestial', 'hebrew', 'islamic')`,
     ];
     if (status) {
-      conditions.push(sql`${schema.signals.status} = ${status}`);
+      conditions.push(eq(schema.signals.status, status));
     }
 
     const results = await db
       .select()
       .from(schema.signals)
-      .where(sql`${conditions.map(c => sql`(${c})`).reduce((a, b) => sql`${a} AND ${b}`)}`)
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
       .orderBy(desc(schema.signals.date))
       .limit(100);
 

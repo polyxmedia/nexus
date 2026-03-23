@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
-import { eq, and, desc, ne, sql } from "drizzle-orm";
+import { eq, and, desc, sql, type SQL } from "drizzle-orm";
 import { generateSignals } from "@/lib/signals/engine";
 import { requireTier } from "@/lib/auth/require-tier";
 import { validateOrigin } from "@/lib/security/csrf";
-
-// Calendar/celestial categories excluded from the default signals feed.
-// These are available via /api/signals/calendar instead.
-const CALENDAR_CATEGORIES = new Set(["celestial", "hebrew", "islamic"]);
 
 export async function GET(request: NextRequest) {
   const tierCheck = await requireTier("analyst");
@@ -19,26 +15,22 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const includeCalendar = searchParams.get("includeCalendar") === "true";
 
-    // Build conditions
-    const conditions = [];
+    const conditions: SQL[] = [];
 
     if (intensity) conditions.push(eq(schema.signals.intensity, parseInt(intensity, 10)));
     if (status) conditions.push(eq(schema.signals.status, status));
     if (category) {
       conditions.push(eq(schema.signals.category, category));
     } else if (!includeCalendar) {
-      // By default, exclude calendar/celestial signals from the main feed
+      // By default, exclude calendar/celestial signals from the main feed.
+      // These are available via /api/signals/calendar.
       conditions.push(sql`${schema.signals.category} NOT IN ('celestial', 'hebrew', 'islamic')`);
     }
 
+    const query = db.select().from(schema.signals);
     const results = conditions.length > 0
-      ? await db.select().from(schema.signals)
-          .where(and(...conditions))
-          .orderBy(desc(schema.signals.date))
-          .limit(200)
-      : await db.select().from(schema.signals)
-          .orderBy(desc(schema.signals.date))
-          .limit(200);
+      ? await query.where(conditions.length === 1 ? conditions[0] : and(...conditions)).orderBy(desc(schema.signals.date)).limit(200)
+      : await query.orderBy(desc(schema.signals.date)).limit(200);
 
     return NextResponse.json(results, {
       headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
