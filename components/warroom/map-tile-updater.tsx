@@ -25,7 +25,7 @@ export function MapTileUpdater({
       }
     });
 
-    const newLayer = L.tileLayer(tileUrl, { attribution });
+    const newLayer = L.tileLayer(tileUrl, { attribution, maxZoom: 20 });
     newLayer.addTo(map);
     layerRef.current = newLayer;
 

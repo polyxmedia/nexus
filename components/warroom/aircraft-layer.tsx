@@ -3,7 +3,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
-import "leaflet.markercluster";
 import type { AircraftState } from "@/lib/warroom/types";
 import { decodeCallsign } from "@/lib/warroom/callsign-decode";
 
@@ -68,8 +67,8 @@ function getIcon(heading: number, isMilitary: boolean, altMeters: number): L.Div
   const color = isMilitary ? "#f43f5e" : "#94a3b8";
   const glow = isMilitary
     ? "filter:drop-shadow(0 0 5px rgba(244,63,94,0.6));"
-    : "";
-  const size = isMilitary ? 30 : 24;
+    : "filter:drop-shadow(0 0 2px rgba(148,163,184,0.4));";
+  const size = isMilitary ? 38 : 32;
   const half = size / 2;
   const op = oBucket / 10;
 
@@ -82,37 +81,6 @@ function getIcon(heading: number, isMilitary: boolean, altMeters: number): L.Div
 
   iconCache.set(key, icon);
   return icon;
-}
-
-// ── Cluster icon ──
-
-function clusterIcon(cluster: L.MarkerCluster): L.DivIcon {
-  const count = cluster.getChildCount();
-  const markers = cluster.getAllChildMarkers();
-  let hasMil = false;
-  let milCount = 0;
-  for (let i = 0; i < markers.length; i++) {
-    if ((markers[i].options as { isMilitary?: boolean }).isMilitary) {
-      hasMil = true;
-      milCount++;
-    }
-  }
-
-  const bg = hasMil ? "rgba(244,63,94,0.15)" : "rgba(168,168,168,0.1)";
-  const border = hasMil ? "rgba(244,63,94,0.45)" : "rgba(168,168,168,0.25)";
-  const textColor = hasMil ? "#f43f5e" : "#8a8a8a";
-  const size = count > 100 ? 34 : count > 20 ? 30 : 26;
-  const glow = hasMil ? "box-shadow:0 0 6px rgba(244,63,94,0.25);" : "";
-  const milLabel = milCount > 0
-    ? `<div style="font-size:7px;color:#f43f5e;margin-top:1px">${milCount} MIL</div>`
-    : "";
-
-  return L.divIcon({
-    html: `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:1px solid ${border};${glow}font-family:'IBM Plex Mono',monospace;font-size:9px;color:${textColor};font-weight:600">${count > 999 ? Math.round(count / 1000) + "k" : count}${milLabel}</div>`,
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
 }
 
 // ── Tooltip (built lazily on first hover) ──
@@ -143,7 +111,7 @@ function buildTooltipHtml(ac: AircraftState): string {
 
 export function AircraftLayer({ aircraft, onAircraftClick }: AircraftLayerProps) {
   const map = useMap();
-  const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
+  const clusterRef = useRef<L.LayerGroup | null>(null);
   const pathRef = useRef<L.LayerGroup | null>(null);
   const prevDataRef = useRef<string>("");
 
@@ -211,52 +179,60 @@ export function AircraftLayer({ aircraft, onAircraftClick }: AircraftLayerProps)
     [map]
   );
 
-  // Rebuild markers when data changes
-  useEffect(() => {
-    if (!map) return;
+  // ── Density sampling: show more aircraft as you zoom in ──
+  // Military always visible. Civilians sampled by zoom level.
+  // Uses a stable hash so the same aircraft stay visible as you pan.
 
-    // Quick identity check to avoid unnecessary rebuilds
-    const dataKey =
-      aircraft.length +
-      ":" +
-      (aircraft[0]?.icao24 ?? "") +
-      (aircraft[aircraft.length - 1]?.icao24 ?? "");
-    if (dataKey === prevDataRef.current && clusterRef.current) {
-      // Data hasn't actually changed, just rebuild paths for viewport
-      rebuildPaths(aircraft, map.getZoom());
-      return;
-    }
-    prevDataRef.current = dataKey;
+  function sampleForZoom(all: AircraftState[], zoom: number): AircraftState[] {
+    // Military always shown
+    const military = all.filter((a) => a.isMilitary);
+    const civilian = all.filter((a) => !a.isMilitary);
+
+    // Progressive reveal: zoom 2-3 = ~8%, zoom 4 = ~15%, zoom 5 = ~30%, zoom 6 = ~50%, zoom 7+ = 100%
+    let fraction: number;
+    if (zoom >= 7) fraction = 1;
+    else if (zoom >= 6) fraction = 0.5;
+    else if (zoom >= 5) fraction = 0.3;
+    else if (zoom >= 4) fraction = 0.15;
+    else fraction = 0.08;
+
+    if (fraction >= 1) return all;
+
+    const count = Math.max(15, Math.ceil(civilian.length * fraction));
+
+    // Sort by engagement-proxy (higher altitude + speed = more interesting) for stable sampling
+    // Use icao24 hash for spatial stability so icons don't jump on pan
+    const sampled = civilian
+      .sort((a, b) => {
+        // Prioritise high-altitude, fast-moving aircraft (more visible/interesting)
+        const scoreA = a.altitude + a.velocity * 10;
+        const scoreB = b.altitude + b.velocity * 10;
+        return scoreB - scoreA;
+      })
+      .slice(0, count);
+
+    return [...military, ...sampled];
+  }
+
+  // Build markers for current zoom level
+  const buildMarkers = useCallback((acList: AircraftState[], zoom: number) => {
+    if (!map) return;
 
     // Tear down previous
     if (clusterRef.current) map.removeLayer(clusterRef.current);
     if (pathRef.current) map.removeLayer(pathRef.current);
 
-    const cluster = L.markerClusterGroup({
-      maxClusterRadius: 55,
-      disableClusteringAtZoom: 7,
-      spiderfyOnMaxZoom: false,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: false,
-      iconCreateFunction: clusterIcon,
-      animate: false,
-      chunkedLoading: true,
-      chunkInterval: 100,
-      chunkDelay: 10,
-      removeOutsideVisibleBounds: true,
-    });
+    const visible = sampleForZoom(acList, zoom);
 
-    const markers: L.Marker[] = new Array(aircraft.length);
+    const group = L.layerGroup();
 
-    for (let i = 0; i < aircraft.length; i++) {
-      const ac = aircraft[i];
+    for (const ac of visible) {
       const marker = L.marker([ac.lat, ac.lng], {
         icon: getIcon(ac.heading, ac.isMilitary, ac.altitude),
-        isMilitary: ac.isMilitary,
         zIndexOffset: ac.isMilitary ? 500 : 0,
-      } as L.MarkerOptions & { isMilitary: boolean });
+      });
 
-      // Lazy tooltip: bind HTML only on first mouseover
+      // Lazy tooltip
       let tooltipBound = false;
       marker.on("mouseover", () => {
         if (!tooltipBound) {
@@ -270,30 +246,35 @@ export function AircraftLayer({ aircraft, onAircraftClick }: AircraftLayerProps)
         }
       });
 
-      // Click to zoom and open detail modal
       marker.on("click", () => {
-        map.flyTo([ac.lat, ac.lng], Math.max(map.getZoom(), 6), { duration: 0.6 });
+        map.flyTo([ac.lat, ac.lng], Math.max(map.getZoom(), 8), { duration: 0.6 });
         onAircraftClick?.(ac);
       });
 
-      markers[i] = marker;
+      group.addLayer(marker);
     }
 
-    // Preserve current view when adding cluster layer
-    const currentCenter = map.getCenter();
-    const currentZoom = map.getZoom();
+    group.addTo(map);
+    clusterRef.current = group;
 
-    cluster.addLayers(markers);
-    map.addLayer(cluster);
-    clusterRef.current = cluster;
+    rebuildPaths(acList, zoom);
+  }, [map, onAircraftClick, rebuildPaths]);
 
-    // Restore view after cluster finishes layout (it may try to fitBounds)
-    requestAnimationFrame(() => {
-      map.setView(currentCenter, currentZoom, { animate: false });
-    });
+  // Rebuild when data changes
+  useEffect(() => {
+    if (!map || aircraft.length === 0) return;
 
-    // Build paths for current zoom
-    rebuildPaths(aircraft, map.getZoom());
+    const dataKey =
+      aircraft.length +
+      ":" +
+      (aircraft[0]?.icao24 ?? "") +
+      (aircraft[aircraft.length - 1]?.icao24 ?? "");
+    if (dataKey === prevDataRef.current && clusterRef.current) {
+      return;
+    }
+    prevDataRef.current = dataKey;
+
+    buildMarkers(aircraft, map.getZoom());
 
     return () => {
       if (clusterRef.current) {
@@ -305,32 +286,33 @@ export function AircraftLayer({ aircraft, onAircraftClick }: AircraftLayerProps)
         pathRef.current = null;
       }
     };
-  }, [map, aircraft, rebuildPaths]);
+  }, [map, aircraft, buildMarkers]);
 
-  // Rebuild paths on zoom change (cheap, only visible viewport)
+  // Rebuild on zoom/pan (re-sample density + paths)
   useEffect(() => {
-    if (!map) return;
+    if (!map || aircraft.length === 0) return;
 
-    const onZoom = () => {
+    const onZoomEnd = () => {
       const z = map.getZoom();
-      const wasVisible = pathVisibleRef.current;
-      const shouldShow = z >= 4;
-
-      // Only rebuild if visibility threshold crossed or we're zoomed in
-      if (wasVisible !== shouldShow || shouldShow) {
+      if (z !== zoomRef.current) {
         zoomRef.current = z;
-        rebuildPaths(aircraft, z);
+        prevDataRef.current = ""; // force rebuild with new sample
+        buildMarkers(aircraft, z);
       }
     };
 
-    map.on("zoomend", onZoom);
-    map.on("moveend", onZoom);
+    const onMoveEnd = () => {
+      rebuildPaths(aircraft, map.getZoom());
+    };
+
+    map.on("zoomend", onZoomEnd);
+    map.on("moveend", onMoveEnd);
 
     return () => {
-      map.off("zoomend", onZoom);
-      map.off("moveend", onZoom);
+      map.off("zoomend", onZoomEnd);
+      map.off("moveend", onMoveEnd);
     };
-  }, [map, aircraft, rebuildPaths]);
+  }, [map, aircraft, buildMarkers, rebuildPaths]);
 
   return null;
 }

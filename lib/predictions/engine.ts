@@ -2354,6 +2354,34 @@ export function normalizeToDateString(raw: string): string | null {
   return null;
 }
 
+/**
+ * Filter items by evidence window, excluding any with dates outside the window.
+ * Items with unparseable dates are kept (let AI evaluate).
+ */
+export function filterByEvidenceWindow<T>(
+  items: T[],
+  getDate: (item: T) => string,
+  window: EvidenceWindow,
+  logPrefix: string,
+  getLabel: (item: T) => string,
+): { kept: T[]; excluded: number } {
+  let excluded = 0;
+  const kept = items.filter((item) => {
+    const dateStr = normalizeToDateString(getDate(item));
+    if (!dateStr) return true;
+    if (dateStr < window.windowStart || dateStr > window.windowEnd) {
+      excluded++;
+      console.warn(
+        `[${logPrefix}] EVIDENCE DATE GATE: Excluding "${getLabel(item)}" ` +
+        `(date: ${dateStr}) outside prediction window ${window.windowStart} to ${window.windowEnd}`
+      );
+      return false;
+    }
+    return true;
+  });
+  return { kept, excluded };
+}
+
 async function executeResolutionTool(
   toolName: string,
   input: Record<string, unknown>,
@@ -2417,13 +2445,15 @@ async function executeResolutionTool(
         change: quote.change,
         change_percent: quote.changePercent,
         timestamp: (quote as Record<string, unknown>).timestamp || new Date().toISOString(),
-        recent_history: daily.slice(-30).map((b) => ({
-          date: b.date,
-          open: b.open,
-          high: b.high,
-          low: b.low,
-          close: b.close,
-        })),
+        recent_history: daily.slice(-30)
+          .filter((b) => !evidenceWindow || (b.date >= evidenceWindow.windowStart && b.date <= evidenceWindow.windowEnd))
+          .map((b) => ({
+            date: b.date,
+            open: b.open,
+            high: b.high,
+            low: b.low,
+            close: b.close,
+          })),
       });
     } catch (err) {
       return JSON.stringify({ error: `Failed to fetch ${symbol}: ${err instanceof Error ? err.message : "unknown error"}` });
@@ -2458,21 +2488,19 @@ async function executeResolutionTool(
       const allArticles = (data.articles || []).slice(0, 30) as Array<{ title: string; seendate: string; domain: string; url: string }>;
 
       // Post-filter: drop any articles outside the evidence window (belt-and-suspenders)
+      let articles = allArticles;
       let excluded = 0;
-      const articles = allArticles.filter((a) => {
-        if (!evidenceWindow) return true;
-        const articleDate = normalizeToDateString(a.seendate || "");
-        if (!articleDate) return true; // keep articles with unparseable dates, AI can evaluate
-        if (articleDate < evidenceWindow.windowStart || articleDate > evidenceWindow.windowEnd) {
-          excluded++;
-          console.warn(
-            `[search_news] EVIDENCE DATE GATE: Excluding article "${a.title?.slice(0, 80)}" ` +
-            `(date: ${articleDate}) outside prediction window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}`
-          );
-          return false;
-        }
-        return true;
-      });
+      if (evidenceWindow) {
+        const filtered = filterByEvidenceWindow(
+          allArticles,
+          (a) => a.seendate || "",
+          evidenceWindow,
+          "search_news",
+          (a) => a.title?.slice(0, 80) || "",
+        );
+        articles = filtered.kept;
+        excluded = filtered.excluded;
+      }
 
       const windowNote = evidenceWindow
         ? `NOTE: Results filtered to prediction evidence window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}. ${excluded > 0 ? `${excluded} article(s) excluded for being outside this window.` : ""}`
@@ -2519,21 +2547,19 @@ async function executeResolutionTool(
       }
 
       // Filter by evidence window
+      let items = allItems;
       let excluded = 0;
-      const items = allItems.filter((item) => {
-        if (!evidenceWindow) return true;
-        const articleDate = normalizeToDateString(item.date);
-        if (!articleDate) return true; // keep unparseable dates
-        if (articleDate < evidenceWindow.windowStart || articleDate > evidenceWindow.windowEnd) {
-          excluded++;
-          console.warn(
-            `[web_search] EVIDENCE DATE GATE: Excluding result "${item.title?.slice(0, 80)}" ` +
-            `(date: ${articleDate}) outside prediction window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}`
-          );
-          return false;
-        }
-        return true;
-      });
+      if (evidenceWindow) {
+        const filtered = filterByEvidenceWindow(
+          allItems,
+          (item) => item.date,
+          evidenceWindow,
+          "web_search",
+          (item) => item.title?.slice(0, 80) || "",
+        );
+        items = filtered.kept;
+        excluded = filtered.excluded;
+      }
 
       const windowNote = evidenceWindow
         ? `NOTE: Results filtered to prediction evidence window ${evidenceWindow.windowStart} to ${evidenceWindow.windowEnd}. ${excluded > 0 ? `${excluded} result(s) excluded for being outside this window.` : ""}`
@@ -2621,7 +2647,6 @@ export async function resolvePredictions(options?: { skipHousekeeping?: boolean 
 CRITICAL RULES:
 1. You MUST call get_market_price for EVERY market prediction before resolving it. Never guess prices.
 2. You MUST call search_news for EVERY geopolitical prediction before resolving it. Never assume events happened.
-EVIDENCE DATE GATING (CRITICAL): Only evidence dated WITHIN the prediction's active window (Created date to Deadline date) counts toward resolution. If a news article or data point predates the prediction's Created date, it CANNOT be used as confirming evidence. A prediction created March 16 cannot be confirmed by a March 3 article. The tools will pre-filter results to the evidence window, but if you notice any source with a date before the prediction's Created date, you MUST ignore it.
 3. For FX pairs: verify you are reading the quote in the correct direction. EUR/USD = dollars per euro (how many USD for 1 EUR). USD/JPY = yen per dollar. If the claim says "USD will strengthen vs EUR" that means EUR/USD goes DOWN (fewer dollars needed per euro).
 4. For relative performance claims (X outperforms Y): fetch BOTH instruments and compute the relative return yourself. CRITICAL: "outperform" in a DOWN market means falling LESS. If SPY drops 3% and IEF drops 1%, IEF outperformed by 2%. Outperformance = return_X - return_Y, not absolute returns.
 5. For "close above/below" claims: check the CLOSE price, not the intraday high/low.
@@ -2631,6 +2656,9 @@ EVIDENCE DATE GATING (CRITICAL): Only evidence dated WITHIN the prediction's act
 9. NEVER confirm a prediction without citing specific prices and dates from tool results.
 10. If the prediction was ALREADY TRUE when it was created (start price already past the target), outcome is "denied" with note "Invalid: target already met at creation."
 11. CRITICAL - COMMODITY FUTURES: Never use ETF proxies (USO, UNG, CPER, SLV, WEAT) to verify commodity price targets stated in per-unit terms ($85/barrel, $4.50/pound, $2000/oz). ETF share prices are completely different from underlying commodity prices. If you can only get ETF data for a commodity prediction, mark as "skip" with note "Instrument mismatch: need actual futures/spot price, not ETF proxy."
+
+## EVIDENCE DATE GATING
+Only evidence dated WITHIN the prediction's active window (Created date to Deadline date) counts toward resolution. If a news article or data point predates the prediction's Created date, it CANNOT be used as confirming evidence. A prediction created March 16 cannot be confirmed by a March 3 article. The tools pre-filter results to the evidence window, but if you notice any source with a date before the prediction's Created date, you MUST ignore it and note "evidence outside prediction window" in your reasoning.
 
 YOUR ROLE: Extract facts ONLY. You do NOT classify outcomes (HIT/MISS/PARTIAL). The system does that from your structured data.
 

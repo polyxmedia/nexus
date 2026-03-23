@@ -129,7 +129,7 @@ export default function WarRoomPage() {
   }, [theme]);
 
   const [layerVisibility, setLayerVisibility] = useState<WarRoomLayerVisibility>({
-    aircraft: false,
+    aircraft: true,
     vessels: false,
     osintMarkers: true,
     conflictHeatmap: false,

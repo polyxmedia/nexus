@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeToDateString } from "../engine";
+import { normalizeToDateString, filterByEvidenceWindow, type EvidenceWindow } from "../engine";
 
 // ── normalizeToDateString ──
 
@@ -33,8 +33,7 @@ describe("normalizeToDateString", () => {
 });
 
 // ── Evidence date-gating logic ──
-// These tests verify the filtering behavior that happens inside the tool handlers.
-// We extract the core filtering logic and test it directly.
+// Tests the actual filterByEvidenceWindow function from engine.ts.
 
 interface Article {
   date: string;
@@ -42,36 +41,17 @@ interface Article {
   source: string;
 }
 
-interface EvidenceWindow {
-  windowStart: string; // YYYY-MM-DD
-  windowEnd: string; // YYYY-MM-DD
-}
-
-/**
- * Replicates the filtering logic from executeResolutionTool's search_news handler.
- */
-function filterArticlesByWindow(
-  articles: Article[],
-  window: EvidenceWindow
-): { kept: Article[]; excluded: Article[] } {
-  const kept: Article[] = [];
-  const excluded: Article[] = [];
-
-  for (const a of articles) {
-    const articleDate = normalizeToDateString(a.date);
-    if (!articleDate) {
-      // Keep unparseable dates (let AI evaluate)
-      kept.push(a);
-      continue;
-    }
-    if (articleDate < window.windowStart || articleDate > window.windowEnd) {
-      excluded.push(a);
-    } else {
-      kept.push(a);
-    }
-  }
-
-  return { kept, excluded };
+function filterArticles(articles: Article[], window: EvidenceWindow) {
+  const { kept, excluded } = filterByEvidenceWindow(
+    articles,
+    (a) => a.date,
+    window,
+    "test",
+    (a) => a.title,
+  );
+  // Collect excluded items for assertions
+  const allExcluded = articles.filter((a) => !kept.includes(a));
+  return { kept, excluded: allExcluded, excludedCount: excluded };
 }
 
 describe("evidence date-gating filter", () => {
@@ -86,7 +66,7 @@ describe("evidence date-gating filter", () => {
       { date: "20260320", title: "Follow-up report", source: "bbc.com" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, window);
+    const { kept, excluded } = filterArticles(articles, window);
     expect(kept).toHaveLength(2);
     expect(excluded).toHaveLength(0);
   });
@@ -98,7 +78,7 @@ describe("evidence date-gating filter", () => {
       { date: "20260318", title: "Valid in-window article", source: "reuters.com" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, window);
+    const { kept, excluded } = filterArticles(articles, window);
     expect(kept).toHaveLength(1);
     expect(kept[0].title).toBe("Valid in-window article");
     expect(excluded).toHaveLength(2);
@@ -112,7 +92,7 @@ describe("evidence date-gating filter", () => {
       { date: "20260325", title: "After deadline", source: "bbc.com" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, window);
+    const { kept, excluded } = filterArticles(articles, window);
     expect(kept).toHaveLength(1);
     expect(excluded).toHaveLength(1);
     expect(excluded[0].title).toBe("After deadline");
@@ -124,7 +104,7 @@ describe("evidence date-gating filter", () => {
       { date: "20260323", title: "On deadline date", source: "bbc.com" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, window);
+    const { kept, excluded } = filterArticles(articles, window);
     expect(kept).toHaveLength(2);
     expect(excluded).toHaveLength(0);
   });
@@ -135,7 +115,7 @@ describe("evidence date-gating filter", () => {
       { date: "", title: "Empty date", source: "gdelt.org" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, window);
+    const { kept, excluded } = filterArticles(articles, window);
     expect(kept).toHaveLength(2);
     expect(excluded).toHaveLength(0);
   });
@@ -146,7 +126,7 @@ describe("evidence date-gating filter", () => {
       { date: "Wed, 18 Mar 2026 14:00:00 GMT", title: "In-window via RSS", source: "bbc.com" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, window);
+    const { kept, excluded } = filterArticles(articles, window);
     expect(kept).toHaveLength(1);
     expect(kept[0].title).toBe("In-window via RSS");
     expect(excluded).toHaveLength(1);
@@ -165,7 +145,7 @@ describe("evidence date-gating filter", () => {
       { date: "20260318", title: "Legitimate in-window evidence", source: "reuters.com" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, prediction279Window);
+    const { kept, excluded } = filterArticles(articles, prediction279Window);
 
     // The March 3 article (13 days before creation) must be excluded
     expect(excluded).toHaveLength(1);
@@ -183,7 +163,7 @@ describe("evidence date-gating filter", () => {
       { date: "20260330", title: "Too late", source: "c.com" },
     ];
 
-    const { kept, excluded } = filterArticlesByWindow(articles, window);
+    const { kept, excluded } = filterArticles(articles, window);
     expect(kept).toHaveLength(0);
     expect(excluded).toHaveLength(3);
   });

@@ -113,7 +113,7 @@ async function fetchRegion(
   try {
     const res = await fetch(url, {
       cache: "no-store",
-      headers: openSkyHeaders(auth),
+      headers: openSkyHeaders(token),
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
       allStates = data.states || [];
     } else {
       // No bounds specified, fetch strategic regions in parallel
-      const results = await Promise.allSettled(REGIONS.map((r) => fetchRegion(r, token)));
+      const results = await Promise.allSettled(REGIONS.map((r) => fetchRegion(r, auth)));
 
       // Deduplicate by icao24 (index 0) since regions may overlap
       const seen = new Set<string>();

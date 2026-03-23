@@ -183,7 +183,7 @@ export default function WarRoomMap({
       center={[25, 45]}
       zoom={3}
       minZoom={2}
-      maxZoom={8}
+      maxZoom={18}
       className="h-full w-full"
       zoomControl={true}
       attributionControl={false}
