@@ -2,24 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 import { startScheduler, stopScheduler, getJobStatus } from "@/lib/scheduler";
 import { requireCronOrAdmin } from "@/lib/auth/require-cron";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { validateOrigin } from "@/lib/security/csrf";
 
 export async function GET(req: NextRequest) {
   const denied = await requireCronOrAdmin(req);
   if (denied) return denied;
 
-  // Also return the AI enabled flag from settings
   let aiEnabled = true;
+  const intervalOverrides: Record<string, number> = {};
   try {
-    const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, "scheduler:ai_enabled"));
-    if (rows[0]?.value) {
-      const v = rows[0].value.toLowerCase();
+    const aiRows = await db.select().from(schema.settings).where(eq(schema.settings.key, "scheduler:ai_enabled"));
+    if (aiRows[0]?.value) {
+      const v = aiRows[0].value.toLowerCase();
       aiEnabled = v === "true" || v === "1" || v === "yes";
     }
-  } catch { /* default true */ }
+    // Read saved interval overrides from DB so cold serverless instances show correct values
+    const intRows = await db.select().from(schema.settings).where(like(schema.settings.key, "scheduler:interval:%"));
+    for (const row of intRows) {
+      const jobName = row.key.slice("scheduler:interval:".length);
+      const minutes = Number(row.value);
+      if (Number.isFinite(minutes)) {
+        intervalOverrides[jobName] = minutes * 60_000;
+      }
+    }
+  } catch { /* defaults */ }
 
-  return NextResponse.json({ jobs: getJobStatus(), aiEnabled });
+  // Merge DB overrides into in-memory job status (handles cold start on serverless)
+  const jobs = getJobStatus().map((j) => ({
+    ...j,
+    intervalMs: intervalOverrides[j.name] !== undefined ? intervalOverrides[j.name] : j.intervalMs,
+    enabled: (intervalOverrides[j.name] !== undefined ? intervalOverrides[j.name] > 0 : j.intervalMs > 0) && !j.disabled,
+  }));
+
+  return NextResponse.json({ jobs, aiEnabled });
 }
 
 export async function POST(req: NextRequest) {
