@@ -103,33 +103,37 @@ function computeConvergence(results: AgentResult[]): {
     return { score: 0, label: "No data", dominantStance: "neutral" };
   }
 
-  // Weighted mean stance (weighted by confidence)
-  let totalWeight = 0;
-  let weightedSum = 0;
+  // Dominant stance: mode (most common), not weighted mean
+  const stanceCounts: Record<string, number> = {};
   for (const r of results) {
-    const w = r.confidence;
-    weightedSum += STANCE_VALUES[r.stance] * w;
-    totalWeight += w;
+    stanceCounts[r.stance] = (stanceCounts[r.stance] || 0) + 1;
   }
-  const meanStance = totalWeight > 0 ? weightedSum / totalWeight : 0;
+  const dominantStance = (Object.entries(stanceCounts).sort((a, b) => b[1] - a[1])[0][0]) as AgentStance;
 
-  // Variance of stances (lower = more convergence)
-  let varianceSum = 0;
-  for (const r of results) {
-    const diff = STANCE_VALUES[r.stance] - meanStance;
-    varianceSum += diff * diff * r.confidence;
+  // Convergence: pairwise agreement ratio
+  // For each pair of agents, measure how close their stances are (0-4 range)
+  // This gives a more intuitive score than variance against theoretical max
+  let pairCount = 0;
+  let agreementSum = 0;
+  for (let i = 0; i < results.length; i++) {
+    for (let j = i + 1; j < results.length; j++) {
+      const diff = Math.abs(
+        STANCE_VALUES[results[i].stance] - STANCE_VALUES[results[j].stance]
+      );
+      // diff: 0 = same, 1 = adjacent, 2+ = far apart
+      // agreement: 1.0 for same, 0.75 for adjacent, 0.5 for 2-apart, etc.
+      agreementSum += Math.max(0, 1 - diff / 4);
+      pairCount++;
+    }
   }
-  const variance = totalWeight > 0 ? varianceSum / totalWeight : 0;
+  const pairwiseScore = pairCount > 0 ? agreementSum / pairCount : 0;
 
-  // Max possible variance is 4 (range from -2 to 2, so max diff = 4, variance = 16/n)
-  // Normalize: convergence = 1 - (variance / maxVariance)
-  const maxVariance = 4; // (2 - (-2))^2 / 4 = 4
-  const convergenceScore = Math.max(0, Math.min(1, 1 - variance / maxVariance));
+  // Also factor in whether agents are confident in their stance
+  // Low confidence across the board should dampen convergence
+  const avgConfidence = results.reduce((s, r) => s + r.confidence, 0) / results.length;
+  const confidencePenalty = Math.min(1, avgConfidence / 0.5); // full credit at >= 50% avg confidence
 
-  // Dominant stance from weighted mean
-  const stanceIndex = Math.round((meanStance + 2) / 4 * (STANCE_LABELS.length - 1));
-  const clampedIndex = Math.max(0, Math.min(STANCE_LABELS.length - 1, stanceIndex));
-  const dominantStance = STANCE_LABELS[clampedIndex];
+  const convergenceScore = Math.max(0, Math.min(1, pairwiseScore * confidencePenalty));
 
   // Label
   let label: string;

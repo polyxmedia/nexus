@@ -15,7 +15,10 @@ import {
   ChevronRight,
   Clock,
   Target,
+  LayoutList,
+  Network,
 } from "lucide-react";
+import { SimulationGraph } from "@/components/simulation/simulation-graph";
 
 interface AgentResult {
   personaId: string;
@@ -200,6 +203,7 @@ export default function AgentSimulationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "graph">("graph");
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -368,74 +372,117 @@ export default function AgentSimulationPage() {
             </div>
           ) : (
             <>
-              {/* Summary Row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Agents</span>
-                  <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">{agents.length}</div>
-                </div>
-                <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Convergence</span>
-                  <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">
-                    {currentResult.convergenceScore !== null ? `${Math.round(currentResult.convergenceScore * 100)}%` : "-"}
+              {/* View toggle + Summary Row */}
+              <div className="flex items-center justify-between">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-1 mr-3">
+                  <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Agents</span>
+                    <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">{agents.length}</div>
                   </div>
-                  <div className="text-[9px] font-mono text-navy-600">{currentResult.convergenceLabel}</div>
-                </div>
-                <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Dominant</span>
-                  <div className={`text-sm font-mono font-bold uppercase ${(STANCE_CONFIG[currentResult.dominantStance || "neutral"] || STANCE_CONFIG.neutral).color}`}>
-                    {(currentResult.dominantStance || "neutral").replace(/_/g, " ")}
+                  <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Convergence</span>
+                    <div className="text-xl font-mono font-bold text-navy-100 tabular-nums">
+                      {currentResult.convergenceScore !== null ? `${Math.round(currentResult.convergenceScore * 100)}%` : "-"}
+                    </div>
+                    <div className="text-[9px] font-mono text-navy-600">{currentResult.convergenceLabel}</div>
+                  </div>
+                  <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Dominant</span>
+                    <div className={`text-sm font-mono font-bold uppercase ${(STANCE_CONFIG[currentResult.dominantStance || "neutral"] || STANCE_CONFIG.neutral).color}`}>
+                      {(currentResult.dominantStance || "neutral").replace(/_/g, " ")}
+                    </div>
+                  </div>
+                  <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Distribution</span>
+                    <div className="flex items-center gap-1 mt-1">
+                      {["strongly_bullish", "bullish", "neutral", "bearish", "strongly_bearish"].map((s) => (
+                        <div
+                          key={s}
+                          className="flex-1 rounded-sm transition-all"
+                          style={{
+                            height: `${Math.max(4, (stanceDistribution[s] || 0) / agents.length * 28)}px`,
+                            backgroundColor: s.includes("bullish")
+                              ? "#10b981"
+                              : s.includes("bearish")
+                              ? "#f43f5e"
+                              : "#6b7280",
+                            opacity: stanceDistribution[s] ? 0.8 : 0.15,
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-3 py-2.5">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500">Distribution</span>
-                  <div className="flex items-center gap-1 mt-1">
-                    {["strongly_bullish", "bullish", "neutral", "bearish", "strongly_bearish"].map((s) => (
-                      <div
-                        key={s}
-                        className="flex-1 rounded-sm transition-all"
-                        style={{
-                          height: `${Math.max(4, (stanceDistribution[s] || 0) / agents.length * 28)}px`,
-                          backgroundColor: s.includes("bullish")
-                            ? "#10b981"
-                            : s.includes("bearish")
-                            ? "#f43f5e"
-                            : "#6b7280",
-                          opacity: stanceDistribution[s] ? 0.8 : 0.15,
-                        }}
-                      />
+                {/* View toggle */}
+                <div className="flex border border-navy-700/30 rounded-lg overflow-hidden shrink-0">
+                  <button
+                    onClick={() => setViewMode("graph")}
+                    className={`px-2.5 py-2 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider transition-colors ${
+                      viewMode === "graph"
+                        ? "bg-navy-800/60 text-navy-200"
+                        : "text-navy-600 hover:text-navy-400"
+                    }`}
+                  >
+                    <Network className="h-3 w-3" />
+                    Graph
+                  </button>
+                  <button
+                    onClick={() => setViewMode("list")}
+                    className={`px-2.5 py-2 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider transition-colors ${
+                      viewMode === "list"
+                        ? "bg-navy-800/60 text-navy-200"
+                        : "text-navy-600 hover:text-navy-400"
+                    }`}
+                  >
+                    <LayoutList className="h-3 w-3" />
+                    List
+                  </button>
+                </div>
+              </div>
+
+              {/* Graph View */}
+              {viewMode === "graph" && (
+                <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 overflow-hidden" style={{ height: 560 }}>
+                  <SimulationGraph
+                    agents={agents}
+                    convergenceScore={currentResult.convergenceScore}
+                    dominantStance={currentResult.dominantStance}
+                  />
+                </div>
+              )}
+
+              {/* List View */}
+              {viewMode === "list" && (
+                <>
+                  {/* Convergence Meter */}
+                  {currentResult.convergenceScore !== null && (
+                    <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
+                      <ConvergenceMeter score={currentResult.convergenceScore} />
+                    </div>
+                  )}
+
+                  {/* Summary */}
+                  {currentResult.summary && (
+                    <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block mb-1.5">Summary</span>
+                      <p className="text-[11px] text-navy-300 font-sans leading-relaxed">{currentResult.summary}</p>
+                    </div>
+                  )}
+
+                  {/* Agent Cards */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Users className="h-3 w-3 text-navy-500" />
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
+                        Agent Panel
+                      </span>
+                    </div>
+                    {agents.map((agent, i) => (
+                      <AgentCard key={agent.personaId} agent={agent} index={i} />
                     ))}
                   </div>
-                </div>
-              </div>
-
-              {/* Convergence Meter */}
-              {currentResult.convergenceScore !== null && (
-                <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
-                  <ConvergenceMeter score={currentResult.convergenceScore} />
-                </div>
+                </>
               )}
-
-              {/* Summary */}
-              {currentResult.summary && (
-                <div className="border border-navy-700/30 rounded-lg bg-navy-900/20 px-4 py-3">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-navy-500 block mb-1.5">Summary</span>
-                  <p className="text-[11px] text-navy-300 font-sans leading-relaxed">{currentResult.summary}</p>
-                </div>
-              )}
-
-              {/* Agent Cards */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Users className="h-3 w-3 text-navy-500" />
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-navy-500">
-                    Agent Panel
-                  </span>
-                </div>
-                {agents.map((agent, i) => (
-                  <AgentCard key={agent.personaId} agent={agent} index={i} />
-                ))}
-              </div>
             </>
           )}
         </div>

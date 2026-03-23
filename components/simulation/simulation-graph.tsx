@@ -70,7 +70,7 @@ const STANCE_VALUES: Record<string, number> = {
   strongly_bearish: -2,
 };
 
-const PERSONA_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+const PERSONA_ICONS: Record<string, React.ComponentType<{ className?: string; size?: number; color?: string }>> = {
   "macro-bull": TrendingUp,
   "geopolitical-hawk": Crosshair,
   "quant-neutral": BarChart3,
@@ -149,11 +149,8 @@ function AgentNodeComponent({ data }: { data: Record<string, unknown> }) {
       >
         <Icon
           className="shrink-0"
-          style={{
-            width: size * 0.3,
-            height: size * 0.3,
-            color: d.isSelected ? "#fff" : `${color}`,
-          }}
+          size={size * 0.3}
+          color={d.isSelected ? "#fff" : color}
         />
       </div>
 
