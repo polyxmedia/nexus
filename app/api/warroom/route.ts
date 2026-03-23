@@ -70,7 +70,7 @@ export async function GET() {
       db
         .select()
         .from(signalsTable)
-        .where(sql`${signalsTable.category} NOT IN ('celestial', 'hebrew', 'islamic')`)
+        .where(sql`${signalsTable.category} NOT IN ('celestial', 'hebrew', 'islamic', 'convergence')`)
         .orderBy(desc(signalsTable.intensity))
         .limit(50),
       db

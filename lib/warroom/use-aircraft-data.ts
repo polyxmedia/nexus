@@ -16,11 +16,13 @@ export interface AircraftBounds {
 export function useAircraftData(enabled: boolean, bounds?: AircraftBounds | null) {
   const visible = useDocumentVisible();
 
-  // Build URL with optional bounding box
+  // Round bounds to 1 decimal place so small pans don't trigger new fetches
+  // A 0.1 degree grid is ~11km, plenty granular for aircraft
   let url: string | null = null;
   if (enabled) {
     if (bounds) {
-      url = `/api/warroom/aircraft?lamin=${bounds.lamin}&lomin=${bounds.lomin}&lamax=${bounds.lamax}&lomax=${bounds.lomax}`;
+      const r = (n: number) => Math.round(n * 10) / 10;
+      url = `/api/warroom/aircraft?lamin=${r(bounds.lamin)}&lomin=${r(bounds.lomin)}&lamax=${r(bounds.lamax)}&lomax=${r(bounds.lomax)}`;
     } else {
       url = "/api/warroom/aircraft";
     }

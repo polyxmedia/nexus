@@ -61,6 +61,7 @@ interface WarRoomMapProps {
   fires?: FireDetection[];
   radiation?: RadiationReading[];
   socialPosts?: SocialPost[];
+  onBoundsChange?: (bounds: { lamin: number; lomin: number; lamax: number; lomax: number; zoom: number }) => void;
 }
 
 const ESCALATION_COLORS: Record<number, string> = {
@@ -116,6 +117,40 @@ function strategicIcon(type: string) {
   });
 }
 
+function BoundsReporter({ onChange }: { onChange: (bounds: { lamin: number; lomin: number; lamax: number; lomax: number; zoom: number }) => void }) {
+  const map = useMap();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const report = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        const b = map.getBounds();
+        onChange({
+          lamin: b.getSouth(),
+          lomin: b.getWest(),
+          lamax: b.getNorth(),
+          lomax: b.getEast(),
+          zoom: map.getZoom(),
+        });
+      }, 300);
+    };
+
+    map.on("moveend", report);
+    map.on("zoomend", report);
+    // Fire once on mount
+    report();
+
+    return () => {
+      map.off("moveend", report);
+      map.off("zoomend", report);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [map, onChange]);
+
+  return null;
+}
+
 function FlyToZone({ center }: { center: [number, number] }) {
   const map = useMap();
   const prevCenter = useRef<[number, number] | null>(null);
@@ -165,6 +200,7 @@ export default function WarRoomMap({
   fires,
   radiation,
   socialPosts,
+  onBoundsChange,
 }: WarRoomMapProps) {
   const activeActorId = hoveredActorId || selectedActorId;
 
@@ -190,6 +226,7 @@ export default function WarRoomMap({
       style={{ background: "var(--color-navy-950)" }}
     >
       <MapTileUpdater tileUrl={tileUrl} attribution={tileAttribution} />
+      {onBoundsChange && <BoundsReporter onChange={onBoundsChange} />}
 
       {/* Country click detection */}
       {onCountryClick && <CountryClickLayer onCountryClick={onCountryClick} />}

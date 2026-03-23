@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     } else if (!includeCalendar) {
       // By default, exclude calendar/celestial signals from the main feed.
       // These are available via /api/signals/calendar.
-      conditions.push(sql`${schema.signals.category} NOT IN ('celestial', 'hebrew', 'islamic')`);
+      conditions.push(sql`${schema.signals.category} NOT IN ('celestial', 'hebrew', 'islamic', 'convergence')`);
     }
 
     const query = db.select().from(schema.signals);

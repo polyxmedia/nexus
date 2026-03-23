@@ -127,6 +127,24 @@ export const authOptions: AuthOptions = {
       } catch {
         // cookies() may not be available in all contexts (e.g. middleware)
       }
+
+      // Attach role from DB to session
+      if (session.user?.name) {
+        try {
+          const userSetting = await db
+            .select()
+            .from(schema.settings)
+            .where(eq(schema.settings.key, `user:${session.user.name}`))
+            .limit(1);
+          if (userSetting[0]?.value) {
+            const userData = JSON.parse(userSetting[0].value);
+            (session.user as Record<string, unknown>).role = userData.role || "user";
+          }
+        } catch {
+          // Fallback: no role attached
+        }
+      }
+
       return session;
     },
   },

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
 
     const conditions: SQL[] = [
-      sql`${schema.signals.category} IN ('celestial', 'hebrew', 'islamic')`,
+      sql`${schema.signals.category} IN ('celestial', 'hebrew', 'islamic', 'convergence')`,
     ];
     if (status) {
       conditions.push(eq(schema.signals.status, status));

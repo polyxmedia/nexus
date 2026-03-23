@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import nextDynamic from "next/dynamic";
 // Status indicators are inline in the top bar
 import { ScenarioPanel } from "@/components/warroom/scenario-panel";
@@ -23,7 +23,7 @@ import { ViewModeToggle } from "@/components/warroom/view-mode-toggle";
 import type { ViewMode } from "@/components/warroom/view-mode-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "@/lib/hooks/useTheme";
-import { useAircraftData } from "@/lib/warroom/use-aircraft-data";
+import { useAircraftData, type AircraftBounds } from "@/lib/warroom/use-aircraft-data";
 import { useVesselData } from "@/lib/warroom/use-vessel-data";
 import { useOsintData } from "@/lib/warroom/use-osint-data";
 import { useSatelliteData } from "@/lib/warroom/use-satellite-data";
@@ -141,7 +141,18 @@ export default function WarRoomPage() {
     social: false,
   });
 
-  const { data: aircraftData } = useAircraftData(layerVisibility.aircraft);
+  const [mapBounds, setMapBounds] = useState<AircraftBounds | null>(null);
+  const [mapZoom, setMapZoom] = useState(3);
+  const handleBoundsChange = useCallback((b: { lamin: number; lomin: number; lamax: number; lomax: number; zoom: number }) => {
+    setMapZoom(b.zoom);
+    // Only send viewport bounds to API when zoomed in (z>=5), otherwise use strategic regions
+    if (b.zoom >= 5) {
+      setMapBounds({ lamin: b.lamin, lomin: b.lomin, lamax: b.lamax, lomax: b.lomax });
+    } else {
+      setMapBounds(null);
+    }
+  }, []);
+  const { data: aircraftData } = useAircraftData(layerVisibility.aircraft, mapBounds);
   const { data: vesselData } = useVesselData(layerVisibility.vessels);
   const { data: osintData } = useOsintData();
   const { data: satelliteData } = useSatelliteData(layerVisibility.satellites);
@@ -528,6 +539,7 @@ export default function WarRoomPage() {
               fires={fireData?.fires ?? []}
               radiation={radiationData?.readings ?? []}
               socialPosts={socialData?.posts ?? []}
+              onBoundsChange={handleBoundsChange}
             />
           ) : (
             <GlobeView
